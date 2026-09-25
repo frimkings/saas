@@ -1,0 +1,626 @@
+================================================================================
+  EYE CLINIC MANAGEMENT SYSTEM — COMPLETE INSTALLATION GUIDE
+  For Windows computers using XAMPP
+  No programming knowledge required
+================================================================================
+
+This guide walks you through every step needed to get the Eye Clinic system
+running on a Windows PC from scratch. Follow each section in order. Do not
+skip steps.
+
+Estimated total time: 30–60 minutes (depending on internet speed)
+
+
+================================================================================
+  SECTION 1 — THINGS YOU NEED BEFORE YOU START
+================================================================================
+
+You will need:
+  - A Windows 10 or Windows 11 PC
+  - An internet connection (for downloads)
+  - The Eye Clinic project folder (a folder called "eyeclinicproject")
+  - At least 2 GB of free disk space
+
+You will download and install:
+  1. XAMPP  (runs PHP and MySQL — the engine that powers the system)
+  2. Composer  (installs the code libraries the system depends on)
+
+
+================================================================================
+  SECTION 2 — INSTALL XAMPP
+================================================================================
+
+XAMPP gives your computer a local web server, PHP, and a database — everything
+the Eye Clinic system needs to run.
+
+STEP 1: Download XAMPP
+  - Open your web browser and go to:
+      https://www.apachefriends.org/download.html
+  - Download the version for PHP 8.2 (Windows)
+  - The file will be named something like: xampp-windows-x64-8.2.x-installer.exe
+
+STEP 2: Run the installer
+  - Double-click the downloaded file
+  - If Windows asks "Do you want to allow this app to make changes?" click Yes
+  - On the component selection screen, make sure these are ticked:
+      [x] Apache
+      [x] MySQL
+      [x] PHP
+      [x] phpMyAdmin
+  - Leave the install folder as:  C:\xampp
+  - Click Next through the rest and let it install
+  - When it finishes, click Finish (it may open the XAMPP Control Panel)
+
+STEP 3: Verify XAMPP works
+  - Open the XAMPP Control Panel (search "XAMPP" in the Start menu)
+  - Click the green "Start" button next to Apache
+  - Click the green "Start" button next to MySQL
+  - Both should show green "Running" status
+  - Open your browser and go to:  http://localhost
+  - You should see the XAMPP welcome page — this means it is working
+
+
+================================================================================
+  SECTION 3 — ENABLE REQUIRED PHP EXTENSIONS
+================================================================================
+
+The Eye Clinic system needs a few extra PHP features turned on.
+
+STEP 1: Open the XAMPP Control Panel
+
+STEP 2: Click "Config" next to Apache, then choose "PHP (php.ini)"
+  - This opens a text file in Notepad
+
+STEP 3: In Notepad, press Ctrl+F and search for each line below.
+  Find each line and remove the semicolon (;) at the beginning if it has one.
+  A semicolon means it is disabled. Removing it enables it.
+
+  Find and make sure these lines have NO semicolon at the start:
+    extension=pdo_mysql
+    extension=mysqli
+    extension=fileinfo
+    extension=openssl
+    extension=mbstring
+    extension=zip
+    extension=gd
+
+  Example — if you find:
+    ;extension=zip
+  Change it to:
+    extension=zip
+
+STEP 4: Save the file (Ctrl+S) and close Notepad
+
+STEP 5: In the XAMPP Control Panel, click "Stop" then "Start" next to Apache
+  to apply the changes
+
+
+================================================================================
+  SECTION 4 — INSTALL COMPOSER
+================================================================================
+
+Composer is a tool that downloads and manages all the code libraries the
+Eye Clinic system needs. Think of it as an installer for the system's parts.
+
+STEP 1: Download Composer
+  - Go to:  https://getcomposer.org/Composer-Setup.exe
+  - Run the downloaded file (Composer-Setup.exe)
+
+STEP 2: During installation
+  - It will ask to find PHP — it should automatically find:
+      C:\xampp\php\php.exe
+  - If it does not find it automatically, browse to that path manually
+  - Click Next through the rest and let it install
+
+STEP 3: Verify Composer installed
+  - Press the Windows key, type "cmd", and open Command Prompt
+  - Type the following and press Enter:
+      composer --version
+  - You should see something like:  Composer version 2.x.x
+  - If you see an error, restart your computer and try again
+
+
+================================================================================
+  SECTION 5 — PLACE THE PROJECT FILES
+================================================================================
+
+STEP 1: Copy the project folder
+  - Take the folder named "eyeclinicproject"
+  - Place it inside:  C:\xampp\htdocs\
+  - The final path should be:  C:\xampp\htdocs\eyeclinicproject
+
+STEP 2: Verify the folder is correct
+  - Open File Explorer and go to:  C:\xampp\htdocs\eyeclinicproject
+  - You should see files like:  artisan, composer.json, .env, and folders
+    named app, database, public, resources, etc.
+  - If you only see one folder inside (e.g. eyeclinicproject inside
+    eyeclinicproject), move the inner folder up one level
+
+
+================================================================================
+  SECTION 6 — CREATE THE DATABASE
+================================================================================
+
+The system stores all patient records, appointments, and other data in a
+database. You need to create an empty database first.
+
+STEP 1: Make sure MySQL is running in the XAMPP Control Panel
+
+STEP 2: Open phpMyAdmin
+  - Open your browser and go to:  http://localhost/phpmyadmin
+
+STEP 3: Create the database
+  - Click "New" in the left sidebar
+  - In the "Database name" box, type exactly:   eyeclinicproject
+  - Make sure the collation dropdown says:  utf8mb4_unicode_ci
+  - Click "Create"
+  - You should now see "eyeclinicproject" appear in the left sidebar
+
+
+================================================================================
+  SECTION 7 — CONFIGURE THE ENVIRONMENT FILE
+================================================================================
+
+The .env file tells the system how to connect to the database and sets
+the application name and URL.
+
+STEP 1: Open File Explorer and go to:  C:\xampp\htdocs\eyeclinicproject
+
+STEP 2: Find the file named ".env"
+  - Note: Windows may hide files starting with a dot.
+  - If you cannot see it, open File Explorer, click "View" at the top,
+    and tick "Hidden items"
+
+STEP 3: Right-click the .env file and open it with Notepad
+
+STEP 4: Check and update these lines (change only what is listed below):
+
+  APP_NAME="Eye Clinic"              <-- You can change this to your clinic name
+  APP_ENV=production                 <-- Change "local" to "production"
+  APP_DEBUG=false                    <-- Change "true" to "false"
+  APP_URL=http://eyeclinicproject.test   <-- We will set this up in Section 8
+
+  DB_CONNECTION=mysql
+  DB_HOST=127.0.0.1
+  DB_PORT=3306
+  DB_DATABASE=eyeclinicproject       <-- Must match the database name you created
+  DB_USERNAME=root
+  DB_PASSWORD=                       <-- Leave blank if you did not set a MySQL password
+
+STEP 5: For email notifications (backup failure alerts), fill in your email
+  settings. If you use Gmail:
+
+  MAIL_MAILER=smtp
+  MAIL_HOST=smtp.gmail.com
+  MAIL_PORT=587
+  MAIL_USERNAME=your-email@gmail.com
+  MAIL_PASSWORD=your-app-password
+  MAIL_ENCRYPTION=tls
+  MAIL_FROM_ADDRESS=your-email@gmail.com
+  MAIL_FROM_NAME="Eye Clinic"
+
+  Note: For Gmail you need an "App Password" — search Google for
+  "Gmail App Password" for instructions.
+
+  If you do not set up email, the system still works — you just won't
+  receive backup failure alerts.
+
+STEP 6: Save and close Notepad
+
+
+================================================================================
+  SECTION 8 — SET UP A VIRTUAL HOST (CUSTOM WEB ADDRESS)
+================================================================================
+
+This makes the system accessible at a clean address like:
+  http://eyeclinicproject.test
+instead of the longer default address.
+
+--- PART A: Configure Apache Virtual Host ---
+
+STEP 1: Open Notepad as Administrator
+  - Click Start, type "Notepad"
+  - Right-click Notepad and choose "Run as administrator"
+
+STEP 2: Open the virtual hosts file
+  - In Notepad, go to File > Open
+  - Navigate to:  C:\xampp\apache\conf\extra\
+  - Change the file type filter (bottom right) to "All Files (*.*)"
+  - Open the file:  httpd-vhosts.conf
+
+STEP 3: Scroll to the bottom of the file and add the following block.
+  Make sure to paste it AFTER any existing content:
+
+  <VirtualHost *:80>
+      ServerName eyeclinicproject.test
+      DocumentRoot "C:/xampp/htdocs/eyeclinicproject/public"
+      <Directory "C:/xampp/htdocs/eyeclinicproject/public">
+          Options Indexes FollowSymLinks
+          AllowOverride All
+          Require all granted
+      </Directory>
+  </VirtualHost>
+
+STEP 4: Save the file (Ctrl+S) and close Notepad
+
+--- PART B: Enable the Virtual Host Module in Apache ---
+
+STEP 5: Open Notepad as Administrator again
+STEP 6: Open the file:  C:\xampp\apache\conf\httpd.conf
+STEP 7: Press Ctrl+F and search for:
+      #Include conf/extra/httpd-vhosts.conf
+  Remove the # at the beginning so it reads:
+      Include conf/extra/httpd-vhosts.conf
+STEP 8: Save and close
+
+--- PART C: Point the address to your computer ---
+
+STEP 9: Open Notepad as Administrator again
+STEP 10: Open the file:  C:\Windows\System32\drivers\etc\hosts
+  - Change "All Files (*.*)" in the file type filter to see it
+STEP 11: Scroll to the bottom and add this line:
+      127.0.0.1    eyeclinicproject.test
+STEP 12: Save and close
+
+--- PART D: Restart Apache ---
+
+STEP 13: In the XAMPP Control Panel, click Stop then Start next to Apache
+
+STEP 14: Update the .env file
+  - Open C:\xampp\htdocs\eyeclinicproject\.env
+  - Make sure this line reads:
+      APP_URL=http://eyeclinicproject.test
+  - Save and close
+
+
+================================================================================
+  SECTION 9 — INSTALL PROJECT DEPENDENCIES
+================================================================================
+
+This step downloads all the code libraries the system needs. You need an
+internet connection for this step.
+
+STEP 1: Open Command Prompt as Administrator
+  - Click Start, type "cmd"
+  - Right-click "Command Prompt" and choose "Run as administrator"
+
+STEP 2: Navigate to the project folder by typing this and pressing Enter:
+  cd C:\xampp\htdocs\eyeclinicproject
+
+STEP 3: Run the following command and press Enter:
+  composer install --no-dev --optimize-autoloader
+
+  This will download packages and may take 2–5 minutes depending on your
+  internet speed. You will see lines of text scrolling — this is normal.
+  Wait until you see "Generating optimized autoload files" near the end.
+
+  If you see an error about a PHP extension, go back to Section 3 and make
+  sure all extensions are enabled, then restart Apache and try again.
+
+
+================================================================================
+  SECTION 10 — SET UP THE APPLICATION
+================================================================================
+
+STEP 1: Generate the application security key
+  In the same Command Prompt (still inside the project folder), type:
+    php artisan key:generate
+  Press Enter. You should see: "Application key set successfully."
+
+STEP 2: Run the database migrations (creates all tables)
+  Type:
+    php artisan migrate --force
+  Press Enter. You will see lines of text as each table is created.
+  Wait until you see "Migration table created" messages for all items.
+
+STEP 3: Seed the database (creates default users and settings)
+  Type:
+    php artisan db:seed --force
+  Press Enter. This creates the initial admin account and default data.
+
+STEP 4: Create the storage link (connects uploaded files to the web)
+  Type:
+    php artisan storage:link
+  Press Enter. You should see: "The [public/storage] link has been created."
+
+STEP 5: Clear and cache the configuration
+  Type each of these commands one at a time, pressing Enter after each:
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+
+
+================================================================================
+  SECTION 11 — ENABLE URL REWRITING (MOD_REWRITE)
+================================================================================
+
+This allows the system's web addresses to work correctly.
+
+STEP 1: Open Notepad as Administrator
+STEP 2: Open the file:  C:\xampp\apache\conf\httpd.conf
+STEP 3: Press Ctrl+F and search for:
+      #LoadModule rewrite_module
+  Remove the # so it reads:
+      LoadModule rewrite_module modules/mod_rewrite.so
+STEP 4: Save and close
+STEP 5: Restart Apache in the XAMPP Control Panel
+
+
+================================================================================
+  SECTION 12 — SET UP AUTOMATIC BACKUPS (SCHEDULER)
+================================================================================
+
+This makes the system automatically back up your data every day.
+
+STEP 1: Open Command Prompt as Administrator
+  (Start > type "cmd" > right-click > Run as administrator)
+
+STEP 2: Navigate to the project folder:
+  cd C:\xampp\htdocs\eyeclinicproject
+
+STEP 3: Run the scheduler setup command:
+  php artisan setup:scheduler
+
+  You should see:
+    "Task registered successfully."
+    "Startup backup task registered."
+
+  If you see an error saying you need to run as Administrator, make sure
+  you opened Command Prompt as Administrator in Step 1.
+
+STEP 4: Verify the tasks were created
+  Type:
+    schtasks /Query /TN "Laravel Scheduler - Eye Clinic"
+  You should see the task listed with Status: Ready
+
+What this sets up:
+  - Database snapshots every 5 minutes (tiny, fast)
+  - Full backup (database + all uploaded files) at 11:30 AM and 4:30 PM daily
+  - A backup automatically runs 1 minute after the computer starts up
+  - Old backups are cleaned up automatically (keeps 7 days of full backups)
+
+Backups are saved to:
+  C:\xampp\htdocs\eyeclinicproject\storage\app\backups\
+
+
+================================================================================
+  SECTION 13 — VERIFY THE INSTALLATION
+================================================================================
+
+STEP 1: Make sure both Apache and MySQL are running in the XAMPP Control Panel
+
+STEP 2: Open your browser and go to:
+  http://eyeclinicproject.test
+
+STEP 3: You should see the Eye Clinic login page
+
+STEP 4: Log in with the default administrator account:
+  Email:     admin@eyeclinic.com
+  Password:  password
+
+  IMPORTANT: Change this password immediately after your first login.
+  Go to: My Profile > Change Password
+
+Default accounts created during setup:
+  -------------------------------------------------------
+  Role              Email                    Password
+  -------------------------------------------------------
+  Super Admin       admin@eyeclinic.com      password
+  Doctor            frimkings@gmail.com      password
+  Secretary         secretary@gmail.com      password
+  Front Desk        staff@eyeclinic.com      staff123
+  -------------------------------------------------------
+
+  Change ALL passwords immediately after first login.
+
+
+================================================================================
+  SECTION 14 — CONFIGURE CLINIC SETTINGS
+================================================================================
+
+After logging in as Super Admin, go to Settings to fill in your clinic details:
+
+  - Clinic name, address, phone number
+  - Email address (used for backup alerts and notifications)
+  - Doctor consultation fee defaults
+  - SMS settings (if you want appointment reminders sent by SMS)
+  - Backup destinations (if you want backups copied to a USB drive)
+
+
+================================================================================
+  SECTION 15 — DAILY OPERATION
+================================================================================
+
+STARTING THE SYSTEM EACH DAY:
+  1. Open the XAMPP Control Panel
+  2. Click Start next to Apache
+  3. Click Start next to MySQL
+  4. Open your browser and go to:  http://eyeclinicproject.test
+
+STOPPING THE SYSTEM:
+  1. Make sure all staff are logged out
+  2. Open the XAMPP Control Panel
+  3. Click Stop next to Apache
+  4. Click Stop next to MySQL
+
+OPTIONAL — Auto-start XAMPP with Windows:
+  In the XAMPP Control Panel, click the Config button (top right area),
+  then tick "Autostart Apache" and "Autostart MySQL". This means you will
+  not need to manually start Apache and MySQL each day.
+
+BACKUPS:
+  Backups happen automatically — you do not need to do anything.
+  To view and manage backups, log in as Super Admin and go to:
+    Settings > Backup tab
+  From there you can download or restore any backup.
+
+RESTORING FROM A BACKUP (in an emergency):
+  If something goes wrong and you need to go back to an earlier version:
+  1. Log in as Super Admin
+  2. Go to Settings > Backup tab
+  3. Find the backup you want to restore
+  4. Click the yellow restore button (circular arrow icon)
+  5. Read the warning carefully and confirm
+  The system will restore the database and all uploaded files automatically.
+
+
+================================================================================
+  SECTION 16 — TROUBLESHOOTING COMMON PROBLEMS
+================================================================================
+
+PROBLEM: Browser shows "This site can't be reached" or "ERR_CONNECTION_REFUSED"
+SOLUTION:
+  - Open XAMPP Control Panel
+  - Make sure Apache shows "Running" (green)
+  - If Apache will not start, another program may be using port 80
+  - Try restarting the computer then starting Apache again
+
+PROBLEM: Browser shows "403 Forbidden"
+SOLUTION:
+  - Make sure mod_rewrite is enabled (Section 11)
+  - Make sure the Virtual Host was set up correctly (Section 8)
+  - Restart Apache after any changes
+
+PROBLEM: "Class not found" or blank white page
+SOLUTION:
+  - Open Command Prompt, navigate to the project folder, and run:
+      composer dump-autoload
+      php artisan config:clear
+      php artisan cache:clear
+      php artisan view:clear
+
+PROBLEM: Database connection error / "SQLSTATE[HY000]"
+SOLUTION:
+  - Make sure MySQL is running in the XAMPP Control Panel
+  - Open .env and verify DB_DATABASE, DB_USERNAME, and DB_PASSWORD are correct
+  - Run:  php artisan config:clear
+  - Restart Apache
+
+PROBLEM: Uploaded images or files not showing
+SOLUTION:
+  - Run:  php artisan storage:link
+  - If you get an error that the link already exists, that is fine — it means
+    it was already set up
+
+PROBLEM: "php artisan" commands say "php is not recognized"
+SOLUTION:
+  - PHP needs to be added to Windows PATH
+  - Open Start, search "Environment Variables"
+  - Click "Edit the system environment variables"
+  - Click "Environment Variables"
+  - Under System Variables, find "Path" and click Edit
+  - Click New and add:  C:\xampp\php
+  - Click OK on all windows
+  - Close and reopen Command Prompt
+
+PROBLEM: Backup scheduler is not running
+SOLUTION:
+  - Open Command Prompt as Administrator
+  - Navigate to the project folder
+  - Run:  php artisan setup:scheduler
+  - If it says the task already exists, the scheduler is already active
+
+
+================================================================================
+  SECTION 17 — MOVING TO A NEW COMPUTER
+================================================================================
+
+If you need to move the system to a different computer:
+
+  1. Install XAMPP and Composer on the new computer (Sections 2, 3, 4)
+  2. Copy the entire "eyeclinicproject" folder to the new computer's
+     C:\xampp\htdocs\ folder
+  3. On the OLD computer, go to Settings > Backup tab in the system
+  4. Download the most recent backup (click the download button)
+  5. Copy that backup .zip file to the new computer
+  6. Follow Sections 6 through 12 on the new computer
+  7. On the new computer, restore the downloaded backup using the restore
+     button in Settings > Backup tab
+
+Alternatively, you can export the database from phpMyAdmin on the old
+computer and import it on the new computer.
+
+
+
+Step 4: The Clean Reset (If nothing else works)
+If the database engine refuses to boot and the data files are too heavily corrupted, you can revert MySQL back to its default factory state using XAMPP's pristine backup folder, then restore your tables.
+
+Ensure MySQL is completely stopped.
+
+Go to C:\xampp\mysql\.
+
+Rename your current data folder to data_corrupt.
+
+Create a brand new, empty folder named data.
+
+Open the backup folder inside C:\xampp\mysql\backup\. Copy everything inside it and paste it into your new, empty data folder.
+
+Now, go into your data_corrupt folder. Copy only your custom database folders (e.g., your specific Laravel project database folders) and paste them into the new data folder. Do not copy the mysql, performance_schema, or phpmyadmin folders.
+
+Finally, copy the file named ibdata1 from data_corrupt and paste it into the new data folder, replacing the default one.
+
+Start MySQL in the XAMPP Control Panel.
+================================================================================
+  SECTION 18 — IMPORTANT SECURITY NOTES
+================================================================================
+
+  1. Change all default passwords immediately after installation (Section 13)
+
+  2. Do not expose this system to the internet unless you add HTTPS and
+     a proper firewall. It is designed for use on a local clinic network only.
+
+  3. Keep your backup copies in at least TWO places:
+     - The automatic backups on the computer's hard drive
+     - A USB drive (configure this in Settings > Backup > Destinations)
+
+  4. Test your backups regularly. Go to Settings > Backup, download a backup
+     file, and confirm it is not empty (it should be at least 300 KB for a
+     full backup with data).
+
+  5. Lock the XAMPP Control Panel so only the computer administrator can
+     access it.
+
+
+================================================================================
+  QUICK REFERENCE — COMMANDS SUMMARY
+================================================================================
+
+All commands below are run in Command Prompt from:
+  C:\xampp\htdocs\eyeclinicproject
+
+  Install dependencies:
+    composer install --no-dev --optimize-autoloader
+
+  Generate app key:
+    php artisan key:generate
+
+  Create database tables:
+    php artisan migrate --force
+
+  Create default users and data:
+    php artisan db:seed --force
+
+  Link uploaded files storage:
+    php artisan storage:link
+
+  Set up automatic backup scheduler:
+    php artisan setup:scheduler
+
+  Clear all caches (use when troubleshooting):
+    php artisan config:clear
+    php artisan cache:clear
+    php artisan view:clear
+    php artisan route:clear
+
+  Re-cache for production (use after clearing):
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+
+  Run a manual backup now:
+    php artisan backup:run
+
+
+================================================================================
+  END OF INSTALLATION GUIDE
+================================================================================

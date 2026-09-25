@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platform Administration - EyeClinic SaaS Superadmin</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .sidebar-link.active { background-color: rgba(14, 165, 233, 0.15); color: #38bdf8; border-right: 3px solid #38bdf8; }
+    .status-badge-active { background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .status-badge-trial { background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .status-badge-overdue { background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .status-badge-overlimit { background-color: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+    .status-badge-suspended { background-color: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.4); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen font-sans flex flex-col md:flex-row">
+
+  <!-- Sidebar Navigation (Improvement #10) -->
+  <aside class="w-full md:w-64 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-400 flex items-center justify-center font-black">
+          <i class="fa-solid fa-server"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-sm text-white tracking-tight">Platform Admin</h1>
+          <p class="text-[10px] text-slate-400 font-mono">eyeclinicproject.test</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Links -->
+    <nav class="p-2 space-y-1 text-xs font-semibold flex-1">
+      <a onclick="switchNav('dashboard')" id="nav-dashboard" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition cursor-pointer">
+        <i class="fa-solid fa-chart-line text-sky-400 w-4"></i> Dashboard & Metrics
+      </a>
+      <a onclick="switchNav('clinics')" id="nav-clinics" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition cursor-pointer">
+        <i class="fa-solid fa-hospital text-emerald-400 w-4"></i> Clinics Directory
+        <span class="ml-auto text-[10px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.2 rounded font-mono">1 Over Limit</span>
+      </a>
+      <a onclick="switchNav('plans')" id="nav-plans" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition cursor-pointer">
+        <i class="fa-solid fa-gem text-purple-400 w-4"></i> Subscription Plans
+      </a>
+      <a onclick="switchNav('billing')" id="nav-billing" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition cursor-pointer">
+        <i class="fa-solid fa-file-invoice-dollar text-amber-400 w-4"></i> Invoices & Billing
+      </a>
+      <a onclick="switchNav('onboarding')" id="nav-onboarding" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition cursor-pointer">
+        <i class="fa-solid fa-user-plus text-indigo-400 w-4"></i> Clinic Onboarding
+      </a>
+      <a onclick="switchNav('audit')" id="nav-audit" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 transition cursor-pointer">
+        <i class="fa-solid fa-shield-halved text-rose-400 w-4"></i> Security & Audit Logs
+      </a>
+    </nav>
+
+    <!-- Superadmin Profile Footer -->
+    <div class="p-3 bg-slate-900/90 border-t border-slate-800 text-xs space-y-2">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center text-[11px]">
+            SA
+          </div>
+          <div>
+            <strong class="text-white text-[11px] block">Dr. Kingsford</strong>
+            <span class="text-[9px] text-emerald-400 font-mono">2FA Active &bull; Superadmin</span>
+          </div>
+        </div>
+      </div>
+      <button class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 py-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-right-from-bracket"></i> Sign out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main View Container -->
+  <main class="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto max-w-7xl">
+
+    <!-- Top Alert Bar: Critical Warnings (Improvement #1) -->
+    <div id="urgent-alerts-container" class="space-y-2">
+      <!-- Expiring Trial Alert -->
+      <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-amber-200">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm"></i>
+          <span><strong>Trial Expiry Warning:</strong> <code class="font-mono text-amber-300 font-bold">ACCRA EYE CLINIC</code> trial expires in <strong>3 days</strong> (14 Sep 2026).</span>
+        </div>
+        <button onclick="alert('Opened Subscription Assignment Modal')" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-lg font-bold text-[11px] transition">
+          Extend Trial / Convert
+        </button>
+      </div>
+
+      <!-- Over-Limit Branch Safe Handling Alert (Improvement #1 & #2) -->
+      <div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-rose-200">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
+          <span><strong>Over-Limit Allowance Warning:</strong> <code class="font-mono text-rose-300 font-bold">LEAD OPTICALS</code> has <strong>3 active branches</strong> against a <strong>1-branch allowance limit</strong> (2 over allowance). Existing branches remain operational.</span>
+        </div>
+        <button onclick="openOverlimitActionModal('LEAD OPTICALS', 3, 1)" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-2.5 py-1 rounded-lg font-bold text-[11px] transition">
+          Manage Over-Limit Action
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 1: DASHBOARD & CLINIC DIRECTORY (`#view-dashboard`) -->
+    <div id="view-dashboard" class="view-content space-y-6">
+      
+      <!-- Subscription Health Indicators (Improvement #1) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-1">
+          <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Clinics</span>
+          <div class="text-xl font-black text-white font-mono">18</div>
+          <span class="text-[10px] text-slate-400 font-medium">Registered Platform Tenants</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-1">
+          <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Active Subscriptions</span>
+          <div class="text-xl font-black text-emerald-400 font-mono">14</div>
+          <span class="text-[10px] text-emerald-400 font-medium">Paid Monthly/Annual</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-1">
+          <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Active Trials</span>
+          <div class="text-xl font-black text-amber-400 font-mono">3</div>
+          <span class="text-[10px] text-amber-300 font-medium">1 Expiring in 3 Days</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-1">
+          <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Overdue Accounts</span>
+          <div class="text-xl font-black text-rose-400 font-mono">1</div>
+          <span class="text-[10px] text-rose-300 font-medium">In Grace Period (7 Days)</span>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-1">
+          <span class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Monthly Recurring (MRR)</span>
+          <div class="text-xl font-black text-sky-400 font-mono">$24,850.00</div>
+          <span class="text-[10px] text-sky-300 font-medium">+12.4% vs last month</span>
+        </div>
+      </div>
+
+      <!-- Advanced Search & Multi-Filter Bar (Improvement #8) -->
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+          <span class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-filter text-sky-400"></i> Clinic Search & Multi-Criteria Filtering
+          </span>
+          <button onclick="alert('Filters reset')" class="text-slate-400 hover:text-white text-[11px] underline">Reset Filters</button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+          <div class="md:col-span-2 relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" placeholder="Search clinic name, domain, admin..." class="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white font-medium focus:outline-none focus:ring-1 focus:ring-sky-500">
+          </div>
+
+          <select class="bg-slate-950 border border-slate-800 p-2 rounded-lg text-slate-200 font-medium">
+            <option value="">All Plans</option>
+            <option value="BASIC">BASIC ($99/mo)</option>
+            <option value="PROFESSIONAL">PROFESSIONAL ($249/mo)</option>
+            <option value="ENTERPRISE">ENTERPRISE ($499/mo)</option>
+          </select>
+
+          <select class="bg-slate-950 border border-slate-800 p-2 rounded-lg text-slate-200 font-medium">
+            <option value="">All Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Trial">Trial</option>
+            <option value="Overdue">Overdue</option>
+            <option value="Suspended">Suspended</option>
+          </select>
+
+          <select class="bg-slate-950 border border-slate-800 p-2 rounded-lg text-slate-200 font-medium">
+            <option value="">Over-Limit: All</option>
+            <option value="Yes">Over-Limit Only</option>
+            <option value="No">Within Limit Only</option>
+          </select>
+
+          <select class="bg-slate-950 border border-slate-800 p-2 rounded-lg text-slate-200 font-medium">
+            <option value="">Deployment: All</option>
+            <option value="Hosted Cloud">Hosted Cloud</option>
+            <option value="On-Premise Offline">On-Premise Offline</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Registered Clinics Table (Improvement #1, #2, #3, #10) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl space-y-3 p-4">
+        <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div>
+            <h3 class="font-extrabold text-white text-sm">Registered Clinics Directory</h3>
+            <p class="text-[11px] text-slate-400">Click any clinic row to view comprehensive details, branches, invoices, and audit controls.</p>
+          </div>
+          <button onclick="switchNav('onboarding')" class="bg-sky-600 hover:bg-sky-500 text-white font-extrabold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plus-circle"></i> Onboard New Clinic
+          </button>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs border-collapse font-sans">
+            <thead class="bg-slate-950 text-slate-400 font-bold uppercase text-[10px] border-b border-slate-800">
+              <tr>
+                <th class="p-3">Clinic & Domain</th>
+                <th class="p-3">Plan Tier</th>
+                <th class="p-3">Subscription Status</th>
+                <th class="p-3">Active Branches vs Limit</th>
+                <th class="p-3">Renewal Date</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">
+              
+              <!-- Row 1: Lead Opticals (Over Limit Warning) -->
+              <tr onclick="openClinicDetailModal('LEAD OPTICALS')" class="hover:bg-slate-800/80 cursor-pointer transition">
+                <td class="p-3 font-bold text-white">
+                  LEAD OPTICALS
+                  <span class="block text-[10px] text-slate-400 font-mono font-normal">leadopticals.eyeclinic.com &bull; Hosted Cloud</span>
+                </td>
+                <td class="p-3 font-mono font-bold text-sky-400">BASIC ($99/mo)</td>
+                <td class="p-3">
+                  <span class="status-badge-active px-2 py-0.5 rounded text-[10px] font-mono font-bold">ACTIVE</span>
+                </td>
+                <td class="p-3">
+                  <!-- Safe Over-Limit Badge (Improvement #1 & #2) -->
+                  <span class="status-badge-overlimit px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 w-max">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 3 of 1 branches (2 Over Limit)
+                  </span>
+                </td>
+                <td class="p-3 font-mono text-slate-300">15 Oct 2026</td>
+                <td class="p-3 text-right space-x-1" onclick="event.stopPropagation()">
+                  <button onclick="openOverlimitActionModal('LEAD OPTICALS', 3, 1)" class="bg-rose-600/80 hover:bg-rose-600 text-white font-bold px-2 py-1 rounded text-[10px] transition">Over-Limit Options</button>
+                  <button onclick="openClinicDetailModal('LEAD OPTICALS')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px]">Inspect</button>
+                </td>
+              </tr>
+
+              <!-- Row 2: Accra Eye Clinic (Trial Expiring) -->
+              <tr onclick="openClinicDetailModal('ACCRA EYE CLINIC')" class="hover:bg-slate-800/80 cursor-pointer transition">
+                <td class="p-3 font-bold text-white">
+                  ACCRA EYE CLINIC
+                  <span class="block text-[10px] text-slate-400 font-mono font-normal">accraeye.eyeclinic.com &bull; Hosted Cloud</span>
+                </td>
+                <td class="p-3 font-mono font-bold text-purple-400">PROFESSIONAL ($249/mo)</td>
+                <td class="p-3">
+                  <span class="status-badge-trial px-2 py-0.5 rounded text-[10px] font-mono font-bold">TRIAL (3 Days Left)</span>
+                </td>
+                <td class="p-3 font-mono text-slate-300">1 of 5 Allowed</td>
+                <td class="p-3 font-mono text-amber-300">14 Sep 2026</td>
+                <td class="p-3 text-right space-x-1" onclick="event.stopPropagation()">
+                  <button onclick="alert('Opened Subscription Assignment Modal')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-2 py-1 rounded text-[10px]">Extend / Convert</button>
+                  <button onclick="openClinicDetailModal('ACCRA EYE CLINIC')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px]">Inspect</button>
+                </td>
+              </tr>
+
+              <!-- Row 3: Kumasi Vision Centre (Overdue Account) -->
+              <tr onclick="openClinicDetailModal('KUMASI VISION CENTRE')" class="hover:bg-slate-800/80 cursor-pointer transition">
+                <td class="p-3 font-bold text-white">
+                  KUMASI VISION CENTRE
+                  <span class="block text-[10px] text-slate-400 font-mono font-normal">kumasivision.eyeclinic.com &bull; On-Premise Offline</span>
+                </td>
+                <td class="p-3 font-mono font-bold text-sky-400">BASIC ($99/mo)</td>
+                <td class="p-3">
+                  <span class="status-badge-overdue px-2 py-0.5 rounded text-[10px] font-mono font-bold">OVERDUE (Grace Day 4)</span>
+                </td>
+                <td class="p-3 font-mono text-slate-300">2 of 2 Allowed</td>
+                <td class="p-3 font-mono text-rose-400">01 Sep 2026</td>
+                <td class="p-3 text-right space-x-1" onclick="event.stopPropagation()">
+                  <button onclick="alert('Opened Record Payment Modal')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-1 rounded text-[10px]">Record Payment</button>
+                  <button onclick="openClinicDetailModal('KUMASI VISION CENTRE')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px]">Inspect</button>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls (Improvement #10) -->
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-2">
+          <span>Showing 1 to 3 of 18 Registered Clinics</span>
+          <div class="flex items-center gap-1 font-mono">
+            <button class="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded text-slate-500 cursor-not-allowed">Prev</button>
+            <span class="px-3 py-1 bg-sky-600 text-white rounded font-bold">1</span>
+            <button class="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded hover:bg-slate-800 text-slate-200">2</button>
+            <button class="px-2.5 py-1 bg-slate-950 border border-slate-800 rounded hover:bg-slate-800 text-slate-200">Next</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- VIEW 2: SUBSCRIPTION PLAN MANAGEMENT (`#view-plans`) -->
+    <div id="view-plans" class="view-content space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div>
+            <h3 class="font-extrabold text-white text-sm flex items-center gap-2">
+              <i class="fa-solid fa-gem text-purple-400"></i> Subscription Plans & Entitlements Catalog
+            </h3>
+            <p class="text-[11px] text-slate-400">Manage plan pricing, feature flags, included branches, storage quotas, and tax settings.</p>
+          </div>
+          <button onclick="alert('Opened Create Plan Form')" class="bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i> Create New Plan
+          </button>
+        </div>
+
+        <!-- Plans Table (Improvement #4) -->
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs border-collapse font-sans">
+            <thead class="bg-slate-950 text-slate-400 font-bold uppercase text-[10px]">
+              <tr>
+                <th class="p-3">Plan Name & Code</th>
+                <th class="p-3">Monthly / Annual Price</th>
+                <th class="p-3">Included Branches</th>
+                <th class="p-3">Extra Branch Fee</th>
+                <th class="p-3">Entitlements Quotas</th>
+                <th class="p-3">Active Clinics</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">
+              <tr>
+                <td class="p-3 font-bold text-white">
+                  BASIC PLAN
+                  <span class="block text-[10px] text-slate-400 font-mono font-normal">code: plan-basic</span>
+                </td>
+                <td class="p-3 font-mono text-emerald-400 font-bold">$99.00 / mo <span class="block text-[10px] text-slate-400 font-normal">($1,000.00 / yr)</span></td>
+                <td class="p-3 font-mono">1 Branch</td>
+                <td class="p-3 font-mono text-slate-300">$45.00 / mo</td>
+                <td class="p-3 text-[11px] text-slate-300">5 Users &bull; 10 GB &bull; 500 SMS</td>
+                <td class="p-3 font-mono font-bold text-sky-400">12 Clinics</td>
+                <td class="p-3 text-right space-x-1">
+                  <button onclick="alert('Editing Basic Plan')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px]">Edit</button>
+                  <button onclick="alert('Duplicated Basic Plan')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px]">Duplicate</button>
+                  <!-- Archive Safety Rule (Improvement #4) -->
+                  <button onclick="alert('Archived Plan. Existing assigned clinics retain plan access.')" class="bg-amber-600/20 text-amber-300 hover:bg-amber-600/30 border border-amber-500/40 px-2 py-1 rounded text-[10px]">Archive</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: INVOICES & BILLING (`#view-billing`) -->
+    <div id="view-billing" class="view-content space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div>
+            <h3 class="font-extrabold text-white text-sm flex items-center gap-2">
+              <i class="fa-solid fa-file-invoice-dollar text-amber-400"></i> Platform Invoices & Payment Ledger
+            </h3>
+            <p class="text-[11px] text-slate-400">Invoice generation, manual payment recording, Mobile Money tracking, and outstanding balances.</p>
+          </div>
+          <button onclick="alert('Opened Custom Invoice Generator')" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-extrabold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plus-circle"></i> Generate Custom Invoice
+          </button>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs border-collapse font-sans">
+            <thead class="bg-slate-950 text-slate-400 font-bold uppercase text-[10px]">
+              <tr>
+                <th class="p-3">Invoice #</th>
+                <th class="p-3">Clinic Tenant</th>
+                <th class="p-3">Billing Period</th>
+                <th class="p-3">Amount Due</th>
+                <th class="p-3">Payment Status</th>
+                <th class="p-3">Payment Reference</th>
+                <th class="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">
+              <tr>
+                <td class="p-3 font-mono font-bold text-sky-400">#INV-2026-0041</td>
+                <td class="p-3 font-bold">LEAD OPTICALS</td>
+                <td class="p-3 font-mono text-slate-400">01 Sep - 30 Sep 2026</td>
+                <td class="p-3 font-mono font-bold text-white">$189.00</td>
+                <td class="p-3"><span class="status-badge-active px-2 py-0.5 rounded text-[10px] font-mono font-bold">PAID</span></td>
+                <td class="p-3 font-mono text-slate-400 text-[11px]">MoMo: TRX-994021</td>
+                <td class="p-3 text-right space-x-1">
+                  <button onclick="alert('Downloading PDF Receipt...')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[10px]">PDF Receipt</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 4: CLINIC ONBOARDING 7-STEP WIZARD (`#view-onboarding`) (Improvement #7) -->
+    <div id="view-onboarding" class="view-content space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-5">
+        <div class="border-b border-slate-800 pb-3">
+          <h3 class="font-extrabold text-white text-base flex items-center gap-2">
+            <i class="fa-solid fa-user-plus text-indigo-400"></i> Clinic Onboarding 7-Step Wizard
+          </h3>
+          <p class="text-xs text-slate-400">Register new clinic tenant, allocate primary branch, select plan, and setup Clinic Super Admin account.</p>
+        </div>
+
+        <div class="grid grid-cols-7 gap-1 text-[10px] font-mono text-center">
+          <div class="p-2 rounded bg-sky-600 text-white font-bold">1. Clinic Details</div>
+          <div class="p-2 rounded bg-slate-800 text-slate-400">2. First Branch</div>
+          <div class="p-2 rounded bg-slate-800 text-slate-400">3. Select Plan</div>
+          <div class="p-2 rounded bg-slate-800 text-slate-400">4. Super Admin</div>
+          <div class="p-2 rounded bg-slate-800 text-slate-400">5. Send Invite</div>
+          <div class="p-2 rounded bg-slate-800 text-slate-400">6. Quotas</div>
+          <div class="p-2 rounded bg-slate-800 text-slate-400">7. Activate</div>
+        </div>
+
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3 text-xs">
+          <h4 class="font-bold text-white text-xs">Step 1 of 7: Clinic Tenant Information</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Clinic Legal Name</label>
+              <input type="text" placeholder="e.g. Ridge Ophthalmic Centre" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Subdomain Slug</label>
+              <div class="flex items-center">
+                <input type="text" placeholder="ridgeeye" class="w-full p-2 bg-slate-900 border border-slate-700 rounded-l-lg text-white font-mono">
+                <span class="p-2 bg-slate-800 border border-l-0 border-slate-700 rounded-r-lg text-slate-400 font-mono text-[10px]">.eyeclinic.com</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end pt-2">
+            <button onclick="alert('Proceeding to Step 2: First Branch Setup')" class="bg-sky-600 hover:bg-sky-500 text-white font-bold px-4 py-2 rounded-lg transition">Next: Setup First Branch &rarr;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 5: AUDIT LOGS & SECURITY (`#view-audit`) (Improvement #9) -->
+    <div id="view-audit" class="view-content space-y-6 hidden">
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div>
+            <h3 class="font-extrabold text-white text-sm flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved text-rose-400"></i> Superadmin Security & Traceability Audit Log
+            </h3>
+            <p class="text-[11px] text-slate-400">Records administrator, affected clinic, old/new values, IP address, and override reasons.</p>
+          </div>
+          <span class="status-badge-active px-2.5 py-1 rounded text-[10px] font-mono font-bold">2FA Mandatory Enforcement Active</span>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs border-collapse font-sans">
+            <thead class="bg-slate-950 text-slate-400 font-bold uppercase text-[10px]">
+              <tr>
+                <th class="p-3">Timestamp</th>
+                <th class="p-3">Platform Admin</th>
+                <th class="p-3">Clinic Affected</th>
+                <th class="p-3">Action Code</th>
+                <th class="p-3">Old &bull; New State</th>
+                <th class="p-3">Override Reason</th>
+                <th class="p-3">IP Address</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200 font-mono text-[11px]">
+              <tr>
+                <td class="p-3 text-slate-400">2026-09-07 11:42</td>
+                <td class="p-3 text-white font-bold">Dr. Kingsford</td>
+                <td class="p-3 text-sky-400">LEAD OPTICALS</td>
+                <td class="p-3"><span class="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">OVERRIDE_BRANCH_LIMIT</span></td>
+                <td class="p-3 text-slate-300">Limit: 1 &rarr; 3 Override</td>
+                <td class="p-3 text-slate-400 font-sans">Temporary expansion approved by Director</td>
+                <td class="p-3 text-slate-500">102.176.42.10</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: CLINIC DETAIL VIEW (Improvement #3) -->
+  <div id="modal-clinic-detail" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-3">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden text-xs flex flex-col max-h-[90vh]">
+      <div class="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div>
+          <h3 id="detail-clinic-name" class="font-extrabold text-base text-white flex items-center gap-2">
+            LEAD OPTICALS
+            <span class="status-badge-active px-2 py-0.2 rounded text-[10px] font-mono font-bold">ACTIVE</span>
+          </h3>
+          <p id="detail-clinic-domain" class="text-[11px] text-slate-400 font-mono">leadopticals.eyeclinic.com &bull; Tenant ID: #TEN-10492</p>
+        </div>
+        <button onclick="closeModal('modal-clinic-detail')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 flex-1">
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-slate-400 text-[11px]">Support Mode:</span>
+            <button onclick="startSupportImpersonation()" class="bg-sky-600 hover:bg-sky-500 text-white font-extrabold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-right-to-bracket"></i> Login as Clinic Support (Audited)
+            </button>
+          </div>
+          <button onclick="confirmSuspendClinic()" class="bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 border border-rose-500/40 font-bold px-3 py-1.5 rounded-lg transition">
+            Suspend Clinic Access
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+            <h4 class="font-bold text-white text-xs border-b border-slate-800 pb-1.5 flex items-center gap-2">
+              <i class="fa-solid fa-user-shield text-sky-400"></i> Clinic Super Admin & Deployment
+            </h4>
+            <div class="space-y-1 text-[11px] text-slate-300 font-mono">
+              <div class="flex justify-between"><span class="text-slate-500">Super Admin:</span> <strong>Kwame Mensah</strong></div>
+              <div class="flex justify-between"><span class="text-slate-500">Email:</span> <strong>kwame@leadopticals.com</strong></div>
+              <div class="flex justify-between"><span class="text-slate-500">Phone:</span> <strong>+233 24 412 3456</strong></div>
+              <div class="flex justify-between"><span class="text-slate-500">Deployment:</span> <strong class="text-emerald-400">Hosted Cloud (AWS)</strong></div>
+            </div>
+          </div>
+
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+            <h4 class="font-bold text-white text-xs border-b border-slate-800 pb-1.5 flex items-center gap-2">
+              <i class="fa-solid fa-code-branch text-purple-400"></i> Provisioned Branch Locations (3 Active)
+            </h4>
+            <ul class="space-y-1 text-[11px]">
+              <li class="flex justify-between items-center bg-slate-900 p-1.5 rounded border border-slate-800">
+                <span>Main Clinic Branch (Accra)</span>
+                <span class="bg-emerald-500/20 text-emerald-300 text-[9px] font-mono px-1.5 py-0.2 rounded">Operational</span>
+              </li>
+              <li class="flex justify-between items-center bg-slate-900 p-1.5 rounded border border-slate-800">
+                <span>East Legon Branch</span>
+                <span class="bg-emerald-500/20 text-emerald-300 text-[9px] font-mono px-1.5 py-0.2 rounded">Operational</span>
+              </li>
+              <li class="flex justify-between items-center bg-slate-900 p-1.5 rounded border border-slate-800">
+                <span>Kumasi Branch</span>
+                <span class="bg-emerald-500/20 text-emerald-300 text-[9px] font-mono px-1.5 py-0.2 rounded">Operational</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SAFE OVER-LIMIT ACTION (Improvement #2) -->
+  <div id="modal-overlimit-action" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-3">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full shadow-2xl p-5 text-xs space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+        <h3 class="font-bold text-rose-400 text-sm flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved"></i> Safe Over-Limit Handling Policy
+        </h3>
+        <button onclick="closeModal('modal-overlimit-action')" class="text-slate-400 text-lg">&times;</button>
+      </div>
+
+      <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-2">
+        <p><strong>System Policy Guarantee:</strong> When a clinic's plan changes to a smaller branch limit, existing operational branches are <strong>NEVER automatically shut down</strong>.</p>
+        <ul class="list-disc pl-4 text-slate-400 space-y-1">
+          <li>All 3 existing branches remain 100% operational.</li>
+          <li>Creation of new branches & reactivation of inactive branches is blocked.</li>
+        </ul>
+      </div>
+
+      <div class="space-y-2 pt-1">
+        <span class="font-bold text-white block">Select Recommended Action:</span>
+        <button onclick="alert('Initiated Upgrade Plan Workflow')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold p-2.5 rounded-lg transition text-left flex items-center justify-between">
+          <span>Upgrade Clinic Plan Allowance (e.g. to Professional Tier)</span>
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        </button>
+        <button onclick="alert('Opened Branch Deactivation Selector')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold p-2.5 rounded-lg transition text-left flex items-center justify-between">
+          <span>Manually Select a Branch to Deactivate</span>
+          <i class="fa-solid fa-power-off"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchNav(navId) {
+      document.querySelectorAll('.view-content').forEach(v => v.classList.add('hidden'));
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+
+      const targetView = document.getElementById('view-' + navId);
+      if (targetView) targetView.classList.remove('hidden');
+
+      const targetNav = document.getElementById('nav-' + navId);
+      if (targetNav) targetNav.classList.add('active');
+    }
+
+    function openClinicDetailModal(clinicName) {
+      document.getElementById('modal-clinic-detail').classList.remove('hidden');
+    }
+
+    function openOverlimitActionModal(clinicName, active, limit) {
+      document.getElementById('modal-overlimit-action').classList.remove('hidden');
+    }
+
+    function closeModal(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    }
+
+    function startSupportImpersonation() {
+      const reason = prompt("Enter mandatory audit log reason for impersonating this clinic:");
+      if (reason) {
+        alert("Impersonation Session Initiated. Audit log recorded: " + reason);
+        closeModal('modal-clinic-detail');
+      }
+    }
+
+    function confirmSuspendClinic() {
+      if (confirm("Are you sure you want to suspend this clinic? This will block all branch access.")) {
+        alert("Clinic suspended. Status updated.");
+        closeModal('modal-clinic-detail');
+      }
+    }
+  </script>
+</body>
+</html>

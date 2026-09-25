@@ -1,0 +1,16 @@
+@echo off
+:: Change directory directly to your actual MySQL 8.4.3 bin folder
+cd /d "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin"
+
+:: Generate a clean YYYY-MM-DD timestamp
+for /f "tokens=2-4 delims=/ " %%a in ('date /t') do set DATESTAMP=%%c-%%a-%%b
+
+echo Starting MySQL Backup for eyeclinicproject...
+
+:: Run the backup for ONLY the eyeclinicproject database
+mysqldump.exe -u root eyeclinicproject > "C:\laragon\www\eyeclinicproject_backup_%DATESTAMP%.sql"
+
+echo.
+echo Backup completed successfully! Check C:\laragon\www\
+echo.
+pause

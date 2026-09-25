@@ -1,0 +1,150 @@
+
+php artisan cache:clear
+
+
+composer install --ignore-platform-req=php --ignore-platform-req=ext-zip
+
+
+composer install --prefer-source
+Any
+
+192.168.100.9
+php artisan db:seed --class=UserSeeder
+php artisan db:seed --class=DiagnosisSeeder
+php artisan db:seed --class=CategorySeeder
+
+
+<VirtualHost  192.168.100.9:80>
+    DocumentRoot "C:/laragon/www/eyeclinicproject/public"
+    ServerName    192.168.100.9
+    ServerAlias eyeclinicproject.test *.eyeclinicproject.test
+    <Directory "C:/laragon/www/eyeclinicproject/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+ICARE VISION CENTRE
+
+SETUP BACKUP
+cd C:\laragon\www\eyeclinicproject
+cd C:\xampp\htdocs\eyeclinicproject.
+cd eyeclinicproject
+
+php artisan setup:scheduler
+php artisan migrate
+
+cd eyeclinicproject
+
+<VirtualHost 192.168.1.72*:80>
+    ServerName 192.168.1.72
+    DocumentRoot "C:/laragon/www/eyeclinicproject/public"
+
+    <Directory "C:/laragon/www/eyeclinicproject/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+ 192.168.1.100
+255.255.255.0
+192.168.100.1
+8.8.8.8
+8.8.4.4
+php artisan storage:link
+cd C:\laragon\www\eyeclinicproject
+php keygen.php
+
+php artisan key:generate
+cp .envrestored.copy .env
+php artisan migrate:fresh --seed --seeder=UserSeeder
+
+composer require league/flysystem-aws-s3-v3 "^3.0"
+zxcv#234QWERTY
+
+ 192.168.1.100
+
+
+ 192.168.100.5
+
+
+ mkdir bootstrap/cache
+mkdir storage/framework/cache/data storage/framework/sessions storage/framework/views
+DB_CONNECTION=mysql
+DB_HOST=db-a268d5f9-5a9c-4b3f-91ff-3981a182ac8e.eu-west-2.public.db.laravel.cloud
+DB_PORT=3306
+DB_USERNAME=yigarblqay1wiwjv
+DB_PASSWORD=G9tt2QaZY0h07jReFcJq
+
+
+ 192.168.8.2
+
+ <VirtualHost *:80 192.168.8.2:80>
+    DocumentRoot "C:/laragon/www/eyeclinicproject/public"
+    ServerName eyeclinicproject.test
+    ServerAlias *.eyeclinicproject.test 192.168.8.2
+    <Directory "C:/laragon/www/eyeclinicproject/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+<VirtualHost 192.168.0.117:80>
+    DocumentRoot "C:/laragon/www/eyeclinicproject/public"
+    ServerName 192.168.0.117
+    ServerAlias eyeclinicproject.test *.eyeclinicproject.test
+    <Directory "C:/laragon/www/eyeclinicproject/public">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+.
+
+
+
+icacls "storage" /grant "Everyone:(OI)(CI)F" /T
+icacls "bootstrap\cache" /grant "Everyone:(OI)(CI)F" /T
+
+php artisan cache:clear
+Remove-Item -Path "storage\framework\cache\data\*" -Recurse -Force
+Remove-Item -Path "storage\framework\cache\data\*" -Recurse -Force
+php artisan optimize:clear
+
+<<<<<<< HEAD
+
+
+
+An issue where a patient brings his own frame. We should be able to still proceed with Refractions needing Dispensing
+
+
+Remove-Item database\nativephp.sqlite* -Force -ErrorAction SilentlyContinue
+php artisan native:migrate
+php artisan native:seed --class=UserSeeder
+
+php artisan native:migrate:fresh --seed --no-interaction
+
+php artisan native:run
+=======
+php artisan migrate:fresh --seed --seeder=UserSeeder --force
+
+php artisan migrate:fresh --seed --seeder=UserSeeder --force && php artisan db:seed --class=DiagnosisSeeder --force && php artisan db:seed --class=CategorySeeder --force
+>>>>>>> 07891bfbad9fbb2b8f1f496b4f7deffc42de93ea
+php artisan platform:make-admin frimkings@email.com
+
+
+php artisan platform:create-admin developer@gmail.com --name="Developer"
+php artisan queue:work --queue=imports,default --sleep=1 --tries=3 --timeout=900
+php artisan test tests\Feature\LegacyImportEndToEndAcceptanceTest.php
+php artisan test --group=legacy-import-acceptance
+php artisan platform:deployment-readiness --strict
+php artisan subscriptions:process-billing
+php artisan subscriptions:send-notifications
+php artisan queue:work
+
+php artisan subscriptions:sync-collections
+
+
+php artisan storage:link
+php artisan config:cache
+php artisan platform:deployment-readiness
+php artisan platform:staging-rehearsal --strict

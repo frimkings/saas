@@ -1,0 +1,8 @@
+<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+return new class extends Migration {
+ public function up():void{Schema::create('subscription_collection_cases',function(Blueprint $t){$t->id();$t->foreignId('clinic_id')->constrained('clinics')->cascadeOnDelete();$t->foreignId('clinic_subscription_id')->nullable()->constrained('clinic_subscriptions')->nullOnDelete();$t->foreignId('platform_invoice_id')->constrained('platform_invoices')->cascadeOnDelete();$t->string('status',25)->default('open');$t->string('aging_bucket',20)->default('current');$t->date('promised_payment_date')->nullable();$t->decimal('promised_amount',12,2)->nullable();$t->timestamp('last_contacted_at')->nullable();$t->timestamp('resolved_at')->nullable();$t->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();$t->timestamps();$t->unique('platform_invoice_id');$t->index(['status','aging_bucket']);});Schema::create('subscription_collection_notes',function(Blueprint $t){$t->id();$t->unsignedBigInteger('subscription_collection_case_id');$t->foreign('subscription_collection_case_id','collection_notes_case_fk')->references('id')->on('subscription_collection_cases')->cascadeOnDelete();$t->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();$t->string('contact_method',30)->default('internal');$t->text('note');$t->timestamp('contacted_at');$t->timestamps();});}
+ public function down():void{Schema::dropIfExists('subscription_collection_notes');Schema::dropIfExists('subscription_collection_cases');}
+};

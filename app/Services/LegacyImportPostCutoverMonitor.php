@@ -1,0 +1,22 @@
+<?php
+namespace App\Services;
+use App\Models\LegacyImportBatch;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+class LegacyImportPostCutoverMonitor {
+ public function run(LegacyImportBatch $batch,int $userId):array{
+  abort_unless($batch->cutover_approved_at,422,'Cutover approval is required before monitoring.');abort_if($batch->rolled_back_at,422,'A rolled-back import cannot be monitored.');$clinicId=(int)$batch->clinic_id;$checks=[];
+  $add=function($key,$label,$passed,$affected=0,$detail='')use(&$checks){$checks[$key]=compact('label','passed','affected','detail');};
+  $add('clinic_active','Clinic remains active',DB::table('clinics')->where('id',$clinicId)->where('status','active')->exists());
+  $add('default_branch','Active default branch remains available',DB::table('branches')->where('clinic_id',$clinicId)->where('is_default',1)->where('is_active',1)->exists());
+  $add('active_users','Clinic retains active users',DB::table('clinic_user')->where('clinic_id',$clinicId)->where('status','active')->exists());
+  $add('super_admin','Clinic retains an active Super Admin',DB::table('clinic_user')->where('clinic_id',$clinicId)->where('status','active')->where('clinic_role','Super Admin')->exists());
+  $add('subscription','Subscription remains operational',DB::table('clinic_subscriptions')->where('clinic_id',$clinicId)->whereIn('status',['active','trial'])->exists());
+  foreach(['patients','consultations','sales','payment_transactions','products','stock_movements'] as $table){if(!Schema::hasTable($table)||!Schema::hasColumn($table,'clinic_id'))continue;$expected=(int)($batch->result['counts'][$table]??0);$actual=DB::table($table)->where('clinic_id',$clinicId)->count();$add('retention_'.$table,ucwords(str_replace('_',' ',$table)).' retained',$actual>=$expected,max(0,$expected-$actual),"Expected at least {$expected}; found {$actual}.");}
+  foreach(['sales_patient'=>['sales','patients','patient_id'],'consultation_patient'=>['consultations','patients','patient_id'],'payment_sale'=>['payment_transactions','sales','sale_id'],'movement_product'=>['stock_movements','products','product_id']] as $key=>[$child,$parent,$foreign]){if(!Schema::hasTable($child)||!Schema::hasTable($parent)||!Schema::hasColumn($child,$foreign))continue;$failures=DB::table($child.' as c')->leftJoin($parent.' as p','p.id','=','c.'.$foreign)->where('c.clinic_id',$clinicId)->whereNotNull('c.'.$foreign)->where(fn($q)=>$q->whereNull('p.id')->orWhereColumn('p.clinic_id','<>','c.clinic_id'))->count();$add('relationship_'.$key,ucwords(str_replace('_',' ',$key)).' tenant integrity',$failures===0,$failures,$failures?'Missing or cross-clinic parent records detected.':'No ownership drift detected.');}
+  $branchFailures=0;foreach(['patients'=>'home_branch_id','consultations'=>'branch_id','sales'=>'branch_id','payment_transactions'=>'branch_id','stock_movements'=>'branch_id'] as $table=>$column){if(!Schema::hasTable($table)||!Schema::hasColumn($table,$column))continue;$branchFailures+=DB::table($table.' as r')->leftJoin('branches as b','b.id','=','r.'.$column)->where('r.clinic_id',$clinicId)->whereNotNull('r.'.$column)->where(fn($q)=>$q->whereNull('b.id')->orWhere('b.clinic_id','<>',$clinicId))->count();}$add('branch_ownership','Branch ownership integrity',$branchFailures===0,$branchFailures,$branchFailures?'Records reference another clinic branch.':'No branch ownership drift detected.');
+  $passed=collect($checks)->every(fn($c)=>$c['passed']);$report=['passed'=>$passed,'generated_at'=>now()->toIso8601String(),'checks'=>$checks,'totals'=>['checks'=>count($checks),'passed'=>collect($checks)->where('passed',true)->count(),'failed'=>collect($checks)->where('passed',false)->count(),'affected'=>collect($checks)->sum('affected')]];$batch->update(['monitoring_status'=>$passed?'healthy':'attention_required','monitoring_report'=>$report,'monitoring_checked_by'=>$userId,'monitoring_checked_at'=>now()]);return $report;
+ }
+ public function close(LegacyImportBatch $batch):void{abort_unless($batch->cutover_approved_at,422,'Cutover has not been approved.');abort_unless($batch->monitoring_status==='healthy'&&($batch->monitoring_report['passed']??false),422,'A healthy monitoring run is required.');abort_if($batch->migration_closed_at,422,'This migration is already closed.');$batch->update(['cutover_status'=>'completed','migration_closed_at'=>now()]);if($batch->stored_path)Storage::disk('local')->delete($batch->stored_path);}
+}

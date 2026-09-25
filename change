@@ -1,0 +1,159 @@
+  <form autocomplete="off" wire.submit.prevent="addSpectaclePrescription">
+                <div class="modal fade" id="modal-info">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content bg-info">
+
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-12 ">
+                                        <table class="table table-hover  responsive table-bordered border-info">
+                                            <thead>
+                                                <td colspan="7">
+                                                    <label for="" class="col-sm-12 col-form-label  ">
+                                                        <div class="row">
+                                                            <button type="button"
+                                                                class="close float-xl-right btn-danger"
+                                                                data-dismiss="modal" aria-label="Close">
+                                                                <span aria-hidden="true">&times;</span>
+                                                            </button>
+                                                            <div class="col-12">
+                                                                <h5>
+                                                                    <p class="text-center">CHURCH OF CHRIST MISSION
+                                                                        HOSPITAL
+                                                                        <br>EYE UNIT
+                                                                    </p>
+                                                                </h5>
+                                                                <small>
+                                                                    <p class="text-center">0266457979</p>
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="row">
+                                                            <div class="col-12">
+                                                                <p class="text-center">Name: Kingsford Osei Frimpong ||
+                                                                    <span> Age: 27 years</span>
+                                                                </p>
+
+                                                            </div>
+                                                            <div class="col-12">
+                                                                <p class="text-center">Gender : Male ||
+                                                                    <span> Date:
+                                                                        12/02/2022</span>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </td>
+                                                <tr>
+                                                    <th scope="col"></th>
+                                                    <th scope="col">SPH</th>
+                                                    <th scope="col">CYL</th>
+                                                    <th scope="col">AXIS</th>
+                                                    <th scope="col">VA</th>
+                                                    <th scope="col">ADD</th>
+                                                    <th scope="col">VA</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <th scope="row">OD</th>
+                                                    <td><input wire:model.defer="specs.distanceOdSphere" type="text"
+                                                            class="form-control form-control-sm externals" list="nea">
+                                                    </td>
+
+                                                    <td><input wire:model.defer="specs.distanceOdCyl" type="text"
+                                                            class="form-control form-control-sm externals" list="nea">
+                                                    </td>
+                                                    <td><input wire:model.defer="specs.distanceOdAxis" type="text"
+                                                            class=" form-control form-control-sm externals"
+                                                            list="distance">
+                                                    </td>
+                                                    <td><input wire:model.defer="specs.distanceOdVa" type="text"
+                                                            class=" form-control form-control-sm externals"
+                                                            list="distance">
+                                                    </td>
+
+                                                    <td><input wire:model.defer="specs.addOd" type="text"
+                                                            class=" form-control form-control-sm externals"
+                                                            list="distance">
+                                                    </td>
+                                                    <td><input wire:model.defer="specs.addOdVa" type="text"
+                                                            class="form-control form-control-sm externals" list="nea">
+                                                    </td>
+                                                </tr>
+                                                <th scope="row">OS</th>
+                                                <td><input wire:model.defer="specs.distanceOsSphere" type="text"
+                                                        class="form-control form-control-sm externals" list="nea">
+                                                </td>
+
+                                                <td><input wire:model.defer="specs.distanceOsCyl" type="text"
+                                                        class="form-control form-control-sm externals" list="nea">
+                                                </td>
+                                                <td><input wire:model.defer="specs.distanceOsAxis" type="text"
+                                                        class=" form-control form-control-sm externals" list="distance">
+                                                </td>
+                                                <td><input wire:model.defer="specs.distanceOsVa" type="text"
+                                                        class=" form-control form-control-sm externals" list="distance">
+                                                </td>
+
+                                                <td><input wire:model.defer="specs.addOs" type="text"
+                                                        class=" form-control form-control-sm externals" list="distance">
+                                                </td>
+                                                <td><input wire:model.defer="specs.addOsVa" type="text"
+                                                        class="form-control form-control-sm externals" list="nea">
+                                                </td>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="row lens-order">
+                                    <div class="col-4">
+                                        <label for="name">PD</label>
+                                        <div class="form-group">
+                                            <input type="number" class="form-control" value="588-12-22">
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <label for="lensType">Lens Type</label>
+                                        <select class="custom-select" id="lensType" wire:model.defer="specs.lensType"
+                                            class="form-control @error('lensType') is-invalid @enderror" id="lensType"
+                                            required>
+                                            <option>......</option>
+                                            <option value="SV Photo, AR">SV Photo, AR</option>
+                                            <option value="SV White">SV White</option>
+                                            <option value="SV, Blue Block">SV, Blue Block</option>
+                                            <option value="Bifocal, White ">Bifocal, White</option>
+                                            <option value="Bifocal, Photo, AR">Bifocal, Photo, AR</option>
+                                            <option value="Progressive Photo">Progressive Photo</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4">
+                                        <label for="name">Other Specifications</label>
+                                        <div class="form-group">
+                                            <input type="text" class="form-control">
+                                        </div>
+                                    </div>
+
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal"><i
+                                                class="fa fa-times mr-1"></i> Cancel</button>
+                                        <button type="submit" class="btn btn-primary"> <i class="fa fa-save mr-1"></i>
+
+                                            <span>Save Record</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+                        <!-- /.modal-content -->
+                    </div>
+                    <!-- /.modal-dialog -->
+                </div>
+
+
+                <!-- /.modal -->
+
+                {{-- end modal --}}
+            </form>

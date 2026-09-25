@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vision Space Eye Clinic — Complete System Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 4px; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 antialiased font-sans min-h-screen">
+
+  <!-- TOP MASTER NAVIGATION BAR -->
+  <header class="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 font-black text-lg shadow-lg shadow-cyan-500/20">
+          VS
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-black tracking-wider text-base text-white">VISION SPACE</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">MASTER PROTOTYPE</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-medium">MORE THAN EYE CARE • KNUST / Kumasi, Ghana</p>
+        </div>
+      </div>
+
+      <!-- Master Module Switcher Tabs -->
+      <nav class="flex items-center gap-1 bg-slate-900 p-1.5 rounded-xl border border-slate-800 text-xs font-bold w-full md:w-auto overflow-x-auto">
+        <button type="button" onclick="switchMasterModule('website')" id="nav-website" class="px-3.5 py-2 rounded-lg bg-cyan-500 text-slate-950 shadow-md transition-all flex items-center gap-1.5">
+          <span>🌐 Public Website</span>
+        </button>
+        <button type="button" onclick="switchMasterModule('secretary')" id="nav-secretary" class="px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+          <span>🚪 Reception & Web Leads</span>
+          <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px]">3</span>
+        </button>
+        <button type="button" onclick="switchMasterModule('doctor')" id="nav-doctor" class="px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+          <span>🩺 Doctor EMR Suite</span>
+        </button>
+        <button type="button" onclick="switchMasterModule('cashier')" id="nav-cashier" class="px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+          <span>💳 Billing & Spectacles</span>
+        </button>
+        <button type="button" onclick="switchMasterModule('admin')" id="nav-admin" class="px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center gap-1.5">
+          <span>📊 Admin Analytics</span>
+        </button>
+      </nav>
+
+    </div>
+  </header>
+
+  <!-- MAIN PROTOTYPE CONTENT AREA -->
+  <main class="max-w-7xl mx-auto p-4 sm:p-6">
+
+    <!-- ========================================================================= -->
+    <!-- MODULE 1: PUBLIC PATIENT WEBSITE (visionspacegh.com) -->
+    <!-- ========================================================================= -->
+    <div id="module-website" class="space-y-12 animate-fadeIn">
+      
+      <!-- Hero Banner -->
+      <section class="relative rounded-3xl overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 p-8 sm:p-12 border border-slate-800 text-center sm:text-left">
+        <div class="max-w-3xl space-y-6">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold uppercase tracking-widest">
+            <span>MODERN EYE CARE IN KUMASI</span>
+          </div>
+
+          <h1 class="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
+            SEE BETTER. <br />
+            <span class="bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-400 bg-clip-text text-transparent">
+              LIVE BETTER.
+            </span>
+          </h1>
+
+          <p class="text-slate-300 text-base sm:text-lg leading-relaxed">
+            Professional eye examinations, modern prescription spectacles and personalized eye care designed around KNUST students, young professionals and families.
+          </p>
+
+          <div class="flex flex-col sm:flex-row items-center gap-4 pt-2">
+            <button type="button" onclick="openBookingModal()" class="w-full sm:w-auto px-8 py-4 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-sm shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2">
+              <span>BOOK AN EYE EXAM</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+            <a href="https://wa.me/233598882009" target="_blank" class="w-full sm:w-auto px-8 py-4 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold text-sm transition-all flex items-center justify-center gap-2">
+              <span>CHAT ON WHATSAPP (0598882009)</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Trust Bar Metrics -->
+      <section class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800">
+          <p class="text-3xl font-black text-cyan-400">190+</p>
+          <p class="text-xs font-bold text-slate-300 uppercase mt-1">Patients Served</p>
+          <p class="text-[11px] text-slate-500">KNUST & Ayeduase</p>
+        </div>
+        <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800">
+          <p class="text-3xl font-black text-cyan-400">Professional</p>
+          <p class="text-xs font-bold text-slate-300 uppercase mt-1">Eye Examinations</p>
+          <p class="text-[11px] text-slate-500">Clinical Refraction</p>
+        </div>
+        <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800">
+          <p class="text-3xl font-black text-cyan-400">Modern</p>
+          <p class="text-xs font-bold text-slate-300 uppercase mt-1">Diagnostic Care</p>
+          <p class="text-[11px] text-slate-500">Advanced Equipment</p>
+        </div>
+        <div class="p-5 rounded-2xl bg-slate-950 border border-slate-800">
+          <p class="text-3xl font-black text-cyan-400">Student-Friendly</p>
+          <p class="text-xs font-bold text-slate-300 uppercase mt-1">Packages</p>
+          <p class="text-[11px] text-slate-500">From GH₵699</p>
+        </div>
+      </section>
+
+      <!-- Student Packages Section -->
+      <section class="space-y-6">
+        <div class="text-center max-w-2xl mx-auto space-y-2">
+          <span class="text-xs font-extrabold uppercase tracking-widest text-cyan-400">KNUST & TERTIARY EXCLUSIVE</span>
+          <h2 class="text-3xl font-black text-white">STUDENT EYE CARE PACKAGES</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <!-- Package 1 -->
+          <div class="p-8 rounded-3xl bg-slate-950 border border-slate-800 space-y-6 flex flex-col justify-between">
+            <div>
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Everyday Versatility</span>
+              <h3 class="text-2xl font-black text-white mt-1">SV Photochromic</h3>
+              <div class="flex items-baseline gap-1 my-4">
+                <span class="text-sm font-bold text-cyan-400">GH₵</span>
+                <span class="text-5xl font-black text-white">699</span>
+                <span class="text-xs text-slate-400">/ complete package</span>
+              </div>
+              <ul class="space-y-2 text-xs text-slate-300">
+                <li class="flex items-center gap-2">✓ Eye consultation & refraction test included</li>
+                <li class="flex items-center gap-2">✓ Selected modern durable frame</li>
+                <li class="flex items-center gap-2">✓ Single-vision auto-tinting photochromic AR lens</li>
+              </ul>
+            </div>
+            <button type="button" onclick="openBookingModal('Photochromic GH₵699')" class="w-full py-3.5 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition-all">
+              Select Photochromic Package
+            </button>
+          </div>
+
+          <!-- Package 2 (Popular) -->
+          <div class="p-8 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-cyan-500 shadow-2xl shadow-cyan-500/10 space-y-6 flex flex-col justify-between relative">
+            <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-cyan-500 text-slate-950 text-[10px] font-black uppercase tracking-widest">
+              STUDENT FAVORITE
+            </span>
+            <div>
+              <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">Digital Screen & Study Specialist</span>
+              <h3 class="text-2xl font-black text-white mt-1">SV Blue-Block</h3>
+              <div class="flex items-baseline gap-1 my-4">
+                <span class="text-sm font-bold text-cyan-400">GH₵</span>
+                <span class="text-5xl font-black text-white">899</span>
+                <span class="text-xs text-slate-400">/ complete package</span>
+              </div>
+              <ul class="space-y-2 text-xs text-slate-200">
+                <li class="flex items-center gap-2">✓ Eye consultation & clinical assessment</li>
+                <li class="flex items-center gap-2">✓ Selected modern frame from catalog</li>
+                <li class="flex items-center gap-2">✓ Advanced blue-light filtering anti-glare lens</li>
+              </ul>
+            </div>
+            <button type="button" onclick="openBookingModal('Blue-Block GH₵899')" class="w-full py-3.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg">
+              Select Blue-Block Package
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODULE 2: SECRETARY / RECEPTION DASHBOARD & WEB LEADS -->
+    <!-- ========================================================================= -->
+    <div id="module-secretary" class="space-y-6 hidden animate-fadeIn">
+      
+      <div class="bg-white text-slate-900 rounded-2xl p-6 shadow-xl border border-slate-200 space-y-6">
+        
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+          <div>
+            <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">Clinic Registry</span>
+            <h2 class="text-2xl font-black">Reception & Appointments Management</h2>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" class="px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+              + Walk-in Patient
+            </button>
+            <button type="button" class="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow">
+              + New Appointment
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div class="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800">
+            <span class="block text-[11px] font-bold">Booked Today</span>
+            <span class="text-2xl font-black">12</span>
+          </div>
+          <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+            <span class="block text-[11px] font-bold">Web Leads (Pending)</span>
+            <span class="text-2xl font-black">3</span>
+          </div>
+          <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+            <span class="block text-[11px] font-bold">Arrived / Queue</span>
+            <span class="text-2xl font-black">4</span>
+          </div>
+          <div class="p-3 rounded-xl bg-purple-50 border border-purple-200 text-purple-800">
+            <span class="block text-[11px] font-bold">With Doctor</span>
+            <span class="text-2xl font-black">2</span>
+          </div>
+        </div>
+
+        <!-- Web Bookings Section -->
+        <div class="space-y-4 pt-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
+              🌐 Incoming Website Bookings (from visionspacegh.com)
+            </h3>
+            <span class="text-xs text-slate-500">Convert leads to official patient records (`PX-XXXXX-26`) upon check-in.</span>
+          </div>
+
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold text-[10px]">
+                <tr>
+                  <th class="p-3">#</th>
+                  <th class="p-3">Patient Name</th>
+                  <th class="p-3">Contact</th>
+                  <th class="p-3">Requested Service</th>
+                  <th class="p-3">Preferred Date</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 font-medium">
+                <tr>
+                  <td class="p-3 font-bold">#2</td>
+                  <td class="p-3 font-extrabold text-slate-900">bous dskl</td>
+                  <td class="p-3"><a href="https://wa.me/233266457979" target="_blank" class="text-emerald-600 font-bold hover:underline">0266457979</a></td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 font-bold">Single-Vision Photochromic (GH₵699)</span></td>
+                  <td class="p-3">Aug 30, 2026 12:00 AM</td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">✓ Converted to Patient</span></td>
+                  <td class="p-3 text-right">
+                    <span class="px-2 py-1 rounded bg-slate-100 border text-emerald-700 font-bold text-[11px]">PX-91BCA8190B-26</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="p-3 font-bold">#1</td>
+                  <td class="p-3 font-extrabold text-slate-900">Abena Frempong</td>
+                  <td class="p-3"><a href="https://wa.me/233598882009" target="_blank" class="text-emerald-600 font-bold hover:underline">0598882009</a></td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">Single-Vision Blue-Block (GH₵899)</span></td>
+                  <td class="p-3">Sep 01, 2026 07:17 PM</td>
+                  <td class="p-3"><span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">Pending Lead</span></td>
+                  <td class="p-3 text-right">
+                    <button type="button" onclick="alert('Converting Abena Frempong to official Patient (PX-XXXXX) & adding to calendar!')" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold text-xs shadow hover:bg-blue-700">
+                      + Convert to Patient
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODULE 3: DOCTOR EMR SUITE (History & Consultation) -->
+    <!-- ========================================================================= -->
+    <div id="module-doctor" class="space-y-6 hidden animate-fadeIn">
+      
+      <div class="bg-white text-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-200">
+        
+        <!-- Doctor Header -->
+        <div class="bg-slate-900 text-white p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center font-black text-white">KM</div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-lg font-black">Kwaku Mensah</h3>
+                <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 text-xs font-mono font-bold">PX-8F329A-26</span>
+                <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold">Ready</span>
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">Male • 24 yrs • KNUST Student (Computer Science) • Total Visits: 4</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Consultation Content -->
+        <div class="p-6 space-y-6">
+          <!-- Refraction Grid -->
+          <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+            <h4 class="text-xs font-bold uppercase text-slate-700">Subjective Refraction & Visual Acuity</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <span class="font-black text-blue-700 block mb-2">OD (Right Eye) — Distance VA: 6/6</span>
+                <div class="grid grid-cols-4 gap-2 text-center">
+                  <div><span class="block text-[10px] text-slate-500">SPH</span><span class="font-extrabold">-1.25</span></div>
+                  <div><span class="block text-[10px] text-slate-500">CYL</span><span class="font-extrabold">-0.50</span></div>
+                  <div><span class="block text-[10px] text-slate-500">AXIS</span><span class="font-extrabold">180°</span></div>
+                  <div><span class="block text-[10px] text-slate-500">VA</span><span class="font-extrabold">6/6</span></div>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                <span class="font-black text-emerald-700 block mb-2">OS (Left Eye) — Distance VA: 6/6</span>
+                <div class="grid grid-cols-4 gap-2 text-center">
+                  <div><span class="block text-[10px] text-slate-500">SPH</span><span class="font-extrabold">-1.50</span></div>
+                  <div><span class="block text-[10px] text-slate-500">CYL</span><span class="font-extrabold">-0.25</span></div>
+                  <div><span class="block text-[10px] text-slate-500">AXIS</span><span class="font-extrabold">175°</span></div>
+                  <div><span class="block text-[10px] text-slate-500">VA</span><span class="font-extrabold">6/6</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diagnoses & Management -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="space-y-2">
+              <label class="font-bold text-slate-800 block">Diagnoses (ICD-10 Tags)</label>
+              <div class="flex flex-wrap gap-2">
+                <span class="px-2.5 py-1 rounded bg-blue-100 text-blue-800 font-bold">H52.13 — Myopia OU</span>
+                <span class="px-2.5 py-1 rounded bg-blue-100 text-blue-800 font-bold">H53.14 — Digital Eye Strain</span>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="font-bold text-slate-800 block">Recommended Eyewear Package</label>
+              <select class="w-full p-2 rounded-lg border border-slate-300 font-bold text-blue-700 bg-white">
+                <option>Single-Vision Blue-Block Lens (GH₵899 Package)</option>
+                <option>Single-Vision Photochromic Lens (GH₵699 Package)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="pt-4 border-t border-slate-200 flex justify-end gap-3">
+            <button type="button" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-800 font-bold text-xs border">Save & Print Rx</button>
+            <button type="button" class="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-extrabold text-xs shadow">Save Consultation</button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODULE 4: CASHIER & SPECTACLE DISPENSING -->
+    <!-- ========================================================================= -->
+    <div id="module-cashier" class="space-y-6 hidden animate-fadeIn">
+      <div class="bg-white text-slate-900 rounded-2xl p-6 shadow-xl border border-slate-200 space-y-6">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+          <div>
+            <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Cashier & Optical Checkout</span>
+            <h2 class="text-2xl font-black">Spectacle Orders & Billing Clearance</h2>
+          </div>
+          <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">Register Open</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="md:col-span-2 space-y-4">
+            <h3 class="text-xs font-bold uppercase text-slate-500">Active Patient Checkout</h3>
+            <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div>
+                <p class="font-extrabold text-sm text-slate-900">Kwaku Mensah (PX-8F329A-26)</p>
+                <p class="text-xs text-slate-500 mt-0.5">Order: SV Blue-Block Glasses + Frame • Doctor: Dr. Kingsford</p>
+              </div>
+              <span class="text-xl font-black text-blue-700">GH₵899</span>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-slate-900 text-white space-y-4">
+            <h3 class="text-xs font-bold uppercase text-slate-400">Payment Collection</h3>
+            <div class="space-y-2 text-xs">
+              <div class="flex justify-between"><span>Subtotal:</span><span>GH₵899.00</span></div>
+              <div class="flex justify-between"><span>Discount:</span><span>GH₵0.00</span></div>
+              <div class="flex justify-between font-extrabold text-sm text-cyan-400 pt-2 border-t border-slate-800">
+                <span>Total Due:</span><span>GH₵899.00</span>
+              </div>
+            </div>
+            <button type="button" onclick="alert('Payment collected! Receipt printed.')" class="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider">
+              Collect GH₵899 & Print Receipt
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODULE 5: ADMIN ANALYTICS -->
+    <!-- ========================================================================= -->
+    <div id="module-admin" class="space-y-6 hidden animate-fadeIn">
+      <div class="bg-white text-slate-900 rounded-2xl p-6 shadow-xl border border-slate-200 space-y-6">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+          <div>
+            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Clinic Analytics</span>
+            <h2 class="text-2xl font-black">Executive Dashboard & Revenue Reports</h2>
+          </div>
+          <span class="text-xs font-bold text-slate-500">August 2026</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+          <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900">
+            <span class="block text-[11px] font-bold">Total Revenue (Aug)</span>
+            <span class="text-3xl font-black text-blue-700">GH₵42,850</span>
+          </div>
+          <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
+            <span class="block text-[11px] font-bold">Total Patients Examined</span>
+            <span class="text-3xl font-black text-emerald-700">194</span>
+          </div>
+          <div class="p-4 rounded-xl bg-purple-50 border border-purple-200 text-purple-900">
+            <span class="block text-[11px] font-bold">Spectacle Packages Sold</span>
+            <span class="text-3xl font-black text-purple-700">68</span>
+          </div>
+          <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+            <span class="block text-[11px] font-bold">Website Lead Conversion Rate</span>
+            <span class="text-3xl font-black text-amber-700">84%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- INTERACTIVE BOOKING MODAL PROTOTYPE -->
+  <div id="bookingModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 text-white space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-lg font-bold text-cyan-400">Book Your Eye Examination</h3>
+        <button type="button" onclick="closeBookingModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <form onsubmit="event.preventDefault(); alert('Booking request sent to Laravel API & WhatsApp!'); closeBookingModal();" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Full Name</label>
+          <input type="text" required placeholder="e.g. Kwaku Mensah" class="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-white" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Phone Number</label>
+          <input type="tel" required placeholder="0598882009" class="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-white" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Select Service</label>
+          <select id="modalServiceSelect" class="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-white">
+            <option>Comprehensive Eye Examination</option>
+            <option>Single-Vision Photochromic (GH₵699)</option>
+            <option>Single-Vision Blue-Block (GH₵899)</option>
+          </select>
+        </div>
+        <button type="submit" class="w-full py-3.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black uppercase text-xs shadow-lg mt-2">
+          Confirm via WhatsApp (0598882009)
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function switchMasterModule(moduleName) {
+      const modules = ['website', 'secretary', 'doctor', 'cashier', 'admin'];
+      modules.forEach(mod => {
+        document.getElementById('module-' + mod).classList.add('hidden');
+        document.getElementById('nav-' + mod).className = "px-3.5 py-2 rounded-lg text-slate-400 hover:text-white transition-all flex items-center gap-1.5";
+      });
+
+      document.getElementById('module-' + moduleName).classList.remove('hidden');
+      document.getElementById('nav-' + moduleName).className = "px-3.5 py-2 rounded-lg bg-cyan-500 text-slate-950 font-bold shadow-md transition-all flex items-center gap-1.5";
+    }
+
+    function openBookingModal(pkgName) {
+      if (pkgName) {
+        document.getElementById('modalServiceSelect').value = pkgName;
+      }
+      document.getElementById('bookingModal').classList.remove('hidden');
+    }
+
+    function closeBookingModal() {
+      document.getElementById('bookingModal').classList.add('hidden');
+    }
+  </script>
+
+</body>
+</html>

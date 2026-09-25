@@ -1,0 +1,163 @@
+<?php
+
+namespace App\Http\Livewire\Doctor;
+
+use App\Models\Patient;
+use Livewire\Component;
+use App\Models\Diagnosis;
+use App\Models\Consultations;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Models\CashierPatientClearance;
+use App\Models\Refractions;
+use Illuminate\Support\Facades\Validator;
+
+// use Validator;
+class CreateConsultationComponent extends Component
+{
+
+    public $state = [
+        'chiefComplaint' => '',
+        'odq' => [],
+    ];
+
+    public $specs = [];
+    public $demographics, $status;
+
+    public $consultations;
+
+    public function mount($id,  Consultations $consultations)
+    {
+        $this->demographics = CashierPatientClearance::findOrFail($id);
+        //  dd($this->demographics['id']);
+        // $this -> state = $consultations ->toArray();
+        // dd($this->state);
+    }
+
+    public function addSpectaclePrescription()
+    {
+        // dd('here');
+
+        // $id =  $this->demographics['id'];
+        $validatedData = Validator::make($this->specs, [
+            'patient_id' => 'required',
+            'distanceOdSphere' => 'nullable',
+            'distanceOdCyl' => 'nullable',
+            'distanceOdAxis' => 'nullable',
+            'distanceOdVa' => 'nullable',
+            'addOd' => 'nullable',
+            'addOdVa' => 'nullable',
+            'distanceOsSphere' => 'nullable',
+            'distanceOsCyl' => 'nullable',
+            'distanceOsAxis' => 'nullable',
+            'distanceOsVa' => 'nullable',
+            'addOs' => 'nullable',
+            'addOsVa' => 'nullable',
+            'pd' => 'required',
+            'lensType' => 'required',
+            'otherSpecs' => 'required',
+
+        ])->validate();
+
+        // $validatedData['clearance_id'] = $id;
+        $validatedData['user_id'] = Auth::user()->id;
+
+
+        dd($validatedData);
+
+
+
+
+        Refractions::create($validatedData);
+
+
+        // $this->dispatch('hide-addPatientModal-form', ['message' => 'Patient added']);
+        // return back();
+    }
+
+
+    public function saveConsulatation(Consultations $consultations )
+    {
+        $id =  $this->demographics['id'];
+
+        $validatedData = Validator::make($this->state, [
+
+            'chiefComplaint' => 'required',
+            'others' => 'nullable',
+            'odq' => 'nullable',
+            'vaOD6m' => 'nullable',
+            'vaOS6m' => 'nullable',
+            'vaOD4m' => 'nullable', 'vaOS4m' => 'nullable',
+            'phOD6m' => 'nullable', 'phOS6m' => 'nullable',
+            'currentSrxOD' => 'nullable', 'currentSrxOS' => 'nullable',
+            'lidsOD' => 'nullable', 'lidsOS' => 'nullable',
+            'conjunctivaOD' => 'nullable', 'conjunctivaOS' => 'nullable',
+            'corneaOD' => 'nullable', 'corneaOS' => 'nullable',
+            'acOD' => 'nullable', 'acOS' => 'nullable',
+            'irisOD' => 'nullable', 'irisOS' => 'nullable',
+            'pupilOD' => 'nullable', 'pupilOS' => 'nullable',
+            'lensOD' => 'nullable', 'lensOS' => 'nullable',
+            'vitreousOD' => 'nullable', 'vitreousOS' => 'nullable',
+            'fundusOD' => 'nullable', 'fundusOS' => 'nullable',
+            'cdrOD' => 'nullable', 'cdrOS' => 'nullable',
+            'IOPOD' => 'nullable', 'IOPOS' => 'nullable',
+            'maculaOD' => 'nullable', 'maculaOS' => 'nullable',
+            'peripheryOD' => 'nullable', 'peripheryOS' => 'nullable',
+            'notes' => 'nullable',
+            'diagnosis' => 'required',
+            // 'review' => 'nullable', 
+
+
+        ])->validate();
+
+        $validatedData['clearance_id'] = $id;
+        $validatedData['patient_id'] = $this->demographics['patient_id'];
+        $validatedData['user_id'] = Auth::user()->id;
+        // dd($validatedData);
+
+        $consultations=Consultations::create($validatedData);
+        $changeStatus = CashierPatientClearance::where('id', '=', $id);
+        $changeStatus->update([
+            'doctor_status' => '1',
+        ]);
+
+        // $editID = Consultations::where('clearance_id', '=', $id);
+        // $editID = Consultations::findOrFail('clearance_id', '=', $id);
+
+        // dd($editID->id);
+        return redirect()->route('doctor.show-consultation', $consultations->id);
+
+        $this->dispatch('hide-addPatientModal-form', ['message' => 'Patient added']);
+
+
+
+        //    $updateClearanceStatus = CashierPatientClearance::findOrFail($this->demographics['id']);
+        // $changeStatus = CashierPatientClearance::where('id', $id)->where('status', 'Unpaid');
+        // $this->status->update($changeStatus);
+        // $this->dispatch('hide-addPatientModal-form', ['message' => 'Updated']);
+
+
+
+        // return 'saved';
+    }
+
+
+    public function updatedSearchTerm()
+    {
+        // dd('here');
+
+        $this->resetPage();
+    }
+
+
+    public function render()
+    {
+        $diagnoses = Diagnosis::all();
+        //    dd($diagnosis);
+
+        return view('livewire.doctor.create-consultation-component', [
+            'diagnoses' => $diagnoses,
+        ])
+            ->layout('layouts.doctor.doctor-layout');
+    }
+}

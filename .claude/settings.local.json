@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($content = Get-Content \"c:\\\\xampp\\\\htdocs\\\\eyeclinicproject\\\\app\\\\Http\\\\Livewire\\\\POSComponent.php\" -Raw; $content.Length; $content.Substring\\(0, 200\\))",
+      "Bash(php artisan *)",
+      "Bash(\"C:\\\\xampp\\\\php\\\\php.exe\" artisan *)",
+      "Bash(grep -n \"SalesTrackingComponent\\\\|CreateConsultationComponent\\\\|App\\\\\\\\\\\\\\\\Http\\\\\\\\\\\\\\\\Livewire\\\\\\\\\\\\\\\\DiagnosisComponent\\\\|UserRoleManager[^C]\\\\|App\\\\\\\\\\\\\\\\Livewire\\\\\\\\\\\\\\\\RoleManager\" \"c:/xampp/htdocs/eyeclinicproject/routes/web.php\")",
+      "Bash(grep -n 'public $products\\\\b' c:/xampp/htdocs/eyeclinicproject/app/Http/Livewire/CartComponent.php)"
+    ]
+  }
+}

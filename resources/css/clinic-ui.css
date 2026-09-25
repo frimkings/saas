@@ -1,0 +1,86 @@
+/* Scoped Tailwind components: no global reset or Bootstrap class overrides. */
+.clinic-ui { --clinic-accent: #087e83; --clinic-surface: #f4f7f8; --clinic-ink: #18353d; --clinic-muted: #586e75; --clinic-line: #dce6e9; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.5; color: var(--clinic-ink); }
+.clinic-ui.ui-page { @apply p-4 md:p-6; background: var(--clinic-surface); }
+.clinic-ui *, .clinic-ui *::before, .clinic-ui *::after { box-sizing: border-box; }
+.clinic-ui .ui-heading { @apply flex flex-wrap items-center justify-between gap-3; margin-bottom: 22px; }
+.clinic-ui h1 { font-size: 24px; line-height: 1.5; font-weight: 500; letter-spacing: -.7px; margin: 0 0 4px; }
+.clinic-ui h2 { font-size: 15px; line-height: 1.5; font-weight: 500; margin: 0; }
+.clinic-ui p { @apply m-0; }
+.clinic-ui .ui-muted { font-size: 12px; color: var(--clinic-muted); }
+.clinic-ui .ui-actions { @apply flex flex-wrap items-center gap-2; }
+.clinic-ui .ui-stack { @apply space-y-5; }
+.clinic-ui .ui-grid { @apply grid gap-4 md:grid-cols-2; }
+.clinic-ui .ui-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.clinic-ui .ui-panel { @apply bg-white border border-solid overflow-hidden; border-color: var(--clinic-line); border-radius: 11px; }
+.clinic-ui .ui-stat { padding: 15px; }
+.clinic-ui .ui-value { font-size: 25px; font-weight: 400; letter-spacing: -.8px; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.clinic-ui .ui-panel-heading { @apply flex flex-wrap items-center justify-between gap-3 p-4 border-0 border-b border-solid border-slate-200; }
+.clinic-ui .ui-button { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-solid no-underline; padding: 9px 12px; font: inherit; }
+.clinic-ui .ui-button:hover { @apply no-underline; }
+.clinic-ui .ui-button:focus-visible, .clinic-ui .ui-input:focus-visible { outline: 3px solid #0d9488; outline-offset: 2px; }
+.clinic-ui .ui-button:disabled { @apply opacity-50 cursor-not-allowed; }
+.clinic-ui .ui-button-primary { @apply text-white hover:bg-teal-800; background-color: var(--clinic-accent); border-color: var(--clinic-accent); }
+.clinic-ui .ui-button-secondary { @apply bg-white border-slate-300 text-slate-700 hover:bg-slate-50; }
+.clinic-ui .ui-button-danger { @apply bg-white border-red-200 text-red-700 hover:bg-red-50; }
+.clinic-ui .ui-badge { @apply inline-flex rounded-md; background: #e5f5f3; color: var(--clinic-accent); padding: 4px 7px; font-size: 11px; font-weight: 400; }
+.clinic-ui .ui-field { @apply min-w-0; }
+.clinic-ui .ui-field label { @apply block; font-size: 14px; font-weight: 400; margin-bottom: 5px; }
+.clinic-ui .ui-input { @apply block w-full rounded-lg border border-solid bg-white; border-color: var(--clinic-line); color: var(--clinic-ink); padding: 10px; font: inherit; }
+.clinic-ui .ui-input[aria-invalid="true"] { @apply border-red-600; }
+.clinic-ui .ui-error { @apply text-sm text-red-700 mt-1; }
+.clinic-ui .ui-form { @apply p-5; }
+.clinic-ui .ui-form:not(.ui-grid) { @apply space-y-4; }
+.clinic-ui .ui-table-wrap { @apply overflow-x-auto; }
+.clinic-ui .ui-table { @apply w-full text-sm text-left; border-collapse: collapse; }
+.clinic-ui .ui-table th { @apply bg-slate-50 text-slate-600 font-semibold; }
+.clinic-ui .ui-table th, .clinic-ui .ui-table td { @apply px-4 py-3 border-0 border-b border-solid border-slate-200 align-top; }
+.clinic-ui .ui-table tbody tr:hover { @apply bg-slate-50; }
+.clinic-ui .ui-table .ui-number { @apply text-right whitespace-nowrap; font-variant-numeric: tabular-nums; }
+.clinic-ui .ui-empty { @apply text-center p-8; }
+.clinic-ui .ui-dialog { @apply bg-white text-slate-800 border border-solid border-slate-200 rounded-xl p-0 shadow-xl; width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; }
+.clinic-ui .ui-dialog::backdrop { background: rgb(15 23 42 / .55); }
+.clinic-ui .optical-category-dialog { width: 512px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.clinic-ui .optical-product-dialog { width: min(620px, calc(100vw - 32px)); height: min(610px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; overflow: hidden; }
+.clinic-ui .optical-product-dialog__body { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+.clinic-ui .optical-product-dialog__footer { flex: 0 0 auto; border-top: 1px solid var(--clinic-line); background: white; }
+.clinic-ui.optical-stock-overlay { position: fixed; inset: 0; z-index: 1000; margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; background: rgb(15 23 42 / 65%); overscroll-behavior: contain; }
+.clinic-ui .optical-stock-dialog { width: 512px; max-width: 100%; height: min(590px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px); margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+.clinic-ui .optical-stock-dialog--lens { width: 780px; height: min(780px, calc(100dvh - 48px)); }
+.clinic-ui .optical-stock-dialog--bulk { width: 1120px; height: min(850px, calc(100dvh - 48px)); }
+.clinic-ui .optical-stock-dialog form > .overflow-y-auto { flex: 1 1 auto; overscroll-behavior: contain; }
+@media (max-width: 640px) {
+    .clinic-ui.optical-stock-overlay { padding: 12px; }
+    .clinic-ui .optical-stock-dialog { max-height: calc(100dvh - 24px); }
+}
+.clinic-ui .ui-check { @apply flex items-center gap-2; }
+.clinic-ui .ui-check input { @apply w-5 h-5; }
+
+/* Reference shell for reviewing the same components at prototype proportions. */
+.ui-preview-shell.clinic-ui { margin: 8px; border: 1px solid var(--clinic-line); border-radius: 16px; overflow: hidden; background: var(--clinic-surface); }
+.clinic-ui .ui-preview-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; background: white; border-bottom: 1px solid var(--clinic-line); }
+.clinic-ui .ui-preview-brand { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.clinic-ui .ui-preview-mark { width: 18px; height: 18px; border-radius: 50%; background: #e5f5f3; }
+.clinic-ui .ui-preview-avatar { border-radius: 50%; background: #e5f5f3; color: var(--clinic-accent); padding: 8px; font-size: 12px; }
+.clinic-ui .ui-preview-layout { display: grid; grid-template-columns: 155px minmax(0, 1fr); }
+.clinic-ui .ui-preview-nav { padding: 22px 12px; border-right: 1px solid var(--clinic-line); background: white; }
+.clinic-ui .ui-preview-group { padding: 0 10px; margin-bottom: 10px; color: var(--clinic-muted); font-size: 11px; letter-spacing: 1px; }
+.clinic-ui .ui-preview-nav a, .clinic-ui .ui-preview-nav > span { display: block; padding: 11px 10px; margin-bottom: 4px; border-radius: 8px; color: var(--clinic-muted); text-decoration: none; }
+.clinic-ui .ui-preview-nav a[aria-current] { background: #e5f5f3; color: var(--clinic-accent); font-weight: 500; }
+.clinic-ui .ui-preview-main { padding: 24px; min-width: 0; }
+.clinic-ui .ui-appointment { display: grid; grid-template-columns: 55px minmax(0, 1fr) auto; gap: 12px; padding: 16px; align-items: center; border-bottom: 1px solid var(--clinic-line); }
+.clinic-ui .ui-appointment:last-child { border-bottom: 0; }
+.clinic-ui .ui-badge-waiting { background: #fff3d7; color: #795616; }
+.clinic-ui .ui-preview-footer { margin: 18px 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.clinic-ui .ui-preview-components > summary { cursor: pointer; padding: 12px 0; color: var(--clinic-muted); }
+@media (max-width: 560px) {
+    .clinic-ui .ui-preview-layout { grid-template-columns: 1fr; }
+    .clinic-ui .ui-preview-nav { display: flex; gap: 6px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--clinic-line); }
+    .clinic-ui .ui-preview-group, .clinic-ui .ui-preview-nav > span { display: none; }
+    .clinic-ui .ui-preview-nav a { margin: 0; }
+    .clinic-ui .ui-preview-main { padding: 16px; }
+    .clinic-ui .ui-stats { grid-template-columns: 1fr; }
+    .clinic-ui .ui-input { font-size: 16px; }
+}
+@media (pointer: coarse) {
+    .clinic-ui .ui-button { min-height: 44px; }
+}

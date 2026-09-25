@@ -1,0 +1,49 @@
+@echo off
+:: Check for Administrator privileges
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo [ERROR] Please right-click this file and select "Run as administrator".
+    pause
+    exit /b
+)
+
+:: Set XAMPP MySQL Directory (Change drive letter if not C:)
+cd /d "C:\xampp\mysql"
+if %errorLevel% neq 0 (
+    echo [ERROR] Could not find XAMPP MySQL directory at C:\xampp\mysql
+    pause
+    exit /b
+)
+
+echo [1/4] Renaming current data folder to data_old...
+if exist data_old (
+    echo [WARNING] 'data_old' already exists. Deleting it to avoid conflicts...
+    rmdir /s /q data_old
+)
+ren data data_old
+
+echo [2/4] Creating fresh data folder and copying backup templates...
+mkdir data
+xcopy /E /I /Q backup data
+
+echo [3/4] Restoring ibdata1 registry file...
+copy /Y data_old\ibdata1 data\ >nul
+
+echo [4/4] Migrating user databases...
+:: Create a temporary exclusion list for system schemas
+echo mysql\ > exclude.txt
+echo performance_schema\ >> exclude.txt
+echo phpmyadmin\ >> exclude.txt
+echo test\ >> exclude.txt
+
+:: Copy user databases while skipping system folders
+xcopy /E /I /Y /Q data_old data /EXCLUDE:exclude.txt
+
+:: Clean up temporary file
+del exclude.txt
+
+echo ===================================================
+echo [SUCCESS] MySQL recovery complete!
+echo You can now open XAMPP Control Panel and start MySQL.
+echo ===================================================
+pause

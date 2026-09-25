@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor EMR Prototype (History & Consultation) — Vision Space Eye Clinic</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 4px; }
+    
+    .dot-pulse {
+      animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased p-3 sm:p-6 min-h-screen relative">
+
+  <!-- Interactive Floating Popover Tooltip for SVG Graphs -->
+  <div id="graph-popover" class="fixed hidden z-50 bg-slate-900 text-white text-xs p-3 rounded-xl shadow-2xl border border-slate-700 pointer-events-none transition-all transform -translate-x-1/2 -translate-y-full mb-3 min-w-[180px]">
+    <div class="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-1.5">
+      <span id="popover-date" class="font-extrabold text-cyan-400">14 Sep 2024</span>
+      <span id="popover-eye" class="px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 text-[10px] font-bold">OD (Right)</span>
+    </div>
+    <div class="space-y-1 text-[11px]">
+      <p class="flex items-center justify-between">
+        <span class="text-slate-400">Value:</span>
+        <strong id="popover-value" class="text-white font-black text-sm">16 mmHg</strong>
+      </p>
+      <p class="flex items-center justify-between">
+        <span class="text-slate-400">Method/Scale:</span>
+        <span id="popover-method" class="text-slate-200 font-semibold">GAT Tonometer</span>
+      </p>
+      <p class="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px]">
+        <span class="text-slate-400">Examiner:</span>
+        <span id="popover-examiner" class="text-slate-300">Dr. Kingsford</span>
+      </p>
+    </div>
+    <!-- Popover pointer arrow -->
+    <div class="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2.5 h-2.5 bg-slate-900 border-r border-b border-slate-700"></div>
+  </div>
+
+  <!-- Diagnostic Scan DICOM Modal Preview -->
+  <div id="dicom-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 text-white shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">DICOM Diagnostic Image Viewer</span>
+          <h3 id="modal-scan-title" class="text-base font-black">Retinal Macular OCT Cross-Section (OD)</h3>
+        </div>
+        <button type="button" onclick="closeDicomModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div class="relative bg-black rounded-xl overflow-hidden h-80 flex items-center justify-center border border-slate-800">
+        <!-- Mock OCT / Fundus Canvas Display -->
+        <div id="modal-scan-canvas" class="w-full h-full bg-slate-950 flex flex-col items-center justify-center relative p-6">
+          <div class="w-full h-48 rounded-lg bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 border border-cyan-500/30 flex items-center justify-center relative overflow-hidden">
+            <!-- Simulated OCT retina layers -->
+            <svg class="w-full h-full" viewBox="0 0 500 150">
+              <path d="M 0 60 Q 250 110 500 60" fill="none" stroke="#06b6d4" stroke-width="4" opacity="0.8"/>
+              <path d="M 0 75 Q 250 120 500 75" fill="none" stroke="#10b981" stroke-width="3" opacity="0.7"/>
+              <path d="M 0 90 Q 250 130 500 90" fill="none" stroke="#f59e0b" stroke-width="2" opacity="0.6"/>
+              <circle cx="250" cy="115" r="4" fill="#ef4444" class="animate-ping"/>
+            </svg>
+            <span class="absolute top-3 left-3 text-[10px] font-mono text-cyan-300 bg-slate-900/80 px-2 py-1 rounded border border-cyan-500/40">Foveal Thickness: 242 µm (Normal)</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-3 text-center">Scan Date: 28 Aug 2025 • Device: Heidelberg Spectralis OCT • OD Right Eye</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs pt-2">
+        <div class="flex items-center gap-2">
+          <button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">🔍 Zoom In</button>
+          <button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">🌗 Contrast</button>
+          <button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">📐 Measure Thickness</button>
+        </div>
+        <button type="button" onclick="closeDicomModal()" class="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black">Done Viewing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Past Visit EMR Record Modal -->
+  <div id="visit-detail-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full p-6 text-slate-900 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+        <div>
+          <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">Archived Consultation EMR Record</span>
+          <h3 id="visit-modal-title" class="text-lg font-black text-slate-900">Encounter #3: Annual Eye Check & Spectacle Renewal</h3>
+          <p id="visit-modal-meta" class="text-xs text-slate-500 mt-0.5">Date: 28 August 2025 • Attending Ophthalmologist: Dr. Kingsford Osei Frimpong</p>
+        </div>
+        <button type="button" onclick="closeVisitRecordModal()" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center">✕</button>
+      </div>
+
+      <!-- Chief Complaint & History -->
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1 text-xs">
+        <span class="font-bold uppercase tracking-wider text-slate-500 text-[10px]">Chief Complaint & History of Present Illness</span>
+        <p id="visit-modal-complaint" class="font-medium text-slate-800">Patient reported mild eye strain during computer programming studies. Requested renewal of anti-glare computer glasses.</p>
+      </div>
+
+      <!-- Refraction Record Matrix -->
+      <div class="space-y-2">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">Recorded Refraction & Visual Acuity</h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse border border-slate-200">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-bold text-[10px] uppercase">
+                <th class="p-2 border-b border-slate-200">Eye</th>
+                <th class="p-2 border-b border-slate-200">SPH</th>
+                <th class="p-2 border-b border-slate-200">CYL</th>
+                <th class="p-2 border-b border-slate-200">AXIS</th>
+                <th class="p-2 border-b border-slate-200">Distance VA</th>
+                <th class="p-2 border-b border-slate-200">ADD</th>
+                <th class="p-2 border-b border-slate-200">Near VA</th>
+              </tr>
+            </thead>
+            <tbody id="visit-modal-refraction-body" class="divide-y divide-slate-200 font-medium text-slate-800">
+              <tr>
+                <td class="p-2 font-bold text-blue-600">OD (Right Eye)</td>
+                <td id="modal-sph-od" class="p-2">-1.25</td>
+                <td id="modal-cyl-od" class="p-2">-0.50</td>
+                <td id="modal-axis-od" class="p-2">180°</td>
+                <td id="modal-va-od" class="p-2 font-bold text-emerald-600">6/6</td>
+                <td class="p-2">-</td>
+                <td class="p-2">N5 @ 40cm</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold text-emerald-600">OS (Left Eye)</td>
+                <td id="modal-sph-os" class="p-2">-1.50</td>
+                <td id="modal-cyl-os" class="p-2">-0.25</td>
+                <td id="modal-axis-os" class="p-2">175°</td>
+                <td id="modal-va-os" class="p-2 font-bold text-emerald-600">6/6</td>
+                <td class="p-2">-</td>
+                <td class="p-2">N5 @ 40cm</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Exam Observations & IOP -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+          <span class="font-bold text-slate-500 uppercase text-[10px] block">Anterior Segment & Intraocular Pressure</span>
+          <p id="visit-modal-iop" class="font-extrabold text-blue-900">IOP: 14 mmHg OD | 14 mmHg OS (Goldmann GAT)</p>
+          <p id="visit-modal-anterior" class="text-slate-700">Cornea clear OU. Quiet anterior chamber, deep and clear. Crystalline lens clear.</p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+          <span class="font-bold text-slate-500 uppercase text-[10px] block">Posterior Segment & Fundus Exam</span>
+          <p id="visit-modal-posterior" class="text-slate-700">Optic disc pink with sharp margins. Cup-to-disc ratio 0.3 OU. Macula healthy with normal foveal reflex.</p>
+        </div>
+      </div>
+
+      <!-- Prescriptions & Dispensed Spectacles -->
+      <div class="p-4 rounded-xl bg-blue-50/50 border border-blue-200 text-xs space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="font-extrabold text-blue-900 uppercase text-[10px]">Dispensed Optical Order & Prescriptions</span>
+          <span id="visit-modal-order" class="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px]">Order #LO-8842</span>
+        </div>
+        <p id="visit-modal-lens" class="font-bold text-slate-800">Single-Vision Blue-Block Anti-Glare Lenses (GH₵899)</p>
+        <p id="visit-modal-meds" class="text-slate-600">Prescribed Lubricant Eye Drops (Refresh Tears qds OU x 1 month)</p>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="flex items-center justify-between border-t border-slate-200 pt-4 text-xs">
+        <button type="button" onclick="closeVisitRecordModal()" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 font-bold text-slate-700">
+          Close Record
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="alert('🖨️ Generating PDF Visit Summary...')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold flex items-center gap-1.5">
+            🖨️ Print Visit PDF
+          </button>
+          <button type="button" onclick="loadPastRxToActive()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold flex items-center gap-1.5">
+            📋 Load Prescription into Active Exam
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOP APP HEADER -->
+  <div class="max-w-7xl mx-auto mb-4 flex items-center justify-between">
+    <div>
+      <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Vision Space Doctor EMR Prototype</span>
+      <h1 class="text-xl font-black text-slate-900">Doctor Patient Record & Examination Suite</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="appointments_management.html" class="px-3.5 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors">
+        ← Appointments
+      </a>
+      <a href="diagnosis_management.html" class="px-3.5 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors">
+        Diagnosis Section →
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-7xl mx-auto overflow-hidden font-sans">
+    
+    <!-- 1. PATIENT HEADER BAR -->
+    <div class="bg-slate-900 text-white p-4 sm:p-6 border-b border-slate-800">
+      <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        
+        <!-- Left: Identity -->
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white text-xl font-black shadow-lg">
+            KM
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-xl font-black tracking-tight">Kwaku Mensah</h2>
+              <span class="px-2.5 py-0.5 rounded-md bg-blue-500/20 text-blue-400 text-xs font-mono font-bold border border-blue-500/30">PX-8F329A-26</span>
+              <span class="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Clearance Ready
+              </span>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-300 mt-1 flex-wrap">
+              <span><strong>Male</strong> • 24 yrs (DOB: 12 May 2002)</span>
+              <span>•</span>
+              <span>Occupation: <strong>KNUST Student (Computer Science)</strong></span>
+              <span>•</span>
+              <span>Total Visits: <strong class="text-cyan-400">4</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Actions -->
+        <div class="flex items-center gap-2 flex-wrap w-full lg:w-auto">
+          <button type="button" onclick="switchMainTab('consultation')" class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5">
+            <span>+ Start Consultation</span>
+          </button>
+          <button type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>PDF Summary</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 2. TAB NAVIGATION BAR -->
+    <div class="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 pt-3">
+      <div class="flex items-center gap-2 text-xs font-bold">
+        
+        <!-- History Tab Button -->
+        <button 
+          type="button" 
+          id="btn-tab-history"
+          onclick="switchMainTab('history')" 
+          class="px-5 py-3 rounded-t-xl bg-white text-blue-600 border-t-2 border-t-blue-600 border-x border-slate-200 shadow-sm transition-all flex items-center gap-2 font-bold"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Patient History & Timeline</span>
+          <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px]">4 Visits</span>
+        </button>
+
+        <!-- Consultation Tab Button -->
+        <button 
+          type="button" 
+          id="btn-tab-consultation"
+          onclick="switchMainTab('consultation')" 
+          class="px-5 py-3 rounded-t-xl text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <span>Active Consultation Exam</span>
+          <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Today</span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- 3. TAB 1: PATIENT HISTORY & TIMELINE VIEW -->
+    <div id="content-history" class="p-4 sm:p-6 space-y-6">
+      
+      <!-- Top Health Alerts Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        
+        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <div class="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
+            <span>SYSTEMIC HEALTH</span>
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          </div>
+          <p class="text-xs font-extrabold text-slate-900">No Known Systemic Disease</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">BP: 120/80 mmHg (Normal)</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-amber-50 border border-amber-200">
+          <div class="flex items-center justify-between text-xs font-bold text-amber-700 mb-1">
+            <span>OCULAR RISK</span>
+            <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          </div>
+          <p class="text-xs font-extrabold text-amber-900">Family History of Glaucoma</p>
+          <p class="text-[11px] text-amber-700 mt-0.5">Maternal Grandmother</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-blue-50 border border-blue-200">
+          <div class="flex items-center justify-between text-xs font-bold text-blue-700 mb-1">
+            <span>CURRENT GLASSES</span>
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <p class="text-xs font-extrabold text-blue-900">SV Blue-Block (Issued Aug 2025)</p>
+          <p class="text-[11px] text-blue-700 mt-0.5">OD: -1.25DS | OS: -1.50DS</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-rose-50 border border-rose-200">
+          <div class="flex items-center justify-between text-xs font-bold text-rose-700 mb-1">
+            <span>ALLERGIES</span>
+            <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+          </div>
+          <p class="text-xs font-extrabold text-rose-900">NKDA (No Known Drug Allergy)</p>
+          <p class="text-[11px] text-rose-700 mt-0.5">Dust & Vernal Sensitivity</p>
+        </div>
+
+      </div>
+
+      <!-- Sub-Tab Navigation Bar for Patient History -->
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
+        <div class="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl text-xs font-bold border border-slate-300/80">
+          <button type="button" id="subtab-overview" onclick="switchHistorySubTab('overview')" class="px-4 py-1.5 rounded-lg bg-white text-blue-600 shadow-xs border border-slate-200 transition-all flex items-center gap-1.5 font-extrabold">
+            <span>📊 Charts & Refraction History</span>
+          </button>
+          <button type="button" id="subtab-scans" onclick="switchHistorySubTab('scans')" class="px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5">
+            <span>🖼️ Diagnostic Scans</span>
+            <span class="px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-800 text-[10px]">3 Scans</span>
+          </button>
+          <button type="button" id="subtab-encounters" onclick="switchHistorySubTab('encounters')" class="px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5">
+            <span>📜 Past Encounters & Records</span>
+            <span class="px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800 text-[10px]">4 Visits</span>
+          </button>
+        </div>
+
+        <span class="text-xs text-slate-500 font-medium">Compact Medical History View</span>
+      </div>
+
+      <!-- Sub-Tab 1: Charts & Overview -->
+      <!-- Sub-Tab 1: Charts & Overview -->
+      <div id="subcontent-overview" class="space-y-6">
+        <!-- Longitudinal IOP & Visual Acuity (VA) Charting Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- 1. Intraocular Pressure (IOP) Tracking Chart with Legend Toggles & Popover Tooltips -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                Intraocular Pressure (IOP) Longitudinal Chart
+              </h3>
+              <p class="text-[11px] text-slate-500 mt-0.5">Tonometer: Goldmann Applanation (GAT) • Normal: 10 – 21 mmHg</p>
+            </div>
+            
+            <!-- Series Legend Toggles -->
+            <div class="flex items-center gap-2 text-[10px] font-bold">
+              <button type="button" onclick="toggleSeries('iop-od', this)" class="flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-blue-600"></span> [x] OD Right
+              </button>
+              <button type="button" onclick="toggleSeries('iop-os', this)" class="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-600"></span> [x] OS Left
+              </button>
+              <button type="button" onclick="toggleSeries('iop-zone', this)" class="flex items-center gap-1.5 text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200 shadow-xs">
+                [x] Normal Zone
+              </button>
+            </div>
+          </div>
+
+          <!-- IOP Visual SVG Graph -->
+          <div class="relative bg-slate-50/70 border border-slate-200 rounded-xl p-4 overflow-hidden">
+            <!-- Normal Zone Highlight (10-21 mmHg) -->
+            <div id="iop-zone" class="absolute inset-x-0 bottom-6 top-10 bg-emerald-500/10 border-y border-emerald-500/30 pointer-events-none flex items-center justify-end pr-2 transition-all">
+              <span class="text-[9px] font-bold text-emerald-700 uppercase tracking-wider bg-white/90 px-1.5 py-0.5 rounded border border-emerald-300 shadow-xs">Normal Range (10–21 mmHg)</span>
+            </div>
+
+            <!-- SVG Chart Lines -->
+            <svg class="w-full h-44 overflow-visible" viewBox="0 0 400 140">
+              <!-- Grid lines -->
+              <line x1="0" y1="20" x2="400" y2="20" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+              <text x="5" y="16" fill="#94a3b8" font-size="9" font-weight="bold">24 mmHg (High Risk)</text>
+
+              <line x1="0" y1="50" x2="400" y2="50" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+              <text x="5" y="46" fill="#94a3b8" font-size="9" font-weight="bold">18 mmHg</text>
+
+              <line x1="0" y1="80" x2="400" y2="80" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+              <text x="5" y="76" fill="#94a3b8" font-size="9" font-weight="bold">14 mmHg</text>
+
+              <line x1="0" y1="110" x2="400" y2="110" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+              <text x="5" y="106" fill="#94a3b8" font-size="9" font-weight="bold">10 mmHg</text>
+
+              <!-- OD Trend Group (Blue) -->
+              <g id="iop-od" class="transition-opacity duration-300">
+                <path d="M 50 80 L 150 75 L 250 80 L 350 65" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+                
+                <circle cx="50" cy="80" r="5" fill="#2563eb" class="cursor-pointer hover:r-7 transition-all" 
+                        onmouseenter="showPopover(event, '14 Jan 2023', 'OD Right Eye', '14 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="50" y="70" text-anchor="middle" fill="#1e40af" font-size="10" font-weight="bold">14</text>
+
+                <circle cx="150" cy="75" r="5" fill="#2563eb" class="cursor-pointer hover:r-7 transition-all"
+                        onmouseenter="showPopover(event, '14 Sep 2024', 'OD Right Eye', '15 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="150" y="65" text-anchor="middle" fill="#1e40af" font-size="10" font-weight="bold">15</text>
+
+                <circle cx="250" cy="80" r="5" fill="#2563eb" class="cursor-pointer hover:r-7 transition-all"
+                        onmouseenter="showPopover(event, '28 Aug 2025', 'OD Right Eye', '14 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="250" y="70" text-anchor="middle" fill="#1e40af" font-size="10" font-weight="bold">14</text>
+
+                <circle cx="350" cy="65" r="6" fill="#2563eb" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-8 transition-all"
+                        onmouseenter="showPopover(event, 'Today (Sep 2026)', 'OD Right Eye', '16 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="350" y="50" text-anchor="middle" fill="#1e40af" font-size="11" font-weight="black">16</text>
+              </g>
+
+              <!-- OS Trend Group (Emerald) -->
+              <g id="iop-os" class="transition-opacity duration-300">
+                <path d="M 50 80 L 150 80 L 250 80 L 350 72" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 2"/>
+                <circle cx="50" cy="80" r="4.5" fill="#059669" class="cursor-pointer hover:r-6 transition-all"
+                        onmouseenter="showPopover(event, '14 Jan 2023', 'OS Left Eye', '14 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <circle cx="150" cy="80" r="4.5" fill="#059669" class="cursor-pointer hover:r-6 transition-all"
+                        onmouseenter="showPopover(event, '14 Sep 2024', 'OS Left Eye', '14 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <circle cx="250" cy="80" r="4.5" fill="#059669" class="cursor-pointer hover:r-6 transition-all"
+                        onmouseenter="showPopover(event, '28 Aug 2025', 'OS Left Eye', '14 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <circle cx="350" cy="72" r="5.5" fill="#059669" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-7 transition-all"
+                        onmouseenter="showPopover(event, 'Today (Sep 2026)', 'OS Left Eye', '15 mmHg', 'Goldmann Applanation', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="350" y="86" text-anchor="middle" fill="#065f46" font-size="11" font-weight="black">15</text>
+              </g>
+            </svg>
+
+            <!-- X-Axis Labels -->
+            <div class="flex justify-between text-[10px] font-bold text-slate-500 pt-2 border-t border-slate-200">
+              <span class="text-center w-1/4">14 Jan 2023</span>
+              <span class="text-center w-1/4">14 Sep 2024</span>
+              <span class="text-center w-1/4">28 Aug 2025</span>
+              <span class="text-center w-1/4 text-blue-700">Today (Sep 2026)</span>
+            </div>
+          </div>
+
+          <!-- IOP Summary Metric Stats with Delta Variance Badges -->
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="p-2.5 rounded-xl bg-blue-50/50 border border-blue-200 flex items-center justify-between">
+              <div>
+                <span class="text-[10px] font-bold uppercase text-blue-600">OD Latest IOP</span>
+                <p class="text-sm font-black text-blue-900">16 mmHg <span class="text-[10px] font-normal text-slate-500">(Normal)</span></p>
+              </div>
+              <span class="px-2 py-1 rounded bg-amber-100 text-amber-900 text-[10px] font-extrabold flex items-center gap-1 border border-amber-300">
+                ⚠️ Δ +2 mmHg
+              </span>
+            </div>
+
+            <div class="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center justify-between">
+              <div>
+                <span class="text-[10px] font-bold uppercase text-emerald-600">OS Latest IOP</span>
+                <p class="text-sm font-black text-emerald-900">15 mmHg <span class="text-[10px] font-normal text-slate-500">(Normal)</span></p>
+              </div>
+              <span class="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold border border-emerald-300">
+                ✓ Stable
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Visual Acuity (VA) Progression Line Chart with Popovers & Delta Badges -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                Visual Acuity (VA) Longitudinal Line Chart
+              </h3>
+              <p class="text-[11px] text-slate-500 mt-0.5">Snellen Distance Scale • Target: 6/6 (20/20)</p>
+            </div>
+
+            <!-- Series Legend Toggles -->
+            <div class="flex items-center gap-2 text-[10px] font-bold">
+              <button type="button" onclick="toggleSeries('va-od', this)" class="flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-blue-600"></span> [x] OD UCVA
+              </button>
+              <button type="button" onclick="toggleSeries('va-os', this)" class="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-600"></span> [x] OS UCVA
+              </button>
+            </div>
+          </div>
+
+          <!-- VA Line Chart SVG Container -->
+          <div class="relative bg-slate-50/70 border border-slate-200 rounded-xl p-4 overflow-hidden">
+            <!-- 6/6 Target Benchmark Highlight -->
+            <div class="absolute inset-x-0 top-6 h-6 bg-emerald-500/10 border-y border-emerald-500/30 pointer-events-none flex items-center justify-end pr-2">
+              <span class="text-[9px] font-bold text-emerald-700 uppercase tracking-wider bg-white/90 px-1.5 py-0.5 rounded border border-emerald-300">Target Vision (6/6 - Normal)</span>
+            </div>
+
+            <!-- SVG Visual Line Graph -->
+            <svg class="w-full h-44 overflow-visible" viewBox="0 0 400 140">
+              <line x1="0" y1="20" x2="400" y2="20" stroke="#10b981" stroke-dasharray="2 2" stroke-width="1.5"/>
+              <text x="5" y="16" fill="#047857" font-size="9" font-weight="extrabold">6/6 (100% Vision)</text>
+
+              <line x1="0" y1="50" x2="400" y2="50" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+              <text x="5" y="46" fill="#64748b" font-size="9" font-weight="bold">6/9</text>
+
+              <line x1="0" y1="75" x2="400" y2="75" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+              <text x="5" y="71" fill="#64748b" font-size="9" font-weight="bold">6/12</text>
+
+              <line x1="0" y1="100" x2="400" y2="100" stroke="#cbd5e1" stroke-dasharray="3 3"/>
+              <text x="5" y="96" fill="#64748b" font-size="9" font-weight="bold">6/18</text>
+
+              <line x1="0" y1="125" x2="400" y2="125" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+              <text x="5" y="121" fill="#94a3b8" font-size="9" font-weight="bold">6/24</text>
+
+              <!-- Best-Corrected Visual Acuity Line (BCVA 6/6 for both eyes across all dates - Gray dashed line at Y=20) -->
+              <line x1="50" y1="20" x2="350" y2="20" stroke="#64748b" stroke-width="2.5" stroke-dasharray="4 3"/>
+
+              <!-- OD Uncorrected VA Line (Blue) -->
+              <g id="va-od" class="transition-opacity duration-300">
+                <path d="M 50 50 L 200 75 L 350 100" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="50" cy="50" r="5" fill="#2563eb" class="cursor-pointer hover:r-7 transition-all"
+                        onmouseenter="showPopover(event, '14 Sep 2024', 'OD Uncorrected VA', '6/9', 'Snellen Distance Scale', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="50" y="42" text-anchor="middle" fill="#1e40af" font-size="10" font-weight="bold">6/9</text>
+
+                <circle cx="200" cy="75" r="5" fill="#2563eb" class="cursor-pointer hover:r-7 transition-all"
+                        onmouseenter="showPopover(event, '28 Aug 2025', 'OD Uncorrected VA', '6/12', 'Snellen Distance Scale', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="200" y="67" text-anchor="middle" fill="#1e40af" font-size="10" font-weight="bold">6/12</text>
+
+                <circle cx="350" cy="100" r="6" fill="#2563eb" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-8 transition-all"
+                        onmouseenter="showPopover(event, 'Today (Sep 2026)', 'OD Uncorrected VA', '6/18', 'Snellen Distance Scale', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="350" y="92" text-anchor="middle" fill="#1e40af" font-size="11" font-weight="black">6/18</text>
+              </g>
+
+              <!-- OS Uncorrected VA Line (Emerald) -->
+              <g id="va-os" class="transition-opacity duration-300">
+                <path d="M 50 75 L 200 100 L 350 125" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 2"/>
+                <circle cx="50" cy="75" r="4.5" fill="#059669" class="cursor-pointer hover:r-6 transition-all"
+                        onmouseenter="showPopover(event, '14 Sep 2024', 'OS Uncorrected VA', '6/12', 'Snellen Distance Scale', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="50" y="87" text-anchor="middle" fill="#065f46" font-size="10" font-weight="bold">6/12</text>
+
+                <circle cx="200" cy="100" r="4.5" fill="#059669" class="cursor-pointer hover:r-6 transition-all"
+                        onmouseenter="showPopover(event, '28 Aug 2025', 'OS Uncorrected VA', '6/18', 'Snellen Distance Scale', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="200" y="112" text-anchor="middle" fill="#065f46" font-size="10" font-weight="bold">6/18</text>
+
+                <circle cx="350" cy="125" r="5.5" fill="#059669" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-7 transition-all"
+                        onmouseenter="showPopover(event, 'Today (Sep 2026)', 'OS Uncorrected VA', '6/24', 'Snellen Distance Scale', 'Dr. Kingsford')" onmouseleave="hidePopover()"/>
+                <text x="350" y="137" text-anchor="middle" fill="#065f46" font-size="11" font-weight="black">6/24</text>
+              </g>
+            </svg>
+
+            <!-- X-Axis Labels -->
+            <div class="flex justify-between text-[10px] font-bold text-slate-500 pt-2 border-t border-slate-200">
+              <span class="text-center w-1/3">14 Sep 2024</span>
+              <span class="text-center w-1/3">28 Aug 2025</span>
+              <span class="text-center w-1/3 text-blue-700">Today (Sep 2026)</span>
+            </div>
+          </div>
+
+          <!-- VA Clinical Delta Variance Alert Badges -->
+          <div class="p-3 rounded-xl bg-rose-50/80 border border-rose-200 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">📉</span>
+              <div>
+                <p class="font-extrabold text-rose-900">Uncorrected Vision Decline Alert</p>
+                <p class="text-[11px] text-rose-700">Uncorrected VA dropped 2 Snellen lines since 2024 due to Myopic shift.</p>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-600 text-white font-black text-[10px] shadow-xs">
+              ✓ Correctable to 6/6 OU
+            </span>
+          </div>
+        </div>
+
+      </div>
+      
+        
+
+      <!-- Historical Refraction Comparison Table -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center justify-between">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Refraction Progression History (3-Year Comparison)
+          </span>
+          <span class="text-[11px] text-slate-500 font-normal">OD (Right Eye) / OS (Left Eye)</span>
+        </h3>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase text-[10px]">
+                <th class="p-2.5">Date</th>
+                <th class="p-2.5">Eye</th>
+                <th class="p-2.5">SPH</th>
+                <th class="p-2.5">CYL</th>
+                <th class="p-2.5">AXIS</th>
+                <th class="p-2.5">VA (Distance)</th>
+                <th class="p-2.5">Lens Type Dispensed</th>
+                <th class="p-2.5">Examined By</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium">
+              <tr class="hover:bg-slate-50">
+                <td class="p-2.5 font-bold text-slate-900" rowspan="2">28 Aug 2025</td>
+                <td class="p-2.5 font-bold text-blue-600">OD (Right)</td>
+                <td class="p-2.5">-1.25</td>
+                <td class="p-2.5">-0.50</td>
+                <td class="p-2.5">180°</td>
+                <td class="p-2.5 font-bold">6/6</td>
+                <td class="p-2.5" rowspan="2"><span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold">Single-Vision Blue-Block</span></td>
+                <td class="p-2.5" rowspan="2">Dr. Kingsford</td>
+              </tr>
+              <tr class="hover:bg-slate-50 bg-slate-50/50">
+                <td class="p-2.5 font-bold text-emerald-600">OS (Left)</td>
+                <td class="p-2.5">-1.50</td>
+                <td class="p-2.5">-0.25</td>
+                <td class="p-2.5">175°</td>
+                <td class="p-2.5 font-bold">6/6</td>
+              </tr>
+              <tr class="hover:bg-slate-50">
+                <td class="p-2.5 font-bold text-slate-900" rowspan="2">14 Sep 2024</td>
+                <td class="p-2.5 font-bold text-blue-600">OD (Right)</td>
+                <td class="p-2.5">-0.75</td>
+                <td class="p-2.5">DS</td>
+                <td class="p-2.5">-</td>
+                <td class="p-2.5 font-bold">6/6</td>
+                <td class="p-2.5" rowspan="2"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700">Photochromic AR</span></td>
+                <td class="p-2.5" rowspan="2">Dr. Kingsford</td>
+              </tr>
+              <tr class="hover:bg-slate-50 bg-slate-50/50">
+                <td class="p-2.5 font-bold text-emerald-600">OS (Left)</td>
+                <td class="p-2.5">-1.00</td>
+                <td class="p-2.5">DS</td>
+                <td class="p-2.5">-</td>
+                <td class="p-2.5 font-bold">6/6</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- End Sub-Tab 1: Charts & Overview -->
+      </div>
+      <!-- End Sub-Tab 1: Charts & Overview -->
+
+      <!-- Sub-Tab 2: Diagnostic Scans Gallery (Hidden by default) -->
+      <!-- End Sub-Tab 1: Charts & Overview -->
+
+      <!-- Sub-Tab 2: Diagnostic Scans Gallery (Hidden by default) -->
+      <div id="subcontent-scans" class="space-y-6 hidden">
+        <!-- Diagnostic Scan & Image Attachment Gallery (Retinal OCT, Fundus, Visual Field) -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+              <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              Diagnostic Image & Scan Gallery (DICOM Attachments)
+            </h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">Click any scan thumbnail to open full-resolution DICOM diagnostic viewer</p>
+          </div>
+          <button type="button" onclick="openDicomModal('All Recent Attachments')" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-300">
+            + Upload New Scan
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          
+          <!-- Scan 1: OCT Retina -->
+          <div onclick="openDicomModal('Retinal Macular OCT Scan (OD/OS)')" class="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-950 cursor-pointer hover:border-cyan-500 transition-all hover:shadow-lg">
+            <div class="h-32 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-950 flex items-center justify-center relative p-3">
+              <svg class="w-full h-20 opacity-80 group-hover:scale-105 transition-transform" viewBox="0 0 200 80">
+                <path d="M 0 30 Q 100 65 200 30" fill="none" stroke="#06b6d4" stroke-width="3"/>
+                <path d="M 0 45 Q 100 75 200 45" fill="none" stroke="#10b981" stroke-width="2"/>
+              </svg>
+              <span class="absolute top-2 right-2 px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/40">OCT Retinal</span>
+            </div>
+            <div class="p-3 bg-white border-t border-slate-100">
+              <h4 class="text-xs font-extrabold text-slate-900 group-hover:text-cyan-600 transition-colors">Macular OCT Thickness Scan</h4>
+              <p class="text-[11px] text-slate-500">28 Aug 2025 • Fovea Normal (242 µm)</p>
+            </div>
+          </div>
+
+          <!-- Scan 2: Fundus Photo -->
+          <div onclick="openDicomModal('Color Fundus Retinal Photography')" class="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-950 cursor-pointer hover:border-amber-500 transition-all hover:shadow-lg">
+            <div class="h-32 bg-gradient-to-br from-amber-950 via-slate-900 to-rose-950 flex items-center justify-center relative p-3">
+              <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-600 to-rose-500 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform border border-amber-300/40">
+                <div class="w-6 h-6 rounded-full bg-amber-200/90 shadow-md"></div>
+              </div>
+              <span class="absolute top-2 right-2 px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">Fundus Photo</span>
+            </div>
+            <div class="p-3 bg-white border-t border-slate-100">
+              <h4 class="text-xs font-extrabold text-slate-900 group-hover:text-amber-600 transition-colors">Color Retinal Fundus Photo</h4>
+              <p class="text-[11px] text-slate-500">28 Aug 2025 • Optic Disc C/D 0.3 OU</p>
+            </div>
+          </div>
+
+          <!-- Scan 3: Visual Field Perimetry -->
+          <div onclick="openDicomModal('Humphrey 24-2 Visual Field Perimetry Report')" class="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-950 cursor-pointer hover:border-purple-500 transition-all hover:shadow-lg">
+            <div class="h-32 bg-slate-950 flex items-center justify-center relative p-3 grid grid-cols-5 gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-400 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-600 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <div class="w-3 h-3 bg-emerald-500 rounded-xs"></div>
+              <span class="absolute top-2 right-2 px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/40">Visual Field</span>
+            </div>
+            <div class="p-3 bg-white border-t border-slate-100">
+              <h4 class="text-xs font-extrabold text-slate-900 group-hover:text-purple-600 transition-colors">Humphrey 24-2 Visual Field</h4>
+              <p class="text-[11px] text-slate-500">14 Sep 2024 • Full Field, No Defect</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- End Sub-Tab 2: Diagnostic Scans -->
+
+
+      <!-- Sub-Tab 3: Past Visit Encounters (Hidden by default) -->
+      </div>
+      <!-- End Sub-Tab 2: Diagnostic Scans Gallery -->
+
+      <!-- Sub-Tab 3: Past Visit Encounters (Hidden by default) -->
+      <div id="subcontent-encounters" class="space-y-6 hidden">
+        <!-- Past Clinical Encounters Timeline -->
+        <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Past Encounters & Consultation Timeline (4 Encounters Recorded)
+          </h3>
+          <span class="text-[11px] text-slate-500 font-medium">Click any visit card to inspect complete clinical examination record</span>
+        </div>
+
+        <!-- Encounter Card 3 (Latest Past Visit) -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3 hover:border-blue-300 transition-all">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shadow-xs">
+                #3
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-900">Annual Eye Check & Spectacle Renewal</h4>
+                <p class="text-xs text-slate-500">28 August 2025 • Doctor: Dr. Kingsford Osei Frimpong • Branch: Main Clinic</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                Completed & Dispensed
+              </span>
+              <button type="button" onclick="openVisitRecordModal('visit-3')" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-xs flex items-center gap-1">
+                👁️ View Full Detailed Record
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Diagnoses:</span>
+              <p class="font-semibold text-slate-800">H52.13 — Myopia w/ Astigmatism OU</p>
+              <p class="text-slate-500">H53.14 — Computer Vision Syndrome</p>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Clinical Findings & IOP:</span>
+              <p class="text-slate-700">IOP: 14 mmHg OU. Cornea clear. Macula normal. Prescribed Blue-Block anti-glare lenses.</p>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Dispensing & Rx Details:</span>
+              <p class="font-semibold text-blue-700">Order #LO-8842 (GH₵899)</p>
+              <p class="text-slate-500">Single-Vision Blue-Block • Matte Black Frame</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Encounter Card 2 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3 hover:border-blue-300 transition-all">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs border border-slate-200">
+                #2
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-900">Comprehensive Refraction & Baseline Exam</h4>
+                <p class="text-xs text-slate-500">14 September 2024 • Doctor: Dr. Kingsford Osei Frimpong</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                Completed
+              </span>
+              <button type="button" onclick="openVisitRecordModal('visit-2')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs flex items-center gap-1">
+                👁️ View Full Detailed Record
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Diagnoses:</span>
+              <p class="font-semibold text-slate-800">H52.11 — Mild Myopia OU</p>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Clinical Findings & IOP:</span>
+              <p class="text-slate-700">IOP: 14/14 mmHg (GAT). C/D ratio: 0.3 OU. Foveal reflex present.</p>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Dispensing Details:</span>
+              <p class="font-semibold text-slate-700">Photochromic AR Single Vision (GH₵699)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Encounter Card 1 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3 hover:border-blue-300 transition-all">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs border border-slate-200">
+                #1
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-900">Initial Registration & Ocular Screening</h4>
+                <p class="text-xs text-slate-500">14 January 2023 • Doctor: Dr. Kingsford Osei Frimpong</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                Completed
+              </span>
+              <button type="button" onclick="openVisitRecordModal('visit-1')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs flex items-center gap-1">
+                👁️ View Full Detailed Record
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Diagnoses:</span>
+              <p class="font-semibold text-slate-800">H10.1 — Vernal Conjunctivitis</p>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Clinical Findings & IOP:</span>
+              <p class="text-slate-700">Tarsal papillae upper lid OU. Cornea clear. Prescribed Olopatadine eye drops.</p>
+            </div>
+            <div>
+              <span class="font-bold text-slate-500 block mb-1">Prescription:</span>
+              <p class="font-semibold text-purple-700">Olopatadine 0.1% drops 1 drop bd OU</p>
+            </div>
+          </div>
+        </div>
+
+        </div>
+      </div>
+      <!-- End Sub-Tab 3: Past Encounters -->
+      </div>
+      <!-- End Sub-Tab 3: Past Visit Encounters -->
+
+    <!-- End Tab 1: Patient History & Timeline View -->
+
+    <!-- 4. TAB 2: ACTIVE CONSULTATION EXAM VIEW -->
+    <div id="content-consultation" class="p-4 sm:p-6 space-y-6 hidden">
+      
+      <!-- Chief Complaint & HPI Bar -->
+      <div class="bg-blue-50/60 rounded-xl p-4 border border-blue-200 space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <label class="text-xs font-extrabold uppercase tracking-wider text-blue-900 flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+            Chief Complaint & History of Present Illness (HPI)
+          </label>
+          <div class="flex items-center gap-1.5 text-[11px] flex-wrap">
+            <span class="text-slate-500 font-semibold">Preset complaints:</span>
+            <button type="button" onclick="appendComplaint('Distance Blurry Vision')" class="px-2 py-0.5 rounded bg-white border border-slate-300 hover:border-blue-500 text-blue-700 font-medium">+ Distance Blur</button>
+            <button type="button" onclick="appendComplaint('Screen Eye Strain & Headaches')" class="px-2 py-0.5 rounded bg-white border border-slate-300 hover:border-blue-500 text-blue-700 font-medium">+ Screen Strain</button>
+            <button type="button" onclick="appendComplaint('Itching & Vernal Redness')" class="px-2 py-0.5 rounded bg-white border border-slate-300 hover:border-blue-500 text-blue-700 font-medium">+ Itching & Redness</button>
+          </div>
+        </div>
+
+        <textarea 
+          id="chiefComplaintText"
+          rows="2" 
+          placeholder="Enter patient's primary symptoms, onset, duration, and aggravating factors..."
+          class="w-full p-3 text-xs rounded-xl bg-white border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-800 resize-none font-medium"
+        >Patient reports mild asthenopia during prolonged screen study. Complaints of distance blur when viewing lecture board.</textarea>
+      </div>
+
+      <!-- Refraction & Visual Acuity Module (OD / OS Grid) + QUICK ACTION KEYS -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Refraction & Visual Acuity Measurements
+            </h3>
+            <p class="text-[11px] text-slate-500">Subjective & Objective Refraction Examination</p>
+          </div>
+
+          <!-- Quick Action Keys Toolbar -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Actions:</span>
+            <button type="button" onclick="copyOdToOs()" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold border border-blue-200 shadow-xs flex items-center gap-1">
+              📋 Copy OD ➔ OS
+            </button>
+            <button type="button" onclick="loadAutoRefractorData()" class="px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-800 text-xs font-extrabold border border-cyan-300 shadow-xs flex items-center gap-1">
+              📥 Load Auto-Refractor
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- OD (Right Eye) -->
+          <div class="p-4 rounded-xl bg-blue-50/40 border border-blue-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-blue-700 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-600"></span> OD — Right Eye
+              </span>
+              <div class="flex items-center gap-1 text-[10px] font-bold">
+                <span class="text-slate-500">Step:</span>
+                <button type="button" onclick="adjustSph('od', 0.25)" class="px-1.5 py-0.5 rounded bg-white border border-blue-300 hover:bg-blue-600 hover:text-white text-blue-700 transition-colors">+0.25</button>
+                <button type="button" onclick="adjustSph('od', -0.25)" class="px-1.5 py-0.5 rounded bg-white border border-blue-300 hover:bg-blue-600 hover:text-white text-blue-700 transition-colors">-0.25</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2">
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">SPH</label>
+                <input id="sph-od" type="text" value="-1.25" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">CYL</label>
+                <input id="cyl-od" type="text" value="-0.50" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">AXIS</label>
+                <input id="axis-od" type="text" value="180" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">VA</label>
+                <input id="va-od-val" type="text" value="6/6" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+            </div>
+          </div>
+
+          <!-- OS (Left Eye) -->
+          <div class="p-4 rounded-xl bg-emerald-50/40 border border-emerald-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase text-emerald-700 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-600"></span> OS — Left Eye
+              </span>
+              <div class="flex items-center gap-1 text-[10px] font-bold">
+                <span class="text-slate-500">Step:</span>
+                <button type="button" onclick="adjustSph('os', 0.25)" class="px-1.5 py-0.5 rounded bg-white border border-emerald-300 hover:bg-emerald-600 hover:text-white text-emerald-700 transition-colors">+0.25</button>
+                <button type="button" onclick="adjustSph('os', -0.25)" class="px-1.5 py-0.5 rounded bg-white border border-emerald-300 hover:bg-emerald-600 hover:text-white text-emerald-700 transition-colors">-0.25</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2">
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">SPH</label>
+                <input id="sph-os" type="text" value="-1.50" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">CYL</label>
+                <input id="cyl-os" type="text" value="-0.25" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">AXIS</label>
+                <input id="axis-os" type="text" value="175" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">VA</label>
+                <input id="va-os-val" type="text" value="6/6" class="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-center bg-white" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Ocular Clinical Examination Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Anterior Segment & IOP -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
+            Anterior Segment & Intraocular Pressure (IOP)
+          </h3>
+
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">IOP OD (mmHg)</label>
+              <input type="text" value="16" class="w-full px-3 py-1.5 font-bold rounded-lg border border-slate-300 bg-white text-blue-900" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">IOP OS (mmHg)</label>
+              <input type="text" value="15" class="w-full px-3 py-1.5 font-bold rounded-lg border border-slate-300 bg-white text-emerald-900" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Cornea & Anterior Chamber Observations</label>
+            <textarea rows="2" class="w-full p-2.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-800">Clear cornea OU. Quiet anterior chamber, deep and clear. Crystalline lens clear without cataractous changes.</textarea>
+          </div>
+        </div>
+
+        <!-- Posterior Segment / Fundoscopy -->
+        <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
+            Posterior Segment & Optic Nerve
+          </h3>
+
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">Cup-to-Disc Ratio (C/D OD)</label>
+              <input type="text" value="0.3" class="w-full px-3 py-1.5 font-bold rounded-lg border border-slate-300 bg-white" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 mb-1">Cup-to-Disc Ratio (C/D OS)</label>
+              <input type="text" value="0.3" class="w-full px-3 py-1.5 font-bold rounded-lg border border-slate-300 bg-white" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Macula & Retinal Vessels</label>
+            <textarea rows="2" class="w-full p-2.5 text-xs rounded-lg border border-slate-300 bg-white text-slate-800">Healthy pink neuroretinal rim. Foveal reflex present. No hemorrhages, exudates, or macular lesions.</textarea>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Diagnosis & Prescribed Spectacles + EYE DROPS PRESETS MODULE -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
+          Management Plan & Spectacle / Drug Authorisation
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+          
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Select Recommended Lens Type</label>
+            <select class="w-full p-2.5 rounded-lg border border-slate-300 font-bold bg-white text-blue-700">
+              <option>Single-Vision Blue-Block Lens (GH₵899 Package)</option>
+              <option>Single-Vision Photochromic AR Lens (GH₵699 Package)</option>
+              <option>High-Index Ultra-Thin Lens (1.67)</option>
+              <option>Progressive Digital Lens</option>
+            </select>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block font-bold text-slate-700">Prescription Medication & Eye Drops</label>
+              <span class="text-[10px] text-slate-400">Click preset to add:</span>
+            </div>
+
+            <!-- Common Eye Drops Dosage Presets Chips -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button type="button" onclick="appendMedication('Olopatadine 0.1% eye drops 1 drop bd OU x 2 weeks')" class="px-2 py-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[10px] font-bold transition-colors">
+                + Olopatadine 0.1% (Anti-Allergy)
+              </button>
+              <button type="button" onclick="appendMedication('Prednisolone Acetate 1% 1 drop qds OU x 1 week')" class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold transition-colors">
+                + Prednisolone 1% (Steroid)
+              </button>
+              <button type="button" onclick="appendMedication('Timolol Maleate 0.5% 1 drop bd OU (Glaucoma)')" class="px-2 py-1 rounded bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 text-[10px] font-bold transition-colors">
+                + Timolol 0.5% (IOP Drop)
+              </button>
+              <button type="button" onclick="appendMedication('Refresh Artificial Tears 1 drop qds prn OU')" class="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold transition-colors">
+                + Refresh Tears (Dry Eye)
+              </button>
+            </div>
+
+            <input id="prescription-input" type="text" placeholder="e.g. Olopatadine 0.1% eye drops 1 drop bd OU x 2 weeks" class="w-full p-2.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-800" />
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Bottom Consultation Action Toolbar -->
+      <div class="pt-4 border-t border-slate-200 flex items-center justify-between">
+        <button type="button" class="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-xs font-bold text-slate-600">
+          Cancel Exam
+        </button>
+
+        <div class="flex items-center gap-3">
+          <button type="button" class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 border border-slate-300 flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            <span>Save & Print Rx</span>
+          </button>
+
+          <button type="button" class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-500/20 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span>Complete & Save Consultation</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+    <!-- End Tab 2: Active Consultation Exam View -->
+
+  </div>
+
+
+  <script>
+    function switchMainTab(tabName) {
+      if (tabName === 'history') {
+        document.getElementById('content-history').classList.remove('hidden');
+        document.getElementById('content-consultation').classList.add('hidden');
+
+        document.getElementById('btn-tab-history').className = "px-5 py-3 rounded-t-xl bg-white text-blue-600 border-t-2 border-t-blue-600 border-x border-slate-200 shadow-sm transition-all flex items-center gap-2 font-bold";
+        document.getElementById('btn-tab-consultation').className = "px-5 py-3 rounded-t-xl text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2";
+      } else {
+        document.getElementById('content-consultation').classList.remove('hidden');
+        document.getElementById('content-history').classList.add('hidden');
+
+        document.getElementById('btn-tab-consultation').className = "px-5 py-3 rounded-t-xl bg-white text-blue-600 border-t-2 border-t-blue-600 border-x border-slate-200 shadow-sm transition-all flex items-center gap-2 font-bold";
+        document.getElementById('btn-tab-history').className = "px-5 py-3 rounded-t-xl text-slate-600 hover:text-slate-900 transition-all flex items-center gap-2";
+      }
+    }
+
+    // Sub-Tab Switcher for Patient History
+    function switchHistorySubTab(subTabName) {
+      document.getElementById('subcontent-overview').classList.add('hidden');
+      document.getElementById('subcontent-scans').classList.add('hidden');
+      document.getElementById('subcontent-encounters').classList.add('hidden');
+
+      document.getElementById('subtab-overview').className = "px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5";
+      document.getElementById('subtab-scans').className = "px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5";
+      document.getElementById('subtab-encounters').className = "px-4 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5";
+
+      if (subTabName === 'overview') {
+        document.getElementById('subcontent-overview').classList.remove('hidden');
+        document.getElementById('subtab-overview').className = "px-4 py-1.5 rounded-lg bg-white text-blue-600 shadow-xs border border-slate-200 transition-all flex items-center gap-1.5 font-extrabold";
+      } else if (subTabName === 'scans') {
+        document.getElementById('subcontent-scans').classList.remove('hidden');
+        document.getElementById('subtab-scans').className = "px-4 py-1.5 rounded-lg bg-white text-blue-600 shadow-xs border border-slate-200 transition-all flex items-center gap-1.5 font-extrabold";
+      } else if (subTabName === 'encounters') {
+        document.getElementById('subcontent-encounters').classList.remove('hidden');
+        document.getElementById('subtab-encounters').className = "px-4 py-1.5 rounded-lg bg-white text-blue-600 shadow-xs border border-slate-200 transition-all flex items-center gap-1.5 font-extrabold";
+      }
+    }
+
+    function appendComplaint(phrase) {
+      const textarea = document.getElementById('chiefComplaintText');
+      if (textarea.value.trim().length > 0) {
+        textarea.value += ', ' + phrase;
+      } else {
+        textarea.value = phrase;
+      }
+    }
+
+    // Interactive Series Toggles for SVG Graphs
+    function toggleSeries(elementId, btn) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      
+      if (el.classList.contains('opacity-0')) {
+        el.classList.remove('opacity-0', 'pointer-events-none');
+        btn.classList.remove('opacity-40');
+      } else {
+        el.classList.add('opacity-0', 'pointer-events-none');
+        btn.classList.add('opacity-40');
+      }
+    }
+
+    // Hover Popover Tooltip Position & Content Handler
+    function showPopover(evt, date, eye, value, method, examiner) {
+      const popover = document.getElementById('graph-popover');
+      document.getElementById('popover-date').innerText = date;
+      document.getElementById('popover-eye').innerText = eye;
+      document.getElementById('popover-value').innerText = value;
+      document.getElementById('popover-method').innerText = method;
+      document.getElementById('popover-examiner').innerText = examiner;
+
+      popover.style.left = evt.clientX + 'px';
+      popover.style.top = (evt.clientY - 12) + 'px';
+      popover.classList.remove('hidden');
+    }
+
+    function hidePopover() {
+      document.getElementById('graph-popover').classList.add('hidden');
+    }
+
+    // Diagnostic DICOM Modal Handler
+    function openDicomModal(scanTitle) {
+      document.getElementById('modal-scan-title').innerText = scanTitle;
+      document.getElementById('dicom-modal').classList.remove('hidden');
+    }
+
+    function closeDicomModal() {
+      document.getElementById('dicom-modal').classList.add('hidden');
+    }
+
+    // Quick Refraction Action Keys Handler
+    function adjustSph(eye, step) {
+      const input = document.getElementById('sph-' + eye);
+      if (!input) return;
+      let val = parseFloat(input.value) || 0;
+      val += step;
+      input.value = (val >= 0 ? '+' : '') + val.toFixed(2);
+    }
+
+    function copyOdToOs() {
+      document.getElementById('sph-os').value = document.getElementById('sph-od').value;
+      document.getElementById('cyl-os').value = document.getElementById('cyl-od').value;
+      document.getElementById('axis-os').value = document.getElementById('axis-od').value;
+      document.getElementById('va-os-val').value = document.getElementById('va-od-val').value;
+      
+      alert('✓ Refraction copied from OD (Right Eye) to OS (Left Eye)');
+    }
+
+    function loadAutoRefractorData() {
+      document.getElementById('sph-od').value = "-1.25";
+      document.getElementById('cyl-od').value = "-0.50";
+      document.getElementById('axis-od').value = "180";
+      
+      document.getElementById('sph-os').value = "-1.50";
+      document.getElementById('cyl-os').value = "-0.25";
+      document.getElementById('axis-os').value = "175";
+
+      alert('📥 Seeding Objective Auto-Refractor Data into Subjective Exam');
+    }
+
+    // Eye Drops Presets Handler
+    function appendMedication(medString) {
+      const input = document.getElementById('prescription-input');
+      if (input.value.trim().length > 0) {
+        input.value += ' | ' + medString;
+      } else {
+        input.value = medString;
+      }
+    }
+
+    // Detailed Visit Record Modal Handler
+    function openVisitRecordModal(visitId) {
+      const modal = document.getElementById('visit-detail-modal');
+      const title = document.getElementById('visit-modal-title');
+      const meta = document.getElementById('visit-modal-meta');
+      const complaint = document.getElementById('visit-modal-complaint');
+      const sphOd = document.getElementById('modal-sph-od');
+      const cylOd = document.getElementById('modal-cyl-od');
+      const axisOd = document.getElementById('modal-axis-od');
+      const sphOs = document.getElementById('modal-sph-os');
+      const cylOs = document.getElementById('modal-cyl-os');
+      const axisOs = document.getElementById('modal-axis-os');
+      const order = document.getElementById('visit-modal-order');
+      const lens = document.getElementById('visit-modal-lens');
+
+      if (visitId === 'visit-3') {
+        title.innerText = 'Encounter #3: Annual Eye Check & Spectacle Renewal';
+        meta.innerText = 'Date: 28 August 2025 • Attending Ophthalmologist: Dr. Kingsford Osei Frimpong • Branch: Main Clinic';
+        complaint.innerText = 'Patient reported mild asthenopia during computer programming studies. Requested renewal of anti-glare computer glasses.';
+        sphOd.innerText = '-1.25'; cylOd.innerText = '-0.50'; axisOd.innerText = '180°';
+        sphOs.innerText = '-1.50'; cylOs.innerText = '-0.25'; axisOs.innerText = '175°';
+        order.innerText = 'Order #LO-8842';
+        lens.innerText = 'Single-Vision Blue-Block Anti-Glare Lenses (GH₵899)';
+      } else if (visitId === 'visit-2') {
+        title.innerText = 'Encounter #2: Comprehensive Refraction & Baseline Exam';
+        meta.innerText = 'Date: 14 September 2024 • Attending Ophthalmologist: Dr. Kingsford Osei Frimpong';
+        complaint.innerText = 'Baseline refraction check for computer study glare.';
+        sphOd.innerText = '-0.75'; cylOd.innerText = 'DS'; axisOd.innerText = '-';
+        sphOs.innerText = '-1.00'; cylOs.innerText = 'DS'; axisOs.innerText = '-';
+        order.innerText = 'Order #LO-5120';
+        lens.innerText = 'Photochromic AR Single Vision Lenses (GH₵699)';
+      } else if (visitId === 'visit-1') {
+        title.innerText = 'Encounter #1: Initial Registration & Ocular Screening';
+        meta.innerText = 'Date: 14 January 2023 • Attending Ophthalmologist: Dr. Kingsford Osei Frimpong';
+        complaint.innerText = 'Patient presented with bilateral ocular itching and conjunctival hyperemia.';
+        sphOd.innerText = 'Plano'; cylOd.innerText = 'DS'; axisOd.innerText = '-';
+        sphOs.innerText = 'Plano'; cylOs.innerText = 'DS'; axisOs.innerText = '-';
+        order.innerText = 'Prescription Only';
+        lens.innerText = 'Olopatadine 0.1% Eye Drops';
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeVisitRecordModal() {
+      document.getElementById('visit-detail-modal').classList.add('hidden');
+    }
+
+    function loadPastRxToActive() {
+      switchMainTab('consultation');
+      loadAutoRefractorData();
+      closeVisitRecordModal();
+      alert('📋 Loaded archived prescription into active consultation fields!');
+    }
+  </script>
+</body>
+</html>
