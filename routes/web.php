@@ -78,18 +78,10 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Never redirect to login here: guests are bounced back to HOME (/dashboard), which loops
+// for signed-in users without a dashboard role. The resolver falls back to the profile page.
 Route::get('/dashboard', function () {
-    $user = auth()->user();
-    if ($user->hasRole('Super Admin') || $user->hasRole('Manager')) {
-        return redirect()->route('admin.dashboard');
-    } elseif ($user->hasRole('Doctor')) {
-        return redirect()->route('doctor.dashboard');
-    } elseif ($user->hasRole('Secretary')) {
-        return redirect()->route('secretary.dashboard');
-    } elseif ($user->hasRole('Cashier')) {
-        return redirect()->route('cashier.dashboard');
-    }
-    return redirect()->route('login');
+    return redirect()->to(app(\App\Support\Tenancy\RoleDashboardResolver::class)->url(auth()->user()));
 })->middleware(['auth'])->name('dashboard');
 
 require __DIR__.'/auth.php';
@@ -162,21 +154,6 @@ Route::middleware(['auth', 'role:Secretary|Cashier|Manager|Super Admin'])->group
  //cashier
 Route::get('cashier/dashboard', CashierDashboardComponent::class)->name('cashier.dashboard');
 Route::get('cashier/seller-desk', POSComponent::class)->name('cashier.seller-desk');
-    Route::get('/profile', 'App\Livewire\UserProfileComponent')->name('user.profile');
-
-    Route::get('/notifications/unread-count', function () {
-        return response()->json([
-            'count' => \App\Models\AppNotification::forUser(auth()->id())->unread()->count(),
-        ]);
-    })->name('notifications.unread-count');
-
-    Route::get('/messages', StaffMessagingComponent::class)->name('staff.messages');
-
-    Route::get('/messages/unread-count', function () {
-        return response()->json([
-            'count' => \App\Models\StaffMessage::where('recipient_id', auth()->id())->whereNull('read_at')->count(),
-        ]);
-    })->name('messages.unread-count');
 });
 
 
