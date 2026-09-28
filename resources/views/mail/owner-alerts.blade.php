@@ -41,7 +41,7 @@
   <tr><td style="padding:24px 28px 0"></td></tr>
   <tr>
     <td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #eef0f3;font-size:12px;color:#98a2b3;line-height:1.5">
-      Only new items are listed; each is reported once, and again if it gets worse (for example from low to out of stock). Sent to the clinic owner by {{ config('app.name') }}; change the owner email under Subscription &rarr; Billing profile.
+      Only new items are listed; each is reported once, and again if it gets worse (for example from low to out of stock). Sent to the clinic owner by {{ config('mail.from.name') }}; change the owner email under Subscription &rarr; Billing profile.
     </td>
   </tr>
 </table>

@@ -82,6 +82,8 @@ class Kernel extends ConsoleKernel
         // Daily, weekly and monthly sales emails to each clinic owner, from 7 AM clinic time;
         // the platform ticks which ones each plan includes. Replaces the old report delivery.
         $schedule->command('owner:send-summaries')->hourly()->withoutOverlapping();
+        // Clinic requests (plan changes, SMS orders, sender IDs) still waiting after a day.
+        $schedule->command('platform:remind-requests')->dailyAt('08:00')->withoutOverlapping();
     }
 
     /**

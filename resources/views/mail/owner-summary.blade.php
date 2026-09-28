@@ -161,7 +161,7 @@
   </tr>
   <tr>
     <td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #eef0f3;font-size:12px;color:#98a2b3;line-height:1.5">
-      Sales count when made; money counts when received. Sent to the clinic owner by {{ config('app.name') }}; change the owner email under Subscription &rarr; Billing profile.
+      Sales count when made; money counts when received. Sent to the clinic owner by {{ config('mail.from.name') }}; change the owner email under Subscription &rarr; Billing profile.
     </td>
   </tr>
 </table>

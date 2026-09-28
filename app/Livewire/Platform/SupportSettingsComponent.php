@@ -13,6 +13,8 @@ class SupportSettingsComponent extends Component
     public string $phone = '';
     public string $whatsapp = '';
     public string $email = '';
+    /** Where clinic requests (plan changes, SMS orders, sender IDs) are emailed. */
+    public string $requestsEmail = '';
 
     public function mount(): void
     {
@@ -21,6 +23,7 @@ class SupportSettingsComponent extends Component
         $this->phone    = (string) $support['phone'];
         $this->whatsapp = (string) $support['whatsapp'];
         $this->email    = (string) $support['email'];
+        $this->requestsEmail = (string) PlatformSetting::get(\App\Services\PlatformRequestAlerts::INBOX_SETTING);
     }
 
     public function save(PlatformAuditService $audit): void
@@ -30,11 +33,13 @@ class SupportSettingsComponent extends Component
             'phone'    => 'nullable|string|max:30',
             'whatsapp' => 'nullable|string|max:30',
             'email'    => 'nullable|email|max:150',
+            'requestsEmail' => 'nullable|email|max:150',
         ]);
 
         $old = PlatformSetting::support();
         PlatformSetting::put(['support_name' => $data['name'], 'support_phone' => $data['phone'],
-            'support_whatsapp' => $data['whatsapp'], 'support_email' => $data['email']]);
+            'support_whatsapp' => $data['whatsapp'], 'support_email' => $data['email'],
+            \App\Services\PlatformRequestAlerts::INBOX_SETTING => $data['requestsEmail']]);
         $audit->record('PLATFORM_SUPPORT_CONTACT_UPDATED', null, $old, PlatformSetting::support());
         session()->flash('support_message', 'Support contact saved.');
     }

@@ -57,7 +57,8 @@ class OwnerEmailsComponent extends Component
             'ownerEmail' => OwnerMailer::ownerEmail($clinic),
             'timezone' => $clinic->default_timezone ?: config('app.timezone'),
             'included' => collect(OwnerSummaryService::PERIODS + ['alerts' => \App\Support\Feature::MORNING_ALERTS])->map(fn ($feature) => $summaries->includes($clinic, $feature))->all(),
-            'emails' => OwnerEmail::where('clinic_id', $clinic->id)->latest('id')->limit(25)->get(),
+            // Emails about this clinic sent to the platform's own inbox aren't the clinic's to see.
+            'emails' => OwnerEmail::where('clinic_id', $clinic->id)->where('kind', 'not like', 'platform\_%')->latest('id')->limit(25)->get(),
         ]);
     }
 }

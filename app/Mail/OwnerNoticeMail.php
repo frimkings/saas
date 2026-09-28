@@ -21,6 +21,8 @@ class OwnerNoticeMail extends Mailable
         public string $buttonLabel,
         public string $buttonUrl,
         public ?string $footnote = null,
+        /** Replaces the owner-email footer, e.g. on emails to the platform's own inbox. */
+        public ?string $footer = null,
     ) {}
 
     public function build(): static

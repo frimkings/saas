@@ -28,7 +28,8 @@ class ClinicSubscriptionPortalComponent extends Component
         $data=$this->validate(['requestedPlanId'=>'required|exists:subscription_plans,id','requestedInterval'=>'required|in:monthly,yearly','requestMessage'=>'nullable|max:1000']);
         $clinic=app(TenantContext::class)->requireClinic();$subscription=app(SubscriptionService::class)->current($clinic);
         abort_if(SubscriptionChangeRequest::where('clinic_id',$clinic->id)->where('status','pending')->exists(),422,'A subscription change request is already awaiting review.');
-        SubscriptionChangeRequest::create(['clinic_id'=>$clinic->id,'current_subscription_id'=>$subscription?->id,'requested_plan_id'=>$data['requestedPlanId'],'billing_interval'=>$data['requestedInterval'],'message'=>$data['requestMessage']?:null,'requested_by'=>auth()->id()]);
+        $request=SubscriptionChangeRequest::create(['clinic_id'=>$clinic->id,'current_subscription_id'=>$subscription?->id,'requested_plan_id'=>$data['requestedPlanId'],'billing_interval'=>$data['requestedInterval'],'message'=>$data['requestMessage']?:null,'requested_by'=>auth()->id()]);
+        app(\App\Services\PlatformRequestAlerts::class)->planChangeRequested($request);
         $this->reset(['requestedPlanId','requestMessage']);session()->flash('subscription_message','Your request was submitted to the platform administrator.');
     }
 

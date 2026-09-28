@@ -2,8 +2,7 @@
 
 namespace App\Services\Messaging;
 
-use App\Models\User;
-use Illuminate\Support\Facades\{Cache, Log, Mail};
+use Illuminate\Support\Facades\{Cache, Log};
 
 /**
  * Watches the platform's EazismsPro balance. Every hosted clinic draws on this one account,
@@ -63,12 +62,13 @@ class PlatformSmsBalance
 
         Log::warning('Platform SMS balance alert', $status);
 
-        foreach (User::where('is_platform_admin', true)->whereNotNull('email')->pluck('email') as $email) {
-            try {
-                Mail::raw($body, fn ($message) => $message->to($email)->subject('Platform SMS balance is low'));
-            } catch (\Throwable $e) {
-                report($e);
-            }
-        }
+        // To the platform's one inbox (the support email, or the requests inbox if one is set).
+        $heading = $status['error'] ? 'Platform SMS balance could not be checked' : 'Platform SMS balance is low';
+        app(\App\Services\OwnerMailer::class)->sendToPlatform(null, \App\Services\PlatformRequestAlerts::inbox(), 'platform_sms_balance',
+            'sms_balance:' . now()->toDateString(), $heading,
+            fn () => new \App\Mail\OwnerNoticeMail(config('mail.from.name') . ' · Platform', $heading, $body,
+                $status['error'] ? [] : ['Provider balance' => number_format((int) $status['balance']), 'Clinics hold' => number_format((int) $status['outstanding']),
+                    'Alert level' => number_format((int) $status['threshold'])],
+                'Open SMS settings', route('platform.sms'), null, 'Sent to the platform inbox. Change it under Platform → Support.'));
     }
 }

@@ -29,6 +29,12 @@
                 @error('email')<small class="pp-err">{{ $message }}</small>@enderror
             </label>
 
+            <label class="pp-field"><span>Requests inbox (optional)</span>
+                <input type="email" wire:model.live.debounce.300ms="requestsEmail" placeholder="Same as the support email">
+                @error('requestsEmail')<small class="pp-err">{{ $message }}</small>@enderror
+            </label>
+            <small class="pp-hint">Plan change requests, SMS credit orders and sender ID requests from clinics are emailed here, with a reminder at 8:00 for any still waiting after a day. Leave it empty to receive them at the support email above. Clinics don't see this address.</small>
+
             <div class="pp-foot">
                 <span class="pp-hint" wire:dirty>Unsaved changes</span>
                 <button type="submit" class="pp-btn" wire:loading.attr="disabled" wire:target="save"><span wire:loading.remove wire:target="save">Save</span><span wire:loading wire:target="save">Saving…</span></button>

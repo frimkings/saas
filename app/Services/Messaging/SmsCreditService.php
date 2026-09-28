@@ -156,6 +156,7 @@ class SmsCreditService
         ]);
 
         app(BillingNotificationService::class)->invoiceIssued($invoice->load(['clinic', 'subscription']));
+        app(\App\Services\PlatformRequestAlerts::class)->smsBundleOrdered($invoice);
 
         return $invoice;
     }

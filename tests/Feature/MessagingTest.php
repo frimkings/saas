@@ -221,6 +221,21 @@ class MessagingTest extends TestCase
 
         $this->assertSame([42, 100, 100, true], [$status['balance'], $status['outstanding'], $status['threshold'], $status['low']]);
         $this->assertTrue(app(\App\Services\Messaging\PlatformSmsBalance::class)->last()['low']);
+        // The alert goes to the platform's one inbox (no support email is set here, so it's logged as not sent).
+        $this->assertDatabaseHas('owner_emails', ['kind' => 'platform_sms_balance', 'status' => 'skipped', 'clinic_id' => null]);
+    }
+
+    public function test_platform_sms_balance_alert_goes_to_the_support_inbox(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        \App\Models\PlatformSetting::put(['support_email' => 'support@visionspacegh.com']);
+        $this->tenant(credits: 100);
+        config(['services.eazisms.low_balance' => 10]);
+
+        app(\App\Services\Messaging\PlatformSmsBalance::class)->check();
+
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\OwnerNoticeMail::class, fn ($mail) => $mail->hasTo('support@visionspacegh.com')
+            && $mail->heading === 'Platform SMS balance is low' && $mail->details['Provider balance'] === '42');
     }
 
     public function test_platform_admin_grants_credits_and_records_bundle_payment(): void

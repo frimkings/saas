@@ -113,6 +113,7 @@ class SmsSettingsComponent extends Component
 
         $this->senderIdStatus = 'pending';
         $this->senderIdNote   = null;
+        app(\App\Services\PlatformRequestAlerts::class)->senderIdRequested(app(TenantContext::class)->requireClinic(), $this->senderIdRequest);
 
         $this->dispatch('notify', ...[
             'type'    => 'success',

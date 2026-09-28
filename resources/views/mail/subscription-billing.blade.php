@@ -10,4 +10,5 @@
     'buttonLabel' => 'View subscription & billing',
     'buttonUrl' => $messageData['url'],
     'footnote' => null,
+    'footer' => null,
 ])

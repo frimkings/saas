@@ -38,7 +38,7 @@
   </tr>
   <tr>
     <td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #eef0f3;font-size:12px;color:#98a2b3">
-      Sent to the clinic owner by {{ config('app.name') }}. You receive this because this address is the clinic's owner email; change it under Subscription &rarr; Billing profile.
+      @if($footer){{ $footer }}@else Sent to the clinic owner by {{ config('mail.from.name') }}. You receive this because this address is the clinic's owner email; change it under Subscription &rarr; Billing profile.@endif
     </td>
   </tr>
 </table>
