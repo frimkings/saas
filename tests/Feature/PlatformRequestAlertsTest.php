@@ -84,7 +84,7 @@ class PlatformRequestAlertsTest extends TestCase
         Livewire::test(SmsSettingsComponent::class)->set('senderIdRequest', 'brighteyes')->call('requestSenderId');
 
         $headings = $this->toInbox()->pluck('heading')->all();
-        $this->assertSame(['Bright Eyes ordered SMS credits', 'Bright Eyes asked for sender ID BRIGHTEYES'], $headings);
+        $this->assertSame(['Bright Eyes ordered SMS credits', 'Bright Eyes asked for sender ID brighteyes'], $headings);
         $this->assertSame($invoice->number, $this->toInbox()[0]->details['Invoice']);
         $this->assertSame('GHS 150.00', $this->toInbox()[0]->details['Amount']);
     }

@@ -14,6 +14,8 @@ use Livewire\Component;
 class SmsMessagingComponent extends Component
 {
     public array $rejectNotes = [];
+    /** Setting id => the sender ID exactly as registered with the network, when it differs from the request. */
+    public array $approveAs = [];
 
     // Section tab: payments | credits | bundles | senders
     public string $section = 'credits';
@@ -68,14 +70,20 @@ class SmsMessagingComponent extends Component
     {
         $setting = Setting::withoutGlobalScopes()->where('sms_sender_id_status', 'pending')->findOrFail($settingId);
         $old = $setting->only(['sms_sender_id', 'sms_sender_id_status']);
+        $as = trim((string) ($this->approveAs[$settingId] ?? ''));
+        if ($as !== '') {
+            $this->validate(["approveAs.$settingId" => ['regex:/^(?=.*[A-Za-z])[A-Za-z0-9 ]{3,11}$/']],
+                ["approveAs.$settingId.regex" => 'Use 3–11 letters, digits or spaces, including at least one letter.']);
+        }
 
         $setting->update([
-            'sms_sender_id'        => $setting->sms_sender_id_requested,
+            'sms_sender_id'        => $as !== '' ? $as : $setting->sms_sender_id_requested,
             'sms_sender_id_status' => 'approved',
             'sms_sender_id_note'   => null,
         ]);
 
         $audit->record('SMS_SENDER_ID_APPROVED', $setting->clinic_id, $old, $setting->only(['sms_sender_id', 'sms_sender_id_status']));
+        unset($this->approveAs[$settingId]);
         session()->flash('sms_message', "Sender ID {$setting->sms_sender_id} approved.");
     }
 

@@ -192,11 +192,13 @@
                         <td>{{ $s->sms_sender_id_requested_at?->format('d M Y H:i') ?? '—' }}</td>
                         <td>
                             <div class="pp-actions" style="flex-wrap:nowrap">
+                                <input type="text" wire:model="approveAs.{{ $s->id }}" maxlength="11" placeholder="Approve as (exact spelling)" title="Only if the network registered it with different capitals or spelling" aria-label="Approve as, exact spelling registered with the network">
                                 <button type="button" class="pp-btn sm" wire:click="approve({{ $s->id }})" wire:loading.attr="disabled" wire:confirm="Approve sender ID {{ $s->sms_sender_id_requested }}? Make sure it is registered in EazismsPro first.">Approve</button>
                                 <input type="text" wire:model="rejectNotes.{{ $s->id }}" placeholder="Reason for rejection" aria-label="Reason for rejection">
                                 <button type="button" class="pp-btn danger sm" wire:click="reject({{ $s->id }})" wire:loading.attr="disabled">Reject</button>
                             </div>
                             @error('rejectNotes.'.$s->id)<small class="pp-err">{{ $message }}</small>@enderror
+                            @error('approveAs.'.$s->id)<small class="pp-err">{{ $message }}</small>@enderror
                         </td>
                     </tr>
                 @empty

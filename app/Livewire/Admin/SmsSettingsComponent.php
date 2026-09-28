@@ -99,8 +99,9 @@ class SmsSettingsComponent extends Component
     public function requestSenderId(): void
     {
         abort_unless(app(ClinicAccessService::class)->hosted(), 403);
-        $this->senderIdRequest = strtoupper(trim($this->senderIdRequest));
-        $this->validate(['senderIdRequest' => ['required', 'regex:/^(?=.*[A-Z])[A-Z0-9 ]{3,11}$/']], [
+        // Kept exactly as typed: SMS networks register sender IDs with their capitals (VisionSpace ≠ VISIONSPACE).
+        $this->senderIdRequest = trim($this->senderIdRequest);
+        $this->validate(['senderIdRequest' => ['required', 'regex:/^(?=.*[A-Za-z])[A-Za-z0-9 ]{3,11}$/']], [
             'senderIdRequest.regex' => 'Use 3–11 letters, digits or spaces, including at least one letter.',
         ]);
 

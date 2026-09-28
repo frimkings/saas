@@ -128,8 +128,8 @@
                     <form wire:submit="requestSenderId">
                         <div class="input-group">
                             <input type="text" wire:model="senderIdRequest" maxlength="11"
-                                   class="form-control bg-light border-0 text-uppercase @error('senderIdRequest') is-invalid @enderror"
-                                   placeholder="e.g. EYECLINIC">
+                                   class="form-control bg-light border-0 @error('senderIdRequest') is-invalid @enderror"
+                                   placeholder="e.g. VisionSpace">
                             <div class="input-group-append">
                                 <button type="submit" class="btn btn-primary font-weight-bold"
                                         wire:loading.attr="disabled" wire:target="requestSenderId">

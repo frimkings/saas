@@ -108,6 +108,7 @@ class MessagingTest extends TestCase
     {
         $tenant = $this->tenant();
         config(['queue.default' => 'database']);
+        \Illuminate\Support\Facades\Cache::put(\App\Services\Messaging\MessageDispatcher::WORKER_HEARTBEAT, time(), 300);
         Queue::fake();
 
         $result = app(SmsService::class)->send('0241234567', 'Queued hello');
@@ -122,6 +123,22 @@ class MessagingTest extends TestCase
 
         $this->assertCount(1, $this->driver->sent);
         $this->assertDatabaseHas('sms_logs', ['id' => $result['log_id'], 'status' => 'sent', 'provider_message_id' => 'msg-1', 'attempts' => 1]);
+    }
+
+    public function test_hosted_sends_go_out_at_once_when_no_queue_worker_is_running(): void
+    {
+        $this->tenant();
+        config(['queue.default' => 'database']);
+        Queue::fake();
+
+        // No worker has checked in (or its last check-in is stale): queuing would strand the SMS.
+        \Illuminate\Support\Facades\Cache::put(\App\Services\Messaging\MessageDispatcher::WORKER_HEARTBEAT, time() - 600, 300);
+        $result = app(SmsService::class)->send('0241234567', 'Your glasses are ready');
+
+        $this->assertFalse($result['queued']);
+        Queue::assertNothingPushed();
+        $this->assertCount(1, $this->driver->sent);
+        $this->assertDatabaseHas('sms_logs', ['id' => $result['log_id'], 'status' => 'sent']);
     }
 
     public function test_credits_are_charged_per_sms_part_and_sending_stops_when_exhausted(): void
@@ -158,6 +175,7 @@ class MessagingTest extends TestCase
 
         // A connection error keeps the credit while the queue retries, and returns it when it gives up.
         config(['queue.default' => 'database']);
+        \Illuminate\Support\Facades\Cache::put(\App\Services\Messaging\MessageDispatcher::WORKER_HEARTBEAT, time(), 300);
         Queue::fake();
         $this->driver->result = ['success' => false, 'error' => 'Timeout', 'retryable' => true];
         $queued = app(SmsService::class)->send('0241234567', 'Hello again');
@@ -283,6 +301,7 @@ class MessagingTest extends TestCase
         $tenant = $this->tenant(credits: 0);
         Setting::getSettings()->update(['whatsapp_enabled' => true, 'whatsapp_phone_number_id' => '123', 'whatsapp_access_token' => Crypt::encryptString('t')]);
         config(['queue.default' => 'database']);
+        \Illuminate\Support\Facades\Cache::put(\App\Services\Messaging\MessageDispatcher::WORKER_HEARTBEAT, time(), 300);
         Queue::fake();
 
         $result = app(WhatsAppService::class)->sendTemplate('0241234567', 'appointment_reminder', 'en', ['Ama'], null, 'appointment_reminder');
@@ -340,6 +359,21 @@ class MessagingTest extends TestCase
         $this->assertDatabaseHas('sms_logs', ['template_key' => 'online_booking_received', 'status' => 'sent',
             'clinic_id' => $tenant['clinic']->id, 'branch_id' => $tenant['branch']->id]);
         $this->assertDatabaseHas('app_notifications', ['type' => 'online_booking', 'user_id' => $tenant['user']->id]);
+    }
+
+    public function test_platform_can_approve_a_sender_id_under_the_exact_spelling_the_network_registered(): void
+    {
+        $this->tenant();
+        $setting = Setting::getSettings();
+        $setting->update(['sms_sender_id_requested' => 'VISIONSPACE', 'sms_sender_id_status' => 'pending']);
+        app(TenantContext::class)->clear();
+        $this->actingAs(User::factory()->create(['is_platform_admin' => true]));
+
+        Livewire::test(SmsMessagingComponent::class)->set("approveAs.{$setting->id}", 'Vision!')->call('approve', $setting->id)
+            ->assertHasErrors("approveAs.{$setting->id}");
+        Livewire::test(SmsMessagingComponent::class)->set("approveAs.{$setting->id}", 'VisionSpace')->call('approve', $setting->id)->assertHasNoErrors();
+
+        $this->assertSame(['VisionSpace', 'approved'], [$setting->fresh()->sms_sender_id, $setting->fresh()->sms_sender_id_status]);
     }
 
     public function test_platform_approves_and_rejects_sender_id_requests(): void
@@ -463,8 +497,8 @@ class MessagingTest extends TestCase
             ->set('smsApiUrl', 'https://evil.test')->set('smsSenderId', 'BANK')->call('save')->assertForbidden();
 
         Livewire::test(SmsSettingsComponent::class)
-            ->set('senderIdRequest', 'clear sight')->call('requestSenderId')->assertHasNoErrors();
-        $this->assertSame(['CLEAR SIGHT', 'pending', null], [Setting::getSettings()->sms_sender_id_requested,
+            ->set('senderIdRequest', 'Clear Sight')->call('requestSenderId')->assertHasNoErrors();
+        $this->assertSame(['Clear Sight', 'pending', null], [Setting::getSettings()->sms_sender_id_requested,
             Setting::getSettings()->sms_sender_id_status, Setting::getSettings()->sms_sender_id]);
     }
 
