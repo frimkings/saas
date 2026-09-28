@@ -20,9 +20,6 @@ class OpticalCollectionsComponent extends Component
 {
     use ManagesOrderPanel;
 
-    public string $search = '';
-    public int $minDays = 0;
-    public string $partnerFilter = '';
 
     /** Short note for the status-change flash message about the automatic ready SMS. */
     public static function readySmsNote(?array $result): string
@@ -69,17 +66,9 @@ class OpticalCollectionsComponent extends Component
 
     public function render()
     {
-        $term = trim($this->search);
+        // Every waiting job, longest wait first; search and the filters work in the browser.
         $all = $this->awaiting()->with(['patient', 'refraction.consultation.patient', 'partnerClinic', 'serviceLines'])->get();
-        $orders = $all
-            ->when($this->partnerFilter === 'own', fn ($orders) => $orders->reject(fn (LensOrder $order) => $order->isPartnerJob()))
-            ->when(ctype_digit($this->partnerFilter), fn ($orders) => $orders->filter(fn (LensOrder $order) => $order->isPartnerJob() && $order->partner_clinic_id === (int) $this->partnerFilter))
-            ->when($term !== '', fn ($orders) => $orders->filter(fn (LensOrder $order) => str_contains(mb_strtolower(implode(' ', [
-                $order->order_id, $order->customer_name, $order->customer_phone, $order->patient?->name, $order->patient?->contact, $order->partnerClinic?->name,
-            ])), mb_strtolower($term))))
-            ->filter(fn (LensOrder $order) => $order->daysAwaitingCollection() >= max(0, $this->minDays))
-            ->sortByDesc(fn (LensOrder $order) => $order->daysAwaitingCollection())
-            ->values();
+        $orders = $all->sortByDesc(fn (LensOrder $order) => $order->daysAwaitingCollection())->values();
         // What is still owed per order (clinic orders: the patient's clinic bill).
         $owed = $all->mapWithKeys(fn (LensOrder $order) => [$order->id => OrderPresenter::money($order)]);
         $partnerJobs = $all->filter(fn (LensOrder $order) => $order->isPartnerJob() && $order->partnerClinic)->groupBy('partner_clinic_id');

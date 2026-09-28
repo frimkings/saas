@@ -58,7 +58,9 @@ class OpticalLensExcelImportTest extends TestCase
         ]];
         $result = (new OpticalLensExcelImportService())->previewTemplate($sheet, 'Bifocal', 'pairs');
         $this->assertSame(18, $result['total']);
-        $this->assertSame(8, $result['quantities'][59][3]);
+        // A bifocal pair is one right and one left lens: the cell keeps the pair count per eye.
+        $this->assertTrue($result['perEye']);
+        $this->assertSame(4, $result['quantities'][59][3]);
     }
 
     public function test_download_template_preserves_source_layout_and_clears_order_quantities(): void
@@ -140,6 +142,64 @@ class OpticalLensExcelImportTest extends TestCase
     {
         $this->expectException(ValidationException::class);
         (new OpticalLensExcelImportService())->preview([1 => [1 => 'SPH', 2 => '0'], 2 => [1 => '0', 2 => '-1']], 1, 1, 'Single Vision');
+    }
+
+    public function test_template_lists_every_invalid_quantity_cell_by_excel_reference(): void
+    {
+        $sheet = ['name' => 'BLUE BLOCK', 'rows' => [
+            4 => [1 => '(+)', 2 => '0', 3 => '-0.25', 11 => 'FINAL'],
+            5 => [1 => '+0.00', 2 => '45', 3 => '1'],
+            7 => [1 => '+0.50', 2 => '45', 3 => 's'],
+            10 => [1 => '+1.25', 2 => '2.5', 3 => 's'],
+        ]];
+
+        try {
+            (new OpticalLensExcelImportService())->previewTemplate($sheet, 'Single Vision', 'pieces');
+            $this->fail('Invalid quantities should block the preview.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('Invalid quantity in 3 cells: C7 ("s"), B10 ("2.5"), C10 ("s")', $e->errors()['excelFile'][0]);
+        }
+    }
+
+    public function test_quantities_typed_over_power_headings_name_the_cells_and_expected_powers(): void
+    {
+        $headings = [1 => '(+)', 2 => '0.00', 3 => '-0.25', 4 => '-0.50', 5 => '-0.75', 6 => '-1.00'];
+        $sheet = ['name' => 'BLUE BLOCK', 'rows' => [
+            4 => $headings + [7 => '5', 8 => '6', 9 => '79', 11 => 'FINAL'],
+            5 => [1 => '+0.00', 2 => '7', 10 => '6'],
+        ]];
+        try {
+            (new OpticalLensExcelImportService())->previewTemplate($sheet, 'Single Vision', 'pairs');
+            $this->fail('Overwritten headings should block the preview.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('G4 shows "5", expected -1.25; H4 shows "6", expected -1.50; I4 shows "79", expected -1.75', $e->errors()['excelFile'][0]);
+        }
+
+        // Once the headings are restored, a quantity under an empty heading is reported, not skipped.
+        $sheet['rows'][4] = $headings + [7 => '-1.25', 8 => '-1.50', 9 => '-1.75', 11 => 'FINAL'];
+        try {
+            (new OpticalLensExcelImportService())->previewTemplate($sheet, 'Single Vision', 'pairs');
+            $this->fail('Quantities under an empty heading should block the preview.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('J4 is empty (expected -2.00) but has quantities in J5', $e->errors()['excelFile'][0]);
+        }
+    }
+
+    public function test_downloaded_template_is_labelled_in_pairs_and_warns_if_read_as_pieces(): void
+    {
+        $service = new OpticalLensExcelImportService();
+        $path = tempnam(sys_get_temp_dir(), 'template_test_');
+        try {
+            file_put_contents($path, $service->generateTemplate());
+            $sheet = $service->read($path)[0];
+        } finally { unlink($path); }
+        $this->assertStringContainsString('quantities in pairs', $sheet['rows'][2][1]);
+
+        $sheet['rows'][5][2] = '4';
+        $pairs = $service->previewTemplate($sheet, 'Single Vision', 'pairs');
+        $this->assertSame(8, $pairs['total']);
+        $this->assertSame([], $pairs['warnings']);
+        $this->assertStringContainsString('mentions pairs', implode(' ', $service->previewTemplate($sheet, 'Single Vision', 'pieces')['warnings']));
     }
 
     public function test_duplicate_power_columns_are_rejected(): void

@@ -68,7 +68,7 @@
                 <span class="font-weight-bold mr-3"><i class="fas fa-check-double mr-1"></i>{{ count($selectedAppointments) }} selected</span>
                 <button wire:click="bulkMarkAsSeen" class="btn btn-success btn-sm font-weight-bold mr-1">Mark Seen</button>
                 <button wire:click="bulkMarkRemindersSent" class="btn btn-info btn-sm font-weight-bold mr-1">Mark Reminders Sent</button>
-                <button wire:click="bulkDelete" onclick="return confirm('Move selected to trash?')" class="btn btn-danger btn-sm font-weight-bold">Trash</button>
+                <button wire:click="bulkDelete" wire:confirm="Move selected to trash?" class="btn btn-danger btn-sm font-weight-bold">Trash</button>
             </div>
             <button wire:click="resetSelection" class="btn btn-link text-white font-weight-bold p-0"><i class="fas fa-times"></i></button>
         </div>
@@ -447,7 +447,7 @@
                     <div class="d-flex" style="gap:.4rem">
                         <button wire:click="exportReport" class="btn btn-sm btn-outline-secondary"><i class="fas fa-download mr-1"></i>Export</button>
                         <button wire:click="closeClinicDay"
-                                onclick="return confirm('Move all unfinished appointments to tomorrow?')"
+                                wire:confirm="Move all unfinished appointments to tomorrow?"
                                 class="btn btn-sm btn-outline-warning font-weight-bold">
                             <i class="fas fa-moon mr-1"></i>Close Day
                         </button>

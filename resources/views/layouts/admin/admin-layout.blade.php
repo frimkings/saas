@@ -41,5 +41,7 @@
        <x-footer />
 
     </div>
+<x-ui.flash />
+@include('layouts.partials.confirm-dialog')
 </body>
 </html>

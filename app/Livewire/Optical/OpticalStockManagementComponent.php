@@ -32,6 +32,8 @@ class OpticalStockManagementComponent extends Component
     #[\Livewire\Attributes\Locked]
     public ?int $viewImportId = null;
 
+    /** Renderless: the browser has already closed the details (dismissCall). */
+    #[\Livewire\Attributes\Renderless]
     public function closeImport(): void { $this->viewImportId = null; }
 
     public function viewImport(int $id): void
@@ -67,7 +69,10 @@ class OpticalStockManagementComponent extends Component
         }
         $this->excelPreview = [];
         $this->excelWarningsAccepted = false;
-        $this->excelUnit = $specs['unit'] ?? '';
+        // Manufacturer lens orders are in pairs unless the workbook states otherwise. A
+        // progressive/bifocal sheet titled for one eye holds that eye's individual lenses.
+        $this->excelUnit = ($specs['unit'] ?? '') ?: (in_array($specs['eye'] ?? '', ['R', 'L'], true) ? 'pieces' : 'pairs');
+        if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->syncEyeToUnit();
     }
     public int $excelHeaderRow = 2;
     public int $excelSphereColumn = 1;
@@ -99,6 +104,7 @@ class OpticalStockManagementComponent extends Component
             'lensDesign' => 'required|in:Single Vision,Bifocal,Progressive',
             'lensEye' => $this->eyeRule(),
             'excelUnit' => 'required|in:pieces,pairs', 'excelLayout' => 'required|in:template,manual']);
+        if (! $this->eyeMatchesUnit($this->excelUnit)) return;
         $service = app(\App\Services\OpticalLensExcelImportService::class);
         $sheets = $service->readUpload($this->excelFile);
         abort_unless(isset($sheets[$this->excelSheet]), 422);
@@ -107,12 +113,16 @@ class OpticalStockManagementComponent extends Component
         } else {
             $this->excelPreview = $service->preview($sheets[$this->excelSheet]['rows'], $this->excelHeaderRow, $this->excelSphereColumn, $this->lensDesign);
             $this->excelPreview['sourceTotal'] = $this->excelPreview['total'];
+            $this->excelPreview['perEye'] = $this->lensEye === 'B';
             if ($this->excelUnit === 'pairs') {
                 $this->excelPreview['total'] *= 2;
-                foreach ($this->excelPreview['quantities'] as &$cells) foreach ($cells as &$quantity) $quantity *= 2;
-                unset($cells, $quantity);
-                foreach ($this->excelPreview['lines'] as &$line) $line['quantity'] *= 2;
-                unset($line);
+                // Eye-specific pairs keep the pair count per cell: one right and one left lens each.
+                if (! $this->excelPreview['perEye']) {
+                    foreach ($this->excelPreview['quantities'] as &$cells) foreach ($cells as &$quantity) $quantity *= 2;
+                    unset($cells, $quantity);
+                    foreach ($this->excelPreview['lines'] as &$line) $line['quantity'] *= 2;
+                    unset($line);
+                }
             }
         }
         $this->excelPreview['sheet'] = $sheets[$this->excelSheet]['name'];
@@ -183,16 +193,53 @@ class OpticalStockManagementComponent extends Component
     public string $bulkPaste = '';
     public string $bulkStart = '0';
 
+    /** The full-page lens receiving screen reuses this component; the modal sends bulk entry there. */
+    protected bool $fullPage = false;
+
     public function mount(): void
     {
         if (request()->query('receive') === 'lens') {
             $this->openReceipt();
             $this->stockType = 'lens';
-            foreach (['lensRange', 'lensDesign', 'lensIndex', 'lensCoating', 'lensDiameter', 'lensSphere', 'lensPower', 'lensEye'] as $field) {
-                if (is_string(request()->query($field))) $this->$field = request()->query($field);
-            }
-            if (! request()->has('lensPower')) $this->lensPower = $this->lensDesign === 'Single Vision' ? '0.00' : '1.00';
+            $this->fillLensSpecsFromQuery();
         }
+        if (ctype_digit((string) request()->query('viewImport'))) $this->viewImport((int) request()->query('viewImport'));
+    }
+
+    protected function fillLensSpecsFromQuery(): void
+    {
+        foreach (['lensRange', 'lensDesign', 'lensIndex', 'lensCoating', 'lensDiameter', 'lensSphere', 'lensPower', 'lensEye'] as $field) {
+            if (is_string(request()->query($field))) $this->$field = request()->query($field);
+        }
+        if (! request()->has('lensPower')) $this->lensPower = $this->lensDesign === 'Single Vision' ? '0.00' : '1.00';
+    }
+
+    /** Bulk grids and Excel orders are too large for the modal, so they open on their own page. */
+    public function updatedEntryMode(): void
+    {
+        if ($this->fullPage || $this->entryMode !== 'bulk' || $this->stockType !== 'lens' || $this->formType !== 'receipt') return;
+        $this->redirectRoute('optical.stock.receive-lenses', array_filter([
+            'lensRange' => trim($this->lensRange), 'lensDesign' => $this->lensDesign, 'lensIndex' => $this->lensIndex,
+            'lensCoating' => $this->lensCoating, 'lensDiameter' => $this->lensDiameter, 'lensEye' => $this->lensEye,
+        ], fn ($value) => $value !== ''));
+    }
+
+    /** Lenses and cost of the receipt being entered, counting both-eye pairs as two lenses. */
+    public function receiptTotals(): array
+    {
+        $pairFactor = $this->lensEye === 'B' && \App\Support\LensDesign::isEyeSpecific($this->lensDesign) ? 2 : 1;
+        $amount = fn ($value) => is_numeric($value) ? (float) $value : 0;
+        if ($this->entryMode !== 'bulk') {
+            $pieces = (is_numeric($this->quantity) ? (int) $this->quantity : 0) * $pairFactor;
+            return ['pieces' => $pieces, 'cost' => $pieces * $amount($this->unitCost)];
+        }
+        $pieces = 0; $cost = 0;
+        foreach ($this->bulkQuantities as $r => $cells) foreach ($cells as $c => $quantity) {
+            $quantity = is_numeric($quantity) ? (int) $quantity : 0;
+            $pieces += $quantity;
+            $cost += $quantity * $amount(($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost);
+        }
+        return ['pieces' => $pieces * $pairFactor, 'cost' => $cost * $pairFactor];
     }
 
     public function updatedLensRange(): void
@@ -218,7 +265,7 @@ class OpticalStockManagementComponent extends Component
         $this->bulkPrices = [];
     }
 
-    private function lensSpecs($sphere, $power): array
+    private function lensSpecs($sphere, $power, ?string $eye = null): array
     {
         $specs = ['range' => trim($this->lensRange), 'design' => $this->lensDesign,
             'index' => $this->lensIndex, 'coating' => $this->lensCoating,
@@ -226,13 +273,61 @@ class OpticalStockManagementComponent extends Component
             'sphere' => number_format((float) $sphere, 2, '.', ''),
             'power' => number_format((float) $power, 2, '.', '')];
         // Progressive and bifocal lenses are made per eye and stocked per eye.
-        if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $specs['eye'] = $this->lensEye;
+        if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $specs['eye'] = $eye ?? $this->lensEye;
         return $specs;
     }
 
     private function eyeRule(): string
     {
-        return \App\Support\LensDesign::isEyeSpecific($this->lensDesign) ? 'required|in:R,L' : 'nullable';
+        // B = both eyes: quantities are pairs, each adding one right and one left lens.
+        return \App\Support\LensDesign::isEyeSpecific($this->lensDesign) ? 'required|in:R,L,B' : 'nullable';
+    }
+
+    /** The price list for the range being received, if the clinic has set one. */
+    public function rangePriceList(): ?\App\Models\OpticalLensPrice
+    {
+        if (trim($this->lensRange) === '') return null;
+        return app(\App\Services\OpticalLensPriceList::class)->find($this->lensSpecs(0, 0));
+    }
+
+    /** A progressive or bifocal pair is one right and one left lens, so pairs need "Both eyes". */
+    private function eyeMatchesUnit(string $unit): bool
+    {
+        if (! \App\Support\LensDesign::isEyeSpecific($this->lensDesign)) return true;
+        if ($unit === 'pairs' && $this->lensEye !== 'B') {
+            $this->addError('lensEye', 'A '.strtolower($this->lensDesign).' pair is one right and one left lens. Choose "Both eyes (pairs)", or switch to individual pieces for a single-eye sheet.');
+            return false;
+        }
+        if ($unit === 'pieces' && $this->lensEye === 'B') {
+            $this->addError('lensEye', 'Choose Right or Left for individual pieces, or switch the quantities to pairs for both eyes.');
+            return false;
+        }
+        return true;
+    }
+
+    /** Receipt lines for one grid cell: both-eye pairs become a right and a left line. */
+    private function eyeLines(array $line): array
+    {
+        if ($this->lensEye !== 'B' || ! \App\Support\LensDesign::isEyeSpecific($this->lensDesign)) return [$line];
+        return [array_replace($line, [5 => 'R']), array_replace($line, [5 => 'L'])];
+    }
+
+    /** Pairs of an eye-specific design always mean both eyes; pieces need a chosen eye. */
+    private function syncEyeToUnit(): void
+    {
+        if ($this->excelUnit === 'pairs') $this->lensEye = 'B';
+        elseif ($this->excelUnit === 'pieces' && $this->lensEye === 'B') $this->lensEye = '';
+    }
+
+    public function updatedExcelUnit(): void
+    {
+        if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->syncEyeToUnit();
+    }
+
+    public function updatedLensEye(): void
+    {
+        if (! $this->excelSheets || ! \App\Support\LensDesign::isEyeSpecific($this->lensDesign)) return;
+        $this->excelUnit = $this->lensEye === 'B' ? 'pairs' : 'pieces';
     }
 
     public function updated($property): void
@@ -283,7 +378,8 @@ class OpticalStockManagementComponent extends Component
             'lensIndex' => 'required|in:1.50,1.56,1.60,1.61,1.67,1.74',
             'lensCoating' => 'required|in:AR,Photo AR,Photo Gray,Photochromic,Blue AR,BlueCut,Transitions,HC',
             'lensDiameter' => 'required|integer|between:40,100',
-            'unitCost' => 'required|numeric|min:0|max:99999999', 'unitPrice' => 'required|numeric|min:0|max:99999999',
+            'unitCost' => 'required|numeric|min:0|max:99999999',
+            'unitPrice' => ($this->rangePriceList() ? 'nullable' : 'required').'|numeric|min:0|max:99999999',
             'supplier' => 'required|string|max:180', 'reference' => 'nullable|string|max:100',
             'batchNumber' => 'nullable|string|max:100', 'notes' => 'nullable|string|max:2000',
             'bulkCosts.*.*' => 'nullable|numeric|min:0|max:99999999', 'bulkPrices.*.*' => 'nullable|numeric|min:0|max:99999999',
@@ -291,12 +387,13 @@ class OpticalStockManagementComponent extends Component
             'entryMode' => 'required|in:single,bulk', 'updateSellingPrice' => 'boolean',
             'repeatDeliveryReason' => 'nullable|string|max:1000',
         ]);
+        if ($this->importSource && $this->entryMode === 'bulk' && ! $this->eyeMatchesUnit($this->importSource['unit'])) return;
         $lines = [];
         if ($this->entryMode === 'single') {
             $this->validate(['lensSphere' => 'required|numeric|between:-15,15|multiple_of:0.25',
                 'lensPower' => $this->lensDesign === 'Single Vision' ? 'required|numeric|between:-6,0|multiple_of:0.25' : 'required|numeric|between:0.25,4|multiple_of:0.25',
                 'quantity' => 'required|integer|min:1|max:100000']);
-            $lines[] = [$this->lensSphere, $this->lensPower, (int) $this->quantity, $this->unitCost, $this->unitPrice];
+            array_push($lines, ...$this->eyeLines([$this->lensSphere, $this->lensPower, (int) $this->quantity, $this->unitCost, $this->unitPrice]));
         } else {
             $this->validate(['bulkQuantities' => 'required|array', 'bulkQuantities.*' => 'array', 'bulkQuantities.*.*' => 'nullable|integer|min:0|max:100000']);
             $columns = $this->lensDesign === 'Single Vision' ? range(0, -6, -0.25) : range(0.25, 4, 0.25);
@@ -304,7 +401,7 @@ class OpticalStockManagementComponent extends Component
                 abort_unless(ctype_digit((string) $r) && $r <= 120, 422);
                 foreach ($cells as $c => $quantity) {
                     abort_unless(ctype_digit((string) $c) && array_key_exists($c, $columns), 422);
-                    if ((int) $quantity > 0) $lines[] = [-15 + $r * 0.25, $columns[$c], (int) $quantity, ($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost, ($this->bulkPrices[$r][$c] ?? '') !== '' ? $this->bulkPrices[$r][$c] : $this->unitPrice];
+                    if ((int) $quantity > 0) array_push($lines, ...$this->eyeLines([-15 + $r * 0.25, $columns[$c], (int) $quantity, ($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost, ($this->bulkPrices[$r][$c] ?? '') !== '' ? $this->bulkPrices[$r][$c] : $this->unitPrice]));
                 }
             }
             if (! $lines) { $this->addError('bulkQuantities', 'Enter at least one received quantity.'); return; }
@@ -316,8 +413,9 @@ class OpticalStockManagementComponent extends Component
                 'notes' => trim($this->notes."\nExcel: ".$this->importedSummary),
             ], $this->updateSellingPrice, $this->repeatDeliveryReason);
         } else \Illuminate\Support\Facades\DB::transaction(function () use ($lines) {
-            foreach ($lines as [$sphere, $power, $quantity, $cost, $price]) {
-                app(\App\Services\OpticalLensReceivingService::class)->receive($this->lensSpecs($sphere, $power), $quantity, [
+            foreach ($lines as $line) {
+                [$sphere, $power, $quantity, $cost, $price] = $line;
+                app(\App\Services\OpticalLensReceivingService::class)->receive($this->lensSpecs($sphere, $power, $line[5] ?? null), $quantity, [
                     'unit_cost' => round((float) $cost, 2), 'unit_price' => round((float) $price, 2),
                     'supplier' => trim($this->supplier), 'reference' => trim($this->reference) ?: null,
                     'batch_number' => trim($this->batchNumber) ?: null, 'notes' => trim($this->notes.($this->importedSummary ? "\nExcel: ".$this->importedSummary : '')) ?: null,
@@ -438,6 +536,25 @@ class OpticalStockManagementComponent extends Component
         session()->flash('success', 'Stock movement reversed with a new ledger entry.');
     }
 
+    /** What the receipt form needs, shared by the modal and the full lens receiving page. */
+    protected function receiptViewData(): array
+    {
+        return [
+            'fullPage' => $this->fullPage,
+            'duplicateImport' => $this->importSource ? app(\App\Services\OpticalLensImportReceiptService::class)
+                ->matches(app(\App\Services\OpticalLensImportReceiptService::class)->fingerprint($this->lensSpecs(0, 0), $this->importSource['quantities']))->latest('id')->first() : null,
+            'lensRanges' => OpticalProduct::whereNotNull('lens_specs')->get()->pluck('lens_specs.range')->unique()->sort()->values(),
+            'productMatches' => $this->showForm && $this->productId === null
+                ? OpticalProduct::where('is_active', true)
+                    ->when(trim($this->productSearch) !== '', fn ($query) => $query->where(fn ($q) => $q
+                        ->where('sku', 'like', '%'.trim($this->productSearch).'%')
+                        ->orWhere('name', 'like', '%'.trim($this->productSearch).'%')))
+                    ->orderBy('name')->limit(8)->get()
+                : collect(),
+            'selectedProduct' => $this->productId ? OpticalProduct::find($this->productId) : null,
+        ];
+    }
+
     public function render()
     {
         $term = trim($this->search);
@@ -452,15 +569,8 @@ class OpticalStockManagementComponent extends Component
 
         $products = OpticalProduct::where('is_active', true)->with('stocks')->get();
         $recentReceipt = OpticalProductStockMovement::where('movement_type', 'receipt')->whereDoesntHave('reversedBy')->latest('id')->first();
-        $matches = $this->showForm && $this->productId === null
-            ? OpticalProduct::where('is_active', true)
-                ->when(trim($this->productSearch) !== '', fn ($query) => $query->where(fn ($q) => $q
-                    ->where('sku', 'like', '%'.trim($this->productSearch).'%')
-                    ->orWhere('name', 'like', '%'.trim($this->productSearch).'%')))
-                ->orderBy('name')->limit(8)->get()
-            : collect();
 
-        return view('livewire.optical.optical-stock-management-component', [
+        return view('livewire.optical.optical-stock-management-component', $this->receiptViewData() + [
             'imports' => \App\Models\OpticalLensImport::with('user')->withCount([
                 'movements as receipt_lines' => fn ($q) => $q->where('movement_type', 'receipt'),
                 'movements as active_lines' => fn ($q) => $q->where('movement_type', 'receipt')->whereDoesntHave('reversedBy'),
@@ -470,12 +580,7 @@ class OpticalStockManagementComponent extends Component
                 ->orWhere('reference', 'like', '%'.trim($this->importSearch).'%')
                 ->orWhere('supplier', 'like', '%'.trim($this->importSearch).'%')))->latest('id')->paginate(10, ['*'], 'importsPage'),
             'importDetail' => $this->viewImportId ? \App\Models\OpticalLensImport::with(['user', 'movements.product', 'movements.reversedBy'])->findOrFail($this->viewImportId) : null,
-            'duplicateImport' => $this->importSource ? app(\App\Services\OpticalLensImportReceiptService::class)
-                ->matches(app(\App\Services\OpticalLensImportReceiptService::class)->fingerprint($this->lensSpecs(0, 0), $this->importSource['quantities']))->latest('id')->first() : null,
-            'lensRanges' => OpticalProduct::whereNotNull('lens_specs')->get()->pluck('lens_specs.range')->unique()->sort()->values(),
             'movements' => $movements,
-            'productMatches' => $matches,
-            'selectedProduct' => $this->productId ? OpticalProduct::find($this->productId) : null,
             'totalStock' => $products->sum(fn ($p) => $p->stocks->first()?->quantity ?? 0),
             'receivedToday' => OpticalProductStockMovement::where('movement_type', 'receipt')->whereDoesntHave('reversedBy')->whereDate('created_at', today())->sum('quantity_change'),
             'recentReceipt' => $recentReceipt,

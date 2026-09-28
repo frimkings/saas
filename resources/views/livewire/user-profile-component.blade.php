@@ -188,7 +188,7 @@
                                 </label>
                                 @if($user->avatar)
                                 <button type="button" wire:click="removeAvatar" class="btn btn-outline-danger btn-sm ml-1"
-                                        onclick="return confirm('Remove your profile photo?')">
+                                        wire:confirm="Remove your profile photo?">
                                     <i class="fas fa-trash mr-1"></i> Remove
                                 </button>
                                 @endif

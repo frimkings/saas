@@ -1,7 +1,7 @@
 <section class="ui-panel p-4 space-y-3" aria-label="Lens import history">
     <h2 class="font-bold text-lg">Lens import history</h2>
     <p class="text-xs text-slate-600">Receipts recorded since import tracking was enabled. Quantities are individual lenses unless labelled pairs.</p>
-    <input type="search" wire:model.live.debounce.300ms="importSearch" class="ui-input w-full" placeholder="Search worksheet, file, supplier or invoice" aria-label="Search imports">
+    <input autocomplete="off" type="search" wire:model.live.debounce.300ms="importSearch" class="ui-input w-full" placeholder="Search worksheet, file, supplier or invoice" aria-label="Search imports">
     <div class="ui-table-wrap"><table class="ui-table w-full">
         <thead><tr><th>Receipt / invoice</th><th>File / worksheet</th><th>Supplier</th><th>Lenses</th><th>Status</th><th>Date / user</th><th>Actions</th></tr></thead>
         <tbody>@forelse($imports as $import)
@@ -21,8 +21,8 @@
     </table></div>
     {{ $imports->links() }}
     @if($importDetail)
-        <div class="border-t pt-4 space-y-2">
-            <div class="flex justify-between"><h3 class="font-bold">Import #{{ $importDetail->id }} — {{ $importDetail->worksheet }}</h3><button type="button" wire:click="closeImport" class="underline">Close details</button></div>
+        <div class="border-t pt-4 space-y-2" data-sheet>
+            <div class="flex justify-between"><h3 class="font-bold">Import #{{ $importDetail->id }} — {{ $importDetail->worksheet }}</h3><button type="button" x-on:click="dismissCall($el, $wire, 'closeImport')" class="underline">Close details</button></div>
             <p>{{ $importDetail->supplier }} · Invoice: {{ $importDetail->reference ?: 'Not supplied' }} · Batch: {{ $importDetail->batch_number ?: 'Not supplied' }}</p>
             <p>{{ implode(' · ', $importDetail->specifications) }}</p>
             <p>Worksheet: {{ number_format($importDetail->source_quantity) }} {{ $importDetail->source_unit }}. Received: {{ number_format($importDetail->pieces) }} individual lenses.</p>

@@ -99,7 +99,7 @@ class OpticalStockCountService
     public function approve(int $countId): OpticalStockCount
     {
         $this->assertManager();
-        return DB::transaction(function () use ($countId) {
+        $count = DB::transaction(function () use ($countId) {
             $count = OpticalStockCount::with('lines.product')->lockForUpdate()->findOrFail($countId);
             if ($count->status !== 'submitted') throw ValidationException::withMessages(['counts' => 'Only a submitted count can be approved.']);
             foreach ($count->lines as $line) {
@@ -117,6 +117,10 @@ class OpticalStockCountService
             $count->update(['status' => 'approved', 'approved_by' => auth()->id(), 'approved_at' => now()]);
             return $count;
         });
+        // The owner hears about stock found missing (or extra) once it has been corrected.
+        app(OwnerAlerts::class)->stockCountApproved($count);
+
+        return $count;
     }
 
     public function cancel(int $countId): OpticalStockCount

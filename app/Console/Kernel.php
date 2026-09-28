@@ -79,13 +79,9 @@ class Kernel extends ConsoleKernel
             $schedule->command('tenancy:run-scheduled sms:recall-patients --clinic-only')->dailyAt('09:00')->withoutOverlapping();
         } catch (\Throwable) {}
 
-        // Financial report delivery — schedule driven by admin settings (PRO only)
-        try {
-            if (config('tenancy.enabled') || LicenseService::has(Feature::REPORT_DELIVERY)) {
-                $schedule->command('tenancy:run-scheduled report:retry-financial --clinic-only')->everyMinute()->withoutOverlapping();
-                $schedule->command('tenancy:run-scheduled report:send-financial --clinic-only')->dailyAt('08:00')->withoutOverlapping();
-            }
-        } catch (\Throwable) {}
+        // Daily, weekly and monthly sales emails to each clinic owner, from 7 AM clinic time;
+        // the platform ticks which ones each plan includes. Replaces the old report delivery.
+        $schedule->command('owner:send-summaries')->hourly()->withoutOverlapping();
     }
 
     /**

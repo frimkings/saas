@@ -21,13 +21,7 @@
         <li class="nav-item">
             <a class="nav-link {{ $activeTab === 'report' ? 'active' : '' }}"
                wire:click.prevent="setTab('report')" href="#">
-                <i class="fas fa-chart-line mr-1"></i> Report Delivery
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link {{ $activeTab === 'mail' ? 'active' : '' }}"
-               wire:click.prevent="setTab('mail')" href="#">
-                <i class="fas fa-envelope mr-1"></i> Mail Settings
+                <i class="fas fa-envelope-open-text mr-1"></i> Owner Emails
             </a>
         </li>
         <li class="nav-item">
@@ -63,9 +57,7 @@
         @elseif($activeTab === 'backup')
             @livewire('admin.backup-manager-component', [], key('tab-backup'))
         @elseif($activeTab === 'report')
-            @livewire('admin.report-delivery-component', [], key('tab-report'))
-        @elseif($activeTab === 'mail')
-            @livewire('admin.mail-settings-component', [], key('tab-mail'))
+            @livewire('admin.owner-emails-component', [], key('tab-report'))
         @elseif($activeTab === 'sms')
             @livewire('admin.sms-settings-component', [], key('tab-sms'))
         @elseif($activeTab === 'templates')

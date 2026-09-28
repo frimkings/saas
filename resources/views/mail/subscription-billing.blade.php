@@ -1,1 +1,13 @@
-<!doctype html><html><body style="font-family:Arial,sans-serif;color:#172033"><div style="max-width:620px;margin:auto;border:1px solid #dbe3ed;border-radius:10px;overflow:hidden"><div style="background:#0d1b2e;color:#fff;padding:22px"><h2 style="margin:0">{{ config('app.name','EyeClinic') }}</h2></div><div style="padding:24px"><h2>{{ $messageData['title'] }}</h2><p>Hello {{ $messageData['clinic_name'] }},</p><p style="line-height:1.6">{{ $messageData['body'] }}</p>@if(!empty($messageData['amount']))<p><b>Amount:</b> {{ $messageData['amount'] }}</p>@endif@if(!empty($messageData['invoice']))<p><b>Invoice:</b> {{ $messageData['invoice'] }}</p>@endif<p><a href="{{ $messageData['url'] }}" style="display:inline-block;background:#1688c4;color:#fff;padding:11px 18px;border-radius:6px;text-decoration:none">View Subscription &amp; Billing</a></p><p style="color:#667085;font-size:12px">This is an automated account notification.</p></div></div></body></html>
+{{-- Billing notices use the same layout as every other owner email. --}}
+@include('mail.owner-notice', [
+    'clinicName' => $messageData['clinic_name'],
+    'heading' => $messageData['title'],
+    'intro' => $messageData['body'],
+    'details' => array_filter([
+        'Amount' => $messageData['amount'] ?? null,
+        'Invoice' => $messageData['invoice'] ?? null,
+    ]),
+    'buttonLabel' => 'View subscription & billing',
+    'buttonUrl' => $messageData['url'],
+    'footnote' => null,
+])

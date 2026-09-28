@@ -854,7 +854,7 @@ window.printReceiptFromDom = function(event) {
                                                 </button>
                                                 <template x-if="cart.is_mine">
                                                     <button class="btn btn-sm btn-outline-danger ms-1"
-                                                            @click="if(confirm('Delete this cart?')) { $wire.deletePendingCart(cart.patient_id, cart.cashier_id) }">
+                                                            @click="appConfirm('Delete this cart?').then(ok => ok && $wire.deletePendingCart(cart.patient_id, cart.cashier_id))">
                                                         <i class="fas fa-trash-alt"></i>
                                                     </button>
                                                 </template>

@@ -2,16 +2,15 @@
 
 namespace App\Services\Messaging;
 
-use App\Mail\AppointmentConfirmationMail;
-use App\Models\{Appointments, OnlineBooking, Setting, SmsTemplate};
-use App\Services\{EmailService, NotificationService, SmsService};
+use App\Models\{Appointments, OnlineBooking, SmsTemplate};
+use App\Services\{NotificationService, SmsService};
 use Illuminate\Support\Facades\Log;
 
 /** One place for the patient messages sent around appointments, whichever screen or API created them. */
 class AppointmentNotifier
 {
     /**
-     * Booking confirmation by SMS (unless the screen offers a WhatsApp link instead) and email.
+     * Booking confirmation by SMS (unless the screen offers a WhatsApp link instead).
      * Returns the confirmation text. Never throws: a failed message must not undo a booking.
      */
     public function confirmed(Appointments $appointment, bool $sendSms = true): string
@@ -32,20 +31,11 @@ class AppointmentNotifier
                 '[DATE]'   => $date,
                 '[TIME]'   => $time,
                 '[REASON]' => $appointment->title,
-            ], $branch);
+            ], $branch, evenIfOff: ! $sendSms);
             if ($sendSms && $msg && $patient->contact) {
                 app(SmsService::class)->send($patient->contact, $msg, $patient->id, 'appointment_booking');
             }
-
-            if ($patient->email) {
-                (new EmailService)->send($patient->email, new AppointmentConfirmationMail(
-                    $patient->name,
-                    Setting::getSettings()->clinic_name ?? 'the clinic',
-                    $date,
-                    $time,
-                    $appointment->title,
-                ));
-            }
+            // Patients hear from the clinic by SMS only; email is for the clinic owner.
         } catch (\Throwable $e) {
             Log::warning('Appointment confirmation could not be sent.', ['appointment_id' => $appointment->id, 'error' => $e->getMessage()]);
         }

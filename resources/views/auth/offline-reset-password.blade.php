@@ -1,8 +1,8 @@
 <x-guest-layout>
 @php
-    $settings = \App\Models\Setting::getSettings();
-    $clinicName = $settings->clinic_name ?? config('app.name', 'Eye Clinic');
-    $logoUri = $settings->logoDataUri();
+    $branding = \App\Models\PlatformSetting::guestBranding();
+    $clinicName = $branding['name'];
+    $logoUri = $branding['logo'];
 @endphp
 
 <style>

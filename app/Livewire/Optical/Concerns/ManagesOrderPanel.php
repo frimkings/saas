@@ -51,6 +51,12 @@ trait ManagesOrderPanel
         $this->resetErrorBag();
     }
 
+    /** The panel is closed in the browser (dismissLocal); tidy up when the server hears of it. */
+    public function updatedViewOrderId($value): void
+    {
+        if ($value === null) $this->resetErrorBag();
+    }
+
     /** The order shown in the panel, with what the panel displays. */
     public function panelOrder(): ?LensOrder
     {
@@ -94,7 +100,8 @@ trait ManagesOrderPanel
         $minimum = app(OpticalOrderWorkflowService::class)->minimumDeposit($quotation);
         $this->convertDeposit = $minimum > 0 ? number_format($minimum, 2, '.', '') : '';
         $this->convertMethod = 'cash';
-        $this->convertPricing = '';
+        // A valid quote keeps its prices unless repriced; an expired one must choose.
+        $this->convertPricing = $quotation->isQuoteExpired() ? '' : 'keep';
         $this->resetValidation();
         $this->showConvertModal = true;
     }
@@ -105,7 +112,7 @@ trait ManagesOrderPanel
         $this->validate([
             'convertDeposit' => 'nullable|numeric|min:0',
             'convertMethod' => 'required|in:cash,momo,card,bank_transfer',
-            'convertPricing' => $quotation->isQuoteExpired() ? 'required|in:keep,reprice' : 'nullable',
+            'convertPricing' => $quotation->isQuoteExpired() ? 'required|in:keep,reprice' : 'nullable|in:keep,reprice',
         ], ['convertPricing.required' => 'This quotation has expired. Choose which prices to charge.']);
         $order = app(OpticalOrderWorkflowService::class)->activateQuotation(
             $quotation->id, (float) ($this->convertDeposit ?: 0), $this->convertMethod,
@@ -126,9 +133,13 @@ trait ManagesOrderPanel
         $this->showSendToLabModal = true;
     }
 
-    /** Default the return date from the chosen lab lead time. */
+    /**
+     * Default the return date from the chosen lab lead time. The page fills it in the browser as
+     * the lab is chosen (each option carries its lead time), so a date already there is kept.
+     */
     public function updatedLabSupplierId($value): void
     {
+        if ($this->expectedBack !== '') return;
         $lead = ctype_digit((string) $value) ? \App\Models\Supplier::whereKey((int) $value)->value('lead_time_days') : null;
         $this->expectedBack = $lead ? today()->addDays((int) $lead)->toDateString() : '';
     }

@@ -14,7 +14,7 @@ class ClinicWriteGuard
         'clinic_user', 'branch_user', 'branch_user_role', 'model_has_roles', 'model_has_permissions',
         'audit_trails', 'audit_trails_archive', 'app_notifications', 'notifications',
         'platform_audit_logs', 'clinic_subscriptions', 'subscription_change_requests',
-        'billing_notification_logs', 'report_deliveries', 'migrations',
+        'billing_notification_logs', 'report_deliveries', 'owner_emails', 'owner_alert_items', 'migrations',
     ];
 
     public function check(string $sql): void

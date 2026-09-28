@@ -103,7 +103,7 @@
                                                             <i class="fa fa-edit"></i>
                                                         </button>
                                                         <button type="button" wire:click="deleteLensOption({{ $lensOption->id }})"
-                                                                onclick="return confirm('Remove this lens option? Existing refraction records will remain unchanged.')"
+                                                                wire:confirm="Remove this lens option? Existing refraction records will remain unchanged."
                                                                 class="btn btn-outline-danger" title="Delete">
                                                             <i class="fa fa-trash"></i>
                                                         </button>
@@ -417,7 +417,7 @@
                             <div>
                                 <button class="btn btn-sm btn-danger"
                                         wire:click="deleteSelected"
-                                        onclick="return confirm('Delete selected products? This cannot be undone.')">
+                                        wire:confirm="Delete selected products? This cannot be undone.">
                                     <i class="fa fa-trash mr-1"></i>Delete Selected
                                 </button>
                                 <button class="btn btn-sm btn-outline-secondary" wire:click="clearSelection">

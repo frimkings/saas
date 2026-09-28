@@ -20,8 +20,8 @@
             $rx = $o->prescription_snapshot;
             $hasRx = filled(data_get($rx, 'od.sph')) || filled(data_get($rx, 'os.sph'));
         @endphp
-        <div class="oo-overlay" wire:click="closeOrder" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="oo-drawer-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.closeOrder()" wire:key="drawer-{{ $o->id }}">
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { viewOrderId: null })" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="oo-drawer-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissLocal($el, $wire, { viewOrderId: null })" wire:key="drawer-{{ $o->id }}">
             <header class="oo-drawer-head">
                 <div>
                     <h2 id="oo-drawer-title"><span class="oo-id" style="font-size:17px">{{ $o->order_id }}</span></h2>
@@ -31,14 +31,14 @@
                         <span>· Created {{ $o->created_at?->format('d M Y') }}@if($o->user) by {{ $o->user->name }}@endif</span>
                     </div>
                 </div>
-                <button type="button" class="oo-x" wire:click="closeOrder" aria-label="Close">&times;</button>
+                <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { viewOrderId: null })" aria-label="Close">&times;</button>
             </header>
 
             <div class="oo-drawer-body">
                 @if($errors->any())<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
 
                 @if($o->status === 'Cancelled')
-                    <div class="oo-note red">Cancelled{{ $o->cancelled_at ? ' on '.$o->cancelled_at->format('d M Y') : '' }}.@if($o->refundLog) Refunded {{ currency() }} {{ number_format((float) $o->refundLog->refunded_amount, 2) }}@if((float) $o->cancellation_fee > 0); fee kept {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}@endif.@endif</div>
+                    <div class="oo-note red">Cancelled{{ $o->cancelled_at ? ' on '.$o->cancelled_at->format('d M Y') : '' }}.@if($o->refundLog) Refunded {{ currency() }} {{ number_format((float) $o->refundLog->refunded_amount, 2) }}@if((float) $o->cancellation_fee > 0); fee kept {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}@endif.@elseif((float) $o->cancellation_fee > 0) Deposit kept: {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}.@endif @if($o->cancellation_reason)<span class="block mt-1">{{ $o->cancellation_reason }}</span>@endif</div>
                 @elseif($o->status === 'Quotation')
                     <div class="oo-note amber">This is a quotation. Nothing is reserved or charged until it is converted to an order.</div>
                 @else
@@ -191,7 +191,7 @@
                     <button type="button" wire:click="remake({{ $o->id }})" class="oo-btn" title="Re-do the lenses for this order">Remake</button>
                 @endif
                 @if($balance > 0 && $o->sale_id && ! in_array($o->status, ['Quotation', 'Cancelled'], true))
-                    <button type="button" wire:click="openPaymentModal({{ $o->id }})" class="oo-btn {{ $isReady ? 'primary' : 'warn' }}">Record payment</button>
+                    <button type="button" x-on:click="openLocal($wire, { paymentOrderId: {{ $o->id }}, paymentAmount: '{{ number_format(max(0, $o->total - (float) $o->paid_amount), 2, '.', '') }}', showPaymentModal: true }, $root.querySelector('[data-payment-form]'))" class="oo-btn {{ $isReady ? 'primary' : 'warn' }}">Record payment</button>
                 @endif
                 @if($step && ! ($isReady && $balance > 0 && ! $onAccount))
                     <button type="button" wire:click="{{ $step[1] }}" @if($step[2]) wire:confirm="{{ $step[2] }}" @endif class="oo-btn primary" @if($awaited->isNotEmpty() && $o->status === 'Pending') disabled title="Waiting for a special-order lens" @endif>{{ $step[0] }}</button>
@@ -202,80 +202,79 @@
 
     {{-- CANCEL CONFIRMATION --}}
     @if($showDeleteOrderModal)
-        <div class="oo-modal-wrap">
+        <div class="oo-modal-wrap" data-sheet>
             <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="alertdialog" aria-modal="true">
                 <h3 class="text-base font-bold text-slate-900">Cancel optical order</h3>
                 <p class="text-xs text-slate-600">Cancel order <strong class="text-slate-900 font-mono">{{ $orderToDeleteNumber }}</strong>? Reserved stock is returned. Paid orders need a refund first.</p>
                 <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
-                    <button wire:click="$set('showDeleteOrderModal', false)" type="button" class="oo-btn">No, keep order</button>
+                    <button x-on:click="dismissLocal($el, $wire, { showDeleteOrderModal: false })" type="button" class="oo-btn">No, keep order</button>
                     <button wire:click="deleteOrder" type="button" class="oo-btn danger">Yes, cancel order</button>
                 </div>
             </div>
         </div>
     @endif
     @if($showRefundModal)
-        <div class="oo-modal-wrap">
+        <div class="oo-modal-wrap" data-sheet>
             <form wire:submit.prevent="refundOrder" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
                 <div>
                     <h3 class="text-base font-bold text-slate-900">Refund &amp; cancel order {{ $refundOrderNumber }}</h3>
                     <p class="text-xs text-slate-600">{{ currency() }} {{ number_format($refundPaid, 2) }} has been paid. Refund all of it, or less to keep a cancellation fee (for example once glazing has started). Reserved frames and held lenses go back to stock; lenses already cut for this job do not.</p>
                 </div>
-                <div><label class="block text-xs font-semibold mb-1">Amount to refund ({{ currency() }}) *</label><input type="number" min="0.01" max="{{ $refundPaid }}" step="0.01" wire:model.live.debounce.400ms="refundAmount" class="ui-input w-full font-mono">
-                    @if(is_numeric($refundAmount) && (float) $refundAmount < $refundPaid)<p class="mt-1 text-xs text-amber-800">Cancellation fee kept: {{ currency() }} {{ number_format($refundPaid - (float) $refundAmount, 2) }}</p>@endif
+                <div><label class="block text-xs font-semibold mb-1">Amount to refund ({{ currency() }}) *</label><input autocomplete="off" type="number" min="0.01" max="{{ $refundPaid }}" step="0.01" wire:model="refundAmount" class="ui-input w-full font-mono">
+                    {{-- Worked out in the browser as the amount is typed. --}}<p class="mt-1 text-xs text-amber-800" x-data="{ paid: {{ (float) $refundPaid }} }" x-show="isNumeric($wire.refundAmount) && num($wire.refundAmount) < paid" x-cloak x-text="'Cancellation fee kept: ' + @js(currency()) + ' ' + money(paid - num($wire.refundAmount))"></p>
                     @error('refundAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div><label class="block text-xs font-semibold mb-1">Reason *</label><select wire:model="refundReasonCode" class="ui-input w-full"><option value="">Choose a reason</option>@foreach(\App\Models\RefundLog::REASON_CODES as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
                     @error('refundReasonCode')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div><label class="block text-xs font-semibold mb-1">Details *</label><textarea wire:model="refundReason" rows="2" maxlength="500" class="ui-input w-full" placeholder="What happened and what was agreed with the customer"></textarea>
                     @error('refundReason')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                <div class="flex justify-end gap-2"><button type="button" wire:click="$set('showRefundModal', false)" class="oo-btn">Keep order</button><button type="submit" wire:confirm="Refund this payment and cancel the order? This cannot be undone." class="oo-btn danger">Refund &amp; cancel</button></div>
+                <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showRefundModal: false })" class="oo-btn">Keep order</button><button type="submit" wire:confirm="Refund this payment and cancel the order? This cannot be undone." class="oo-btn danger">Refund &amp; cancel</button></div>
             </form>
         </div>
     @endif
     @if($showSendToLabModal)
-        <div class="oo-modal-wrap">
+        <div class="oo-modal-wrap" data-sheet>
             <form wire:submit.prevent="sendToLab" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true" aria-labelledby="send-lab-title">
                 <h3 id="send-lab-title" class="text-base font-bold text-slate-900">Send to lab</h3>
                 <div><label class="block text-xs font-semibold mb-1" for="lab-supplier">Lab</label>
-                    <select id="lab-supplier" wire:model.live="labSupplierId" class="ui-input w-full"><option value="">Not recorded</option>@foreach(\App\Models\Supplier::where('is_active', true)->orderBy('name')->get() as $lab)<option value="{{ $lab->id }}">{{ $lab->name }}{{ $lab->lead_time_days ? ' · '.$lab->lead_time_days.' days' : '' }}</option>@endforeach</select>
+                    <select id="lab-supplier" wire:model="labSupplierId" x-data x-on:change="const lead = parseInt($event.target.selectedOptions[0]?.dataset.lead, 10); const back = new Date(); back.setDate(back.getDate() + (lead || 0)); $wire.$set('expectedBack', lead ? back.toLocaleDateString('en-CA') : '', false)" class="ui-input w-full"><option value="">Not recorded</option>@foreach(\App\Models\Supplier::where('is_active', true)->orderBy('name')->get() as $lab)<option value="{{ $lab->id }}" data-lead="{{ $lab->lead_time_days }}">{{ $lab->name }}{{ $lab->lead_time_days ? ' · '.$lab->lead_time_days.' days' : '' }}</option>@endforeach</select>
                     @error('labSupplierId')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div><label class="block text-xs font-semibold mb-1" for="expected-back">Expected back</label>
-                    <input id="expected-back" type="date" min="{{ today()->toDateString() }}" wire:model="expectedBack" class="ui-input w-full">
+                    <input autocomplete="off" id="expected-back" type="date" min="{{ today()->toDateString() }}" wire:model="expectedBack" class="ui-input w-full">
                     <p class="mt-1 text-xs text-slate-500">Filled from the lab lead time. Used for the overdue list in Job Tracking.</p>
                     @error('expectedBack')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 @error('status')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
-                <div class="flex justify-end gap-2"><button type="button" wire:click="$set('showSendToLabModal', false)" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Send to lab</button></div>
+                <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showSendToLabModal: false })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Send to lab</button></div>
             </form>
         </div>
     @endif
     @if($showConvertModal)
         @php $convertQuote = \App\Models\LensOrder::find($convertOrderId); @endphp
-        <div class="oo-modal-wrap">
+        <div class="oo-modal-wrap" data-sheet>
             <form wire:submit.prevent="confirmConvertQuotation" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true" aria-labelledby="convert-title">
                 <h3 id="convert-title" class="text-base font-bold text-slate-900">Convert quotation {{ $convertQuote?->order_id }}</h3>
-                @if($convertQuote?->isQuoteExpired())
-                    <fieldset class="space-y-2"><legend class="text-xs font-semibold mb-1">This quotation expired on {{ $convertQuote->quote_valid_until->format('d M Y') }}. Charge:</legend>
+                @if($convertQuote)
+                    <fieldset class="space-y-2"><legend class="text-xs font-semibold mb-1">@if($convertQuote->isQuoteExpired())This quotation expired on {{ $convertQuote->quote_valid_until->format('d M Y') }}. @endif Charge:</legend>
                         <label class="flex items-center gap-2 text-sm"><input type="radio" wire:model="convertPricing" value="keep"> The quoted prices ({{ currency() }} {{ number_format($convertQuote->total, 2) }})</label>
                         <label class="flex items-center gap-2 text-sm"><input type="radio" wire:model="convertPricing" value="reprice"> Current prices for catalogue items and services</label>
                         @error('convertPricing')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                         @error('quote')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                     </fieldset>
                 @endif
-                <div><label class="block text-xs font-semibold mb-1" for="convert-deposit">Deposit ({{ currency() }})</label><input id="convert-deposit" type="number" min="0" step="0.01" wire:model="convertDeposit" class="ui-input w-full">
+                <div><label class="block text-xs font-semibold mb-1" for="convert-deposit">Deposit ({{ currency() }})</label><input autocomplete="off" id="convert-deposit" type="number" min="0" step="0.01" wire:model="convertDeposit" class="ui-input w-full">
                     @error('convertDeposit')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     @error('paid_amount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div><label class="block text-xs font-semibold mb-1" for="convert-method">Method</label><select id="convert-method" wire:model="convertMethod" class="ui-input w-full"><option value="cash">Cash</option><option value="momo">Mobile Money</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option></select></div>
                 @error('order')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
-                <div class="flex justify-end gap-2"><button type="button" wire:click="$set('showConvertModal', false)" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Convert to order</button></div>
+                <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showConvertModal: false })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Convert to order</button></div>
             </form>
         </div>
     @endif
-    @if($showPaymentModal)
-        <div class="oo-modal-wrap">
+    {{-- Always in the page: Take payment opens it in the browser (openLocal); only Record payment calls the server. --}}
+        <div class="oo-modal-wrap" data-sheet data-keep data-payment-form x-show="$wire.showPaymentModal" x-cloak>
             <form wire:submit.prevent="recordPayment" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
                 <h3 class="text-base font-bold text-slate-900">Record order payment</h3>
-                <div><label class="block text-xs font-semibold mb-1">Amount ({{ currency() }})</label><input type="number" min="0.01" step="0.01" wire:model="paymentAmount" class="ui-input w-full">@error('paymentAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                <div><label class="block text-xs font-semibold mb-1">Amount ({{ currency() }})</label><input autocomplete="off" type="number" min="0.01" step="0.01" wire:model="paymentAmount" class="ui-input w-full">@error('paymentAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div><label class="block text-xs font-semibold mb-1">Method</label><select wire:model="paymentMethod" class="ui-input w-full"><option value="cash">Cash</option><option value="momo">Mobile Money</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option></select></div>
-                <div class="flex justify-end gap-2"><button type="button" wire:click="$set('showPaymentModal', false)" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Record payment</button></div>
+                <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showPaymentModal: false })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Record payment</button></div>
             </form>
         </div>
-    @endif

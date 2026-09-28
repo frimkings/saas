@@ -362,7 +362,7 @@
                     @if($activeTab === 'archived')
                         <button wire:click="restoreSelected" class="btn btn-sm btn-success font-weight-bold"><i class="fas fa-undo mr-1"></i> RESTORE</button>
                     @else
-                        <button wire:click="archiveSelected" onclick="confirm('Archive selected patients?') || event.stopImmediatePropagation()" class="btn btn-sm btn-danger font-weight-bold"><i class="fas fa-trash-alt mr-1"></i> ARCHIVE</button>
+                        <button wire:click="archiveSelected" wire:confirm="Archive selected patients?" class="btn btn-sm btn-danger font-weight-bold"><i class="fas fa-trash-alt mr-1"></i> ARCHIVE</button>
                     @endif
                 </div>
             </div>

@@ -77,15 +77,41 @@ class OpticalLabWorkbenchComponent extends Component
         return $query;
     }
 
-    public function render()
+    /** The jobs shown for the current stage, type and search, in queue order. Also used by the bench sheet. */
+    public function benchQuery()
     {
         $query = $this->applyTypeAndSearch($this->stageQuery($this->stage))
             ->with(['patient', 'refraction.consultation.patient', 'user', 'serviceLines', 'lensLines', 'partnerClinic']);
 
         // Open work: most urgent pickup first (no date last). Finished work: newest first.
-        $orders = in_array($this->stage, ['active', 'queue', 'bench'], true)
-            ? $query->orderByRaw('pickUpDate IS NULL')->orderBy('pickUpDate')->oldest()->paginate(12)
-            : $query->latest('updated_at')->paginate(12);
+        return in_array($this->stage, ['active', 'queue', 'bench'], true)
+            ? $query->orderByRaw('pickUpDate IS NULL')->orderBy('pickUpDate')->oldest()
+            : $query->latest('updated_at');
+    }
+
+    /** Printable bench sheet for every job matching the workbench filters, not only the current page. */
+    public static function printSheet(\Illuminate\Http\Request $request)
+    {
+        $bench = new self;
+        $bench->stage = array_key_exists((string) $request->query('stage'), self::STAGES) ? $request->query('stage') : 'active';
+        $bench->typeFilter = in_array($request->query('typeFilter'), ['Glazing', 'Transfer', 'Repair', 'Tinting'], true) ? $request->query('typeFilter') : '';
+        $bench->searchTerm = mb_substr(trim((string) $request->query('searchTerm')), 0, 100);
+        $total = $bench->benchQuery()->count();
+
+        return view('optical.lab-bench-sheet', [
+            'orders' => $bench->benchQuery()->with(['frameOpticalProduct', 'frameProduct', 'lensOpticalProduct', 'remakeOf'])->limit(self::SHEET_LIMIT)->get(),
+            'total' => $total,
+            'stageLabel' => self::STAGES[$bench->stage][0],
+            'typeFilter' => $bench->typeFilter,
+            'searchTerm' => $bench->searchTerm,
+        ]);
+    }
+
+    public const SHEET_LIMIT = 200;
+
+    public function render()
+    {
+        $orders = $this->benchQuery()->paginate(12);
 
         $lateCount = LensOrder::whereIn('status', self::STAGES['active'][1])->whereDate('pickUpDate', '<', today())->count();
 

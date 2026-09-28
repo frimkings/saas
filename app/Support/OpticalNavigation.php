@@ -26,12 +26,17 @@ class OpticalNavigation
         ];
     }
 
-    /** Pages only managers can open. */
-    private const MANAGER_ONLY = ['optical.settings', 'optical.purchasing', 'optical.profit', 'optical.expenses'];
-
+    /** Whether the signed-in person's role opens this page (App\Support\OpticalAccess). */
     public static function allowed(string $route): bool
     {
-        return ! in_array($route, self::MANAGER_ONLY, true) || (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+        return OpticalAccess::can(auth()->user(), $route);
+    }
+
+    /** Adding staff and giving them roles: managers, Super Admins, or anyone given "manage users". */
+    public static function canManageStaff(): bool
+    {
+        $user = auth()->user();
+        return (bool) ($user?->hasRole('Super Admin') || $user?->can('manage users'));
     }
 
     public static function active(string $route): bool

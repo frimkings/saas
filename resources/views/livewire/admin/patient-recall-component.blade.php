@@ -108,7 +108,7 @@
             @if($activeTab === 'due' && $dueCount > 0)
             <div class="ml-auto">
               <button wire:click="sendBulkRecall"
-                      onclick="return confirm('Send recall SMS to all {{ $dueCount }} due patient(s)? This will use your configured SMS/WhatsApp channel.')"
+                      wire:confirm="Send recall SMS to all {{ $dueCount }} due patient(s)? This will use your configured SMS/WhatsApp channel."
                       class="btn btn-warning btn-sm" wire:loading.attr="disabled">
                 <span wire:loading wire:target="sendBulkRecall"><i class="fas fa-spinner fa-spin mr-1"></i></span>
                 <span wire:loading.remove wire:target="sendBulkRecall"><i class="fas fa-bullhorn mr-1"></i></span>
@@ -169,19 +169,19 @@
                       </button>
                     @elseif($activeTab === 'sent')
                       <button wire:click="sendRecall({{ $patient->id }})"
-                              onclick="return confirm('Re-send recall to {{ addslashes($patient->name) }}?')"
+                              wire:confirm="Re-send recall to {{ $patient->name }}?"
                               class="btn btn-xs btn-outline-primary" title="Re-send">
                         <i class="fas fa-redo"></i> Re-send
                       </button>
                       <button wire:click="resetRecall({{ $patient->id }})"
-                              onclick="return confirm('Reset recall cycle for {{ addslashes($patient->name) }}? They will appear as due again.')"
+                              wire:confirm="Reset recall cycle for {{ $patient->name }}? They will appear as due again."
                               class="btn btn-xs btn-outline-secondary" title="Reset cycle">
                         <i class="fas fa-undo"></i>
                       </button>
                     @elseif($activeTab === 'returned')
                       <span class="badge badge-success"><i class="fas fa-check mr-1"></i>Returned</span>
                       <button wire:click="resetRecall({{ $patient->id }})"
-                              onclick="return confirm('Reset recall cycle for {{ addslashes($patient->name) }}?')"
+                              wire:confirm="Reset recall cycle for {{ $patient->name }}?"
                               class="btn btn-xs btn-outline-secondary ml-1" title="Reset cycle">
                         <i class="fas fa-undo"></i>
                       </button>

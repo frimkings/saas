@@ -121,7 +121,7 @@
                                         <button type="button"
                                                 class="btn btn-sm btn-success shadow-none mr-1"
                                                 wire:click="approve({{ $log->id }})"
-                                                onclick="return confirm('Approve this clearance revoke request? The clearance will be permanently removed.')">
+                                                wire:confirm="Approve this clearance revoke request? The clearance will be permanently removed.">
                                             <i class="fas fa-check mr-1"></i>Approve
                                         </button>
                                         <button wire:click="openRejectModal({{ $log->id }})"

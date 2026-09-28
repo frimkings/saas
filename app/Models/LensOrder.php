@@ -73,6 +73,7 @@ class LensOrder extends Model
         'remake_charge',
         'warranty_expires_at',
         'cancellation_fee',
+        'cancellation_reason',
         'refund_log_id',
         'ready_at',
         'ready_notified_at',
@@ -231,6 +232,13 @@ class LensOrder extends Model
     public function getDisplayCustomerPhoneAttribute(): ?string
     {
         return $this->customer?->contact ?: $this->customer_phone;
+    }
+
+    /** Job details (frame source, lens details, lab instructions) kept as JSON in notes; plain notes on older orders. */
+    public function docketDetails(): array
+    {
+        $details = json_decode($this->notes ?? '', true);
+        return is_array($details) ? $details : ['notes' => $this->notes];
     }
 
     public function getCustomerAttribute(): ?Patient

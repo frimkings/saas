@@ -320,6 +320,44 @@ class OpticalOrderWorkflowService
     }
 
     /**
+     * Close a job the customer has abandoned: cancel it, put its stock back (lenses already
+     * cut are written off) and keep any deposit as a cancellation fee. The sale stays on
+     * record at the amount kept, so takings and receipts still reconcile.
+     */
+    public function closeAbandoned(int $id, string $reason): LensOrder
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can close an abandoned job.');
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 10 || mb_strlen($reason) > 500) {
+            throw ValidationException::withMessages(['abandonReason' => 'Say why the job is being closed, in at least 10 characters.']);
+        }
+        return DB::transaction(function () use ($id, $reason) {
+            $order = LensOrder::lockForUpdate()->findOrFail($id);
+            if (in_array($order->status, ['Quotation', 'Cancelled', 'Collected'], true)) {
+                throw ValidationException::withMessages(['abandonReason' => 'Only open, uncollected jobs can be closed as abandoned.']);
+            }
+            $kept = round((float) $order->paid_amount, 2);
+            $this->returnStock($order);
+            if ($order->sale_id && ($sale = Sales::lockForUpdate()->find($order->sale_id))) {
+                $sale->items()->update(['refunded_quantity' => DB::raw('dispensed_quantity')]);
+                $sale->update(['total_amount' => $kept, 'amount_paid' => $kept, 'payment_status' => $kept > 0 ? 'paid' : 'unpaid']);
+            }
+            $order->update([
+                'status' => 'Cancelled', 'cancelled_at' => now(), 'status_changed_at' => now(),
+                'cancellation_fee' => $kept, 'cancellation_reason' => 'Abandoned: '.$reason,
+            ]);
+            AuditTrail::record(
+                'optical.order_abandoned',
+                "Optical order {$order->order_id} closed as abandoned".($kept > 0 ? ', deposit of '.currency().' '.number_format($kept, 2).' kept' : ''),
+                $order, ['status' => 'open'], ['status' => 'Cancelled', 'deposit_kept' => $kept, 'reason' => $reason],
+                $order->patient_id, true,
+            );
+            return $order;
+        });
+    }
+
+    /**
      * Put reserved stock back on the shelf and release held lenses. Once glazing has started
      * the lenses were cut for this customer: the frame goes back, the lenses are written off.
      * Special-order lenses not yet bought are taken off any draft supplier order.

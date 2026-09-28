@@ -94,10 +94,18 @@ class OpticalPanelsTest extends TestCase
             'transaction_id' => 'OPT-RETAIL-1', 'total_amount' => 50, 'amount_paid' => 50, 'payment_status' => 'paid']);
         \App\Models\SaleItem::create(['sale_id' => $retail->id, 'prescribed_quantity' => 0, 'dispensed_quantity' => 1, 'selling_price' => 50, 'subtotal' => 50]);
 
-        Livewire::test(SalesRecordsComponent::class, ['line' => 'optical'])->assertSet('businessLine', 'optical')
-            ->assertSee($orderSale->transaction_id)->assertSee('OPT-RETAIL-1')
-            ->call('openSalePanel', $orderSale->id)->assertSee($order->order_id)->assertSee('use Refund &amp; cancel', false)->assertDontSee('Request refund')
-            ->call('openSalePanel', $retail->id)->assertSee('Request refund')
+        // Each listed sale's panel is drawn with the page (View shows it in the browser), so read the one for each sale.
+        $page = Livewire::test(SalesRecordsComponent::class, ['line' => 'optical'])->assertSet('businessLine', 'optical')
+            ->assertSee($orderSale->transaction_id)->assertSee('OPT-RETAIL-1')->assertDontSee('wire:click="openSalePanel', false);
+        $drawer = function (int $saleId) use ($page): string {
+            preg_match('/data-sale-drawer="'.$saleId.'".*?<\/aside>/s', $page->html(), $match);
+            return $match[0] ?? '';
+        };
+        $this->assertStringContainsString($order->order_id, $drawer($orderSale->id));
+        $this->assertStringContainsString('use Refund &amp; cancel', $drawer($orderSale->id));
+        $this->assertStringNotContainsString('Request refund', $drawer($orderSale->id));
+        $this->assertStringContainsString('Request refund', $drawer($retail->id));
+        $page->call('openSalePanel', $retail->id)->assertSet('panelSaleId', $retail->id)
             ->call('initiateRefund', $retail->id)->assertSee('Send for approval')
             ->set('initiateRefundReasonCode', array_key_first(\App\Models\RefundLog::REASON_CODES))->set('initiateRefundReason', 'Customer changed their mind')
             ->call('submitRefundRequest')->assertHasNoErrors()->assertSee('Awaiting manager approval')->assertSee('Refund pending');
@@ -133,6 +141,8 @@ class OpticalPanelsTest extends TestCase
 
         Livewire::test(\App\Livewire\Optical\OpticalStockCountsComponent::class)
             ->call('openCount', $count->id)->assertSet('viewCountId', $count->id)->assertSee('Save progress')
-            ->call('closeCount')->assertSet('viewCountId', null)->assertDontSee('Save progress')->assertSee($count->count_number);
+            // The browser removes the sheet itself, so closing redraws nothing; the next redraw has no sheet.
+            ->call('closeCount')->assertSet('viewCountId', null)
+            ->call('$refresh')->assertDontSee('Save progress')->assertSee($count->count_number);
     }
 }

@@ -1,4 +1,5 @@
 <div>
+<x-ui.flash />
 <div class="container-fluid py-4">
     <style>
         .badge-success-light { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }

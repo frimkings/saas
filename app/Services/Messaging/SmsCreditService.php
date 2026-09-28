@@ -55,6 +55,7 @@ class SmsCreditService
         if ($crossedLow) {
             $this->notifyClinic('sms_credits_low', 'SMS credits running low',
                 "Only {$this->balance($clinicId)} SMS credits are left. Buy more in Settings → SMS to keep messages going.");
+            app(\App\Services\OwnerAlerts::class)->smsCreditsLow($clinicId, $this->balance($clinicId));
         }
 
         return $log;

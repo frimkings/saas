@@ -12,6 +12,9 @@ use Livewire\Component;
 
 class SmsTemplatesComponent extends Component
 {
+    /** Messages that come with SMS campaigns (Pro): birthday wishes, recall, broadcasts, scheduled reminders. */
+    public const CAMPAIGN_KEYS = ['birthday_wishes', 'patient_recall', 'custom_broadcast', 'appointment_auto_reminder'];
+
     public array $templates = [];
 
     // Birthday filter (persisted to settings)
@@ -30,7 +33,7 @@ class SmsTemplatesComponent extends Component
 
     public function mount(): void
     {
-        abort_if(!LicenseService::has(Feature::SMS_CAMPAIGNS), 403, 'SMS campaigns require a Pro license.');
+        // Every clinic chooses and words its everyday patient messages; campaigns need Pro.
         $this->loadTemplates();
         $s = Setting::getSettings();
         $this->birthdayFilter        = $s->birthday_sms_filter        ?? 'all';
@@ -46,12 +49,14 @@ class SmsTemplatesComponent extends Component
         }
 
         $this->templates = SmsTemplate::orderBy('id')
-            ->get(['id', 'key', 'label', 'message', 'placeholders'])
+            ->when(! $this->campaigns(), fn ($query) => $query->whereNotIn('key', self::CAMPAIGN_KEYS))
+            ->get(['id', 'key', 'label', 'message', 'placeholders', 'is_enabled'])
             ->keyBy('key')
             ->map(fn($t) => [
                 'id'           => $t->id,
                 'label'        => $t->label,
                 'message'      => $t->message,
+                'is_enabled'   => $t->is_enabled ?? true,
                 'placeholders' => array_values(array_unique(array_merge($t->placeholders ?? [], SmsTemplate::CONTEXT_PLACEHOLDERS))),
             ])
             ->toArray();
@@ -76,6 +81,20 @@ class SmsTemplatesComponent extends Component
         ]);
     }
 
+    /** Switch a message on or off for this clinic's patients. The text is kept either way. */
+    public function toggleEnabled(string $key): void
+    {
+        if (in_array($key, self::CAMPAIGN_KEYS, true)) $this->requireCampaigns();
+        $template = SmsTemplate::where('key', $key)->firstOrFail();
+        $template->update(['is_enabled' => ! $template->is_enabled]);
+        $this->templates[$key]['is_enabled'] = $template->is_enabled;
+
+        $this->dispatch('notify', ...[
+            'type'    => 'success',
+            'message' => '"' . $template->label . '" ' . ($template->is_enabled ? 'will be sent to patients.' : 'is switched off. Patients won\'t get it.'),
+        ]);
+    }
+
     public function discardChanges(string $key): void
     {
         $tpl = SmsTemplate::where('key', $key)->first();
@@ -86,6 +105,7 @@ class SmsTemplatesComponent extends Component
 
     public function prepareBroadcast(): void
     {
+        $this->requireCampaigns();
         if ($this->broadcastFilter === 'custom' && (empty($this->broadcastCustomMonths) || $this->broadcastCustomMonths < 1)) {
             $this->addError('broadcastCustomMonths', 'Please enter a valid number of months.');
             return;
@@ -108,6 +128,7 @@ class SmsTemplatesComponent extends Component
 
     public function sendCustomBroadcast(): void
     {
+        $this->requireCampaigns();
         $tpl = SmsTemplate::where('key', 'custom_broadcast')->first();
         if (!$tpl || empty(trim($tpl->message))) {
             $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Broadcast message is empty.']);
@@ -152,6 +173,7 @@ class SmsTemplatesComponent extends Component
 
     public function saveRecallSettings(): void
     {
+        $this->requireCampaigns();
         $this->validate([
             'recallMonths' => 'required|integer|min:1|max:120',
         ], [
@@ -173,6 +195,7 @@ class SmsTemplatesComponent extends Component
 
     public function saveBirthdaySettings(): void
     {
+        $this->requireCampaigns();
         $this->validate([
             'birthdayFilter'       => 'required|in:all,this_year,last_24_months,custom',
             'birthdayCustomMonths' => 'nullable|integer|min:1|max:120',
@@ -194,8 +217,18 @@ class SmsTemplatesComponent extends Component
         ]);
     }
 
+    public function campaigns(): bool
+    {
+        return LicenseService::has(Feature::SMS_CAMPAIGNS);
+    }
+
+    private function requireCampaigns(): void
+    {
+        abort_unless($this->campaigns(), 403, 'SMS campaigns require a Pro license.');
+    }
+
     public function render()
     {
-        return view('livewire.admin.sms-templates-component');
+        return view('livewire.admin.sms-templates-component', ['campaigns' => $this->campaigns()]);
     }
 }

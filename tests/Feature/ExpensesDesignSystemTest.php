@@ -48,7 +48,6 @@ class ExpensesDesignSystemTest extends TestCase
             ->call('saveCategory')
             ->assertHasNoErrors()
             ->assertSet('showCategoryModal', false)
-            ->set('showCategoryPanel', true)
             ->assertSee('Design system category');
 
         $page->call('setPage', 2)->set('perPage', 30)->assertSet('paginators.page', 1);

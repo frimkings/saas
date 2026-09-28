@@ -17,9 +17,7 @@ use App\Services\SmsService;
 use App\Services\Messaging\AppointmentNotifier;
 use App\Support\Messaging\DefaultSmsTemplates;
 use App\Support\Messaging\WhatsAppLink;
-use App\Services\EmailService;
 use App\Models\SmsTemplate;
-use App\Mail\AppointmentConfirmationMail;
 use Illuminate\Validation\Rule;
 class AppointmentsComponent extends Component
 {

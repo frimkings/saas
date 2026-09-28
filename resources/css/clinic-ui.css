@@ -1,4 +1,5 @@
 /* Scoped Tailwind components: no global reset or Bootstrap class overrides. */
+[x-cloak] { display: none !important; }
 .clinic-ui { --clinic-accent: #087e83; --clinic-surface: #f4f7f8; --clinic-ink: #18353d; --clinic-muted: #586e75; --clinic-line: #dce6e9; font-family: Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.5; color: var(--clinic-ink); }
 .clinic-ui.ui-page { @apply p-4 md:p-6; background: var(--clinic-surface); }
 .clinic-ui *, .clinic-ui *::before, .clinic-ui *::after { box-sizing: border-box; }
@@ -10,10 +11,10 @@
 .clinic-ui .ui-actions { @apply flex flex-wrap items-center gap-2; }
 .clinic-ui .ui-stack { @apply space-y-5; }
 .clinic-ui .ui-grid { @apply grid gap-4 md:grid-cols-2; }
-.clinic-ui .ui-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.clinic-ui .ui-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 .clinic-ui .ui-panel { @apply bg-white border border-solid overflow-hidden; border-color: var(--clinic-line); border-radius: 11px; }
-.clinic-ui .ui-stat { padding: 15px; }
-.clinic-ui .ui-value { font-size: 25px; font-weight: 400; letter-spacing: -.8px; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.clinic-ui .ui-stat { padding: 10px 14px; }
+.clinic-ui .ui-value { font-size: 21px; font-weight: 400; letter-spacing: -.8px; margin: 2px 0; font-variant-numeric: tabular-nums; }
 .clinic-ui .ui-panel-heading { @apply flex flex-wrap items-center justify-between gap-3 p-4 border-0 border-b border-solid border-slate-200; }
 .clinic-ui .ui-button { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-solid no-underline; padding: 9px 12px; font: inherit; }
 .clinic-ui .ui-button:hover { @apply no-underline; }
@@ -48,6 +49,26 @@
 .clinic-ui .optical-stock-dialog--lens { width: 780px; height: min(780px, calc(100dvh - 48px)); }
 .clinic-ui .optical-stock-dialog--bulk { width: 1120px; height: min(850px, calc(100dvh - 48px)); }
 .clinic-ui .optical-stock-dialog form > .overflow-y-auto { flex: 1 1 auto; overscroll-behavior: contain; }
+/* Optical toasts: top right below the header on desktop, full width across the top on phones. */
+.optical-toasts { position: fixed; z-index: 1100; top: 64px; right: 16px; width: 380px; max-width: calc(100vw - 24px); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.optical-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid; border-left-width: 4px; background: white; box-shadow: 0 10px 24px rgb(15 23 42 / 16%); font-size: 13px; line-height: 1.4; color: #0f172a; animation: optical-toast-in .18s ease-out; }
+.optical-toast--success { border-color: #99f6e4; border-left-color: #0f766e; }
+.optical-toast--error { border-color: #fecaca; border-left-color: #b91c1c; }
+.optical-toast--warning { border-color: #fde68a; border-left-color: #b45309; }
+.optical-toast--info { border-color: #bfdbfe; border-left-color: #1d4ed8; }
+.optical-toast__icon { flex: none; width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: white; background: #0f766e; }
+.optical-toast--error .optical-toast__icon { background: #b91c1c; }
+.optical-toast--warning .optical-toast__icon { background: #b45309; }
+.optical-toast--info .optical-toast__icon { background: #1d4ed8; }
+.optical-toast__link { display: inline-block; margin-top: 4px; font-weight: 600; color: #0f766e; text-decoration: underline; }
+.optical-toast__close { flex: none; font-size: 18px; line-height: 1; color: #64748b; }
+.optical-toast__close:hover { color: #0f172a; }
+@keyframes optical-toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) { .optical-toasts { top: 12px; right: 12px; left: 12px; width: auto; max-width: none; } }
+@media (prefers-reduced-motion: reduce) { .optical-toast { animation: none; } }
+.clinic-ui .lens-receipt-step { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--clinic-line); font-size: 14px; font-weight: 700; color: #134e4a; }
+.clinic-ui .lens-receipt-step:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.clinic-ui .lens-receipt-footer { position: sticky; bottom: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: white; border: 1px solid var(--clinic-line); border-radius: 12px; box-shadow: 0 -4px 12px rgb(15 23 42 / 8%); }
 @media (max-width: 640px) {
     .clinic-ui.optical-stock-overlay { padding: 12px; }
     .clinic-ui .optical-stock-dialog { max-height: calc(100dvh - 24px); }
@@ -84,3 +105,12 @@
 @media (pointer: coarse) {
     .clinic-ui .ui-button { min-height: 44px; }
 }
+
+/* Compact stat row: label and figure on one line, for simple "label + number" cards. */
+.clinic-ui .ui-stats--inline { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.clinic-ui .ui-stats--inline .ui-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 14px; }
+.clinic-ui .ui-stats--inline .ui-stat > * { margin: 0; }
+.clinic-ui .ui-stats--inline .ui-value { font-size: 19px; font-weight: 600; }
+
+/* A form opened in the browser (openLocal) hides errors from an earlier attempt until it is saved again. */
+.is-fresh p[class~="text-red-600"], .is-fresh p[class~="text-red-700"], .is-fresh .ui-error, .is-fresh .pc-err, .is-fresh [role="alert"] { display: none; }

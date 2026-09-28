@@ -20,6 +20,6 @@ class Secretary
             return $next($request);
         }
 
-        return redirect('/dashboard')->with('status', 'Not Authorized!');
+        return redirect('/dashboard')->with('error', 'Not Authorized!');
     }
 }

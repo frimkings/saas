@@ -153,4 +153,17 @@ class PlatformClinicPanelTest extends TestCase
             ->set('newClinicName', 'First Name')->assertSet('newClinicSlug', 'first-name')
             ->set('newClinicSlug', 'custom-slug')->set('newClinicName', 'Second Name')->assertSet('newClinicSlug', 'custom-slug');
     }
+
+    public function test_clinic_filters_show_result_count_and_removable_chips(): void
+    {
+        $this->clinic();
+        $total = Clinic::count();
+
+        Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
+            ->assertSee("{$total} of {$total} clinics")->assertDontSee('Clear all')
+            ->set('statusFilter', 'overdue')->set('deploymentFilter', 'hosted')
+            ->assertSee("0 of {$total} clinics")->assertSee('Status: Overdue')->assertSee('Hosted cloud')->assertSee('Clear all')
+            ->set('statusFilter', '')->assertDontSee('Status: Overdue')->assertSee('Hosted cloud')
+            ->call('resetFilters')->assertSee("{$total} of {$total} clinics")->assertDontSee('Clear all');
+    }
 }

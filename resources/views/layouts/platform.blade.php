@@ -6,5 +6,7 @@
 </head>
 <body class="bg-light">
     {{ $slot }}
+<x-ui.flash />
+@include('layouts.partials.confirm-dialog')
 </body>
 </html>

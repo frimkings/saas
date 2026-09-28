@@ -24,8 +24,9 @@
     <table>
         <thead><tr><th>Item</th><th class="right">Quantity</th><th class="right">Unit cost</th><th class="right">Total</th></tr></thead>
         <tbody>
-            @foreach($order->lines as $line)
-                <tr><td>{{ $line->description }}</td><td class="right">{{ $line->quantity_ordered }}</td><td class="right">{{ number_format((float) $line->unit_cost, 2) }}</td><td class="right">{{ number_format($line->quantity_ordered * (float) $line->unit_cost, 2) }}</td></tr>
+            {{-- Stock lenses are listed in pairs (per pair cost), as manufacturers supply them. --}}
+            @foreach($order->supplierLines() as $row)
+                <tr><td>{{ $row['description'] }}</td><td class="right">{{ $row['quantity'] }}</td><td class="right">{{ number_format($row['unit_cost'], 2) }}</td><td class="right">{{ number_format($row['total'], 2) }}</td></tr>
             @endforeach
         </tbody>
         <tfoot><tr><th colspan="3" class="right">Total</th><th class="right">{{ number_format($order->totalCost(), 2) }}</th></tr></tfoot>

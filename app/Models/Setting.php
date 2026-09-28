@@ -121,13 +121,15 @@ class Setting extends Model
     {
         $context = app(\App\Support\Tenancy\TenantContext::class);
         if (config('tenancy.enabled') && ! $context->resolved()) {
-            // Guest pages (notably login) have no authenticated tenant yet. Use
-            // existing bootstrap branding read-only and never create tenant data.
-            return static::withoutGlobalScopes()->orderBy('id')->first() ?? new static([
-                'clinic_name' => self::DEFAULT_CLINIC_NAME,
-                'clinic_address' => self::DEFAULT_CLINIC_ADDRESS,
-                'clinic_contact' => self::DEFAULT_CLINIC_CONTACT,
-                'clinic_email' => self::DEFAULT_CLINIC_EMAIL,
+            // No clinic is signed in (guest pages, platform admin, platform-wide jobs such as
+            // backups). Never borrow another clinic's row: that leaks its name, email and
+            // settings to everyone. Return unsaved platform defaults instead.
+            $support = PlatformSetting::support();
+
+            return new static([
+                'clinic_name' => $support['name'],
+                'clinic_contact' => $support['phone'],
+                'clinic_email' => $support['email'],
             ]);
         }
 

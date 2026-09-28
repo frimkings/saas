@@ -15,9 +15,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\SmsService;
-use App\Services\EmailService;
 use App\Models\SmsTemplate;
-use App\Mail\SpectaclesReadyMail;
 
 class SpectaclesComponent extends Component
 {
@@ -316,12 +314,6 @@ class SpectaclesComponent extends Component
                     '[CLINIC]'   => $clinic,
                 ]);
                 if ($smsMsg) (new SmsService)->send($patient->contact, $smsMsg, $patient->id, 'spectacles_ready');
-            }
-            if ($patient?->email) {
-                $clinic = Setting::getSettings()->clinic_name ?? 'the clinic';
-                (new EmailService)->send($patient->email, new SpectaclesReadyMail(
-                    $patient->name, $clinic, $order->order_id
-                ));
             }
         }
 

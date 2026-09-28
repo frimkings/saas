@@ -63,6 +63,8 @@ class OpticalStockCountsComponent extends Component
         $this->resetValidation();
     }
 
+    /** Renderless: the browser has already closed the panel (dismissCall). */
+    #[\Livewire\Attributes\Renderless]
     public function closeCount(): void
     {
         $this->viewCountId = null;

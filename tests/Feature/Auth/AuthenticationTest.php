@@ -18,6 +18,17 @@ class AuthenticationTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_multi_clinic_login_screen_shows_developer_details_not_a_clinic()
+    {
+        config()->set('tenancy.enabled', true);
+        \App\Models\Setting::withoutGlobalScopes()->orderBy('id')->first()?->update(['clinic_name' => 'Some Single Clinic']);
+        \App\Models\PlatformSetting::put(['support_name' => 'Acme Dev Studio', 'support_phone' => '0241112222', 'support_email' => 'dev@acme.test']);
+
+        $this->get('/login')->assertOk()
+            ->assertSee('Acme Dev Studio')->assertSee('0241112222')->assertSee('dev@acme.test')
+            ->assertDontSee('Some Single Clinic');
+    }
+
     public function test_users_can_authenticate_using_the_login_screen()
     {
         $user = User::factory()->create();

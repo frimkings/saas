@@ -353,6 +353,10 @@ class OpticalOrderService
         if ($opticalLens && ! in_array($opticalLens->category?->group, ['single_vision', 'progressive', 'bifocal'], true)) {
             throw ValidationException::withMessages(['lens_optical_product_id' => 'Select an optical lens SKU.']);
         }
+        // A stock lens item is a single lens; stock lenses are taken per eye from the prescription match.
+        if ($opticalLens && $opticalLens->lens_specs !== null) {
+            throw ValidationException::withMessages(['lens_optical_product_id' => 'Stock lenses are matched to the prescription for each eye. Choose "Branch lens stock" instead of a catalogue lens.']);
+        }
     }
 
     private function isFrameCategory(Product $product): bool

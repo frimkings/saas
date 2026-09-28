@@ -28,9 +28,7 @@
         <button type="button" wire:click="exportCSV" class="oo-btn" style="padding:9px 14px">⇩ Export CSV</button>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold flex items-center justify-between" role="status"><span>{{ session('success') }}</span><button type="button" onclick="this.parentElement.remove()" class="text-teal-600 font-bold" aria-label="Dismiss">&times;</button></div>
-    @endif
+    <x-ui.flash />
 
     <div class="sr-tiles">
         <div class="sr-tile"><span>Sales</span><b>{{ $money($totalSales) }}</b></div>
@@ -41,7 +39,7 @@
 
     <section class="ui-panel bg-white">
         <div class="oo-filters" style="border-bottom:1px solid var(--clinic-line)">
-            <label class="oo-f" style="width:auto;flex:1;min-width:220px"><span>Search</span><input type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Receipt number, customer or patient…" class="ui-input text-sm"></label>
+            <label class="oo-f" style="width:auto;flex:1;min-width:220px"><span>Search</span><input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Receipt number, customer or patient…" class="ui-input text-sm"></label>
             <div class="oo-f" style="width:auto"><span>Dates</span><x-date-range from="fromDate" to="toDate" presets="finance" /></div>
             <label class="oo-f"><span>Status</span><select wire:model.live="filterRefunded" class="ui-input text-sm"><option value="">All</option><option value="0">Not refunded</option><option value="1">Refunded</option></select></label>
             <div class="oo-presets"><span class="ui-muted" wire:loading.delay wire:target="searchTerm,fromDate,toDate,filterRefunded,resetFilters">Updating…</span></div>
@@ -53,7 +51,7 @@
                 <tbody>
                     @forelse($sales as $sale)
                         @php [$sl, $sc] = $statusOf($sale); $count = $sale->items->count(); @endphp
-                        <tr wire:key="sale-{{ $sale->id }}" class="{{ $panelSaleId === $sale->id ? 'oo-active' : '' }}" wire:click="openSalePanel({{ $sale->id }})">
+                        <tr wire:key="sale-{{ $sale->id }}" :class="$wire.panelSaleId === {{ $sale->id }} && 'oo-active'" x-on:click="$wire.$set('panelSaleId', {{ $sale->id }}, false)">
                             <td>{{ $sale->created_at->format('d M Y') }}<span class="oo-sub">{{ $sale->created_at->format('H:i') }}</span></td>
                             <td><span class="oo-id">{{ $sale->transaction_id }}</span>@if($sale->user)<span class="oo-sub">by {{ $sale->user->name }}</span>@endif</td>
                             <td><b>{{ $sale->customer_display_name }}</b></td>
@@ -63,7 +61,7 @@
                             <td onclick="event.stopPropagation()">
                                 <div class="oo-row-actions" style="grid-template-columns:80px 64px">
                                     <a class="oo-btn" href="{{ route('optical.receipt', $sale->id) }}" target="_blank">Receipt</a>
-                                    <button type="button" class="oo-btn" wire:click="openSalePanel({{ $sale->id }})">View</button>
+                                    <button type="button" class="oo-btn" x-on:click="$wire.$set('panelSaleId', {{ $sale->id }}, false)">View</button>
                                 </div>
                             </td>
                         </tr>
@@ -76,9 +74,10 @@
         <div class="p-3 border-t border-slate-200">{{ $sales->links() }}</div>
     </section>
 
-    {{-- SALE PANEL --}}
-    @if($panelSale && ! $initiatingRefundSale)
+    {{-- SALE PANELS: one per listed sale, drawn hidden; View shows it in the browser, with no call. --}}
+    @foreach($drawerSales as $panelSale)
         @php
+            $panelOrders = $saleOrders[$panelSale->id] ?? collect();
             [$sl, $sc] = $statusOf($panelSale->loadMissing('pendingRefundLog'));
             $paid = (float) $panelSale->amount_paid;
             $balance = max(0, (float) $panelSale->total_amount - $paid);
@@ -87,18 +86,19 @@
             $canRefund = $panelOrders->isEmpty() && ! $panelSale->is_refunded && ! $panelSale->pendingRefundLog && $panelSale->items->isNotEmpty()
                 && ($user?->hasAnyRole(['Manager', 'Super Admin']) || ($user?->hasRole('Cashier') && $panelSale->user_id === $user->id));
         @endphp
-        <div class="oo-overlay" wire:click="closeSalePanel" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="sr-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.closeSalePanel()" wire:key="sale-drawer-{{ $panelSale->id }}">
+        <div data-sheet data-keep data-sale-drawer="{{ $panelSale->id }}" wire:key="sale-drawer-{{ $panelSale->id }}" x-show="$wire.panelSaleId === {{ $panelSale->id }}" x-cloak>
+        <div class="oo-overlay" x-on:click="dismissLocal($el, $wire, { panelSaleId: null })" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="sr-title-{{ $panelSale->id }}" tabindex="-1" x-effect="$wire.panelSaleId === {{ $panelSale->id }} && $nextTick(() => $el.focus())" x-on:keydown.escape.window="$wire.panelSaleId === {{ $panelSale->id }} && ! $event.target.closest('.app-confirm, dialog, .swal2-container') && ! document.getElementById('sr-refund-title') && dismissLocal($el, $wire, { panelSaleId: null })">
             <header class="oo-drawer-head">
                 <div>
-                    <h2 id="sr-title"><span class="oo-id" style="font-size:17px">{{ $panelSale->transaction_id }}</span></h2>
+                    <h2 id="sr-title-{{ $panelSale->id }}"><span class="oo-id" style="font-size:17px">{{ $panelSale->transaction_id }}</span></h2>
                     <div class="flex flex-wrap items-center gap-2 text-xs ui-muted">
                         <span class="oo-badge {{ $sc }}">{{ $sl }}</span>
                         <span><b class="text-slate-800">{{ $panelSale->customer_display_name }}</b>@if($panelSale->patient?->contact) · {{ $panelSale->patient->contact }}@endif</span>
                         <span>· {{ $panelSale->created_at->format('d M Y, H:i') }}@if($panelSale->user) by {{ $panelSale->user->name }}@endif</span>
                     </div>
                 </div>
-                <button type="button" class="oo-x" wire:click="closeSalePanel" aria-label="Close">&times;</button>
+                <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { panelSaleId: null })" aria-label="Close">&times;</button>
             </header>
             <div class="oo-drawer-body">
                 <div class="oo-money">
@@ -159,15 +159,16 @@
                 <a class="oo-btn primary" href="{{ route('optical.receipt', $panelSale->id) }}" target="_blank">Print receipt</a>
             </footer>
         </aside>
-    @endif
+        </div>
+    @endforeach
 
     {{-- REFUND REQUEST PANEL --}}
     @if($initiatingRefundSale)
-        <div class="oo-overlay" wire:click="cancelRefundInitiation" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="sr-refund-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.cancelRefundInitiation()">
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissCall($el.nextElementSibling, $wire, 'dismissRefundInitiation')" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="sr-refund-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissCall($el, $wire, 'dismissRefundInitiation')">
             <header class="oo-drawer-head">
                 <div><h2 id="sr-refund-title">Request a refund</h2><p class="ui-muted text-xs" style="margin:0">{{ $initiatingRefundSale->transaction_id }} · a manager approves it before money is returned.</p></div>
-                <button type="button" class="oo-x" wire:click="cancelRefundInitiation" aria-label="Close">&times;</button>
+                <button type="button" class="oo-x" x-on:click="dismissCall($el, $wire, 'dismissRefundInitiation')" aria-label="Close">&times;</button>
             </header>
             <div class="oo-drawer-body">
                 @if($errors->any())<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
@@ -185,7 +186,7 @@
                 </section>
             </div>
             <footer class="oo-drawer-foot">
-                <button type="button" class="oo-btn" wire:click="cancelRefundInitiation">Cancel</button>
+                <button type="button" class="oo-btn" x-on:click="dismissCall($el, $wire, 'dismissRefundInitiation')">Cancel</button>
                 <button type="button" class="oo-btn primary" wire:click="submitRefundRequest" wire:loading.attr="disabled" wire:target="submitRefundRequest">Send for approval</button>
             </footer>
         </aside>

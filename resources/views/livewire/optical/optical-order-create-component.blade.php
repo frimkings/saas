@@ -165,17 +165,17 @@
                 </div>
                 <div class="md:col-span-6">
                     <label id="requester-name-label" class="block text-xs font-bold text-slate-700 mb-1">{{ $order_source === 'partner' ? ($bill_to === 'customer' ? 'Customer / wearer name *' : 'Wearer name (optional)') : ($order_source === 'in_clinic' ? 'Patient name' : 'Walk-in customer name *') }}</label>
-                    @if($order_source === 'in_clinic')<input id="order-customer-name" type="text" value="{{ $customer_name }}" readonly class="ui-input w-full text-xs bg-slate-50">@else<input id="order-customer-name" type="text" value="{{ $customer_name }}" maxlength="255" class="ui-input w-full text-xs">@endif
+                    @if($order_source === 'in_clinic')<input id="order-customer-name" autocomplete="off" type="text" value="{{ $customer_name }}" readonly class="ui-input w-full text-xs bg-slate-50">@else<input id="order-customer-name" autocomplete="off" type="text" value="{{ $customer_name }}" maxlength="255" class="ui-input w-full text-xs">@endif
                     @error('customer_name')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div class="md:col-span-3">
                     <label class="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
-                    @if($order_source === 'in_clinic')<input id="order-customer-phone" type="text" value="{{ $customer_phone }}" readonly class="ui-input w-full text-xs bg-slate-50">@else<input id="order-customer-phone" type="tel" value="{{ $customer_phone }}" maxlength="50" class="ui-input w-full text-xs">@endif
+                    @if($order_source === 'in_clinic')<input id="order-customer-phone" autocomplete="off" type="text" value="{{ $customer_phone }}" readonly class="ui-input w-full text-xs bg-slate-50">@else<input id="order-customer-phone" autocomplete="off" type="tel" value="{{ $customer_phone }}" maxlength="50" class="ui-input w-full text-xs">@endif
                     @error('customer_phone')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div class="md:col-span-3">
                     <label for="order-reference" class="block text-xs font-bold text-slate-700 mb-1">Reference {{ $order_source === 'partner' && ! trim((string) $customer_name) ? '*' : '' }}</label>
-                    <input id="order-reference" type="text" value="{{ $reference }}" maxlength="255" placeholder="{{ $order_source === 'partner' ? 'Partner clinic job reference' : 'Job reference or customer request' }}" class="ui-input w-full text-xs">
+                    <input id="order-reference" autocomplete="off" type="text" value="{{ $reference }}" maxlength="255" placeholder="{{ $order_source === 'partner' ? 'Partner clinic job reference' : 'Job reference or customer request' }}" class="ui-input w-full text-xs">
                     @error('reference') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -204,7 +204,7 @@
                                 @if($selectedService)
                                     <div wire:key="selected-service-{{ $selectedService->id }}" class="flex flex-wrap items-center justify-between gap-3 p-3 border-b border-slate-100 text-xs">
                                         <div><strong>{{ $selectedService->name }}</strong><span class="text-slate-500 ml-2">{{ $selectedService->requires_rx ? 'Rx required' : 'No Rx' }}{{ $selectedService->requires_frame ? ' · Frame details required' : '' }}</span></div>
-                                        <div class="flex items-center gap-3"><label>Qty <input type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input w-20 text-xs ml-1"></label><span class="font-mono">{{ currency() }} {{ number_format((float) $selectedService->price, 2) }} each</span></div>
+                                        <div class="flex items-center gap-3"><label>Qty <input autocomplete="off" type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input w-20 text-xs ml-1"></label><span class="font-mono">{{ currency() }} {{ number_format((float) $selectedService->price, 2) }} each</span></div>
                                     </div>
                                 @endif
                             @endforeach
@@ -275,21 +275,21 @@
                         <tbody>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Right (OD)</td>
-                                <td class="p-1 border border-slate-200"><input id="rx-od-sph" type="text" value="{{ $rx_od_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_sph') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-od-cyl" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-od-axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-od-add" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-od-hgt" type="text" value="{{ $rx_od_hgt }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_hgt') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-od-pd" type="text" value="{{ $rx_od_pd }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_pd') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-sph" type="text" value="{{ $rx_od_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_sph') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-cyl" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-add" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-hgt" type="text" value="{{ $rx_od_hgt }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_hgt') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-pd" type="text" value="{{ $rx_od_pd }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_pd') border-red-500 @enderror"></td>
                             </tr>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Left (OS)</td>
-                                <td class="p-1 border border-slate-200"><input id="rx-os-sph" type="text" value="{{ $rx_os_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_sph') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-os-cyl" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-os-axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-os-add" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-os-hgt" type="text" value="{{ $rx_os_hgt }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_hgt') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input id="rx-os-pd" type="text" value="{{ $rx_os_pd }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_pd') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-sph" type="text" value="{{ $rx_os_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_sph') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-cyl" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-add" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-hgt" type="text" value="{{ $rx_os_hgt }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_hgt') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-pd" type="text" value="{{ $rx_os_pd }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_pd') border-red-500 @enderror"></td>
                             </tr>
                         </tbody>
                     </table>
@@ -354,7 +354,7 @@
                     @error('stock_lens_key')<p class="text-xs text-red-600">Select one stocked lens option.</p>@enderror
                     @error('measurements')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
-                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm"><label class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full text-xs font-mono"></div>
+                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm"><label class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full text-xs font-mono"></div>
                 <div x-show="fulfilment === 'customer'" x-cloak>
                     <p class="text-xs text-slate-600">Customer supplied lenses carry no lens stock charge. Fitting or glazing fees can be added in Pricing.</p>
                 </div>
@@ -411,7 +411,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="md:col-span-2">
                         <label class="block text-xs font-bold text-slate-700 mb-1" x-text="source === 'customer' ? 'Customer frame description (optional)' : 'Frame Brand & Model Number *'"></label>
-                        <input type="text" wire:model="frame_model_number" x-model="frameName" x-bind:required="source !== 'customer'" x-bind:placeholder="source === 'customer' ? 'e.g. Black full-rim frame supplied by customer' : 'e.g. Ray-Ban RB3025 Aviator Gold'" class="ui-input w-full text-xs">
+                        <input autocomplete="off" type="text" wire:model="frame_model_number" x-model="frameName" x-bind:required="source !== 'customer'" x-bind:placeholder="source === 'customer' ? 'e.g. Black full-rim frame supplied by customer' : 'e.g. Ray-Ban RB3025 Aviator Gold'" class="ui-input w-full text-xs">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Frame Structure</label>
@@ -423,7 +423,7 @@
                     </div>
                     <div x-show="source !== 'customer'" style="{{ $frame_source === 'customer' ? 'display:none' : '' }}">
                         <label class="block text-xs font-bold text-slate-700 mb-1">Frame Price ({{ currency() }}) *</label>
-                        <input type="number" min="0" step="0.01" wire:model="frame_price" x-model="framePrice" @readonly($frame_optical_product_id) class="ui-input w-full text-xs font-mono font-bold text-teal-800">
+                        <input autocomplete="off" type="number" min="0" step="0.01" wire:model="frame_price" x-model="framePrice" @readonly($frame_optical_product_id) class="ui-input w-full text-xs font-mono font-bold text-teal-800">
                     </div>
                 </div>
             </div>
@@ -440,28 +440,28 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Monocular PD (OD / Right)</label>
                         <div class="relative">
-                            <input type="text" wire:model="pd_right" placeholder="31.5 mm" class="ui-input w-full text-xs font-medium pr-10">
+                            <input autocomplete="off" type="text" wire:model="pd_right" placeholder="31.5 mm" class="ui-input w-full text-xs font-medium pr-10">
                             <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
                         </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Monocular PD (OS / Left)</label>
                         <div class="relative">
-                            <input type="text" wire:model="pd_left" placeholder="31.0 mm" class="ui-input w-full text-xs font-medium pr-10">
+                            <input autocomplete="off" type="text" wire:model="pd_left" placeholder="31.0 mm" class="ui-input w-full text-xs font-medium pr-10">
                             <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
                         </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Fitting Height (FH)</label>
                         <div class="relative">
-                            <input type="text" wire:model="fitting_height" placeholder="19.0 mm" class="ui-input w-full text-xs font-medium pr-10">
+                            <input autocomplete="off" type="text" wire:model="fitting_height" placeholder="19.0 mm" class="ui-input w-full text-xs font-medium pr-10">
                             <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
                         </div>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Segment Height (Seg Ht)</label>
                         <div class="relative">
-                            <input type="text" wire:model="segment_height" placeholder="18.5 mm" class="ui-input w-full text-xs font-medium pr-10">
+                            <input autocomplete="off" type="text" wire:model="segment_height" placeholder="18.5 mm" class="ui-input w-full text-xs font-medium pr-10">
                             <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
                         </div>
                     </div>
@@ -470,11 +470,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Expected Ready / Collection Date</label>
-                        <input type="date" wire:model="pickUpDate" class="ui-input w-full text-xs bg-white">
+                        <input autocomplete="off" type="date" wire:model="pickUpDate" class="ui-input w-full text-xs bg-white">
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Glazing / Workshop Instructions</label>
-                        <input type="text" wire:model="lab_instructions" placeholder="e.g. High index bevel, thin edge required" class="ui-input w-full text-xs">
+                        <input autocomplete="off" type="text" wire:model="lab_instructions" placeholder="e.g. High index bevel, thin edge required" class="ui-input w-full text-xs">
                     </div>
                 </div>
             </div>
@@ -520,7 +520,7 @@
                                     <div wire:key="priced-service-{{ $selectedService->id }}" class="flex flex-wrap items-center justify-between gap-3 p-3 text-xs">
                                         <div><strong>{{ $selectedService->name }}</strong><span class="ml-2 font-mono text-slate-500">{{ currency() }} {{ number_format((float) $selectedService->price, 2) }} each</span></div>
                                         <div class="flex items-center gap-3">
-                                            <label>Qty <input type="number" min="1" max="1000" step="1" wire:model.live.debounce.400ms="service_lines.{{ $index }}.quantity" class="ui-input w-20 text-xs ml-1"></label>
+                                            <label>Qty <input autocomplete="off" type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input w-20 text-xs ml-1"></label>
                                             @if($work_type === 'prescription')<button type="button" wire:click="removeServiceLine({{ $index }})" class="font-semibold text-red-700 underline">Remove</button>@endif
                                         </div>
                                     </div>
@@ -535,7 +535,7 @@
 
                     <div class="max-w-xs">
                         <label for="discount-amount" class="block text-xs font-bold text-slate-700 mb-1">Discount Amount ({{ currency() }})</label>
-                        <input id="discount-amount" type="number" min="0" step="0.01" wire:model.live.debounce.400ms="discount_amount" class="ui-input w-full text-xs font-mono text-red-600">
+                        <input autocomplete="off" id="discount-amount" type="number" min="0" step="0.01" wire:model="discount_amount" class="ui-input w-full text-xs font-mono text-red-600">
                         @error('discount_amount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -554,7 +554,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Deposit Paid Amount ({{ currency() }}) *</label>
-                    <input type="number" min="0" step="0.01" wire:model.live.debounce.400ms="paid_amount" class="ui-input w-full text-xs font-mono font-bold text-teal-800">
+                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="paid_amount" class="ui-input w-full text-xs font-mono font-bold text-teal-800">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
@@ -567,7 +567,7 @@
                 </div>
                 <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">
                     <span class="text-xs text-slate-500 font-semibold uppercase">Balance Due on Collection</span>
-                    <span class="text-lg font-bold font-mono text-red-600">{{ currency() }} {{ number_format($this->calculateBalanceProperty(), 2) }}</span>
+                    @php $orderTotal = $this->calculateTotalProperty(); @endphp{{-- The deposit is taken off in the browser as it is typed. --}}<span class="text-lg font-bold font-mono text-red-600" wire:key="balance-{{ $orderTotal }}" x-data="{ total: {{ (float) $orderTotal }} }" x-text="@js(currency()) + ' ' + money(Math.max(0, total - num($wire.paid_amount)))">{{ currency() }} {{ number_format($this->calculateBalanceProperty(), 2) }}</span>
                 </div>
             </div>
 

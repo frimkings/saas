@@ -19,12 +19,10 @@
             <h1 class="text-xl font-bold text-slate-900">Partner Clinics</h1>
             <p class="ui-muted text-sm">Clinics that send you optical jobs: contacts, billing terms, work in progress and what they owe.</p>
         </div>
-        <button type="button" wire:click="add" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ Add partner clinic</button>
+        <button type="button" x-on:click="openLocal($wire, { editingId: null, name: '', contactPerson: '', phone: '', email: '', address: '', notificationPhone: '', billingTerms: 'pay_on_order', notifyVia: 'sms', isActive: true, viewPartnerId: null, showForm: true }, $root.querySelector('[data-partner-form]'))" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ Add partner clinic</button>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold flex items-center justify-between" role="status"><span>{{ session('success') }}</span><button type="button" onclick="this.parentElement.remove()" class="text-teal-600 font-bold" aria-label="Dismiss">&times;</button></div>
-    @endif
+    <x-ui.flash />
 
     <div class="pc-tiles">
         <div class="pc-tile"><span>Active partners</span><b>{{ $counts['active'] }}</b></div>
@@ -35,7 +33,7 @@
 
     <section class="ui-panel bg-white">
         <div class="oo-toolbar" style="grid-template-columns:minmax(220px,1fr) auto auto">
-            <input type="search" wire:model.live.debounce.250ms="search" placeholder="Search name, contact, phone or email…" class="ui-input text-sm" aria-label="Search partner clinics">
+            <input autocomplete="off" type="search" wire:model.live.debounce.250ms="search" placeholder="Search name, contact, phone or email…" class="ui-input text-sm" aria-label="Search partner clinics">
             <label class="flex items-center gap-2 text-sm" style="white-space:nowrap"><input type="checkbox" wire:model.live="owingOnly"> Owing money only</label>
             <span class="ui-muted" wire:loading.delay wire:target="search,owingOnly,setStatus">Updating…</span>
         </div>
@@ -78,10 +76,11 @@
     </section>
 
     {{-- PARTNER PANEL --}}
-    @if($viewPartner && ! $showForm)
+    @if($viewPartner)
         @php $owed = $balances[$viewPartner->id] ?? 0; @endphp
-        <div class="oo-overlay" wire:click="closePartner" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="pc-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.closePartner()" wire:key="pc-drawer-{{ $viewPartner->id }}">
+        <div x-show="! $wire.showForm">
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { viewPartnerId: null, showForm: false })" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="pc-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="! $wire.showForm && dismissLocal($el, $wire, { viewPartnerId: null, showForm: false })" wire:key="pc-drawer-{{ $viewPartner->id }}">
             <header class="oo-drawer-head">
                 <div>
                     <h2 id="pc-title">{{ $viewPartner->name }}</h2>
@@ -90,7 +89,7 @@
                         <span class="oo-badge {{ $viewPartner->billing_terms === 'on_account' ? 'oo-b-purple' : 'oo-b-grey' }}">{{ $viewPartner->billing_terms === 'on_account' ? 'On account' : 'Pay on order' }}</span>
                     </div>
                 </div>
-                <button type="button" class="oo-x" wire:click="closePartner" aria-label="Close">&times;</button>
+                <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { viewPartnerId: null, showForm: false })" aria-label="Close">&times;</button>
             </header>
             <div class="oo-drawer-body">
                 <section class="oo-section">
@@ -139,29 +138,30 @@
                 </section>
             </div>
             <footer class="oo-drawer-foot">
-                <button type="button" class="oo-btn" wire:click="edit({{ $viewPartner->id }})">Edit details</button>
+                <button type="button" class="oo-btn" x-on:click="openLocal($wire, {{ \Illuminate\Support\Js::from(['editingId' => $viewPartner->id, 'name' => $viewPartner->name, 'contactPerson' => $viewPartner->contact_person ?? '', 'phone' => $viewPartner->phone ?? '', 'email' => $viewPartner->email ?? '', 'address' => $viewPartner->address ?? '', 'billingTerms' => $viewPartner->billing_terms, 'notificationPhone' => $viewPartner->notification_phone ?? '', 'notifyVia' => $viewPartner->notify_via ?: 'sms', 'isActive' => (bool) $viewPartner->is_active, 'showForm' => true]) }}, $root.querySelector('[data-partner-form]'))">Edit details</button>
                 <a href="{{ route('optical.partners.statement', $viewPartner->id) }}" class="oo-btn">Account statement</a>
                 @if($viewPartner->is_active)<a href="{{ route('optical.orders.create', ['partner_id' => $viewPartner->id]) }}" class="oo-btn primary">New job</a>@endif
             </footer>
         </aside>
+        </div>
     @endif
 
-    {{-- ADD / EDIT PANEL --}}
-    @if($showForm)
-        <div class="oo-overlay" wire:click="{{ $editingId ? 'cancelForm' : 'closePartner' }}" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="pc-form-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.{{ $editingId ? 'cancelForm' : 'closePartner' }}()">
+    {{-- ADD / EDIT PANEL: always in the page; Add and Edit open it in the browser (openLocal), only Save calls the server. --}}
+    <div data-sheet data-keep data-partner-form x-show="$wire.showForm" x-cloak>
+        <div class="oo-overlay" x-on:click="dismissLocal($el, $wire, $wire.editingId ? { showForm: false } : { showForm: false, viewPartnerId: null })" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="pc-form-title" tabindex="-1" x-on:keydown.escape.window="$wire.showForm && dismissLocal($el, $wire, $wire.editingId ? { showForm: false } : { showForm: false, viewPartnerId: null })">
             <header class="oo-drawer-head">
-                <div><h2 id="pc-form-title">{{ $editingId ? 'Edit '.$name : 'Add a partner clinic' }}</h2></div>
-                <button type="button" class="oo-x" wire:click="{{ $editingId ? 'cancelForm' : 'closePartner' }}" aria-label="Close">&times;</button>
+                <div><h2 id="pc-form-title" x-text="$wire.editingId ? 'Edit ' + $wire.name : 'Add a partner clinic'">{{ $editingId ? 'Edit '.$name : 'Add a partner clinic' }}</h2></div>
+                <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, $wire.editingId ? { showForm: false } : { showForm: false, viewPartnerId: null })" aria-label="Close">&times;</button>
             </header>
             <form wire:submit="save" class="oo-drawer-body" id="pc-form">
                 <section class="oo-section">
                     <h3>Clinic</h3>
                     <div class="pc-2">
-                        <label class="pc-field full"><span>Clinic name *</span><input type="text" wire:model="name" class="ui-input" required>@error('name')<small class="pc-err">{{ $message }}</small>@enderror</label>
-                        <label class="pc-field"><span>Contact person</span><input type="text" wire:model="contactPerson" class="ui-input"></label>
-                        <label class="pc-field"><span>Phone</span><input type="tel" wire:model="phone" class="ui-input">@error('phone')<small class="pc-err">{{ $message }}</small>@enderror</label>
-                        <label class="pc-field full"><span>Email</span><input type="email" wire:model="email" class="ui-input">@error('email')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                        <label class="pc-field full"><span>Clinic name *</span><input autocomplete="off" type="text" wire:model="name" class="ui-input" required>@error('name')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                        <label class="pc-field"><span>Contact person</span><input autocomplete="off" type="text" wire:model="contactPerson" class="ui-input"></label>
+                        <label class="pc-field"><span>Phone</span><input autocomplete="off" type="tel" wire:model="phone" class="ui-input">@error('phone')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                        <label class="pc-field full"><span>Email</span><input autocomplete="off" type="email" wire:model="email" class="ui-input">@error('email')<small class="pc-err">{{ $message }}</small>@enderror</label>
                         <label class="pc-field full"><span>Address</span><textarea wire:model="address" rows="2" class="ui-input"></textarea></label>
                     </div>
                 </section>
@@ -175,16 +175,16 @@
                     <h3>Job messages</h3>
                     <div class="pc-2">
                         <label class="pc-field"><span>Send by</span><select wire:model="notifyVia" class="ui-input">@foreach(\App\Models\OpticalPartnerClinic::NOTIFY_VIA as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
-                        <label class="pc-field"><span>Notification phone</span><input type="tel" wire:model="notificationPhone" placeholder="Defaults to the phone above" class="ui-input"></label>
+                        <label class="pc-field"><span>Notification phone</span><input autocomplete="off" type="tel" wire:model="notificationPhone" placeholder="Defaults to the phone above" class="ui-input"></label>
                     </div>
                     <p class="pc-hint" style="margin:6px 0 0">"Job ready" and pickup messages about this partner's jobs go to the partner, never to its patients.</p>
                 </section>
                 <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="isActive"> Active for new orders</label>
             </form>
             <footer class="oo-drawer-foot">
-                <button type="button" class="oo-btn" wire:click="{{ $editingId ? 'cancelForm' : 'closePartner' }}">Cancel</button>
-                <button type="submit" form="pc-form" class="oo-btn primary" wire:loading.attr="disabled" wire:target="save">{{ $editingId ? 'Save changes' : 'Add partner clinic' }}</button>
+                <button type="button" class="oo-btn" x-on:click="dismissLocal($el, $wire, $wire.editingId ? { showForm: false } : { showForm: false, viewPartnerId: null })">Cancel</button>
+                <button type="submit" form="pc-form" class="oo-btn primary" wire:loading.attr="disabled" wire:target="save" x-text="$wire.editingId ? 'Save changes' : 'Add partner clinic'">{{ $editingId ? 'Save changes' : 'Add partner clinic' }}</button>
             </footer>
         </aside>
-    @endif
+    </div>
 </div>

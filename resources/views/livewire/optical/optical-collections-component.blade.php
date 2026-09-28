@@ -1,38 +1,42 @@
-<div class="clinic-ui ui-page space-y-5">
+{{-- Every waiting job is on the page; the filters hide rows in the browser (awaitingFilter, resources/js/live-totals.js). --}}
+<div class="clinic-ui ui-page space-y-5" x-data="awaitingFilter()">
     @include('livewire.optical.partials.order-ui')
-    <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
+    {{-- Title, key figures and SMS status share one row so the job list starts near the top. --}}
+    <div class="ui-heading flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Awaiting Collection</h1>
-            <p class="ui-muted text-xs">Glasses that are ready but not yet collected. Remind customers and collect what they still owe. Partner clinic jobs are reported to the partner, not its patients.</p>
+            <p class="ui-muted text-xs">Ready glasses not yet collected. Partner jobs are reported to the partner, not its patients.</p>
         </div>
+        <dl class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+            <div><dt class="font-semibold uppercase text-slate-500">Waiting</dt><dd class="text-lg font-bold text-slate-900" x-text="count()">{{ $orders->count() }}</dd></div>
+            <div><dt class="font-semibold uppercase text-slate-500">Balance still owed</dt><dd class="text-lg font-bold font-mono" :class="balance() > 0 ? 'text-red-700' : 'text-slate-900'">{{ currency() }} <span x-text="money(balance())">{{ number_format($balanceHeld, 2) }}</span></dd></div>
+            <div><dt class="font-semibold uppercase text-slate-500">Longest wait</dt><dd class="text-lg font-bold text-slate-900" x-text="longest() === null ? '—' : longest() + ' days'">{{ $orders->isEmpty() ? '—' : $orders->first()->daysAwaitingCollection().' days' }}</dd></div>
+            <div x-data="{ open: false }" class="relative" x-on:click.outside="open = false">
+                <button type="button" x-on:click="open = ! open" :aria-expanded="open" class="rounded-full border px-3 py-1 font-semibold {{ $sms['available'] ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-amber-800' }}">
+                    {{ $sms['available'] ? 'SMS active' : 'SMS not available' }} ▾
+                </button>
+                <div x-show="open" x-cloak role="status" class="absolute right-0 z-20 mt-2 w-72 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700 shadow-lg">
+                    @if($sms['available'])
+                        @if($sms['credits'] !== null){{ number_format($sms['credits']) }} credits left. @endif
+                        @if($schedule)
+                            Pickup reminders go out automatically on day {{ implode(', ', $schedule) }} after the glasses are ready.
+                        @else
+                            Automatic pickup reminders are off (Optical Settings).
+                        @endif
+                    @else
+                        {{ $sms['reason'] }} WhatsApp buttons still work.
+                    @endif
+                </div>
+            </div>
+        </dl>
     </div>
 
-    @if(session()->has('success'))<div class="ui-panel p-3 text-emerald-800" role="status">{{ session('success') }}</div>@endif
+    <x-ui.flash />
     @if($errors->any() && ! $viewOrderId)<div class="ui-panel p-3 text-red-700" role="alert">{{ $errors->first() }}</div>@endif
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="ui-panel p-4"><p class="text-xs font-semibold uppercase text-slate-500">Waiting</p><p class="text-2xl font-bold text-slate-900">{{ $orders->count() }}</p></div>
-        <div class="ui-panel p-4"><p class="text-xs font-semibold uppercase text-slate-500">Balance still owed</p><p class="text-2xl font-bold font-mono text-red-700">{{ currency() }} {{ number_format($balanceHeld, 2) }}</p></div>
-        <div class="ui-panel p-4"><p class="text-xs font-semibold uppercase text-slate-500">Longest wait</p><p class="text-2xl font-bold text-slate-900">{{ $orders->isEmpty() ? '—' : $orders->first()->daysAwaitingCollection().' days' }}</p></div>
-    </div>
-
-    <div class="ui-panel p-3 text-xs {{ $sms['available'] ? 'text-emerald-800' : 'text-amber-800' }}" role="status">
-        @if($sms['available'])
-            <strong>SMS active</strong>@if($sms['credits'] !== null) · {{ number_format($sms['credits']) }} credits left @endif.
-            @if($schedule)
-                Pickup reminders go out automatically on day {{ implode(', ', $schedule) }} after the glasses are ready.
-            @else
-                Automatic pickup reminders are off (Optical Settings).
-            @endif
-        @else
-            <strong>SMS not available:</strong> {{ $sms['reason'] }} WhatsApp buttons still work.
-        @endif
-    </div>
-
     @if($partners->isNotEmpty())
-        <section class="ui-panel p-4 space-y-2" aria-label="Partner clinics with jobs waiting">
-            <h2 class="text-sm font-semibold text-slate-900">Partner clinics</h2>
-            <p class="ui-muted text-xs">One reminder per partner lists all of its waiting jobs.</p>
+        <details class="ui-panel px-4 py-2" aria-label="Partner clinics with jobs waiting">
+            <summary class="cursor-pointer py-1 text-sm"><span class="font-semibold text-slate-900">Partner clinics</span> <span class="text-xs text-slate-500">· {{ $partners->count() }} {{ \Illuminate\Support\Str::plural('partner', $partners->count()) }}, {{ $partners->sum('count') }} {{ \Illuminate\Support\Str::plural('job', $partners->sum('count')) }} waiting · one reminder per partner lists all its jobs</span></summary>
             <div class="divide-y divide-slate-100">
                 @foreach($partners as $row)
                     @php $partner = $row['partner']; $link = $notifier->partnerWhatsAppLink($partner); @endphp
@@ -53,19 +57,19 @@
                     </div>
                 @endforeach
             </div>
-        </section>
+        </details>
     @endif
 
     <div class="flex flex-wrap items-end gap-3">
-        <label class="text-xs font-semibold">Search<input type="search" wire:model.live.debounce.300ms="search" placeholder="Order, customer, partner or phone" class="ui-input mt-1 w-64"></label>
+        <label class="text-xs font-semibold">Search<input autocomplete="off" type="search" x-model="search" placeholder="Order, customer, partner or phone" class="ui-input mt-1 w-64"></label>
         <label class="text-xs font-semibold">Waiting at least
-            <select wire:model.live="minDays" class="ui-input mt-1">
+            <select x-model="minDays" class="ui-input mt-1">
                 <option value="0">Any time</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option>
             </select>
         </label>
         @if($partners->isNotEmpty())
             <label class="text-xs font-semibold">Customer
-                <select wire:model.live="partnerFilter" class="ui-input mt-1">
+                <select x-model="partner" class="ui-input mt-1">
                     <option value="">Everyone</option><option value="own">Own customers</option>
                     @foreach($partners as $row)<option value="{{ $row['partner']->id }}">{{ $row['partner']->name }}</option>@endforeach
                 </select>
@@ -88,7 +92,7 @@
                         $kind = $ord->ready_notified_at ? \App\Services\OpticalCollectionNotifier::REMINDER : \App\Services\OpticalCollectionNotifier::READY;
                         $whatsApp = $notifier->whatsAppLink($ord, $kind);
                     @endphp
-                    <tr wire:key="awaiting-{{ $ord->id }}" class="cursor-pointer hover:bg-slate-50 {{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
+                    <tr wire:key="awaiting-{{ $ord->id }}" x-show="shows($el)" data-days="{{ $days }}" data-balance="{{ $balance }}" data-partner="{{ $ord->isPartnerJob() ? $ord->partner_clinic_id : 'own' }}" data-search="{{ mb_strtolower(implode(' ', [$ord->order_id, $ord->customer_name, $ord->customer_phone, $ord->patient?->name, $ord->patient?->contact, $ord->partnerClinic?->name])) }}" class="cursor-pointer hover:bg-slate-50 {{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
                         <td class="p-3"><span class="font-mono font-bold text-teal-800">{{ $ord->order_id }}</span>@if($ord->isPartnerJob())<span class="block text-xs text-slate-500">Wearer: {{ $ord->customer_name ?: '—' }}@if($ord->partnerReference()) · ref {{ $ord->partnerReference() }}@endif</span>@endif</td>
                         <td class="p-3">
                             <span class="font-medium text-slate-900">{{ $recipient['name'] ?? $ord->display_customer_name }}</span>
@@ -117,7 +121,7 @@
                         <td class="p-3" onclick="event.stopPropagation()">
                             <div class="flex justify-end gap-1.5">
                                 @if($balance > 0 && ! $m['onAccount'])
-                                    @if($m['canTakePayment'])<button type="button" wire:click="openPaymentModal({{ $ord->id }})" class="oo-btn warn">Take payment</button>
+                                    @if($m['canTakePayment'])<button type="button" x-on:click="openLocal($wire, { paymentOrderId: {{ $ord->id }}, paymentAmount: '{{ number_format(max(0, $ord->total - (float) $ord->paid_amount), 2, '.', '') }}', showPaymentModal: true }, $root.querySelector('[data-payment-form]'))" class="oo-btn warn">Take payment</button>
                                     @else<span class="oo-btn warn" style="cursor:default" title="Paid on the patient's clinic bill at reception or the cashier.">Pay at clinic</span>@endif
                                 @else
                                     <button type="button" wire:click="updateStatus({{ $ord->id }}, 'Collected')" wire:confirm="Hand the glasses to the customer and close this order?" class="oo-btn primary">Mark collected</button>
@@ -129,6 +133,7 @@
                 @empty
                     <tr><td colspan="7" class="ui-empty p-8 text-center"><p class="ui-muted text-sm">No glasses are waiting for collection.</p></td></tr>
                 @endforelse
+                @if($orders->isNotEmpty())<tr x-show="count() === 0" x-cloak><td colspan="7" class="ui-empty p-8 text-center"><p class="ui-muted text-sm">No waiting glasses match these filters.</p></td></tr>@endif
             </tbody>
         </table>
     </div>

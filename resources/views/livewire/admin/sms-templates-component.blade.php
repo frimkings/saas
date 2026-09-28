@@ -6,7 +6,7 @@
             <div class="mb-4">
                 <h5 class="font-weight-bold mb-1"><i class="fas fa-comment-dots text-primary mr-2"></i> SMS Message Templates</h5>
                 <p class="text-muted small mb-0">
-                    Customise the message sent for each trigger. Use the placeholder badges to insert dynamic values — they are replaced automatically when the SMS is sent.
+                    Tick the messages your patients should get, and customise each one. Use the placeholder badges to insert dynamic values — they are replaced automatically when the SMS is sent.
                 </p>
             </div>
 
@@ -31,10 +31,16 @@
                         <span class="badge badge-{{ $color }} p-2 mr-3" style="font-size:15px; border-radius:8px; min-width:36px; text-align:center;">
                             <i class="{{ $icon }}"></i>
                         </span>
-                        <div>
+                        <div class="flex-grow-1">
                             <h6 class="mb-0 font-weight-bold">{{ $tpl['label'] }}</h6>
                             <small class="text-muted">{{ $desc }}</small>
                         </div>
+                        @if($key !== 'custom_broadcast')
+                        <div class="custom-control custom-switch ml-3 text-nowrap" title="Send this SMS to patients">
+                            <input type="checkbox" class="custom-control-input" id="sms-on-{{ $key }}" wire:click="toggleEnabled('{{ $key }}')" @checked($tpl['is_enabled'] ?? true)>
+                            <label class="custom-control-label small font-weight-bold {{ ($tpl['is_enabled'] ?? true) ? 'text-success' : 'text-muted' }}" for="sms-on-{{ $key }}">{{ ($tpl['is_enabled'] ?? true) ? 'Sending' : 'Off' }}</label>
+                        </div>
+                        @endif
                     </div>
 
                     <div class="card-body pt-0">
@@ -170,6 +176,12 @@
                 </div>
             @endforeach
 
+            @if(!$campaigns)
+            <div class="alert alert-light border small mb-0">
+                <i class="fas fa-star text-warning mr-1"></i>
+                Birthday wishes, patient recall, automatic appointment reminders and broadcasts come with <strong>SMS reminders &amp; campaigns</strong>. Ask us to add it to your plan.
+            </div>
+            @else
             {{-- Appointment auto-reminder scheduler note --}}
             <div class="alert alert-info border-0 shadow-sm small mb-4">
                 <i class="fas fa-clock mr-1"></i>
@@ -336,6 +348,7 @@
                 <code>php artisan schedule:run</code> every minute.
                 Use <code>--dry-run</code> to preview recipients without sending.
             </div>
+            @endif
 
         </div>
     </div>

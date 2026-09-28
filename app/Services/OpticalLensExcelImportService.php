@@ -64,7 +64,12 @@ class OpticalLensExcelImportService
         $detected = $this->specifications($sheet);
         if (isset($detected['design']) && $detected['design'] !== $design) $this->fail('The selected lens design does not match this worksheet.');
         $columns = []; $quantities = []; $lines = []; $seen = []; $section = 0; $sign = 1;
-        $warnings = []; $sectionTotals = []; $rawTotal = 0;
+        $warnings = []; $sectionTotals = []; $rawTotal = 0; $invalid = []; $blank = []; $unheaded = [];
+        // A single vision pair is two interchangeable lenses of one power. A progressive or
+        // bifocal pair is one right and one left lens, so its grid cells keep the pair count
+        // and receiving adds that many lenses to each eye.
+        $perEye = $unit === 'pairs' && \App\Support\LensDesign::isEyeSpecific($design);
+        $cellFactor = $unit === 'pairs' && ! $perEye ? 2 : 1;
         foreach ($sheet['rows'] as $row => $cells) {
             $label = trim($cells[1] ?? '');
             $marker = preg_replace('/[\s()]/', '', $label);
@@ -77,13 +82,24 @@ class OpticalLensExcelImportService
                 }
             }
             if (count($candidate) >= 2) {
-                $section++; $columns = []; $seen = []; $sign = $marker === '-' ? -1 : 1;
+                $section++; $columns = []; $seen = []; $blank = []; $bad = []; $sign = $marker === '-' ? -1 : 1;
                 foreach ($candidate as $col => $power) {
-                    if (abs($power * 4 - round($power * 4)) > .00001 || ($design === 'Single Vision' ? ($power > 0 || $power < -6) : ($power < .25 || $power > 4))) $this->fail("Invalid power heading in worksheet row $row.");
-                    $key = sprintf('%.2f', $power);
+                    if (! $this->validHeading($power, $design)) { $bad[] = $col; continue; }
                     if (in_array($power, $columns, true)) $this->fail("Duplicate power heading in row $row.");
                     $columns[$col] = $power;
                 }
+                if ($bad) {
+                    $shown = array_map(function ($col) use ($row, $cells, $columns, $design) {
+                        $expected = $this->expectedHeading($columns, $col, $design);
+                        return $this->cellRef($row, $col).' shows "'.$cells[$col].'"'.($expected ? ", expected $expected" : '');
+                    }, $bad);
+                    $this->fail("Invalid power heading in worksheet row $row: ".implode('; ', $shown).'. '
+                        .($design === 'Single Vision' ? 'CYL headings run from 0.00 to -6.00' : 'ADD headings run from +0.25 to +4.00')
+                        .' in 0.25 steps. Quantities may have been typed over the headings; restore them and upload again.');
+                }
+                // Empty heading cells inside the grid; quantities under them would otherwise be skipped.
+                $last = max(array_keys(array_filter($cells, fn ($value) => $value !== '')));
+                for ($col = 2; $col < $last; $col++) if (($cells[$col] ?? '') === '') $blank[$col] = [$this->cellRef($row, $col), $this->expectedHeading($columns, $col, $design)];
                 $sectionTotals[$section] = 0;
                 continue;
             }
@@ -97,14 +113,19 @@ class OpticalLensExcelImportService
             $r = (int) round(($sphere + 15) * 4);
             if (isset($seen[$r])) $this->fail("Repeated sphere within the same section at row $row.");
             $seen[$r] = true;
+            foreach ($blank as $col => [$headerRef, $expected]) {
+                if (($this->number($cells[$col] ?? '') ?? 0) <= 0) continue;
+                $unheaded[$headerRef]['expected'] = $expected;
+                $unheaded[$headerRef]['cells'][] = $this->cellRef($row, $col);
+            }
             foreach ($columns as $col => $power) {
                 $value = $cells[$col] ?? '';
                 if ($value === '') continue;
                 $quantity = $this->number($value);
-                if ($quantity === null || $quantity < 0 || $quantity > 100000 || floor($quantity) !== $quantity) $this->fail("Invalid quantity at row $row, column $col. Use whole quantities; paste formulas as values in quantity cells.");
+                if ($quantity === null || $quantity < 0 || $quantity > 100000 || floor($quantity) !== $quantity) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
                 if ($quantity == 0) continue;
                 $c = $design === 'Single Vision' ? (int) round(-$power * 4) : (int) round(($power - .25) * 4);
-                $pieces = (int) $quantity * ($unit === 'pairs' ? 2 : 1);
+                $pieces = (int) $quantity * $cellFactor;
                 if (isset($quantities[$r][$c])) {
                     if ($r !== 60) $this->fail("Duplicate non-zero sphere/power across sections at row $row.");
                     $warnings['plano'] = 'Plus-zero and minus-zero quantities are combined into one 0.00 stock balance.';
@@ -115,15 +136,59 @@ class OpticalLensExcelImportService
                 $lines[] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'quantity' => $pieces, 'source_quantity' => (int) $quantity, 'row' => $row];
             }
         }
+        if ($unheaded) {
+            $shown = [];
+            foreach ($unheaded as $headerRef => $found) {
+                $shown[] = "$headerRef is empty".($found['expected'] ? " (expected {$found['expected']})" : '')
+                    .' but has quantities in '.implode(', ', array_slice($found['cells'], 0, 4)).(count($found['cells']) > 4 ? ' and '.(count($found['cells']) - 4).' more' : '');
+            }
+            $this->fail('Missing power heading: '.implode('; ', $shown).'. Enter the power in the heading cell or clear that column.');
+        }
+        $this->failOnInvalidQuantities($invalid, 'Use whole quantities; paste formulas as values in quantity cells.');
         if (! $lines) $this->fail('No quantities found. Use the ST PAT layout or switch to manual header selection.');
         foreach ($sheet['rows'] as $row => $cells) foreach ($cells as $col => $value) {
             $declared = null;
             if (preg_match('/total\s*=\s*(\d+)/i', $value, $m)) $declared = (int) $m[1];
             if ($col > 11 && preg_match('/^total$/i', $value)) $declared = $sheet['cached'][$row][$col + 1] ?? $cells[$col + 1] ?? null;
             if (is_numeric($declared) && (int) $declared !== $rawTotal) $warnings[] = "Worksheet summary at row $row shows $declared; quantity cells total $rawTotal. The import uses the quantity cells.";
-            if (preg_match('/\bpairs\b/i', $value) && $unit === 'pieces') $warnings['units'] = 'The worksheet mentions pairs, but pieces was selected. Confirm the quantity unit before applying.';
-        }
-        return ['quantities' => $quantities, 'lines' => $lines, 'total' => $rawTotal * ($unit === 'pairs' ? 2 : 1), 'sourceTotal' => $rawTotal, 'unit' => $unit, 'sectionTotals' => array_values($sectionTotals), 'warnings' => array_values($warnings)];
+            if (preg_match('/\bpairs\b/i', $value) && $unit === 'pieces') $warnings['units'] = 'The worksheet mentions pairs, but pieces was selected. Confirm the quantity unit before applying.';        }
+        return ['quantities' => $quantities, 'lines' => $lines, 'total' => $rawTotal * ($unit === 'pairs' ? 2 : 1), 'sourceTotal' => $rawTotal, 'unit' => $unit, 'perEye' => $perEye, 'sectionTotals' => array_values($sectionTotals), 'warnings' => array_values($warnings)];
+    }
+
+    private function validHeading(float $power, string $design): bool
+    {
+        if (abs($power * 4 - round($power * 4)) > .00001) return false;
+        return $design === 'Single Vision' ? $power <= 0 && $power >= -6 : $power >= .25 && $power <= 4;
+    }
+
+    /** The power a heading cell should hold when the valid headings form an even 0.25-step run. */
+    private function expectedHeading(array $columns, int $col, string $design): ?string
+    {
+        if (count($columns) < 2) return null;
+        $first = array_key_first($columns);
+        $second = array_keys($columns)[1];
+        $step = ($columns[$second] - $columns[$first]) / ($second - $first);
+        if (abs(abs($step) - .25) > .00001) return null;
+        foreach ($columns as $c => $power) if (abs($columns[$first] + $step * ($c - $first) - $power) > .00001) return null;
+        $power = $columns[$first] + $step * ($col - $first);
+        if (! $this->validHeading($power, $design)) return null;
+        return abs($power) < .00001 ? '0.00' : sprintf('%+.2f', $power);
+    }
+
+    /** Excel-style reference such as C7 (columns are 1-based). */
+    private function cellRef(int $row, int $col): string
+    {
+        $letters = '';
+        for (; $col > 0; $col = intdiv($col - 1, 26)) $letters = chr(65 + ($col - 1) % 26).$letters;
+        return $letters.$row;
+    }
+
+    /** Report every bad cell at once so the sheet can be corrected in one pass. */
+    private function failOnInvalidQuantities(array $cells, string $hint): void
+    {
+        if (! $cells) return;
+        $shown = implode(', ', array_slice($cells, 0, 12)).(count($cells) > 12 ? ' and '.(count($cells) - 12).' more' : '');
+        $this->fail('Invalid quantity in '.count($cells).' '.(count($cells) === 1 ? 'cell' : 'cells').': '.$shown.'. '.$hint);
     }
 
     private function fail(string $message): never
@@ -220,6 +285,7 @@ class OpticalLensExcelImportService
         $quantities = [];
         $lines = [];
         $seenRows = [];
+        $invalid = [];
         foreach ($rows as $row => $cells) {
             if ($row <= $headerRow) continue;
             $label = $cells[$sphereColumn] ?? '';
@@ -235,13 +301,14 @@ class OpticalLensExcelImportService
                 $value = $cells[$col] ?? '';
                 if ($value === '') continue;
                 $quantity = $this->number($value);
-                if ($quantity === null || $quantity < 0 || $quantity > 100000 || floor($quantity) !== $quantity) $this->fail("Invalid quantity at row $row, column $col. Enter whole pieces from 0 to 100000; formulas must be pasted as values.");
+                if ($quantity === null || $quantity < 0 || $quantity > 100000 || floor($quantity) !== $quantity) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
                 if ($quantity == 0) continue;
                 $c = $design === 'Single Vision' ? (int) round(-$power * 4) : (int) round(($power - 0.25) * 4);
                 $quantities[$r][$c] = (int) $quantity;
                 $lines[] = ['sphere' => sprintf('%+.2f', $sphere), 'power' => sprintf('%+.2f', $power), 'quantity' => (int) $quantity, 'row' => $row];
             }
         }
+        $this->failOnInvalidQuantities($invalid, 'Enter whole pieces from 0 to 100000; formulas must be pasted as values.');
         if (! $lines) $this->fail('The selected grid contains no positive quantities.');
         return ['quantities' => $quantities, 'lines' => $lines, 'total' => array_sum(array_column($lines, 'quantity'))];
     }
@@ -335,7 +402,8 @@ class OpticalLensExcelImportService
                         $cell->setAttribute('t', 'inlineStr');
                         $inline = $doc->createElementNS($ns, 'is');
                         $text = $doc->createElementNS($ns, 't');
-                        $text->appendChild($doc->createTextNode(trim($sheet['name']).' - quantities in individual pieces'));
+                        // Manufacturers supply lenses in pairs; the importer defaults to pairs to match.
+                        $text->appendChild($doc->createTextNode(trim($sheet['name']).' - quantities in pairs (2 lenses each)'));
                         $inline->appendChild($text); $cell->appendChild($inline);
                     }
                 }

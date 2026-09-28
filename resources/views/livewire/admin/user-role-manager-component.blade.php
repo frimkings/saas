@@ -4,6 +4,7 @@
     <div class="mb-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
+                @if($fromOptical)<a href="{{ route('optical.dashboard') }}" class="small d-inline-block mb-1">← Back to Optical</a>@endif
                 <h2 class="mb-1">User Management</h2>
                 <p class="text-muted mb-0">Manage staff members, roles, and permissions</p>
             </div>
@@ -449,6 +450,16 @@
                                 </div>
                             </div>
                             @error('roleAssignmentMode')<small class="text-danger d-block">{{ $message }}</small>@enderror
+                            {{-- What each optical role opens (App\Support\OpticalAccess). --}}
+                            @feature('optical')
+                            <details class="small text-muted mb-2">
+                                <summary class="font-weight-bold" style="cursor:pointer">Optical roles: what each can open</summary>
+                                <ul class="mb-0 pl-3 mt-1">
+                                    <li><b>Manager</b>: every optical screen, including purchasing, expenses, profit &amp; loss, settings and adding staff.</li>
+                                    @foreach(\App\Support\OpticalAccess::ROLES as $roleName => $role)<li><b>{{ $roleName }}</b>: {{ $role['about'] }}</li>@endforeach
+                                </ul>
+                            </details>
+                            @endfeature
 
                             @if($roleAssignmentMode === 'shared')
                             <input type="text"

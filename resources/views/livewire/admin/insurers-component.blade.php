@@ -90,7 +90,7 @@
                       <i class="fas fa-{{ $insurer->active ? 'ban' : 'check' }}"></i>
                     </button>
                     <button wire:click="delete({{ $insurer->id }})"
-                            onclick="return confirm('Delete {{ addslashes($insurer->name) }}? This cannot be undone.')"
+                            wire:confirm="Delete {{ $insurer->name }}? This cannot be undone."
                             class="btn btn-xs btn-outline-danger" title="Delete">
                       <i class="fas fa-trash"></i>
                     </button>

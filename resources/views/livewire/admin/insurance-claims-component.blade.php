@@ -202,7 +202,7 @@
                     {{-- Delete (draft/rejected only) --}}
                     @if(in_array($claim->status, ['draft', 'rejected']))
                     <button wire:click="deleteClaim({{ $claim->id }})"
-                            onclick="return confirm('Delete this claim? This cannot be undone.')"
+                            wire:confirm="Delete this claim? This cannot be undone."
                             class="btn btn-xs btn-outline-danger" title="Delete">
                       <i class="fas fa-trash"></i>
                     </button>

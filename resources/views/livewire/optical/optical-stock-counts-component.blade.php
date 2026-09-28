@@ -13,22 +13,22 @@
         @if($isManager)<button type="button" wire:click="openStartForm" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ Start a count</button>@endif
     </div>
 
-    @if(session()->has('success') && ! $count)<div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold" role="status">{{ session('success') }}</div>@endif
+    <x-ui.flash />
     @if($errors->any() && ! $count && ! $showStartForm)<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
 
     @if($showStartForm)
-        <div class="oo-overlay" wire:click="$set('showStartForm', false)" aria-hidden="true"></div>
-        <aside class="oo-drawer" style="width:min(520px,100vw)" role="dialog" aria-modal="true" aria-labelledby="sc-start-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.set('showStartForm', false)">
-            <header class="oo-drawer-head"><h2 id="sc-start-title">Start a stock count</h2><button type="button" class="oo-x" wire:click="$set('showStartForm', false)" aria-label="Close">&times;</button></header>
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { showStartForm: false })" aria-hidden="true"></div>
+        <aside class="oo-drawer" style="width:min(520px,100vw)" role="dialog" aria-modal="true" aria-labelledby="sc-start-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissLocal($el, $wire, { showStartForm: false })">
+            <header class="oo-drawer-head"><h2 id="sc-start-title">Start a stock count</h2><button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { showStartForm: false })" aria-label="Close">&times;</button></header>
             <form wire:submit.prevent="startCount" id="sc-start" class="oo-drawer-body">
                 <label class="sc-field"><span>What to count *</span><select wire:model.live="countScope" class="ui-input">@foreach(\App\Services\OpticalStockCountService::SCOPES as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
                 @if($countScope === 'lens_range')
                     <label class="sc-field"><span>Lens range *</span><select wire:model="countRange" class="ui-input"><option value="">Choose a range</option>@foreach($lensRanges as $i => $specs)<option value="{{ $i }}">{{ $rangeTitle($specs) }}</option>@endforeach</select>@error('countRange')<small style="color:#b91c1c">{{ $message }}</small>@enderror</label>
                 @endif
-                <label class="sc-field"><span>Notes</span><input type="text" wire:model="countNotes" maxlength="1000" class="ui-input" placeholder="e.g. Month-end count, drawers A–C"></label>
+                <label class="sc-field"><span>Notes</span><input autocomplete="off" type="text" wire:model="countNotes" maxlength="1000" class="ui-input" placeholder="e.g. Month-end count, drawers A–C"></label>
                 <div class="oo-note amber">Count at a quiet time. Expected quantities are fixed when the count starts; sales and glazing during the count are flagged for rechecking.</div>
             </form>
-            <footer class="oo-drawer-foot"><button type="button" wire:click="$set('showStartForm', false)" class="oo-btn">Cancel</button><button type="submit" form="sc-start" class="oo-btn primary">Start count</button></footer>
+            <footer class="oo-drawer-foot"><button type="button" x-on:click="dismissLocal($el, $wire, { showStartForm: false })" class="oo-btn">Cancel</button><button type="submit" form="sc-start" class="oo-btn primary">Start count</button></footer>
         </aside>
     @endif
 
@@ -40,8 +40,8 @@
             $editable = $count->status === 'counting';
             $showExpected = $showExpected || ! $editable;
         @endphp
-        <div class="oo-overlay" wire:click="closeCount" aria-hidden="true"></div>
-        <aside class="oo-drawer" style="width:min(1000px,100vw)" role="dialog" aria-modal="true" aria-labelledby="sc-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.closeCount()" wire:key="sc-drawer-{{ $count->id }}">
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissCall($el.nextElementSibling, $wire, 'closeCount')" aria-hidden="true"></div>
+        <aside class="oo-drawer" style="width:min(1000px,100vw)" role="dialog" aria-modal="true" aria-labelledby="sc-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissCall($el, $wire, 'closeCount')" wire:key="sc-drawer-{{ $count->id }}">
             <header class="oo-drawer-head">
                 <div>
                     <h2 id="sc-title"><span class="oo-id" style="font-size:17px">{{ $count->count_number }}</span> · {{ $count->title }}</h2>
@@ -53,11 +53,10 @@
                 </div>
                 <div class="flex items-center gap-2">
                     @if($editable && $isManager)<button type="button" wire:click="toggleExpected" class="oo-btn">{{ $showExpected ? 'Hide' : 'Show' }} expected</button>@endif
-                    <button type="button" class="oo-x" wire:click="closeCount" aria-label="Close">&times;</button>
+                    <button type="button" class="oo-x" x-on:click="dismissCall($el, $wire, 'closeCount')" aria-label="Close">&times;</button>
                 </div>
             </header>
             <div class="oo-drawer-body">
-            @if(session()->has('success'))<div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold" role="status">{{ session('success') }}</div>@endif
             @if($errors->any())<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
             @if($count->notes)<p class="ui-muted text-sm" style="margin:0">{{ $count->notes }}</p>@endif
 
@@ -80,7 +79,7 @@
                                         @php $line = $grid['cells'][sprintf('%.2f|%.2f', $sphere, $power)] ?? null; @endphp
                                         <td class="border p-1 align-top {{ $line && $line->variance() ? ($line->variance() < 0 ? 'bg-red-50' : 'bg-amber-50') : '' }}">
                                             @if($line)
-                                                @if($editable)<input type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input text-center" style="width:58px" aria-label="SPH {{ $sphere }} {{ $grid['powerLabel'] }} {{ $power }} counted">@else<span class="block text-center font-semibold">{{ $line->counted_quantity ?? '—' }}</span>@endif
+                                                @if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input text-center" style="width:58px" aria-label="SPH {{ $sphere }} {{ $grid['powerLabel'] }} {{ $power }} counted">@else<span class="block text-center font-semibold">{{ $line->counted_quantity ?? '—' }}</span>@endif
                                                 @if($showExpected)<span class="block text-center text-[10px] text-slate-500">exp {{ $line->expectedAtCount() }}@if($line->variance()) · <strong class="{{ $line->variance() < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ sprintf('%+d', $line->variance()) }}</strong>@endif</span>@endif
                                                 @if($moved->has($line->optical_product_id))<span class="block text-center text-[10px] text-amber-800" title="Moved {{ sprintf('%+d', $moved[$line->optical_product_id]) }} since the count started">⚠</span>@endif
                                             @endif
@@ -100,7 +99,7 @@
                                 <tr wire:key="count-line-{{ $line->id }}" class="{{ $line->variance() ? ($line->variance() < 0 ? 'bg-red-50' : 'bg-amber-50') : '' }}">
                                     <td class="p-2">{{ $line->product?->sku }} · {{ $line->product?->name }}@if($moved->has($line->optical_product_id)) <span class="text-amber-800" title="Moved since the count started">⚠</span>@endif</td>
                                     @if($showExpected)<td class="p-2 text-right">{{ $line->expectedAtCount() }}</td>@endif
-                                    <td class="p-2 text-right">@if($editable)<input type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input w-20 text-right" aria-label="Counted">@else{{ $line->counted_quantity ?? '—' }}@endif</td>
+                                    <td class="p-2 text-right">@if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input w-20 text-right" aria-label="Counted">@else{{ $line->counted_quantity ?? '—' }}@endif</td>
                                     @if($showExpected)<td class="p-2 text-right font-semibold {{ ($line->variance() ?? 0) < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ $line->variance() ? sprintf('%+d', $line->variance()) : '' }}</td>@endif
                                 </tr>
                             @endforeach
@@ -129,7 +128,7 @@
                     <button type="button" wire:click="reopen" class="oo-btn">Send back for recount</button>
                     <button type="button" wire:click="approve" wire:confirm="Correct stock for every counted difference? This posts count corrections to the ledger." class="oo-btn primary">Approve &amp; correct stock</button>
                 @endif
-                @if(! in_array($count->status, ['counting', 'submitted'], true))<button type="button" wire:click="closeCount" class="oo-btn">Close</button>@endif
+                @if(! in_array($count->status, ['counting', 'submitted'], true))<button type="button" x-on:click="dismissCall($el, $wire, 'closeCount')" class="oo-btn">Close</button>@endif
             </footer>
         </aside>
     @endif

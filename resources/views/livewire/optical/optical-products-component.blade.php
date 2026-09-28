@@ -14,7 +14,7 @@
         @endhasanyrole
     </div>
 
-    @if(session()->has('success'))<div class="ui-panel p-3 text-sm text-teal-800" role="status">{{ session('success') }}</div>@endif
+    <x-ui.flash />
     @error('product')<div class="ui-panel p-3 text-sm text-red-700" role="alert">{{ $message }}</div>@enderror
 
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -58,7 +58,7 @@
     @if($showImport)
         <div class="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Import optical products">
             <div class="w-full max-w-lg max-h-[calc(100dvh-2rem)] rounded-xl bg-white shadow-xl overflow-y-auto">
-                <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between"><div><h2 class="font-bold">Import Optical Products</h2><p class="text-xs text-slate-300">Use the CSV template. Category codes must exist in Optical Categories.</p></div><button type="button" wire:click="$set('showImport', false)" aria-label="Close" class="text-slate-300 text-lg">×</button></div>
+                <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between"><div><h2 class="font-bold">Import Optical Products</h2><p class="text-xs text-slate-300">Use the CSV template. Category codes must exist in Optical Categories.</p></div><button type="button" x-on:click="dismissLocal($el, $wire, { showImport: false })" aria-label="Close" class="text-slate-300 text-lg">×</button></div>
                 <form wire:submit="importCsv" class="p-5 space-y-4">
                     <p class="text-xs text-slate-600">Existing SKUs are updated. Quantity sets the stock balance at the current branch. The whole file must pass validation before any products are saved.</p>
                     <div class="flex items-center justify-between gap-2 mb-1">
@@ -67,7 +67,7 @@
                     </div>
                     <div><input type="file" wire:model="importFile" accept=".csv,text/csv" class="ui-input w-full">@error('importFile')<p class="text-xs text-red-600 mt-1" role="alert">{{ $message }}</p>@enderror</div>
                     <div wire:loading wire:target="importFile,importCsv" class="text-xs text-teal-700">Processing file…</div>
-                    <div class="flex justify-end gap-2 border-t border-slate-200 pt-4"><button type="button" wire:click="$set('showImport', false)" class="ui-button">Cancel</button><button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="importFile,importCsv">Import CSV</button></div>
+                    <div class="flex justify-end gap-2 border-t border-slate-200 pt-4"><button type="button" x-on:click="dismissLocal($el, $wire, { showImport: false })" class="ui-button">Cancel</button><button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="importFile,importCsv">Import CSV</button></div>
                 </form>
             </div>
         </div>
@@ -79,27 +79,27 @@
                 <div class="bg-slate-900 text-white px-5 py-4 flex items-center gap-3 flex-none">
                     <span class="rounded-lg bg-teal-900/40 border border-teal-700 px-2 py-2" aria-hidden="true">📦</span>
                     <div class="flex-1"><h2 class="font-bold">{{ $editingId ? 'Edit Optical Product SKU' : 'Add New Optical Product SKU' }}</h2><p class="text-xs text-slate-300">Register product item in the Optical Inventory Master catalogue.</p></div>
-                    <button type="button" wire:click="$set('showForm', false)" aria-label="Close" class="text-slate-300 text-lg">×</button>
+                    <button type="button" x-on:click="dismissLocal($el, $wire, { showForm: false })" aria-label="Close" class="text-slate-300 text-lg">×</button>
                 </div>
                 <form wire:submit="save" class="flex flex-col flex-1 min-h-0">
                   <div class="optical-product-dialog__body p-5 space-y-3">
-                    <div><label class="block text-xs font-semibold mb-1">Product Name / Title <span class="text-red-600">*</span></label><input wire:model="name" maxlength="180" class="ui-input w-full" placeholder="e.g. Gucci GG0061S Gold Metal Frame">@error('name')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                    <div><label class="block text-xs font-semibold mb-1">Product Name / Title <span class="text-red-600">*</span></label><input autocomplete="off" wire:model="name" maxlength="180" class="ui-input w-full" placeholder="e.g. Gucci GG0061S Gold Metal Frame">@error('name')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div><label class="block text-xs font-semibold mb-1">SKU Barcode / Item Code <span class="text-red-600">*</span></label><input wire:model="sku" maxlength="80" class="ui-input w-full" placeholder="SKU-FRM-001">@error('sku')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                        <div><label class="block text-xs font-semibold mb-1">SKU Barcode / Item Code <span class="text-red-600">*</span></label><input autocomplete="off" wire:model="sku" maxlength="80" class="ui-input w-full" placeholder="SKU-FRM-001">@error('sku')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
                         <div><label class="block text-xs font-semibold mb-1">Optical Category <span class="text-red-600">*</span></label><select wire:model="categoryId" class="ui-input w-full"><option value="">Select category</option>@foreach($categories->where('is_active', true) as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select>@error('categoryId')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                        <div><label class="block text-xs font-semibold mb-1">Brand / Manufacturer</label><input wire:model="brand" maxlength="120" class="ui-input w-full" placeholder="e.g. Gucci, Ray-Ban, Essilor">@error('brand')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                        <div><label class="block text-xs font-semibold mb-1">Brand / Manufacturer</label><input autocomplete="off" wire:model="brand" maxlength="120" class="ui-input w-full" placeholder="e.g. Gucci, Ray-Ban, Essilor">@error('brand')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
                         <div><label class="block text-xs font-semibold mb-1">Status</label><select wire:model="active" class="ui-input w-full"><option value="1">Active</option><option value="0">Inactive</option></select>@error('active')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                        <div><label class="block text-xs font-semibold mb-1">Cost Price ({{ currency() }}) <span class="text-red-600">*</span></label><input type="number" min="0" step="0.01" wire:model.live="costPrice" class="ui-input w-full">@error('costPrice')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                        <div><label class="block text-xs font-semibold mb-1">Selling Price ({{ currency() }}) <span class="text-red-600">*</span></label><input type="number" min="0" step="0.01" wire:model.live="sellingPrice" class="ui-input w-full">@error('sellingPrice')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                        <div><label class="block text-xs font-semibold mb-1">Cost Price ({{ currency() }}) <span class="text-red-600">*</span></label><input autocomplete="off" type="number" min="0" step="0.01" wire:model="costPrice" class="ui-input w-full">@error('costPrice')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                        <div><label class="block text-xs font-semibold mb-1">Selling Price ({{ currency() }}) <span class="text-red-600">*</span></label><input autocomplete="off" type="number" min="0" step="0.01" wire:model="sellingPrice" class="ui-input w-full">@error('sellingPrice')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
                     </div>
-                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 flex justify-between text-xs"><span>Calculated Profit Margin:</span><strong class="font-mono text-teal-800">@if(is_numeric($costPrice) && (float) $costPrice > 0 && is_numeric($sellingPrice)){{ number_format(((float) $sellingPrice - (float) $costPrice) / (float) $costPrice * 100, 1) }}% Markup (Profit: {{ currency() }} {{ number_format((float) $sellingPrice - (float) $costPrice, 2) }})@else — @endif</strong></div>
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 flex justify-between text-xs"><span>Calculated Profit Margin:</span><strong class="font-mono text-teal-800" x-data x-text="isNumeric($wire.costPrice) && num($wire.costPrice) > 0 && isNumeric($wire.sellingPrice) ? ((num($wire.sellingPrice) - num($wire.costPrice)) / num($wire.costPrice) * 100).toFixed(1) + '% Markup (Profit: ' + @js(currency()) + ' ' + money(num($wire.sellingPrice) - num($wire.costPrice)) + ')' : '—'">@if(is_numeric($costPrice) && (float) $costPrice > 0 && is_numeric($sellingPrice)){{ number_format(((float) $sellingPrice - (float) $costPrice) / (float) $costPrice * 100, 1) }}% Markup (Profit: {{ currency() }} {{ number_format((float) $sellingPrice - (float) $costPrice, 2) }})@else — @endif</strong></div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div><label class="block text-xs font-semibold mb-1">{{ $editingId ? 'Current Branch Stock Quantity' : 'Initial Stock Quantity' }} <span class="text-red-600">*</span></label><input type="number" min="0" step="1" wire:model="quantity" class="ui-input w-full">@error('quantity')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                        <div><label class="block text-xs font-semibold mb-1">Reorder Level Warning Threshold</label><input type="number" min="0" step="1" wire:model="reorderLevel" class="ui-input w-full">@error('reorderLevel')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                        <div><label class="block text-xs font-semibold mb-1">{{ $editingId ? 'Current Branch Stock Quantity' : 'Initial Stock Quantity' }} <span class="text-red-600">*</span></label><input autocomplete="off" type="number" min="0" step="1" wire:model="quantity" class="ui-input w-full">@error('quantity')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                        <div><label class="block text-xs font-semibold mb-1">Reorder Level Warning Threshold</label><input autocomplete="off" type="number" min="0" step="1" wire:model="reorderLevel" class="ui-input w-full">@error('reorderLevel')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
                     </div>
                     <div><label class="block text-xs font-semibold mb-1">Product Specifications &amp; Lens / Frame Details</label><textarea wire:model="specifications" rows="2" maxlength="3000" class="ui-input w-full" placeholder="e.g. Size 54-18-140 Full Rim Metal"></textarea>@error('specifications')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
                   </div>
-                  <div class="optical-product-dialog__footer flex justify-end gap-3 p-4"><button type="button" wire:click="$set('showForm', false)" class="ui-button">Cancel</button><button type="submit" class="ui-button ui-button-primary">Save Optical Product</button></div>
+                  <div class="optical-product-dialog__footer flex justify-end gap-3 p-4"><button type="button" x-on:click="dismissLocal($el, $wire, { showForm: false })" class="ui-button">Cancel</button><button type="submit" class="ui-button ui-button-primary">Save Optical Product</button></div>
                 </form>
             </div>
         </div>

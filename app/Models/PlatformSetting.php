@@ -36,6 +36,26 @@ class PlatformSetting extends Model
         ];
     }
 
+    /**
+     * Branding for guest pages (login, password reset). In multi-clinic mode these pages are
+     * shared by every clinic, so they show the developer/platform details instead of any one
+     * clinic's name and logo. Single-clinic installs keep that clinic's branding.
+     */
+    public static function guestBranding(): array
+    {
+        if (config('tenancy.enabled')) {
+            $support = static::support();
+
+            return ['name' => $support['name'], 'logo' => null, 'phone' => $support['phone'],
+                'email' => $support['email'], 'platform' => true];
+        }
+
+        $settings = Setting::getSettings();
+
+        return ['name' => $settings->clinic_name ?? config('app.name', 'Eye Clinic'), 'logo' => $settings->logoDataUri(),
+            'phone' => null, 'email' => null, 'platform' => false];
+    }
+
     private static function cached(): array
     {
         try {

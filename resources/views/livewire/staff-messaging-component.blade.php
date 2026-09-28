@@ -33,7 +33,7 @@
                     @if($threadData->sender_id === auth()->id())
                         <button type="button"
                                 wire:click="deleteThread({{ $threadData->id }})"
-                                onclick="return confirm('Delete this entire thread?')"
+                                wire:confirm="Delete this entire thread?"
                                 class="btn btn-sm btn-outline-danger">
                             <i class="fas fa-trash"></i>
                         </button>

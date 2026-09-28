@@ -41,6 +41,9 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::firstOrCreate(['name' => 'Secretary']);
         Role::firstOrCreate(['name' => 'Optician']);
 
+        // Optical screens by role, the optical roles, and managers adding staff.
+        \App\Support\OpticalAccess::installRoles();
+
 
         // 4. Create a Fresh Admin User to log in with
         $admin = User::firstOrCreate(

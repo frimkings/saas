@@ -4,7 +4,7 @@
         $counts = ['payments' => $bundleInvoices->count(), 'credits' => 0, 'bundles' => 0, 'senders' => $pending->count()];
     @endphp
 
-    @if(session('sms_message'))<div class="{{ str_starts_with(session('sms_message'), 'Balance check failed') ? 'pp-warn' : 'pp-ok' }}" role="status">{{ session('sms_message') }}</div>@endif
+    <x-ui.flash :map="['sms_message' => str_starts_with(session('sms_message') ?? '', 'Balance check failed') ? 'warning' : 'success']" />
 
     {{-- Provider balance vs what clinics have paid for --}}
     <section class="pp-card">

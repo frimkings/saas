@@ -25,9 +25,10 @@ class OpticalLensReplenishmentService
             })->sortBy(fn ($r) => [(float) $r['sphere'], (float) $r['power']])->values();
     }
 
-    public function workbook(array $specs): string
+    /** @param  \Illuminate\Support\Collection|null  $rows  sphere/power/pairs rows to order; defaults to the reorder list */
+    public function workbook(array $specs, $rows = null): string
     {
-        $rows = $this->rows($specs)->where('pairs', '>', 0);
+        $rows = $rows ?? $this->rows($specs)->where('pairs', '>', 0);
         if ($rows->isEmpty()) throw ValidationException::withMessages(['replenishment' => 'No tracked powers need replenishment for these specifications.']);
         $escape = fn ($value) => htmlspecialchars((string) $value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $cell = fn ($ref, $value) => '<c r="'.$ref.'" t="inlineStr"><is><t>'.$escape($value).'</t></is></c>';

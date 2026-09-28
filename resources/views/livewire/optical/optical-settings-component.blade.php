@@ -6,11 +6,7 @@
         </div>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded text-xs font-semibold">
-            {{ session('success') }}
-        </div>
-    @endif
+    <x-ui.flash />
 
     <div class="ui-panel p-6 space-y-4 max-w-2xl">
         <form wire:submit.prevent="saveSettings" class="ui-form space-y-4">
@@ -31,7 +27,7 @@
                 <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model="ready_sms_auto"> Text the customer automatically when glasses are marked ready</label>
                 <div class="ui-field">
                     <label for="reminder_schedule">Pickup reminder days</label>
-                    <input id="reminder_schedule" type="text" wire:model="reminder_schedule" placeholder="e.g. 3, 10, 30" class="ui-input" aria-describedby="reminder_schedule_help">
+                    <input autocomplete="off" id="reminder_schedule" type="text" wire:model="reminder_schedule" placeholder="e.g. 3, 10, 30" class="ui-input" aria-describedby="reminder_schedule_help">
                     <p id="reminder_schedule_help" class="ui-muted text-xs">Days after the glasses are ready, up to 5. One SMS is sent on each day; leave blank to turn automatic reminders off. Partner clinics get one message listing all their waiting jobs.</p>
                     @error('reminder_schedule')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
@@ -42,4 +38,9 @@
             </div>
         </form>
     </div>
+
+    {{-- Where the owner's emails go and what has been sent. Optical-only clinics have no clinic Settings page. --}}
+    @if(auth()->user()?->hasRole('Super Admin'))
+        <livewire:admin.owner-emails-component :optical="true" />
+    @endif
 </div>

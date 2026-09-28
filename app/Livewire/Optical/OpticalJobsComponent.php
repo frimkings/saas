@@ -2,28 +2,48 @@
 
 namespace App\Livewire\Optical;
 
+use App\Livewire\Optical\Concerns\ManagesOrderPanel;
+use App\Models\LensOrder;
 use App\Models\OpticalSetting;
 use App\Services\OpticalJobTrackingService;
-use Illuminate\Support\Carbon;
+use App\Services\OpticalOrderWorkflowService;
 use Livewire\Component;
 
-/** Job tracking: overdue jobs, stuck jobs (and the lenses they hold), and turnaround per lab. */
+/**
+ * Job tracking: one follow-up list of open jobs that are late, stuck or holding lenses,
+ * each listed once with the reasons, worst first, and the actions to deal with it.
+ * Lab turnaround figures are on the Reports page.
+ */
 class OpticalJobsComponent extends Component
 {
-    public string $from = '';
-    public string $to = '';
+    use ManagesOrderPanel;
 
-    protected $queryString = ['from', 'to'];
+    public string $filter = 'all';
+
+    protected $queryString = ['filter' => ['except' => 'all']];
+
+    public ?int $rescheduleOrderId = null;
+    public string $newPickupDate = '';
+    public string $newLabDate = '';
+    public string $rescheduleReason = '';
+
+    public ?int $abandonOrderId = null;
+    public string $abandonReason = '';
 
     public function mount(): void
     {
-        $this->from = $this->validDate($this->from) ?? now()->subDays(89)->toDateString();
-        $this->to = $this->validDate($this->to) ?? now()->toDateString();
+        if (! array_key_exists($this->filter, OpticalJobTrackingService::FILTERS)) $this->filter = 'all';
     }
 
-    private function validDate(string $value): ?string
+    public function setFilter(string $filter): void
     {
-        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) && strtotime($value) ? $value : null;
+        abort_unless(array_key_exists($filter, OpticalJobTrackingService::FILTERS), 422);
+        $this->filter = $filter;
+    }
+
+    private function isManager(): bool
+    {
+        return (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
     }
 
     public function releaseLenses(int $orderId): void
@@ -34,19 +54,77 @@ class OpticalJobsComponent extends Component
             : 'This job was not holding any lenses.');
     }
 
+    public function openReschedule(int $orderId): void
+    {
+        $order = LensOrder::whereIn('status', OpticalJobTrackingService::OPEN)->findOrFail($orderId);
+        $this->rescheduleOrderId = $order->id;
+        $this->newPickupDate = today()->addDays(3)->toDateString();
+        $this->newLabDate = $order->status === 'Sent to Lab' ? today()->addDay()->toDateString() : '';
+        $this->rescheduleReason = '';
+        $this->resetValidation();
+    }
+
+    public function saveReschedule(): void
+    {
+        $this->resetValidation();
+        $order = app(OpticalJobTrackingService::class)->reschedule((int) $this->rescheduleOrderId, $this->newPickupDate, $this->newLabDate ?: null, $this->rescheduleReason);
+        $this->rescheduleOrderId = null;
+        session()->flash('success', "New pickup date for {$order->order_id}: ".\Illuminate\Support\Carbon::parse($order->pickUpDate)->format('d M Y').'.');
+        // Offer to tell the customer straight away, with the new date in the message.
+        session()->flash('toastLink', app(OpticalJobTrackingService::class)->customerDelayLink($order->fresh(['patient', 'partnerClinic'])));
+    }
+
+    public function openAbandon(int $orderId): void
+    {
+        abort_unless($this->isManager(), 403);
+        $this->abandonOrderId = LensOrder::whereIn('status', OpticalJobTrackingService::OPEN)->findOrFail($orderId)->id;
+        $this->abandonReason = '';
+        $this->resetValidation();
+    }
+
+    public function confirmAbandon(): void
+    {
+        $this->resetValidation();
+        $order = app(OpticalOrderWorkflowService::class)->closeAbandoned((int) $this->abandonOrderId, $this->abandonReason);
+        $this->abandonOrderId = null;
+        session()->flash('success', "Job {$order->order_id} closed as abandoned.".((float) $order->cancellation_fee > 0 ? ' Deposit kept: '.currency().' '.number_format((float) $order->cancellation_fee, 2).'.' : ''));
+    }
+
+    public function closeForms(): void
+    {
+        $this->rescheduleOrderId = null;
+        $this->abandonOrderId = null;
+        $this->resetValidation();
+    }
+
+    /** The forms close in the browser (dismissLocal); tidy up when the server hears of it. */
+    public function updatedRescheduleOrderId($value): void
+    {
+        if ($value === null) $this->resetValidation();
+    }
+
+    public function updatedAbandonOrderId($value): void
+    {
+        if ($value === null) $this->resetValidation();
+    }
+
     public function render()
     {
-        $service = app(OpticalJobTrackingService::class);
-        $from = Carbon::parse($this->validDate($this->from) ?? now()->subDays(89)->toDateString());
-        $to = Carbon::parse($this->validDate($this->to) ?? now()->toDateString());
-        if ($from->gt($to)) [$from, $to] = [$to, $from];
+        $tracking = app(OpticalJobTrackingService::class);
+        $rows = $tracking->attention();
+        $counts = collect(OpticalJobTrackingService::FILTERS)->keys()
+            ->mapWithKeys(fn ($key) => [$key => $key === 'all' ? $rows->count() : $rows->filter(fn ($row) => in_array($key, $row['filters'], true))->count()]);
+        $shown = $this->filter === 'all' ? $rows : $rows->filter(fn ($row) => in_array($this->filter, $row['filters'], true));
 
         return view('livewire.optical.optical-jobs-component', [
-            'overdue' => $service->overdue(),
-            'stuck' => $service->stuck(),
-            'turnaround' => $service->turnaround($from, $to),
+            'groups' => collect(OpticalJobTrackingService::BUCKETS)->map(fn ($label, $key) => ['label' => $label, 'rows' => $shown->where('bucket', $key)->values()])
+                ->filter(fn ($group) => $group['rows']->isNotEmpty()),
+            'counts' => $counts,
+            'tracking' => $tracking,
             'stuckDays' => OpticalSetting::stuckJobDays(),
-            'isManager' => (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin']),
+            'isManager' => $this->isManager(),
+            'rescheduleOrder' => $this->rescheduleOrderId ? LensOrder::find($this->rescheduleOrderId) : null,
+            'abandonOrder' => $this->abandonOrderId ? LensOrder::find($this->abandonOrderId) : null,
         ])->layout('layouts.optical');
     }
 }

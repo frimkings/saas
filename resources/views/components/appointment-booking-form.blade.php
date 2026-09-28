@@ -272,7 +272,7 @@ Features:
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button wire:click="deleteAppointment({{ $appt->id }})" 
-                                        onclick="return confirm('Delete this appointment?')"
+                                        wire:confirm="Delete this appointment?"
                                         class="btn btn-outline-danger btn-sm"
                                         title="Delete">
                                     <i class="fas fa-trash"></i>

@@ -123,7 +123,7 @@
                 @endif
             </button>
             @if($activeTab === 'consultation')
-                <div class="consultation-tab-context"><div><strong><i class="fas fa-stethoscope"></i> {{ $isEditMode ? 'Edit Consultation' : 'New Consultation' }}</strong><small>{{ $isEditMode && $consultation ? 'Created by '.($consultation->user->name ?? 'N/A').' · '.$consultation->created_at->format('d M Y h:i A') : 'Clinical record in progress' }}</small></div><button type="button" onclick="if(window.consultationDirty&&!confirm('Discard unsaved consultation changes?'))event.stopImmediatePropagation()" wire:click="cancelAndGoBack"><i class="fas fa-arrow-left"></i> Cancel</button></div>
+                <div class="consultation-tab-context"><div><strong><i class="fas fa-stethoscope"></i> {{ $isEditMode ? 'Edit Consultation' : 'New Consultation' }}</strong><small>{{ $isEditMode && $consultation ? 'Created by '.($consultation->user->name ?? 'N/A').' · '.$consultation->created_at->format('d M Y h:i A') : 'Clinical record in progress' }}</small></div><button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack"><i class="fas fa-arrow-left"></i> Cancel</button></div>
             @endif
         </div>
 
@@ -500,13 +500,13 @@
                                         </div>
                                         <div class="btn-group btn-group-sm" role="group" aria-label="Clear examination findings">
                                             <button type="button" class="btn btn-outline-danger"
-                                                @click="if(confirm('Clear examination findings for both eyes?')) clear('both')" title="Clear descriptive findings for both eyes">
+                                                @click="appConfirm('Clear examination findings for both eyes?').then(ok => ok && clear('both'))" title="Clear descriptive findings for both eyes">
                                                 <i class="fas fa-eraser mr-1"></i> Clear
                                             </button>
                                             <button type="button" class="btn btn-outline-danger"
-                                                @click="if(confirm('Clear OD examination findings?')) clear('od')" title="Clear descriptive findings for the right eye">OD</button>
+                                                @click="appConfirm('Clear OD examination findings?').then(ok => ok && clear('od'))" title="Clear descriptive findings for the right eye">OD</button>
                                             <button type="button" class="btn btn-outline-danger"
-                                                @click="if(confirm('Clear OS examination findings?')) clear('os')" title="Clear descriptive findings for the left eye">OS</button>
+                                                @click="appConfirm('Clear OS examination findings?').then(ok => ok && clear('os'))" title="Clear descriptive findings for the left eye">OS</button>
                                         </div>
                                     </div>
                                 @endunless
@@ -789,7 +789,7 @@
                             </aside>
                         @endif
                         <div class="consultation-actions text-right">
-                            <button type="button" onclick="if(window.consultationDirty&&!confirm('Discard unsaved consultation changes?'))event.stopImmediatePropagation()" wire:click="cancelAndGoBack" class="btn btn-secondary px-4">
+                            <button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack" class="btn btn-secondary px-4">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
                             <button type="submit" class="btn {{ $consultationFieldsLocked ? 'btn-success' : 'btn-primary' }} px-5" wire:loading.attr="disabled">
@@ -829,7 +829,7 @@
                 @endif
             </div>
             @if(count($productsList) > 0 && $consultationID)
-                <button wire:click="clearPrescription" onclick="return confirm('Clear all prescription items?')"
+                <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
                     class="btn btn-xs btn-outline-danger">
                     <i class="fas fa-trash"></i> Clear All
                 </button>
@@ -1151,7 +1151,7 @@
                                                     @if(!$isLocked)
                                                         <button wire:click="removeProduct({{ $index }})"
                                                             class="btn btn-xs btn-outline-danger py-0 px-1"
-                                                            onclick="return confirm('Remove this product?')" title="Remove item">
+                                                            wire:confirm="Remove this product?" title="Remove item">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     @else
@@ -1186,7 +1186,7 @@
                 {{-- Compact Action Buttons --}}
                 @if(count($productsList) > 0)
                     <div class="mt-2 d-flex justify-content-between align-items-center bg-white p-2 border rounded shadow-xs">
-                        <button wire:click="clearPrescription" onclick="return confirm('Clear all prescription items?')"
+                        <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
                             class="btn btn-xs btn-outline-danger font-weight-bold">
                             <i class="fas fa-trash mr-1"></i> Clear Unsaved Items
                         </button>
@@ -1243,7 +1243,7 @@
                             @if($consultationID)
                                 <button type="button" wire:click="resetRefractionChanges"
                                     class="btn btn-outline-secondary px-4"
-                                    onclick="return confirm('Discard unsaved refraction changes and reload the saved values?')">
+                                    wire:confirm="Discard unsaved refraction changes and reload the saved values?">
                                     <i class="fas fa-undo"></i> Reset Changes
                                 </button>
                             @endif
@@ -1395,7 +1395,7 @@
                                                             </a>
                                                             @if(auth()->user()->hasRole('Super Admin'))
                                                                 <button wire:click="deletePatientDocument({{ $document->id }})"
-                                                                    onclick="return confirm('Delete this document?')"
+                                                                    wire:confirm="Delete this document?"
                                                                     class="btn btn-xs btn-outline-danger">
                                                                     <i class="fas fa-trash"></i>
                                                                 </button>

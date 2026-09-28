@@ -17,7 +17,10 @@ class Expense extends Model
         'expense_category_id',
         'expense_date',
         'description',
+        'payee',
         'amount',
+        'payment_method',
+        'recurring_expense_id',
         'reference',
         'notes',
         'receipt_path',
@@ -28,6 +31,9 @@ class Expense extends Model
     // Clinic and optical expenses are kept apart; every screen reads one line only.
     public const CLINIC = BusinessLine::CLINIC;
     public const OPTICAL = BusinessLine::OPTICAL;
+
+    /** How it was paid. Cash comes out of the till, so End of day takings deducts it. */
+    public const PAYMENT_METHODS = ['cash' => 'Cash from till', 'momo' => 'Mobile Money', 'card' => 'Card', 'bank_transfer' => 'Bank transfer'];
 
     protected $casts = [
         'expense_date' => 'date',
@@ -44,6 +50,11 @@ class Expense extends Model
     public function category()
     {
         return $this->belongsTo(ExpenseCategory::class, 'expense_category_id');
+    }
+
+    public function recurringExpense()
+    {
+        return $this->belongsTo(RecurringExpense::class);
     }
 
     public function recorder()

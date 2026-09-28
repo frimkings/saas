@@ -21,9 +21,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\SmsService;
-use App\Services\EmailService;
 use App\Models\SmsTemplate;
-use App\Mail\PaymentReceiptMail;
 use Livewire\Attributes\Locked;
 
 class POSComponent extends Component
@@ -1105,6 +1103,7 @@ class POSComponent extends Component
             'text-warning',
             route('admin.discount-approvals')
         );
+        app(\App\Services\OwnerAlerts::class)->discountRequested($request);
 
         $this->pendingDiscountApprovalId = $request->id;
         $this->pendingDiscountApprovalStatus = $request->status;
@@ -2384,16 +2383,7 @@ class POSComponent extends Component
                     );
                 }
             }
-
-            if ($patient->email) {
-                (new EmailService())->send($patient->email, new PaymentReceiptMail(
-                    $patient->name,
-                    $clinic,
-                    number_format((float) $sale->total_amount, 2),
-                    $sale->transaction_id,
-                    $sale->created_at?->format('M d, Y h:i A') ?? now()->format('M d, Y h:i A'),
-                ));
-            }
+            // Patients hear from the clinic by SMS only; email is for the clinic owner.
         } catch (\Throwable $e) {
             Log::warning('Post-commit payment receipt delivery failed.', [
                 'sale_id' => $sale->id,

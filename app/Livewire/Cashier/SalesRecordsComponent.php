@@ -53,7 +53,10 @@ class SalesRecordsComponent extends Component
     public function mount(?string $line = null)
     {
         $this->businessLine = request()->routeIs('optical.*') || $line === 'optical' ? 'optical' : 'clinic';
-        abort_if(!auth()->user()?->hasRole(['Secretary', 'Cashier', 'Manager', 'Super Admin']), 403);
+        // Optical sales follow the optical roles; clinic sales keep their own.
+        abort_if($this->businessLine === 'optical'
+            ? ! \App\Support\OpticalAccess::can(auth()->user(), 'optical.sales')
+            : ! auth()->user()?->hasRole(['Secretary', 'Cashier', 'Manager', 'Super Admin']), 403);
         $this->normalizeFilters();
     }
 
@@ -378,7 +381,7 @@ class SalesRecordsComponent extends Component
         $selectedIds = collect($this->initiateRefundItemIds)->map(fn ($id) => (int) $id)->unique();
         abort_unless($selectedIds->isNotEmpty() && $selectedIds->diff($allowedIds)->isEmpty(), 422, 'Invalid or already-refunded sale item selected.');
 
-        RefundLog::create([
+        $refund = RefundLog::create([
             'sale_id'      => $sale->id,
             'sale_item_ids'=> $selectedIds->values()->all(),
             'status'       => RefundLog::STATUS_PENDING,
@@ -415,6 +418,7 @@ class SalesRecordsComponent extends Component
             null,
             auth()->id()
         );
+        app(\App\Services\OwnerAlerts::class)->refundRequested($refund, $sale);
 
         $this->initiatingRefundSale = null;
         $this->initiateRefundReason = '';
@@ -431,6 +435,13 @@ class SalesRecordsComponent extends Component
         if ($this->businessLine === 'optical') {
             session()->flash('success', "Refund request for #{$sale->transaction_id} submitted. Awaiting manager approval.");
         }
+    }
+
+    /** Renderless close for the optical refund drawer, which the browser has already closed (dismissCall). */
+    #[\Livewire\Attributes\Renderless]
+    public function dismissRefundInitiation(): void
+    {
+        $this->cancelRefundInitiation();
     }
 
     public function cancelRefundInitiation()
@@ -500,18 +511,21 @@ class SalesRecordsComponent extends Component
             ? 'layouts.admin.admin-layout'
             : 'layouts.secretary.secretary-layout');
 
+        $sales = $query->orderBy($this->sortColumn, $this->sortDirection)->paginate(10);
+        // Optical draws every listed sale's panel, hidden, so View opens it in the browser without a call.
+        $drawerIds = $this->businessLine === 'optical' ? $sales->pluck('id')->push($this->panelSaleId)->filter()->unique() : collect();
+        $drawerSales = $drawerIds->isEmpty() ? collect() : Sales::where('business_line', 'optical')->whereIn('id', $drawerIds)
+            ->with(['items.product', 'items.opticalProduct', 'patient', 'user', 'paymentTransactions', 'refundLogs', 'pendingRefundLog'])
+            ->get()->sortBy(fn ($sale) => $drawerIds->search($sale->id))->values();
+
         return view($this->businessLine === 'optical' ? 'livewire.optical.optical-sales-component' : 'livewire.cashier.sales-records-component', [
-            'sales' => $query->orderBy($this->sortColumn, $this->sortDirection)->paginate(10),
+            'sales' => $sales,
+            'drawerSales' => $drawerSales,
+            'saleOrders' => $drawerIds->isEmpty() ? collect() : \App\Models\LensOrder::whereIn('sale_id', $drawerIds)->get(['id', 'order_id', 'status', 'created_at', 'sale_id'])->groupBy('sale_id'),
             'totalSales' => $totalSales,
             'totalReceipts' => $totalReceipts,
             'refundCount' => $refundCount,
             'refundTotal' => $refundTotal,
-            'panelSale' => $this->businessLine === 'optical' && $this->panelSaleId
-                ? Sales::where('business_line', 'optical')->with(['items.product', 'items.opticalProduct', 'patient', 'user', 'paymentTransactions', 'refundLogs'])->find($this->panelSaleId)
-                : null,
-            'panelOrders' => $this->businessLine === 'optical' && $this->panelSaleId
-                ? \App\Models\LensOrder::where('sale_id', $this->panelSaleId)->get(['id', 'order_id', 'status', 'created_at'])
-                : collect(),
         ])->layout($layout);
     }
 }

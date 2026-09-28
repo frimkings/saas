@@ -12,7 +12,7 @@
         </div>
     </div>
 
-    @if(session()->has('success'))<div class="ui-panel p-3 text-emerald-800" role="status">{{ session('success') }}</div>@endif
+    <x-ui.flash />
     @if($errors->any())<div class="ui-panel p-3 text-red-700" role="alert">{{ $errors->first() }}</div>@endif
 
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -23,14 +23,14 @@
     </div>
 
     @if($showPaymentForm)
-        <form wire:submit.prevent="recordPayment" class="ui-panel p-5 space-y-4" aria-label="Record partner payment">
+        <form data-sheet wire:submit.prevent="recordPayment" class="ui-panel p-5 space-y-4" aria-label="Record partner payment">
             <h2 class="text-sm font-semibold text-slate-900">Record a payment from {{ $partner->name }}</h2>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <label class="text-xs font-semibold">Amount received ({{ currency() }}) *<input type="number" min="0.01" step="0.01" max="{{ $balance }}" wire:model.live.debounce.400ms="paymentAmount" class="ui-input mt-1 w-full font-mono"><span class="font-normal text-slate-500">Owed: {{ currency() }} {{ number_format($balance, 2) }}</span></label>
+                <label class="text-xs font-semibold">Amount received ({{ currency() }}) *<input autocomplete="off" type="number" min="0.01" step="0.01" max="{{ $balance }}" wire:model.live.debounce.400ms="paymentAmount" class="ui-input mt-1 w-full font-mono"><span class="font-normal text-slate-500">Owed: {{ currency() }} {{ number_format($balance, 2) }}</span></label>
                 <label class="text-xs font-semibold">Method *<select wire:model="paymentMethod" class="ui-input mt-1 w-full">@foreach(\App\Models\OpticalPartnerPayment::METHODS as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
-                <label class="text-xs font-semibold">Reference<input type="text" wire:model="paymentReference" maxlength="100" placeholder="Bank / MoMo transaction ID" class="ui-input mt-1 w-full"></label>
+                <label class="text-xs font-semibold">Reference<input autocomplete="off" type="text" wire:model="paymentReference" maxlength="100" placeholder="Bank / MoMo transaction ID" class="ui-input mt-1 w-full"></label>
             </div>
-            <label class="block text-xs font-semibold">Notes<input type="text" wire:model="paymentNotes" maxlength="1000" class="ui-input mt-1 w-full"></label>
+            <label class="block text-xs font-semibold">Notes<input autocomplete="off" type="text" wire:model="paymentNotes" maxlength="1000" class="ui-input mt-1 w-full"></label>
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model.live="allocateManually"> Choose which jobs this pays (otherwise oldest jobs are settled first)</label>
             @if($allocateManually)
                 <table class="w-full text-xs">
@@ -41,7 +41,7 @@
                                 <td class="py-1">{{ $order->order_id }}@if($order->customer_name) · {{ $order->customer_name }}@endif @if($order->partnerReference()) · ref {{ $order->partnerReference() }}@endif</td>
                                 <td class="py-1">{{ $order->created_at->format('d M Y') }}</td>
                                 <td class="py-1 text-right font-mono">{{ number_format($service->balanceOf($order), 2) }}</td>
-                                <td class="py-1 text-right"><input type="number" min="0" step="0.01" max="{{ $service->balanceOf($order) }}" wire:model.live.debounce.400ms="allocations.{{ $order->id }}" class="ui-input w-24 text-right" aria-label="Apply to {{ $order->order_id }}"></td>
+                                <td class="py-1 text-right"><input autocomplete="off" type="number" min="0" step="0.01" max="{{ $service->balanceOf($order) }}" wire:model.live.debounce.400ms="allocations.{{ $order->id }}" class="ui-input w-24 text-right" aria-label="Apply to {{ $order->order_id }}"></td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -51,7 +51,7 @@
             @endif
             <div class="flex gap-2">
                 <button type="submit" wire:confirm="Record this payment against {{ $partner->name }}'s jobs?" class="ui-button ui-button-primary">Record payment</button>
-                <button type="button" wire:click="$set('showPaymentForm', false)" class="ui-button ui-button-secondary">Cancel</button>
+                <button type="button" x-on:click="dismissLocal($el, $wire, { showPaymentForm: false })" class="ui-button ui-button-secondary">Cancel</button>
             </div>
         </form>
     @endif

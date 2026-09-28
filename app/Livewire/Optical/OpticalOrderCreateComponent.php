@@ -326,6 +326,8 @@ class OpticalOrderCreateComponent extends Component
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
         abort_unless(in_array($product->category?->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
+        // A stock lens item is one lens; stock lenses are matched per eye from the prescription.
+        abort_unless($product->lens_specs === null, 404);
         $this->lens_optical_product_id = $product->id;
         $this->lens_fulfilment_source = 'catalogue';
         $this->lens_price = $product->selling_price;
@@ -552,15 +554,22 @@ class OpticalOrderCreateComponent extends Component
         $this->currentStep = $this->nextApplicableStep($this->currentStep, 1);
     }
 
+    /** Discount is optional; a blank field means no discount. */
+    private function normalizeDiscount(): void
+    {
+        if (trim((string) $this->discount_amount) === '') $this->discount_amount = 0;
+    }
+
     private function validatePricing(): void
     {
+        $this->normalizeDiscount();
         $this->validate([
             'service_lines' => $this->work_type === 'service' ? 'required|array|min:1|max:20' : 'array|max:20',
             'service_lines.*.service_id' => [
                 'required', 'integer', Rule::exists('optical_services', 'id')->where('clinic_id', app(TenantContext::class)->clinicId())->where('is_active', true),
             ],
             'service_lines.*.quantity' => 'required|integer|min:1|max:1000',
-            'discount_amount' => 'required|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
         ], [
             'service_lines.*.quantity.*' => 'Enter a whole-number quantity from 1 to 1000 for each service.',
         ]);
@@ -693,10 +702,44 @@ class OpticalOrderCreateComponent extends Component
         } elseif ($usable->isEmpty()) {
             $this->lensAvailability = [
                 'status' => 'outside_sourcing',
-                'message' => 'Neither prescription power is in stock at this branch. Choose special order.',
+                'message' => $this->noStockMessage($this->currentMeasurements()),
                 'eyes' => [],
             ];
         }
+    }
+
+    /** Explains why nothing matched, and points reading-only prescriptions at single vision stock. */
+    private function noStockMessage(array $measurements): string
+    {
+        $num = fn ($value) => is_numeric($value) ? (float) $value : 0.0;
+        $power = fn ($value) => sprintf('%+.2f', $value);
+        $adds = array_filter([$num($measurements['od']['add'] ?? ''), $num($measurements['os']['add'] ?? '')]);
+        if (! $adds) {
+            return 'Neither eye\'s lens power is in single vision stock at this branch. Choose special order.';
+        }
+
+        $addText = count(array_unique(array_map($power, $adds))) === 1 ? 'ADD '.$power(reset($adds)) : 'This ADD';
+        $hasEyeSpecificStock = OpticalProduct::whereNotNull('lens_specs')->where('is_active', true)
+            ->whereIn('lens_specs->design', \App\Support\LensDesign::EYE_SPECIFIC)
+            ->whereHas('stocks', fn ($stock) => $stock->where('quantity', '>', 0))->exists();
+        $message = $hasEyeSpecificStock
+            ? "{$addText} needs a progressive or bifocal lens, and none are in stock at this branch for these powers. Choose special order."
+            : "{$addText} needs a progressive or bifocal lens, and this branch has no progressive or bifocal lenses in stock. Choose special order.";
+
+        // Reading glasses: the near power is SPH + ADD in a single vision lens. Stock
+        // multifocals and this shortcut both need a prescription without cylinder.
+        if ($num($measurements['od']['cyl'] ?? '') == 0 && $num($measurements['os']['cyl'] ?? '') == 0) {
+            $reading = [];
+            foreach (['od', 'os'] as $eye) {
+                $reading[$eye] = ['sph' => $power($num($measurements[$eye]['sph'] ?? '') + $num($measurements[$eye]['add'] ?? '')), 'cyl' => '', 'add' => ''];
+            }
+            $label = 'SPH '.$reading['od']['sph'].($reading['os']['sph'] !== $reading['od']['sph'] ? ' (R) / '.$reading['os']['sph'].' (L)' : '');
+            $inStock = collect(app(OpticalLensAvailabilityService::class)->stockOptions($reading))->contains('status', 'available');
+            $message .= " If these are reading glasses only, enter {$label} with no ADD to use single vision lenses"
+                .($inStock ? ', which are in stock.' : ' (not currently in stock either).');
+        }
+
+        return $message;
     }
 
     private function stockLensUsable(): bool
@@ -781,11 +824,13 @@ class OpticalOrderCreateComponent extends Component
             }
         }
         $catalogue = $this->selectedServices()->keyBy('id');
-        foreach ($this->service_lines as $line) {
+        foreach ($this->service_lines as $index => $line) {
             $service = $catalogue->get((int) ($line['service_id'] ?? 0));
             if (! $service) continue;
             $quantity = max(0, (int) ($line['quantity'] ?? 0));
-            $lines[] = ['label' => $service->name.($quantity !== 1 ? ' × '.$quantity : ''), 'amount' => round($quantity * (float) $service->price, 2)];
+            // name, unit and service_index let the page recount the line as the quantity is typed.
+            $lines[] = ['label' => $service->name.($quantity !== 1 ? ' × '.$quantity : ''), 'amount' => round($quantity * (float) $service->price, 2),
+                'name' => $service->name, 'unit' => (float) $service->price, 'service_index' => $index];
         }
         if ((float) $this->glazing_fee > 0) {
             $lines[] = ['label' => 'Glazing fee (from earlier quotation)', 'amount' => (float) $this->glazing_fee];
@@ -798,6 +843,7 @@ class OpticalOrderCreateComponent extends Component
 
         return [
             'lines' => $lines,
+            'free' => $this->remakeIsFree(),
             'subtotal' => $subtotal,
             'discount' => $this->remakeIsFree() ? 0.0 : (float) $this->discount_amount,
             'total' => $this->remakeIsFree() ? 0.0 : max(0, round($subtotal - (float) $this->discount_amount, 2)),
@@ -852,6 +898,7 @@ class OpticalOrderCreateComponent extends Component
                 throw ValidationException::withMessages(['lens_stock' => 'These lenses are no longer in stock. Check availability again or choose special order.']);
             }
         }
+        $this->normalizeDiscount();
         $this->validate([
             'order_source' => 'required|in:in_clinic,partner,walk_in',
             'patient_id' => $this->order_source === 'in_clinic'
@@ -873,7 +920,7 @@ class OpticalOrderCreateComponent extends Component
             'lens_price' => 'required|numeric|min:0',
             'optical_category_id' => ['nullable', Rule::exists('optical_categories', 'id')->where('clinic_id', app(TenantContext::class)->clinicId())->where('is_active', true)],
             'glazing_fee' => 'required|numeric|min:0',
-            'discount_amount' => 'required|numeric|min:0',
+            'discount_amount' => 'nullable|numeric|min:0',
             'paid_amount' => 'required|numeric|min:0',
             'pickUpDate' => 'required|date',
             'reference' => $this->order_source === 'partner' && ! trim((string) $this->customer_name) ? 'required|string|max:255' : 'nullable|string|max:255',
@@ -952,7 +999,7 @@ class OpticalOrderCreateComponent extends Component
             // SKU choices belong only to the finished/catalogued-lens workflow.
             // Branch lens blanks are matched directly from the Rx specification on Next.
             'lenses' => $this->lens_fulfilment_source === 'catalogue'
-                ? OpticalProduct::with('stocks')->where('is_active', true)->whereIn('optical_category_id', $lensCategories->pluck('id'))->orderBy('name')->get()
+                ? OpticalProduct::with('stocks')->where('is_active', true)->whereNull('lens_specs')->whereIn('optical_category_id', $lensCategories->pluck('id'))->orderBy('name')->get()
                 : collect(),
             'opticalCategories' => $lensCategories,
             'serviceCatalogue' => OpticalService::where('is_active', true)->orderBy('name')->get(),

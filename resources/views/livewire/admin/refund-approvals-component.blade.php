@@ -138,7 +138,7 @@
 
                                     <button type="button"
                                             wire:click="confirmApprove({{ $log->id }})"
-                                            onclick="return confirm('Approve this refund request? It will be queued for processing.')"
+                                            wire:confirm="Approve this refund request? It will be queued for processing."
                                             class="btn btn-sm btn-success shadow-none mr-1"
                                             title="Approve refund request">
                                         <i class="fas fa-check mr-1"></i> Approve
@@ -151,7 +151,7 @@
                                 @elseif($log->status === 'approved')
                                     <button type="button"
                                             wire:click="process({{ $log->id }})"
-                                            onclick="return confirm('Process this refund? This marks the sale as refunded and restores stock.')"
+                                            wire:confirm="Process this refund? This marks the sale as refunded and restores stock."
                                             class="btn btn-sm btn-primary shadow-none"
                                             title="Execute refund — restores stock and marks sale as refunded">
                                         <i class="fas fa-undo mr-1"></i> Process

@@ -16,7 +16,6 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    private array $baseMailConfig = [];
     /**
      * Register any application services.
      */
@@ -27,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
             \App\Support\Tenancy\TenantContext::class,
             fn () => new \App\Support\Tenancy\TenantContext()
         );
+        // Caches price lists for the request; stock option pricing looks them up per eye.
+        $this->app->scoped(\App\Services\OpticalLensPriceList::class);
     }
 
     /**
@@ -42,11 +43,6 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Database\Events\ConnectionEstablished::class,
             fn ($event) => $attachLicenseGuard($event->connection));
         foreach (\Illuminate\Support\Facades\DB::getConnections() as $connection) $attachLicenseGuard($connection);
-        $this->baseMailConfig = [
-            'mail.default' => config('mail.default'),
-            'mail.mailers.smtp' => config('mail.mailers.smtp'),
-            'mail.from' => config('mail.from'),
-        ];
         // Every queued job carries the authenticated clinic/branch in its payload.
         // Workers re-authorize it before processing and always clear it afterward.
         Queue::createPayloadUsing(function (): array {
@@ -66,15 +62,16 @@ class AppServiceProvider extends ServiceProvider
                     app(\App\Services\ClinicAccessService::class)->assertWritable();
                 }
             }
-            $this->configureTenantMail();
         });
 
-        $clearTenant = function (): void {
-            app(TenantContext::class)->clear();
-            $this->restoreBaseMailConfig();
-        };
+        // Every clinic sends through the platform's Resend account (config/mail.php), so
+        // there is no per-clinic mail setup to swap in and out around jobs.
+        $clearTenant = fn () => app(TenantContext::class)->clear();
         Queue::after(fn (JobProcessed $event) => $clearTenant());
         Queue::exceptionOccurred(fn (JobExceptionOccurred $event) => $clearTenant());
+
+        // Livewire's own requests from an optical page are checked against that page's role access too.
+        \Livewire\Livewire::addPersistentMiddleware([\App\Http\Middleware\EnsureOpticalAccess::class]);
 
         // @feature('feature_name') ... @else ... @endfeature
         Blade::if('feature', fn(string $f) => LicenseService::has($f));
@@ -98,47 +95,9 @@ class AppServiceProvider extends ServiceProvider
             view()->share('appSettings', $settings);
         }
 
-        // Web requests may already have a resolved tenant; queue workers call
-        // this again after restoring each job's captured clinic context.
-        $this->configureTenantMail();
-
         // Super Admin Gate
         Gate::before(function ($user, $ability) {
             return $user->hasRole('Super Admin') ? true : null;
         });
-    }
-
-    private function configureTenantMail(): void
-    {
-        try {
-            if (! Schema::hasTable('settings')) return;
-            $s = \App\Models\Setting::first();
-            if (! $s || ! $s->smtp_host || ! $s->smtp_username) {
-                $this->restoreBaseMailConfig();
-                return;
-            }
-
-            $password = '';
-            if ($s->smtp_password) {
-                try {
-                    $password = \Illuminate\Support\Facades\Crypt::decrypt($s->smtp_password);
-                } catch (\Throwable) {}
-            }
-            config([
-                'mail.default'                 => 'smtp',
-                'mail.mailers.smtp.host'       => $s->smtp_host,
-                'mail.mailers.smtp.port'       => (int) ($s->smtp_port ?? 587),
-                'mail.mailers.smtp.username'   => $s->smtp_username,
-                'mail.mailers.smtp.password'   => $password,
-                'mail.mailers.smtp.encryption' => $s->smtp_encryption,
-                'mail.from.address'            => $s->smtp_from_address ?? $s->clinic_email,
-                'mail.from.name'               => $s->smtp_from_name    ?? $s->clinic_name,
-            ]);
-        } catch (\Throwable) {}
-    }
-
-    private function restoreBaseMailConfig(): void
-    {
-        if ($this->baseMailConfig !== []) config($this->baseMailConfig);
     }
 }

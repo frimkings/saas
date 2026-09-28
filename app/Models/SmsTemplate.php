@@ -14,14 +14,20 @@ class SmsTemplate extends Model
     /** Placeholders every template may use; filled from the clinic and branch when the caller does not supply them. */
     public const CONTEXT_PLACEHOLDERS = ['[CLINIC]', '[BRANCH]', '[BRANCH_ADDRESS]', '[BRANCH_PHONE]', '[LINK]'];
 
-    protected $fillable = ['key', 'label', 'message', 'placeholders'];
+    protected $fillable = ['key', 'label', 'message', 'placeholders', 'is_enabled'];
 
-    protected $casts = ['placeholders' => 'array'];
+    protected $casts = ['placeholders' => 'array', 'is_enabled' => 'boolean'];
 
-    /** Render a template by key, replacing placeholders with given values. */
-    public static function render(string $key, array $replacements, ?Branch $branch = null): string
+    /**
+     * Render a template by key, replacing placeholders with given values. Returns '' when the
+     * clinic has switched this message off, so nothing is sent; $evenIfOff is for text staff
+     * send themselves (a WhatsApp link), not for automatic SMS.
+     */
+    public static function render(string $key, array $replacements, ?Branch $branch = null, bool $evenIfOff = false): string
     {
-        $message = static::where('key', $key)->value('message') ?? DefaultSmsTemplates::message($key);
+        $row = static::where('key', $key)->first(['message', 'is_enabled']);
+        if ($row && ! $row->is_enabled && ! $evenIfOff) return '';
+        $message = $row?->message ?? DefaultSmsTemplates::message($key);
         if (!$message) return '';
 
         return static::fillMessage($message, $replacements, $branch);

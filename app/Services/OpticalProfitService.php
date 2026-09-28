@@ -67,6 +67,7 @@ class OpticalProfitService
             'costs' => array_map(fn ($v) => round($v, 2), $costs['lines']),
             'totalCosts' => $totalCosts,
             'uncostedFrames' => $costs['uncostedFrames'],
+            'uncostedLenses' => $costs['uncostedLenses'],
             'grossProfit' => $grossProfit,
             'grossMargin' => $totalRevenue > 0 ? round($grossProfit / $totalRevenue * 100, 1) : null,
             'losses' => array_map(fn ($v) => round($v, 2), $losses),
@@ -114,7 +115,7 @@ class OpticalProfitService
         return array_intersect_key($pl, array_flip(['totalRevenue', 'totalCosts', 'grossProfit', 'totalLosses', 'totalOperating', 'totalNonOperating', 'netProfit']));
     }
 
-    /** @return array{lines: array<string, float>, uncostedFrames: int} */
+    /** @return array{lines: array<string, float>, uncostedFrames: int, uncostedLenses: int} */
     private function costOfSales($orders, $retailSales): array
     {
         // The cost kept at sale time, falling back to the product's current cost price.
@@ -129,19 +130,23 @@ class OpticalProfitService
         }
 
         $orderIds = $orders->pluck('id');
-        $stockLenses = OpticalOrderLensLine::with('product')->whereIn('lens_order_id', $orderIds)
-            ->where('source', 'stock')->whereIn('status', ['held', 'consumed'])->get()
-            ->sum(fn ($line) => $cost($line->product, 1, $line->unit_cost));
+        $stockLines = OpticalOrderLensLine::with('product')->whereIn('lens_order_id', $orderIds)
+            ->where('source', 'stock')->whereIn('status', ['held', 'consumed'])->get();
+        $stockLenses = $stockLines->sum(fn ($line) => $cost($line->product, 1, $line->unit_cost));
         $catalogueLenses = $orders->sum(fn ($order) => $cost($order->lensOpticalProduct, 1, $order->lens_optical_product_id ? $order->lens_unit_cost : null));
         $legacyAllocations = $orders->sum(fn ($order) => collect($order->lens_blank_allocations ?? [])
             ->sum(fn ($allocation) => ! empty($allocation['optical_product_id'])
                 ? $cost(OpticalProduct::withTrashed()->find($allocation['optical_product_id']), (int) ($allocation['quantity'] ?? 0)) : 0));
-        $specialOrder = OpticalPurchaseOrderLine::whereIn('lens_order_id', $orderIds)->get()
-            ->sum(fn ($line) => $line->quantity_received * (float) $line->unit_cost);
+        $specialLines = OpticalPurchaseOrderLine::whereIn('lens_order_id', $orderIds)->get();
+        $specialOrder = $specialLines->sum(fn ($line) => $line->quantity_received * (float) $line->unit_cost);
         $retail = SaleItem::with('opticalProduct')->whereIn('sale_id', $retailSales->pluck('id'))->whereNotNull('optical_product_id')->get()
             ->sum(fn ($item) => $cost($item->opticalProduct, max(0, (int) $item->dispensed_quantity - (int) $item->refunded_quantity), $item->unit_cost));
+        // Jobs that charged for lenses but show no lens cost anywhere: gross profit is too high for them.
+        $costedLensJobs = $stockLines->pluck('lens_order_id')->merge($specialLines->pluck('lens_order_id'))->flip();
+        $uncostedLenses = $orders->filter(fn ($order) => (float) $order->lens_price > 0 && ! isset($costedLensJobs[$order->id])
+            && ! $order->lens_optical_product_id && empty($order->lens_blank_allocations) && (float) $order->lab_cost <= 0)->count();
 
-        return ['lines' => [
+        return ['uncostedLenses' => $uncostedLenses, 'lines' => [
             'Frames' => $frames,
             'Stock lenses used' => $stockLenses + $catalogueLenses + $legacyAllocations,
             'Special-order lenses bought' => $specialOrder,

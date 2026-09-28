@@ -47,8 +47,11 @@ class OpticalLensImportReceiptService
                 'reference' => $reference ?: null, 'batch_number' => $details['batch_number'],
                 'repeat_reason' => $matches->isNotEmpty() ? trim($repeatReason) : null,
             ]);
-            foreach ($lines as [$sphere, $power, $quantity, $cost, $price]) {
+            foreach ($lines as $line) {
+                [$sphere, $power, $quantity, $cost, $price] = $line;
                 $lineSpecs = $specs + ['sphere' => number_format((float) $sphere, 2, '.', ''), 'power' => number_format((float) $power, 2, '.', '')];
+                // Both-eye pair receipts arrive as separate right and left lines.
+                if (isset($line[5])) $lineSpecs['eye'] = $line[5];
                 app(OpticalLensReceivingService::class)->receive($lineSpecs, $quantity, array_merge($details, [
                     'unit_cost' => round((float) $cost, 2), 'unit_price' => round((float) $price, 2),
                     'optical_lens_import_id' => $receipt->id,

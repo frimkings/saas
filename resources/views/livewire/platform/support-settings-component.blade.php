@@ -1,7 +1,7 @@
 <x-platform.page active="support" title="Support Contact" subtitle="Shown to clinic staff when their clinic is locked for non-payment, and to clinic admins on the renewal page.">
     <style>.sp-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr);gap:16px;align-items:start}.sp-preview{background:#0b1526;border:1px dashed #334560;border-radius:10px;padding:16px;line-height:1.7}.sp-preview b{display:block;font-size:14px;margin-bottom:4px}.sp-preview .pp-actions{margin-top:10px}@media(max-width:900px){.sp-grid{grid-template-columns:1fr}}</style>
 
-    @if(session('support_message'))<div class="pp-ok" role="status">{{ session('support_message') }}</div>@endif
+    <x-ui.flash :map="['support_message' => 'success']" />
 
     <div class="sp-grid">
         <form wire:submit="save" class="pp-card pp-form">

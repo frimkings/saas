@@ -13,9 +13,20 @@
     @switch($licenseNotice['stage'])
         @case('active')
         @case('expiring')
-            <div class="alert alert-info m-3" role="status">
-                <strong>Renewal reminder:</strong> the {{ $place }} {{ $what }} expires in {{ $licenseNotice['days'] }} day(s), on {{ $licenseNotice['cutoff'] }}.
-                @if($isClinicAdmin)<a href="{{ route($renewRoute) }}" class="alert-link">Renew now</a>@else Please remind your {{ $place }} administrator to renew.@endif
+            {{-- An early reminder can be hidden for the day; in the last week it stays up. --}}
+            @php $dismissible = ($licenseNotice['days'] ?? 0) > 7; $dismissKey = 'renewal-reminder-hidden-'.($licenseNotice['cutoff_date'] ?? ''); @endphp
+            {{-- x-show sits on a wrapper: Alpine resets the inline display of the element it toggles. --}}
+            <div @if($dismissible) x-data="{ hidden: (() => { try { return localStorage.getItem(@js($dismissKey)) === new Date().toDateString() } catch (e) { return false } })() }" x-show="! hidden" @endif>
+            <div class="alert alert-info m-3" role="status" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 14px;font-size:13px">
+                <span>
+                    <strong>Renewal reminder:</strong> the {{ $place }} {{ $what }} expires in {{ $licenseNotice['days'] }} {{ \Illuminate\Support\Str::plural('day', $licenseNotice['days']) }}, on {{ $licenseNotice['cutoff_date'] ?? $licenseNotice['cutoff'] }}.
+                    @if($isClinicAdmin)<a href="{{ route($renewRoute) }}" class="alert-link">Renew now</a>@else Please remind your {{ $place }} administrator to renew.@endif
+                </span>
+                @if($dismissible)
+                    <button type="button" aria-label="Hide renewal reminder for today" title="Hide for today" style="border:0;background:none;font-size:18px;line-height:1;color:inherit;cursor:pointer"
+                            x-on:click="hidden = true; try { localStorage.setItem(@js($dismissKey), new Date().toDateString()) } catch (e) {}">&times;</button>
+                @endif
+            </div>
             </div>
             @break
         @case('grace')

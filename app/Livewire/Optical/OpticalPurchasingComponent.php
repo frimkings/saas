@@ -74,17 +74,26 @@ class OpticalPurchasingComponent extends Component
     public function mount(): void
     {
         abort_unless(in_array($this->tab, ['orders', 'special', 'returns', 'suppliers'], true), 404);
-        // "Order from reorder list" on the lens stock grid lands here with the range specs.
+        $planner = app(\App\Services\OpticalLensOrderPlanner::class);
+        // "Create supplier order" on the lens stock grid: every power below its reorder level,
+        // topped up to target, in pairs (both eyes for progressive and bifocal).
         if (is_string($specs = request()->query('reorder'))) {
             $specs = json_decode(base64_decode($specs, true) ?: '', true);
             if (is_array($specs)) {
-                $rows = app(\App\Services\OpticalLensReplenishmentService::class)->rows($specs)->where('pairs', '>', 0);
-                $products = OpticalProduct::whereIn('id', $rows->pluck('id'))->get()->keyBy('id');
+                unset($specs['eye']);
+                $pairs = app(\App\Services\OpticalLensReplenishmentService::class)->rows($specs)->where('pairs', '>', 0)
+                    ->groupBy(fn ($row) => $planner->key((float) $row['sphere'], (float) $row['power']))
+                    ->map(fn ($rows) => (int) $rows->max('pairs'))->all();
                 $this->openOrderForm();
-                foreach ($rows as $row) {
-                    $product = $products->get($row['id']);
-                    if ($product) $this->draftLines[] = ['product_id' => $product->id, 'label' => $product->sku.' · '.$product->name, 'quantity' => $row['pairs'] * 2, 'unit_cost' => (string) $product->cost_price];
-                }
+                $this->draftLines = $planner->draftLines($specs, $pairs);
+            }
+        }
+        // Powers picked on the lens stock grid, each ordered in the chosen number of pairs.
+        if (is_string($payload = request()->query('lensorder'))) {
+            $payload = json_decode(base64_decode($payload, true) ?: '', true);
+            if (is_array($payload) && is_array($payload['specs'] ?? null) && is_array($payload['cells'] ?? null)) {
+                $this->openOrderForm();
+                $this->draftLines = $planner->draftLines($payload['specs'], array_map('intval', $payload['cells']));
             }
         }
     }
@@ -110,7 +119,7 @@ class OpticalPurchasingComponent extends Component
     {
         $product = OpticalProduct::where('is_active', true)->findOrFail($productId);
         foreach ($this->draftLines as $i => $line) {
-            if ((int) $line['product_id'] === $product->id) { $this->draftLines[$i]['quantity'] = (int) $line['quantity'] + 1; $this->productSearch = ''; return; }
+            if ((int) ($line['product_id'] ?? 0) === $product->id) { $this->draftLines[$i]['quantity'] = (int) $line['quantity'] + 1; $this->productSearch = ''; return; }
         }
         $this->draftLines[] = ['product_id' => $product->id, 'label' => $product->sku.' · '.$product->name, 'quantity' => 1, 'unit_cost' => (string) $product->cost_price];
         $this->productSearch = '';
@@ -124,18 +133,30 @@ class OpticalPurchasingComponent extends Component
 
     public function saveDraft(bool $place = false): void
     {
-        $this->validate([
+        $rules = [
             'supplierId' => 'required|integer',
             'expectedDate' => 'nullable|date',
             'orderNotes' => 'nullable|string|max:2000',
             'draftLines' => 'required|array|min:1',
-            'draftLines.*.quantity' => 'required|integer|min:1|max:100000',
-            'draftLines.*.unit_cost' => 'nullable|numeric|min:0|max:99999999',
-        ], ['draftLines.required' => 'Add at least one item to the order.']);
+        ];
+        foreach ($this->draftLines as $i => $line) {
+            // Lens lines are entered in pairs at a cost per pair; other items per unit.
+            $rules += ! empty($line['lens_pairs'])
+                ? ["draftLines.$i.pairs" => 'required|integer|min:1|max:50000', "draftLines.$i.pair_cost" => 'nullable|numeric|min:0|max:99999999']
+                : ["draftLines.$i.quantity" => 'required|integer|min:1|max:100000', "draftLines.$i.unit_cost" => 'nullable|numeric|min:0|max:99999999'];
+        }
+        $this->validate($rules, ['draftLines.required' => 'Add at least one item to the order.']);
+        $planner = app(\App\Services\OpticalLensOrderPlanner::class);
         $service = app(OpticalPurchasingService::class);
-        $order = $service->createDraft((int) $this->supplierId, array_map(fn ($line) => [
-            'product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_cost' => $line['unit_cost'],
-        ], $this->draftLines), $this->expectedDate ?: null, $this->orderNotes);
+        // Lens powers new to a range get their stock items here; nothing is left behind if the order fails.
+        $order = \Illuminate\Support\Facades\DB::transaction(function () use ($planner, $service) {
+            $lines = [];
+            foreach ($this->draftLines as $line) {
+                if (! empty($line['lens_pairs'])) array_push($lines, ...$planner->expand($line));
+                else $lines[] = ['product_id' => (int) $line['product_id'], 'quantity' => (int) $line['quantity'], 'unit_cost' => $line['unit_cost']];
+            }
+            return $service->createDraft((int) $this->supplierId, $lines, $this->expectedDate ?: null, $this->orderNotes);
+        });
         if ($place) $service->place($order->id);
         $this->showOrderForm = false;
         $this->viewOrderId = $order->id;
@@ -149,6 +170,14 @@ class OpticalPurchasingComponent extends Component
         $this->showOrderForm = false;
         $this->receiveQty = $order->lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->outstanding()])->all();
         $this->reset(['invoiceReference', 'batchNumber']);
+        $this->resetValidation();
+    }
+
+    /** Renderless: the browser has already closed the order panel (dismissCall). The id is locked, so it closes here. */
+    #[\Livewire\Attributes\Renderless]
+    public function closeOrder(): void
+    {
+        $this->viewOrderId = null;
         $this->resetValidation();
     }
 
@@ -247,6 +276,13 @@ class OpticalPurchasingComponent extends Component
         $this->settleReference = '';
     }
 
+    /** The settle id is locked, so the browser cannot clear it: Cancel comes here. */
+    public function cancelSettle(): void
+    {
+        $this->settleId = null;
+        $this->resetValidation();
+    }
+
     public function settleReturn(): void
     {
         $this->validate(['settleStatus' => 'required|in:credited,replaced,written_off', 'settleReference' => 'nullable|string|max:100']);
@@ -295,7 +331,7 @@ class OpticalPurchasingComponent extends Component
     /** Plain-text order for WhatsApp to the supplier. */
     public function supplierMessage(OpticalPurchaseOrder $order): string
     {
-        $lines = $order->lines->map(fn ($line) => '- '.$line->quantity_ordered.' × '.$line->description)->implode("\n");
+        $lines = $order->supplierLines()->map(fn ($row) => '- '.$row['quantity'].' × '.$row['description'])->implode("\n");
         return "Purchase order {$order->po_number}\n{$lines}".($order->expected_date ? "\nNeeded by ".$order->expected_date->format('d M Y') : '')."\nThank you.";
     }
 

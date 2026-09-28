@@ -19,6 +19,7 @@
         "league/flysystem-aws-s3-v3": "3.0",
         "livewire/livewire": "^3.4",
         "nativephp/desktop": "^2.2",
+        "resend/resend-php": "^1.16",
         "spatie/laravel-backup": "^10.3",
         "spatie/laravel-permission": "^6.23",
         "symfony/css-selector": "^6.4|^7.0"

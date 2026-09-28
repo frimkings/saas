@@ -38,7 +38,8 @@ class OfflinePasswordResetController extends Controller
                 PasswordResetRequest::where('email', $email)
                     ->whereIn('status', ['rejected', 'completed'])
                     ->update(['status' => 'completed']);
-                PasswordResetRequest::create(['email' => $email, 'status' => 'pending']);
+                $resetRequest = PasswordResetRequest::create(['email' => $email, 'status' => 'pending']);
+                app(\App\Services\OwnerAlerts::class)->passwordResetRequested($resetRequest);
             }
         }
 

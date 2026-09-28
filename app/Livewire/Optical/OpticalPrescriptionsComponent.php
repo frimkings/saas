@@ -89,6 +89,12 @@ class OpticalPrescriptionsComponent extends Component
         $this->resetErrorBag();
     }
 
+    /** The form is closed in the browser (dismissLocal); tidy up when the server hears of it. */
+    public function updatedShowExternalModal($value): void
+    {
+        if (! $value) $this->resetErrorBag();
+    }
+
     public function pickCustomer(int $id): void
     {
         $this->patient_id = Patient::findOrFail($id)->id;

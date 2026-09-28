@@ -98,7 +98,7 @@
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger ml-2"
                                     wire:click="deleteSelected"
-                                    onclick="return confirm('Delete selected diagnosis records? This cannot be undone.')">
+                                    wire:confirm="Delete selected diagnosis records? This cannot be undone.">
                                 <i class="fas fa-trash-alt mr-1"></i>Delete Selected
                             </button>
                             <button type="button"
@@ -391,7 +391,7 @@
                                             </button>
                                             <button class="btn btn-sm dx-action-btn dx-action-btn--delete"
                                                     wire:click="delete({{ $diagnosis->id }})"
-                                                    onclick="return confirm('Delete &quot;{{ addslashes($diagnosis->name) }}&quot;? This cannot be undone.')"
+                                                    wire:confirm="Delete &quot;{{ $diagnosis->name }}&quot;? This cannot be undone."
                                                     title="Delete this diagnosis">
                                                 <i class="fas fa-trash-alt"></i>
                                             </button>

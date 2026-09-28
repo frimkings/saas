@@ -9,17 +9,12 @@
         <button wire:click="openCreateOrderModal" type="button" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ New order</button>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold flex items-center justify-between" role="status">
-            <span>{{ session('success') }}</span>
-            <button type="button" onclick="this.parentElement.remove()" class="text-teal-600 hover:text-teal-900 font-bold" aria-label="Dismiss">&times;</button>
-        </div>
-    @endif
+    <x-ui.flash />
     @if($errors->any() && ! $viewOrderId) <div class="oo-note red" role="alert">{{ $errors->first() }}</div> @endif
 
     <div class="ui-panel bg-white">
         <div class="oo-toolbar">
-            <input type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search order ID, customer, phone, frame or service…" class="ui-input text-sm" aria-label="Search orders">
+            <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search order ID, customer, phone, frame or service…" class="ui-input text-sm" aria-label="Search orders">
             <span class="ui-muted" wire:loading.delay wire:target="searchTerm,setFilter,datePreset,dateFrom,dateTo,dateField,sourceFilter,partnerFilter,clearFilters">Updating…</span>
         </div>
         <div class="oo-filters">
@@ -101,7 +96,7 @@
                                         <a href="{{ $whatsApp }}" target="_blank" rel="noopener" wire:click="recordPanelWhatsApp({{ $ord->id }}, '{{ $ord->ready_notified_at ? \App\Services\OpticalCollectionNotifier::REMINDER : \App\Services\OpticalCollectionNotifier::READY }}')" title="Tell the customer on WhatsApp" aria-label="WhatsApp the customer" class="oo-btn wa wa-icon"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
                                     @else<span class="oo-slot"></span>@endif
                                     @if($blocked && $canTakePayment)
-                                        <button type="button" wire:click="openPaymentModal({{ $ord->id }})" class="oo-btn warn">Take payment</button>
+                                        <button type="button" x-on:click="openLocal($wire, { paymentOrderId: {{ $ord->id }}, paymentAmount: '{{ number_format(max(0, $ord->total - (float) $ord->paid_amount), 2, '.', '') }}', showPaymentModal: true }, $root.querySelector('[data-payment-form]'))" class="oo-btn warn">Take payment</button>
                                     @elseif($blocked)
                                         <span class="oo-btn warn" style="cursor:default" title="This clinic order is paid on the patient's clinic bill. Take the payment at reception or the cashier.">Pay at clinic</span>
                                     @elseif($step && ! $awaiting)

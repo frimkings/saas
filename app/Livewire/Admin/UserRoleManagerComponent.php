@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\LicenseService;
 use App\Support\Feature;
 use Spatie\Permission\Models\Role;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
@@ -71,9 +72,14 @@ class UserRoleManagerComponent extends Component
     private const CURRENT_MEMBER_STATUSES = ['active', 'inactive'];
     private const SORT_WHITELIST = ['name', 'email', 'created_at', 'is_active', 'staff_id', 'id'];
 
+    /** Opened from the Optical workspace (or an optical-only clinic): show the way back. */
+    #[Locked]
+    public bool $fromOptical = false;
+
     public function mount(): void
     {
         abort_if(!$this->canManageUsers(), 403);
+        $this->fromOptical = request()->query('from') === 'optical' || \App\Support\OpticalMode::opticalOnly();
     }
 
     protected function rules(): array
@@ -192,7 +198,8 @@ class UserRoleManagerComponent extends Component
         $users = $this->staffQuery($clinic)->paginate($this->perPage);
 
         $allRoles = Role::where('name', 'like', '%' . $this->roleSearch . '%')->get();
-        $availableRoles = Role::all();
+        // Only Super Admins can hand out the Super Admin role.
+        $availableRoles = Role::query()->when(! $this->actsAsSuperAdmin(), fn ($query) => $query->where('name', '!=', 'Super Admin'))->orderBy('name')->get();
 
         $clinicUsers = User::query()->whereHas('clinics', fn ($query) => $query->whereKey($clinic->id)->whereIn('clinic_user.status', self::CURRENT_MEMBER_STATUSES));
         $memberships = DB::table('clinic_user')->where('clinic_id', $clinic->id);
@@ -311,7 +318,13 @@ class UserRoleManagerComponent extends Component
             return;
         }
 
-        DB::transaction(function () use ($rolesByBranch) {
+        // The owner is told when staff join or are given admin access.
+        $isNew = ! $this->userId;
+        $rolesBefore = $isNew ? [] : DB::table('branch_user_role')->join('roles', 'roles.id', '=', 'branch_user_role.role_id')
+            ->where('branch_user_role.user_id', $this->userId)->whereIn('branch_user_role.branch_id', $this->currentClinic()->branches()->pluck('id'))
+            ->distinct()->pluck('roles.name')->all();
+
+        $user = DB::transaction(function () use ($rolesByBranch) {
         $user = User::updateOrCreate(['id' => $this->userId], [
             'name'          => $this->name,
             'email'         => $this->email,
@@ -362,13 +375,21 @@ class UserRoleManagerComponent extends Component
                 ]);
             }
         }
+        return $user;
         });
+        $rolesAfter = collect($rolesByBranch)->flatten()->unique()->values()->all();
+        if ($isNew) {
+            app(\App\Services\OwnerAlerts::class)->staffAdded($user, $rolesAfter);
+        } elseif (\App\Services\OwnerAlerts::grantsAdmin($rolesBefore, $rolesAfter)) {
+            app(\App\Services\OwnerAlerts::class)->staffPromoted($user, $rolesAfter);
+        }
         $this->dispatch('notify', ...['type' => 'success', 'message' => $this->userId ? 'Staff updated successfully.' : 'New staff member registered.']);
         $this->closeModal();
     }
 
     public function toggleStatus($id)
     {
+        abort_if(!$this->canManageUsers(), 403);
         if (auth()->id() === $id) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Security check: You cannot deactivate your own account.']);
             return;
@@ -443,6 +464,7 @@ class UserRoleManagerComponent extends Component
             DB::table('clinic_user')->where('clinic_id', $this->currentClinic()->id)->where('user_id', $user->id)->update(['is_default' => false]);
         });
         app(ClinicMembershipManager::class)->ensureDefault($user);
+        app(\App\Services\OwnerAlerts::class)->staffRemoved($user);
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Staff member removed from this clinic. Their records here are kept.']);
     }
 
@@ -554,6 +576,7 @@ class UserRoleManagerComponent extends Component
 
         $validRoles = Role::pluck('name')->map(fn ($n) => strtolower($n))->flip()->toArray();
         $results    = ['created' => 0, 'skipped' => 0, 'errors' => []];
+        $imported   = [];
 
         foreach ($rows as $i => $row) {
             $rowNum = $i + 2;
@@ -597,6 +620,11 @@ class UserRoleManagerComponent extends Component
             }
 
             $roleName = Role::whereRaw('LOWER(name) = ?', [$roleKey])->value('name');
+            if ($roleName === 'Super Admin' && ! $this->actsAsSuperAdmin()) {
+                $results['errors'][] = "Row {$rowNum}: only a Super Admin can give the Super Admin role — skipped.";
+                $results['skipped']++;
+                continue;
+            }
 
             if ($staffId !== '' && DB::table('clinic_user')->where('clinic_id', $this->currentClinic()->id)->where('staff_identifier', $staffId)->exists()) {
                 $results['errors'][] = "Row {$rowNum}: staff ID \"{$staffId}\" is already used by someone in this clinic — skipped.";
@@ -634,6 +662,7 @@ class UserRoleManagerComponent extends Component
                     'updated_at' => now(),
                 ]);
                 $results['created']++;
+                $imported[] = ['name' => $name, 'email' => $email, 'role' => $roleName];
             } catch (\Exception $e) {
                 \Log::error("CSV import row {$rowNum} failed", ['email' => $email, 'error' => $e->getMessage()]);
                 $results['errors'][] = "Row {$rowNum}: failed to create user — check server log for details.";
@@ -643,6 +672,8 @@ class UserRoleManagerComponent extends Component
 
         $this->importFile    = null;
         $this->importResults = $results;
+        // One email to the owner for the whole import.
+        if ($imported) app(\App\Services\OwnerAlerts::class)->staffImported($imported);
 
         if ($results['created'] > 0) {
             $this->dispatch('notify', ...[
@@ -665,6 +696,24 @@ class UserRoleManagerComponent extends Component
         return (bool) ($user?->hasRole('Super Admin') || $user?->can('manage users'));
     }
 
+    /**
+     * Managers may add and manage staff, but the Super Admin role and Super Admin accounts
+     * stay with Super Admins: otherwise anyone who can manage users could promote themselves.
+     */
+    private function actsAsSuperAdmin(): bool
+    {
+        return (bool) auth()->user()?->hasRole('Super Admin');
+    }
+
+    private function isSuperAdminHere(User $user): bool
+    {
+        return $user->hasRole('Super Admin') || DB::table('branch_user_role')
+            ->join('roles', 'roles.id', '=', 'branch_user_role.role_id')
+            ->where('branch_user_role.user_id', $user->id)->where('roles.name', 'Super Admin')
+            ->whereIn('branch_user_role.branch_id', $this->currentClinic()->branches()->select('id'))
+            ->exists();
+    }
+
     private function validatedRolesByBranch(): ?array
     {
         $validRoles = Role::pluck('name')->all();
@@ -675,6 +724,10 @@ class UserRoleManagerComponent extends Component
                 ? $this->selectedRoles
                 : ($this->branchRoles[$branchId] ?? $this->branchRoles[(string) $branchId] ?? []);
             $roles = array_values(array_unique(array_intersect($roles, $validRoles)));
+            if (in_array('Super Admin', $roles, true) && ! $this->actsAsSuperAdmin()) {
+                $this->addError($this->roleAssignmentMode === 'shared' ? 'selectedRoles' : "branchRoles.{$branchId}", 'Only a Super Admin can give the Super Admin role.');
+                return null;
+            }
             if ($roles === []) {
                 $field = $this->roleAssignmentMode === 'shared' ? 'selectedRoles' : "branchRoles.{$branchId}";
                 $this->addError($field, 'Select at least one role for this branch.');
@@ -693,8 +746,11 @@ class UserRoleManagerComponent extends Component
 
     private function managedUser(int $id): User
     {
-        return User::query()->whereKey($id)
+        $user = User::query()->whereKey($id)
             ->whereHas('clinics', fn ($query) => $query->whereKey($this->currentClinic()->id)->whereIn('clinic_user.status', self::CURRENT_MEMBER_STATUSES))
             ->firstOrFail();
+        abort_if(! $this->actsAsSuperAdmin() && $this->isSuperAdminHere($user), 403, 'Only a Super Admin can change a Super Admin account.');
+
+        return $user;
     }
 }

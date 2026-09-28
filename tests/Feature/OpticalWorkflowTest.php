@@ -523,6 +523,34 @@ class OpticalWorkflowTest extends TestCase
         } finally { if (file_exists($path)) unlink($path); }
     }
 
+    public function test_excel_preview_error_is_shown_beside_the_import_controls(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $user->assignRole(Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']));
+        $this->tenant($user, 'excel-lens-error');
+        $this->actingAs($user);
+        $path = tempnam(sys_get_temp_dir(), 'lens-xlsx-');
+        $zip = new \ZipArchive();
+        $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>');
+        $zip->addFromString('xl/workbook.xml', '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="BLUE BLOCK" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/></Relationships>');
+        $zip->addFromString('xl/worksheets/sheet1.xml', '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="4"><c r="A4" t="inlineStr"><is><t>(+)</t></is></c><c r="B4"><v>0</v></c><c r="C4"><v>-0.25</v></c></row><row r="5"><c r="A5" t="inlineStr"><is><t>+0.00</t></is></c><c r="B5"><v>3</v></c><c r="C5" t="inlineStr"><is><t>s</t></is></c></row></sheetData></worksheet>');
+        $zip->close();
+        try {
+            $html = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
+                ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('lensRange', 'Blue Block')
+                ->set('excelFile', UploadedFile::fake()->createWithContent('order.xlsx', file_get_contents($path)))
+                ->assertSet('excelUnit', 'pairs')->call('previewExcel')
+                ->assertHasErrors('excelFile')->html();
+            $message = 'Invalid quantity in 1 cell: C5 (&quot;s&quot;)';
+            $this->assertStringContainsString($message, $html);
+            // Must appear inside the import panel, not only in the error list at the foot of the long form.
+            $this->assertLessThan(strpos($html, 'wire:model.live="templateGrid"'), strpos($html, $message));
+        } finally { if (file_exists($path)) unlink($path); }
+    }
+
     public function test_lens_import_reversal_is_atomic_and_history_is_branch_scoped(): void
     {
         config(['tenancy.enabled' => true]);
@@ -572,13 +600,17 @@ class OpticalWorkflowTest extends TestCase
         foreach ([0 => 1, 1 => 9, 2 => 10, 3 => 11] as $i => $qty) {
             $products[$i] = app(\App\Services\OpticalLensReceivingService::class)->receive($specs + ['sphere' => number_format($i / 4, 2, '.', ''), 'power' => '0.00'], $qty, ['unit_cost' => 10, 'unit_price' => 20]);
         }
+        $this->assertSame('REORDERR-SV-1.56-BLUECUT-P0.25-0.00', $products[1]->sku);
+        $this->assertSame('REORDERR-SV-1.56-BLUECUT-0.00-0.00', $products[0]->sku);
+        $clash = app(\App\Services\OpticalLensReceivingService::class)->receive(['range' => 'Reorder Range Two'] + $specs + ['sphere' => '0.25', 'power' => '0.00'], 1, ['unit_cost' => 10, 'unit_price' => 20]);
+        $this->assertMatchesRegularExpression('/^REORDERR-SV-1\.56-BLUECUT-P0\.25-0\.00-[0-9A-F]{6}$/', $clash->sku);
         app(\App\Services\OpticalStockLedgerService::class)->adjust($products[0], -1, 'Empty stock');
         $service = app(\App\Services\OpticalLensReplenishmentService::class);
         $rows = $service->rows($specs);
         $this->assertSame([10, 6, 5, 0], $rows->pluck('pairs')->all());
         $this->assertSame([true, true, true, false], $rows->pluck('low')->all());
         $form = Livewire::test(OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix');
-        $form->assertSee('bg-yellow-100', false)->assertSee('bg-red-100', false)->assertSee('21 pairs');
+        $form->assertSee('data-tp="y"', false)->assertSee('data-tp="r"', false)->assertSee('21 pairs');
         $form->call('editReorderLevels')->set('reorderPairs.'.$products[3]->id, 6)->set('targetPairs.'.$products[3]->id, 12)
             ->call('saveReorderLevels')->assertHasNoErrors();
         $this->assertSame(7, $service->rows($specs)->last()['pairs']);
@@ -1066,12 +1098,235 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame(394.0, $pl['netProfit']);
         $this->assertSame(100.0, $pl['cash']['received']);
 
-        $this->get(route('optical.profit'))->assertOk()->assertSee('Optical Profit &amp; Loss', false)->assertSee('394.00');
+        $this->assertSame(1, $pl['uncostedLenses'], 'The custom-lens job has no lens cost; the stock-lens job does.');
+
+        $this->get(route('optical.profit'))->assertOk()->assertSee('Optical Profit &amp; Loss', false)->assertSee('394.00')
+            ->assertSee('1 job charged for lenses with no lens cost recorded')->assertSee('% of revenue')->assertSee('Change')
+            ->assertSee(e(route('optical.expenses', ['fromDate' => now()->startOfMonth()->toDateString(), 'toDate' => now()->toDateString(), 'categoryId' => \App\Models\ExpenseCategory::where('name', 'Rent')->value('id')])), false);
+        Livewire::test(\App\Livewire\Optical\OpticalProfitComponent::class)->set('compare', 'months')
+            ->assertSee(now()->subMonthsNoOverflow(2)->format('M Y'))->assertSee(now()->subMonthNoOverflow()->format('M Y'))->assertDontSee('Change</th>', false)
+            ->set('compare', 'none')->assertDontSee('Change</th>', false)
+            ->set('compare', 'bogus')->assertSet('compare', 'previous');
+
+        // Like-for-like comparisons.
+        $previous = fn ($from, $to) => array_map(fn ($date) => $date->toDateString(), \App\Livewire\Optical\OpticalProfitComponent::previousPeriod(\Illuminate\Support\Carbon::parse($from), \Illuminate\Support\Carbon::parse($to)));
+        $this->assertSame(['2026-08-01', '2026-08-27'], $previous('2026-09-01', '2026-09-27'), 'Month to date: the same days last month.');
+        $this->assertSame(['2026-02-01', '2026-02-28'], $previous('2026-03-01', '2026-03-31'), 'A whole month: the month before.');
+        $this->assertSame(['2026-02-01', '2026-02-28'], $previous('2026-03-01', '2026-03-30'), 'Clipped to the end of a shorter month.');
+        $this->assertSame(['2026-04-01', '2026-06-30'], $previous('2026-07-01', '2026-09-30'), 'A quarter: the quarter before.');
+        $this->assertSame(['2025-01-01', '2025-09-27'], $previous('2026-01-01', '2026-09-27'), 'Year to date: the same dates last year.');
+        $this->assertSame(['2026-09-03', '2026-09-09'], $previous('2026-09-10', '2026-09-16'), 'Any other range: the same number of days before.');
         $this->get(route('optical.expenses'))->assertOk()->assertSee('Optical Expenses')->assertSee('Shop rent')->assertDontSee('Clinic rent');
         $this->get(route('optical.expenses', ['fromDate' => now()->subYear()->toDateString()]))->assertOk()->assertSee('Shop rent');
         $this->get(route('optical.expenses.receipt', $clinicExpense))->assertNotFound();
         $staff = User::factory()->create();
         $this->actingAs($staff)->get(route('optical.profit'))->assertForbidden();
+    }
+
+    public function test_expenses_record_payee_and_method_and_repeating_bills_come_due(): void
+    {
+        $manager = $this->opticalManager('optical-expense-repeat');
+        $rent = \App\Models\ExpenseCategory::create(['name' => 'Rent', 'section' => 'operating_expense', 'is_active' => true, 'color' => '#0f766e']);
+        $page = Livewire::test(\App\Livewire\Admin\ExpensesComponent::class, ['businessLine' => 'optical'])
+            ->assertSee('No expenses recorded in these dates');
+
+        // A monthly rent paid in cash from the till, set to repeat.
+        $page->call('openCreate')->set('state.amount', '1500')->set('state.payee', 'Mr Mensah (landlord)')
+            ->set('state.expense_category_id', (string) $rent->id)->set('state.description', 'Shop rent')
+            ->set('state.payment_method', 'cash')->set('state.repeat', true)->set('state.frequency', 'monthly')
+            ->call('save')->assertHasNoErrors()->assertSet('showModal', false)
+            ->assertSee('Mr Mensah (landlord)')->assertSee('Cash from till')->assertSee('Biggest cost');
+        $expense = \App\Models\Expense::where('description', 'Shop rent')->sole();
+        $this->assertSame('cash', $expense->payment_method);
+        $recurring = \App\Models\RecurringExpense::sole();
+        $this->assertSame($recurring->id, $expense->recurring_expense_id);
+        $this->assertSame(today()->addMonthNoOverflow()->toDateString(), $recurring->next_due_date->toDateString());
+        $page->call('openCreate')->set('state.amount', '20')->set('state.description', 'Bad method')->set('state.payment_method', 'crypto')
+            ->call('save')->assertHasErrors('state.payment_method')->set('showModal', false);
+
+        // When it falls due it shows at the top; recording can change the amount and moves it on a month.
+        $recurring->update(['next_due_date' => today()->subDay()]);
+        $page->call('$refresh')->assertSee('Repeating expenses due')->assertSee('Overdue since')
+            ->call('recordRecurring', $recurring->id)->assertSet('state.payee', 'Mr Mensah (landlord)')->assertSet('state.expense_date', today()->subDay()->toDateString())
+            ->set('state.amount', '1600')->call('save')->assertHasNoErrors()->assertDontSee('Repeating expenses due');
+        $this->assertSame(today()->subDay()->addMonthNoOverflow()->toDateString(), $recurring->fresh()->next_due_date->toDateString());
+        $this->assertEquals(1600, \App\Models\Expense::where('recurring_expense_id', $recurring->id)->latest('id')->value('amount'));
+        $this->assertSame(1, \App\Models\RecurringExpense::count(), 'Recording a due one does not start another schedule.');
+
+        // Skip moves it on without recording; Stop ends it.
+        $recurring->update(['next_due_date' => today()]);
+        $page->call('skipRecurring', $recurring->id);
+        $this->assertSame(today()->addMonthNoOverflow()->toDateString(), $recurring->fresh()->next_due_date->toDateString());
+        $this->assertSame(2, \App\Models\Expense::count());
+        $page->call('stopRecurring', $recurring->id);
+        $this->assertFalse($recurring->fresh()->is_active);
+
+        // Receipts missing, and search by who was paid.
+        $page->set('receipt', 'missing')->assertSee('Shop rent')->set('search', 'Mensah')->assertSee('Shop rent')->set('search', 'nobody')->assertViewHas('expenses', fn ($expenses) => $expenses->total() === 0);
+
+        // Cash paid out of the till comes off the cash expected at the end of the day.
+        $cash = app(\App\Services\OpticalReportService::class)->cash(today()->subDay(), today());
+        $this->assertEquals(3100, $cash['cashPaidOut']);
+        $this->assertEquals(-3100, $cash['cashExpected']);
+
+        // Clinic expenses never see optical repeating bills.
+        $this->assertSame(0, \App\Models\RecurringExpense::businessLine('clinic')->count());
+    }
+
+    public function test_expense_form_saves_in_one_call_from_the_browser(): void
+    {
+        $this->opticalManager('optical-expense-one-call');
+        $page = Livewire::test(\App\Livewire\Admin\ExpensesComponent::class, ['businessLine' => 'optical'])
+            ->assertDontSee('Shop rent');
+
+        // Invalid: nothing saved, the form stays open with its errors.
+        $page->call('saveExpense', ['amount' => '', 'description' => ''])->assertHasErrors(['state.amount', 'state.description']);
+        $this->assertSame(0, \App\Models\Expense::count());
+
+        // New, repeating monthly.
+        $page->call('saveExpense', ['expense_date' => today()->toDateString(), 'amount' => '900', 'payee' => 'Landlord', 'description' => 'Shop rent',
+            'payment_method' => 'bank_transfer', 'repeat' => true, 'frequency' => 'monthly'])->assertHasNoErrors()->assertReturned(true)
+            ->assertSee('Shop rent')->assertSee('Bank transfer')
+            // The row carries its details, so opening it in the browser needs no server call.
+            ->assertSee('data-expense="{&quot;id&quot;:', false);
+        $expense = \App\Models\Expense::sole();
+        $this->assertSame(1, \App\Models\RecurringExpense::count());
+
+        // Edit: changes this expense only, never starts a schedule, and ignores a recurring id.
+        $page->call('saveExpense', ['expense_date' => today()->toDateString(), 'amount' => '950', 'payee' => 'Landlord', 'description' => 'Shop rent (Sept)',
+            'payment_method' => 'cash', 'repeat' => true], $expense->id, \App\Models\RecurringExpense::sole()->id)->assertReturned(true);
+        $this->assertEquals(950, $expense->fresh()->amount);
+        $this->assertSame('cash', $expense->fresh()->payment_method);
+        $this->assertSame(1, \App\Models\Expense::count());
+        $this->assertSame(1, \App\Models\RecurringExpense::count());
+
+        // Recording a due repeating bill moves it on.
+        $recurring = \App\Models\RecurringExpense::sole();
+        $recurring->update(['next_due_date' => today()]);
+        $page->call('saveExpense', ['expense_date' => today()->toDateString(), 'amount' => '900', 'description' => 'Shop rent'], null, $recurring->id)->assertReturned(true);
+        $this->assertSame(today()->addMonthNoOverflow()->toDateString(), $recurring->fresh()->next_due_date->toDateString());
+        $this->assertSame(2, \App\Models\Expense::where('recurring_expense_id', $recurring->id)->count());
+    }
+
+    private function opticalStaff(string $slug, string $roleName): User
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $role = Role::where('name', $roleName)->firstOrFail();
+        $user->assignRole($role);
+        [, $branch] = $this->tenant($user, $slug);
+        DB::table('branch_user_role')->insert(['user_id' => $user->id, 'branch_id' => $branch->id, 'role_id' => $role->id]);
+        // A fresh session, so a previous person's clinic in the same test is not carried over.
+        $this->flushSession();
+        $this->actingAs($user);
+        return $user;
+    }
+
+    public function test_optical_roles_open_only_their_screens(): void
+    {
+        // The sales desk: orders, POS and collection, but not the lab, reports or management.
+        $this->opticalStaff('optical-assistant', 'Optical Assistant');
+        foreach (['optical.dashboard', 'optical.orders', 'optical.orders.create', 'optical.pos', 'optical.collections', 'optical.sales', 'optical.prescriptions', 'optical.partners', 'optical.catalogue'] as $route) {
+            $this->assertSame(200, $this->get(route($route))->status(), $route);
+        }
+        foreach (['optical.lab-workbench', 'optical.stock-counts', 'optical.reports', 'optical.purchasing', 'optical.expenses', 'optical.profit', 'optical.settings'] as $route) {
+            $this->get(route($route))->assertForbidden();
+        }
+        $this->get(route('optical.dashboard'))->assertSee('Retail POS')->assertDontSee('Lab Workbench')->assertDontSee('Staff &amp; roles', false);
+        $this->get(route('admin.users'))->assertForbidden();
+
+        // The lab: workbench, job tracking and stock, but not the till.
+        $this->opticalStaff('optical-lab-tech', 'Lab Technician');
+        foreach (['optical.lab-workbench', 'optical.jobs', 'optical.catalogue', 'optical.stock-counts'] as $route) {
+            $this->get(route($route))->assertOk();
+        }
+        foreach (['optical.pos', 'optical.orders.create', 'optical.sales', 'optical.reports', 'optical.purchasing'] as $route) {
+            $this->get(route($route))->assertForbidden();
+        }
+        $this->assertSame('optical.lab-workbench', Role::where('name', 'Lab Technician')->value('dashboard_route'));
+
+        // An Optician opens everything except management.
+        $this->opticalStaff('optical-optician', 'Optician');
+        foreach (['optical.orders', 'optical.lab-workbench', 'optical.pos', 'optical.reports', 'optical.stock-counts'] as $route) {
+            $this->get(route($route))->assertOk();
+        }
+        $this->get(route('optical.purchasing'))->assertForbidden();
+    }
+
+    public function test_managers_add_staff_but_only_super_admins_hand_out_super_admin(): void
+    {
+        $manager = $this->opticalManager('optical-staff-admin');
+        $this->get(route('optical.dashboard'))->assertSee('Staff &amp; roles', false)->assertSee(e(route('admin.users', ['from' => 'optical'])), false);
+        $this->get(route('admin.users', ['from' => 'optical']))->assertOk()->assertSee('Back to Optical');
+        $branchId = app(TenantContext::class)->branchId();
+
+        $page = Livewire::test(\App\Livewire\Admin\UserRoleManagerComponent::class)
+            ->assertDontSee('<option value="Super Admin">', false)
+            ->call('create')->assertSee('Lab Technician')->assertSee('The lab: workbench');
+        // Giving someone the Super Admin role is refused.
+        $page->call('create')->set('name', 'Would Be Owner')->set('email', 'owner@example.test')
+            ->set('password', 'secret123')->set('password_confirmation', 'secret123')
+            ->set('selectedBranchIds', [$branchId])->set('defaultBranchId', $branchId)
+            ->set('roleAssignmentMode', 'shared')->set('selectedRoles', ['Super Admin'])
+            ->call('store')->assertHasErrors('selectedRoles');
+        $this->assertDatabaseMissing('users', ['email' => 'owner@example.test']);
+        // An optical role is fine.
+        $page->set('selectedRoles', ['Lab Technician'])->call('store')->assertHasNoErrors();
+        $this->assertTrue(User::where('email', 'owner@example.test')->firstOrFail()->hasRole('Lab Technician'));
+
+        // A Super Admin's account is out of a manager's reach.
+        $owner = User::factory()->create();
+        $owner->assignRole('Super Admin');
+        app(TenantContext::class)->clinic()->users()->attach($owner->id, ['status' => 'active', 'is_default' => true]);
+        Livewire::test(\App\Livewire\Admin\UserRoleManagerComponent::class)->call('edit', $owner->id)->assertForbidden();
+        Livewire::test(\App\Livewire\Admin\UserRoleManagerComponent::class)->call('openResetPassword', $owner->id)->assertForbidden();
+    }
+
+    public function test_panels_close_in_the_browser_and_the_server_catches_up(): void
+    {
+        $this->opticalManager('optical-local-close');
+
+        // Purchasing ids are locked, so the browser asks these methods to close (the old $set was refused).
+        Livewire::test(\App\Livewire\Optical\OpticalPurchasingComponent::class)
+            ->call('closeOrder')->assertSet('viewOrderId', null)->assertHasNoErrors()
+            ->call('cancelSettle')->assertSet('settleId', null);
+        $this->expectsLockedUpdate(fn () => Livewire::test(\App\Livewire\Optical\OpticalPurchasingComponent::class)->set('viewOrderId', 5));
+
+        // The order panel closes in the browser; when the server hears of it, stale errors go.
+        $orders =Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class);
+        $orders->instance()->addError('order', 'Old problem');
+        $orders->set('viewOrderId', 12)->set('viewOrderId', null)->assertHasNoErrors();
+
+        // Lens price form: closing in the browser clears what was being edited.
+        Livewire::test(\App\Livewire\Optical\LensPriceListComponent::class)
+            ->set('pairPrice', '99')->set('editingKey', 'x')->set('editingKey', null)->assertSet('pairPrice', '')->assertSet('rules', []);
+
+        // Awaiting Collection filters in the browser: the page carries every job and what the filters read.
+        Livewire::test(\App\Livewire\Optical\OpticalCollectionsComponent::class)
+            ->assertSee('awaitingFilter()', false)->assertSee('x-model="search"', false)->assertDontSee('wire:model.live', false);
+
+        // Blank forms open in the browser: drawn with the page, and the header buttons make no call.
+        Livewire::test(\App\Livewire\Optical\PartnerClinicsComponent::class)
+            ->assertSee('data-partner-form', false)->assertDontSee('wire:click="add"', false);
+        Livewire::test(\App\Livewire\Optical\OpticalPurchasingComponent::class)
+            ->assertSee('data-order-form', false)->assertSee('data-return-form', false)
+            ->assertDontSee('wire:click="openOrderForm"', false)->assertDontSee('wire:click="openReturnForm"', false);
+
+        // Forms that open in the browser are drawn ready, and their buttons fill them without a call.
+        Livewire::test(\App\Livewire\Optical\OpticalCategoriesComponent::class)
+            ->assertSee('data-category-form', false)->assertSee('openLocal($wire', false)->assertDontSee('wire:click="edit(', false);
+        Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->call('setTab', 'services')
+            ->assertSee('data-service-form', false)->assertDontSee('wire:click="editService(', false);
+    }
+
+    private function expectsLockedUpdate(callable $callback): void
+    {
+        try {
+            $callback();
+            $this->fail('A locked property was changed from the browser.');
+        } catch (\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException) {
+            $this->addToAssertionCount(1);
+        }
     }
 
     public function test_optical_period_lock_freezes_its_expenses_and_the_statement_exports(): void
@@ -1625,6 +1880,11 @@ class OpticalWorkflowTest extends TestCase
             ->call('addService', $glazing->id)->call('addService', $tint->id)->call('addService', $tint->id)
             ->assertCount('service_lines', 2)
             ->set('service_lines.1.quantity', 2)
+            // Discount is optional: a blank field means no discount.
+            ->set('discount_amount', '')
+            ->call('nextStep')
+            ->assertHasNoErrors()->assertSet('currentStep', 6)->assertSet('discount_amount', 0)
+            ->set('currentStep', 5)
             ->set('discount_amount', 200)
             ->call('nextStep')
             ->assertHasErrors(['discount_amount'])
@@ -1636,6 +1896,11 @@ class OpticalWorkflowTest extends TestCase
         $pricing = $form->instance()->priceBreakdown();
         $this->assertSame(125.0, $pricing['total']);
         $this->assertSame(['OD lens · branch stock', 'OS lens · special order'], array_slice(array_column($pricing['lines'], 'label'), 1, 2));
+        // Service lines carry what the page needs to recount them as the quantity is typed.
+        $tintLine = collect($pricing['lines'])->firstWhere('name', 'Tint Priced');
+        $this->assertSame(['unit' => 15.0, 'service_index' => 1], ['unit' => $tintLine['unit'], 'service_index' => $tintLine['service_index']]);
+        $this->assertFalse($pricing['free']);
+        $form->set('currentStep', 5)->assertSee('orderPricing(', false)->assertSee('wire:model="discount_amount"', false)->set('currentStep', 6);
 
         $form->set('paid_amount', 50)->set('currentStep', 7)->call('createOrder')->assertHasNoErrors();
         $order = LensOrder::where('status', 'Pending')->latest('id')->firstOrFail();
@@ -2221,6 +2486,140 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame(['od' => 'consumed', 'os' => 'consumed'], $order->lensLines()->pluck('status', 'eye')->all());
     }
 
+    public function test_job_tracking_lists_each_job_once_with_every_reason_and_can_set_a_new_date(): void
+    {
+        \App\Models\OpticalSetting::create(['warranty_months' => 0, 'min_deposit_percentage' => 0, 'stuck_job_days' => 7]);
+        $user = $this->opticalManager('job-attention');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Late Customer', 'contact' => '0240007790', 'gender' => 'Other']);
+        $late = app(OpticalOrderService::class)->create(['pickup_date' => now()->addDays(2)->toDateString()] + $this->orderData($patient));
+        $onTime = app(OpticalOrderService::class)->create(['pickup_date' => now()->addDays(40)->toDateString()] + $this->orderData($patient));
+
+        // Ten days on: the first job is late and stuck, the second only stuck.
+        $this->travel(10)->days();
+        $rows = app(\App\Services\OpticalJobTrackingService::class)->attention();
+        $this->assertCount(2, $rows);
+        $this->assertSame($late->id, $rows->first()['order']->id, 'Worst first.');
+        $this->assertSame(['late', 'stuck'], $rows->first()['filters']);
+        $this->assertSame(['stuck'], $rows->last()['filters']);
+
+        $page = Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)
+            ->assertSee('Pickup 8 days late')->assertSee('No change for 10 days')->assertSee('8 to 30 days behind');
+        $this->assertSame(1, substr_count($page->html(), 'job-'.$late->id.'"'), 'Listed once, not in two tables.');
+        $page->call('setFilter', 'late')->assertSee($late->order_id)->assertDontSee($onTime->order_id);
+
+        // A new promised date needs a reason; the job then stops counting as late.
+        $page->call('openReschedule', $late->id)->set('newPickupDate', today()->addDays(4)->toDateString())->set('rescheduleReason', '')
+            ->call('saveReschedule')->assertHasErrors('rescheduleReason')
+            ->set('rescheduleReason', 'Lens back-ordered at the lab')->call('saveReschedule')->assertHasNoErrors()
+            ->assertSee('New pickup date for '.$late->order_id)->assertSee('Tell the customer on WhatsApp');
+        $this->assertSame(today()->addDays(4)->toDateString(), \Illuminate\Support\Carbon::parse($late->fresh()->pickUpDate)->toDateString());
+        $this->assertNull(app(\App\Services\OpticalJobTrackingService::class)->attention()->firstWhere('order.id', $late->id)['late']);
+        $this->assertDatabaseHas('audit_trails', ['event' => 'optical.order_rescheduled']);
+    }
+
+    public function test_reports_show_sales_money_received_and_aged_balances_with_exports(): void
+    {
+        $user = $this->opticalManager('optical-reports');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Report Customer', 'contact' => '0240007111', 'gender' => 'Other']);
+        $recent = app(OpticalOrderService::class)->create($this->orderData($patient)); // 310 total, 50 cash
+        $old = app(OpticalOrderService::class)->create($this->orderData($patient));
+        DB::table('lens_orders')->where('id', $old->id)->update(['created_at' => now()->subDays(45)]);
+        app(\App\Services\OpticalOrderWorkflowService::class)->recordPayment($recent->id, 30, 'momo');
+
+        $service = app(\App\Services\OpticalReportService::class);
+        $sales = $service->sales(today(), today());
+        $this->assertSame(1, $sales['jobs']);
+        $this->assertEquals(310, $sales['revenue']);
+        $this->assertEquals(200, $sales['categories']['Frames']);
+        $this->assertEquals(120, $sales['categories']['Lenses & coatings']);
+        $this->assertEquals(10, $sales['discounts']);
+
+        // Money counts the day it is received: both deposits and today's MoMo payment.
+        $cash = $service->cash(today(), today());
+        $this->assertEquals(130, $cash['received']);
+        $this->assertEquals(100, $cash['byMethod']['Cash']);
+        $this->assertEquals(30, $cash['byMethod']['Mobile Money']);
+        $this->assertEquals(130, $cash['byStaff'][$user->name]);
+
+        // Owed is every open balance today, whenever ordered, by age.
+        $owed = $service->owed(today(), today());
+        $this->assertEquals(490, $owed['total']);
+        $this->assertEquals(230, $owed['ages']['0-30']['amount']);
+        $this->assertEquals(260, $owed['ages']['31-60']['amount']);
+        $this->assertEquals(230, $owed['fromPeriod']);
+        $this->assertNull(\App\Services\OpticalReportService::change(310, 0));
+        $this->assertEquals(50.0, \App\Services\OpticalReportService::change(150, 100));
+
+        Livewire::test(OpticalReportsComponent::class)->set('fromDate', today()->toDateString())->set('toDate', today()->toDateString())
+            ->assertSee('Owed to you')->assertSee('31–60 days')->assertSee($old->order_id)->assertSee('Mobile Money')->assertSee('Report Customer');
+
+        $range = ['from' => today()->toDateString(), 'to' => today()->toDateString()];
+        $this->get(route('optical.reports.export', ['report' => 'end-of-day', 'format' => 'print'] + $range))->assertOk()->assertSee('Net takings')->assertSee('Mobile Money');
+        $this->get(route('optical.reports.export', ['report' => 'owed', 'format' => 'print']))->assertOk()->assertSee('31–60 days')->assertSee($old->order_id);
+        $csv = $this->get(route('optical.reports.export', ['report' => 'sales', 'format' => 'csv'] + $range))->assertOk()->streamedContent();
+        $this->assertStringContainsString('Net sales', $csv);
+        $this->get(route('optical.reports.export', ['report' => 'owed', 'format' => 'pdf']))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->get(route('optical.reports.export', ['report' => 'nope', 'format' => 'pdf']))->assertNotFound();
+    }
+
+    public function test_manager_can_close_an_abandoned_job_keeping_the_deposit(): void
+    {
+        $user = $this->opticalManager('job-abandon');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Gone Customer', 'contact' => '0240007791', 'gender' => 'Other']);
+        $order = app(OpticalOrderService::class)->create(['pickup_date' => now()->subDays(40)->toDateString()] + $this->orderData($patient)); // 310 total, 50 paid
+
+        Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)
+            ->assertSee('Over 30 days behind')
+            ->call('openAbandon', $order->id)->set('abandonReason', 'short')->call('confirmAbandon')->assertHasErrors('abandonReason')
+            ->set('abandonReason', 'Customer unreachable for six weeks')->call('confirmAbandon')->assertHasNoErrors()
+            ->assertSee('closed as abandoned')->assertDontSee('job-'.$order->id.'"', false);
+
+        $order->refresh();
+        $this->assertSame('Cancelled', $order->status);
+        $this->assertEquals(50, $order->cancellation_fee);
+        $this->assertSame('Abandoned: Customer unreachable for six weeks', $order->cancellation_reason);
+        $sale = \App\Models\Sales::findOrFail($order->sale_id);
+        $this->assertEquals(50, $sale->total_amount, 'The sale stays on record at the deposit kept.');
+        $this->assertSame('paid', $sale->payment_status);
+
+        Livewire::test(\App\Livewire\Optical\OpticalReportsComponent::class)
+            ->set('fromDate', today()->subDay()->toDateString())->set('toDate', today()->toDateString())
+            ->assertSee('Abandoned jobs closed')->assertViewHas('depositsKept', 50.0)->assertViewHas('cancellationFees', 50.0);
+
+        // Only a manager can close a job.
+        $staff = User::factory()->create();
+        $staff->assignRole(Role::firstOrCreate(['name' => 'Receptionist', 'guard_name' => 'web']));
+        $other = app(OpticalOrderService::class)->create($this->orderData($patient));
+        $this->actingAs($staff);
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        app(OpticalOrderWorkflowService::class)->closeAbandoned($other->id, 'Customer never came back at all');
+    }
+
+    public function test_turnaround_separates_in_house_from_unrecorded_labs_and_uses_the_median(): void
+    {
+        $user = $this->opticalManager('turnaround-median');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Median Customer', 'contact' => '0240007792', 'gender' => 'Other']);
+        $workflow = app(OpticalOrderWorkflowService::class);
+        $inHouse = collect([2, 3, 60])->map(function ($days) use ($patient, $workflow) {
+            $order = app(OpticalOrderService::class)->create($this->orderData($patient));
+            $order->forceFill(['created_at' => now()->subDays($days)])->save();
+            $workflow->transition($order->id, 'In Production');
+            $workflow->transition($order->id, 'Ready for Collection');
+            return $order;
+        });
+        $unrecorded = app(OpticalOrderService::class)->create($this->orderData($patient));
+        $workflow->transition($unrecorded->id, 'Sent to Lab');
+        $workflow->transition($unrecorded->id, 'Ready for Collection');
+
+        $rows = app(\App\Services\OpticalJobTrackingService::class)->turnaround(now()->subDay(), now());
+        $house = $rows->firstWhere('lab', 'In-house');
+        $this->assertSame(3, $house['jobs']);
+        $this->assertEquals(3.0, $house['median_days'], 'One 60-day job does not drag the typical figure.');
+        $this->assertEquals(21.7, $house['avg_days']);
+        $this->assertSame(1, $rows->firstWhere('lab', 'Lab not recorded')['jobs']);
+        $this->get(route('optical.reports'))->assertOk()->assertSee('Turnaround by lab')->assertSee('Lab not recorded');
+    }
+
     public function test_pos_records_the_customer_discount_and_bank_transfer(): void
     {
         $manager = $this->opticalManager('pos-extras');
@@ -2245,5 +2644,26 @@ class OpticalWorkflowTest extends TestCase
         $this->assertEquals(10, $sale->discount_amount);
         $this->assertSame('bank_transfer', \App\Models\PaymentTransaction::where('sale_id', $sale->id)->value('payment_method'));
         $this->actingAs($manager)->get(route('optical.receipt', $sale->id))->assertOk()->assertSee('Ama Mensah')->assertSee('024 123 4567');
+    }
+
+    public function test_bench_sheet_prints_every_filtered_job_with_its_rx_and_frame(): void
+    {
+        $manager = $this->opticalManager('bench-sheet');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $manager->id, 'name' => 'Bench Customer', 'contact' => '0240002222', 'gender' => 'Other']);
+        $orders = collect(range(1, 14))->map(fn () => app(OpticalOrderService::class)->create($this->orderData($patient)));
+        $ready = $orders->last();
+        $ready->update(['status' => 'Ready']);
+
+        // More jobs than one workbench page, all printed with the details the bench needs and no prices.
+        $sheet = $this->get(route('optical.lab-workbench.print'))->assertOk()
+            ->assertSee('Lab Bench Sheet · All open work')->assertSee('13 jobs')
+            ->assertSee($orders->first()->order_id)->assertSee($orders[12]->order_id)->assertDontSee($ready->order_id)
+            ->assertSee('Right (OD)')->assertSee('+1.00')->assertSee('Frame A')->assertSee('QC passed');
+        $this->assertStringNotContainsString('200.00', $sheet->getContent());
+
+        $this->get(route('optical.lab-workbench.print', ['stage' => 'ready']))->assertOk()
+            ->assertSee('Ready for pickup')->assertSee('1 job')->assertSee($ready->order_id);
+        $this->get(route('optical.lab-workbench.print', ['stage' => 'nonsense', 'searchTerm' => 'no such job']))->assertOk()
+            ->assertSee('All open work')->assertSee('No jobs match these workbench filters.');
     }
 }

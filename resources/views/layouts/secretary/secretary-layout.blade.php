@@ -27,5 +27,7 @@
     </div>
 
     @livewireCalendarScripts
+<x-ui.flash />
+@include('layouts.partials.confirm-dialog')
 </body>
 </html>

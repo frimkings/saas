@@ -28,9 +28,7 @@
         <button type="button" wire:click="openExternalModal" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ Enter external Rx</button>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold flex items-center justify-between" role="status"><span>{{ session('success') }}</span><button type="button" onclick="this.parentElement.remove()" class="text-teal-600 font-bold" aria-label="Dismiss">&times;</button></div>
-    @endif
+    <x-ui.flash />
 
     @if($clinicRefractions->isNotEmpty())
         <section class="ui-panel bg-white">
@@ -64,7 +62,7 @@
 
     <section class="ui-panel bg-white">
         <div class="oo-toolbar">
-            <input type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search customer, phone, PX number or prescriber…" class="ui-input text-sm" aria-label="Search prescriptions">
+            <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search customer, phone, PX number or prescriber…" class="ui-input text-sm" aria-label="Search prescriptions">
             <span class="ui-muted" wire:loading.delay wire:target="searchTerm,setSource">Updating…</span>
         </div>
         <div class="oo-chips" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)" role="group" aria-label="Filter by source">
@@ -109,8 +107,8 @@
             [$srcLabel, $srcClass] = $sourceBadge[$viewRx->source] ?? [ucfirst((string) $viewRx->source), 'oo-b-grey'];
             $age = ($viewRx->prescribed_at ?? $viewRx->created_at)?->diffInMonths(now());
         @endphp
-        <div class="oo-overlay" wire:click="closeRx" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="rx-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.closeRx()" wire:key="rx-drawer-{{ $viewRx->id }}">
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { viewRxId: null })" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="rx-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissLocal($el, $wire, { viewRxId: null })" wire:key="rx-drawer-{{ $viewRx->id }}">
             <header class="oo-drawer-head">
                 <div>
                     <h2 id="rx-title"><span class="oo-id" style="font-size:17px">RX-{{ $viewRx->id }}</span></h2>
@@ -119,7 +117,7 @@
                         <span><b class="text-slate-800">{{ $viewRx->patient?->name }}</b>@if($viewRx->patient?->contact) · {{ $viewRx->patient->contact }}@endif</span>
                     </div>
                 </div>
-                <button type="button" class="oo-x" wire:click="closeRx" aria-label="Close">&times;</button>
+                <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { viewRxId: null })" aria-label="Close">&times;</button>
             </header>
             <div class="oo-drawer-body">
                 @if($age !== null && $age >= 12)<div class="oo-note amber">This prescription is {{ (int) $age }} months old. Consider a new eye test before making glasses.</div>@endif
@@ -167,11 +165,11 @@
 
     {{-- NEW EXTERNAL PRESCRIPTION PANEL --}}
     @if($showExternalModal)
-        <div class="oo-overlay" wire:click="closeExternalModal" aria-hidden="true"></div>
-        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="rx-new-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.closeExternalModal()">
+        <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { showExternalModal: false })" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="rx-new-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissLocal($el, $wire, { showExternalModal: false })">
             <header class="oo-drawer-head">
                 <div><h2 id="rx-new-title">Enter an external prescription</h2><p class="ui-muted text-xs" style="margin:0">For a prescription the customer brings from another optometrist or doctor.</p></div>
-                <button type="button" class="oo-x" wire:click="closeExternalModal" aria-label="Close">&times;</button>
+                <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { showExternalModal: false })" aria-label="Close">&times;</button>
             </header>
             <form wire:submit="saveExternalRx" class="oo-drawer-body" id="rx-form">
                 <section class="oo-section">
@@ -196,10 +194,10 @@
                 <section class="oo-section">
                     <h3>Prescriber</h3>
                     <div class="rx-2">
-                        <label class="rx-field"><span>Name *</span><input type="text" wire:model="prescriber_name" class="ui-input" placeholder="e.g. Dr. Mensah">@error('prescriber_name')<small class="rx-err">{{ $message }}</small>@enderror</label>
-                        <label class="rx-field"><span>Clinic or practice</span><input type="text" wire:model="prescriber_clinic" class="ui-input" placeholder="e.g. Korle Bu Eye Clinic">@error('prescriber_clinic')<small class="rx-err">{{ $message }}</small>@enderror</label>
-                        <label class="rx-field"><span>Date on the prescription *</span><input type="date" wire:model="rx_date" max="{{ now()->toDateString() }}" class="ui-input">@error('rx_date')<small class="rx-err">{{ $message }}</small>@enderror</label>
-                        <label class="rx-field"><span>Binocular PD (mm)</span><input type="number" step="0.5" wire:model="pd" class="ui-input" placeholder="e.g. 62">@error('pd')<small class="rx-err">{{ $message }}</small>@enderror</label>
+                        <label class="rx-field"><span>Name *</span><input autocomplete="off" type="text" wire:model="prescriber_name" class="ui-input" placeholder="e.g. Dr. Mensah">@error('prescriber_name')<small class="rx-err">{{ $message }}</small>@enderror</label>
+                        <label class="rx-field"><span>Clinic or practice</span><input autocomplete="off" type="text" wire:model="prescriber_clinic" class="ui-input" placeholder="e.g. Korle Bu Eye Clinic">@error('prescriber_clinic')<small class="rx-err">{{ $message }}</small>@enderror</label>
+                        <label class="rx-field"><span>Date on the prescription *</span><input autocomplete="off" type="date" wire:model="rx_date" max="{{ now()->toDateString() }}" class="ui-input">@error('rx_date')<small class="rx-err">{{ $message }}</small>@enderror</label>
+                        <label class="rx-field"><span>Binocular PD (mm)</span><input autocomplete="off" type="number" step="0.5" wire:model="pd" class="ui-input" placeholder="e.g. 62">@error('pd')<small class="rx-err">{{ $message }}</small>@enderror</label>
                     </div>
                 </section>
 
@@ -212,12 +210,12 @@
                                 @foreach(['od' => ['R (OD)', 'pd_right'], 'os' => ['L (OS)', 'pd_left']] as $side => [$label, $pdField])
                                     <tr>
                                         <th scope="row">{{ $label }}</th>
-                                        <td><input type="number" step="0.25" wire:model="{{ $side }}_sphere" placeholder="0.00" aria-label="{{ $label }} sphere"></td>
-                                        <td><input type="number" step="0.25" wire:model="{{ $side }}_cylinder" placeholder="0.00" aria-label="{{ $label }} cylinder"></td>
-                                        <td><input type="number" min="0" max="180" wire:model="{{ $side }}_axis" placeholder="°" aria-label="{{ $label }} axis"></td>
-                                        <td><input type="number" step="0.25" min="0" wire:model="{{ $side }}_add" placeholder="0.00" aria-label="{{ $label }} add"></td>
-                                        <td><input type="text" wire:model="{{ $side }}_va" placeholder="6/6" aria-label="{{ $label }} visual acuity"></td>
-                                        <td><input type="number" step="0.5" wire:model="{{ $pdField }}" placeholder="31.5" aria-label="{{ $label }} PD"></td>
+                                        <td><input autocomplete="off" type="number" step="0.25" wire:model="{{ $side }}_sphere" placeholder="0.00" aria-label="{{ $label }} sphere"></td>
+                                        <td><input autocomplete="off" type="number" step="0.25" wire:model="{{ $side }}_cylinder" placeholder="0.00" aria-label="{{ $label }} cylinder"></td>
+                                        <td><input autocomplete="off" type="number" min="0" max="180" wire:model="{{ $side }}_axis" placeholder="°" aria-label="{{ $label }} axis"></td>
+                                        <td><input autocomplete="off" type="number" step="0.25" min="0" wire:model="{{ $side }}_add" placeholder="0.00" aria-label="{{ $label }} add"></td>
+                                        <td><input autocomplete="off" type="text" wire:model="{{ $side }}_va" placeholder="6/6" aria-label="{{ $label }} visual acuity"></td>
+                                        <td><input autocomplete="off" type="number" step="0.5" wire:model="{{ $pdField }}" placeholder="31.5" aria-label="{{ $label }} PD"></td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -233,7 +231,7 @@
                 </section>
             </form>
             <footer class="oo-drawer-foot">
-                <button type="button" class="oo-btn" wire:click="closeExternalModal">Cancel</button>
+                <button type="button" class="oo-btn" x-on:click="dismissLocal($el, $wire, { showExternalModal: false })">Cancel</button>
                 <button type="submit" form="rx-form" class="oo-btn primary" wire:loading.attr="disabled" wire:target="saveExternalRx">Save prescription</button>
             </footer>
         </aside>

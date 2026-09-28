@@ -25,8 +25,7 @@
 </head>
 <body>
 @php
-    $details = json_decode($order->notes ?? '', true);
-    $details = is_array($details) ? $details : ['notes' => $order->notes];
+    $details = $order->docketDetails();
     $rx = $order->prescription_snapshot ?? [];
 @endphp
 <div class="actions"><button type="button" onclick="window.print()">Print docket</button></div>

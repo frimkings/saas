@@ -54,8 +54,6 @@ use App\Livewire\Doctor\ReferralComponent;
 use App\Livewire\StaffMessagingComponent;
 use App\Livewire\Admin\AdminSettingsComponent;
 use App\Livewire\Admin\BackupManagerComponent;
-use App\Livewire\Admin\ReportDeliveryComponent;
-use App\Livewire\Admin\MailSettingsComponent;
 use App\Livewire\Admin\SmsLogsComponent;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\TenantContextController;
@@ -209,8 +207,11 @@ Route::get('/cashier/clearance-receipt/{id}', function ($id) {
     return view('cashier.clearance-receipt', compact('clearance', 'clinicSettings'));
 })->name('cashier.clearance-receipt');
 
-// Optical Module Routes
-Route::middleware('feature:optical')->group(function () {
+});
+
+// Optical Module Routes. optical.access opens each screen to the roles it belongs to (App\Support\OpticalAccess),
+// so the optical roles reach optical screens without the cashier pages above.
+Route::middleware(['auth', 'feature:optical', 'optical.access'])->group(function () {
 Route::get('/optical/dashboard', \App\Livewire\Optical\OpticalDashboardComponent::class)->name('optical.dashboard');
 Route::get('/optical/partners', \App\Livewire\Optical\PartnerClinicsComponent::class)->name('optical.partners');
 Route::get('/optical/partners/{partner}/statement', \App\Livewire\Optical\PartnerStatementComponent::class)->name('optical.partners.statement');
@@ -232,6 +233,7 @@ Route::get('/optical/catalogue', \App\Livewire\Optical\OpticalCatalogueComponent
 Route::get('/optical/categories', \App\Livewire\Optical\OpticalCategoriesComponent::class)->name('optical.categories');
  Route::get('/optical/products', \App\Livewire\Optical\OpticalProductsComponent::class)->name('optical.products');
  Route::get('/optical/stock', \App\Livewire\Optical\OpticalStockManagementComponent::class)->name('optical.stock');
+ Route::get('/optical/stock/receive-lenses', \App\Livewire\Optical\OpticalLensReceivingComponent::class)->middleware('role:Manager|Super Admin')->name('optical.stock.receive-lenses');
 Route::get('/optical/orders/create', \App\Livewire\Optical\OpticalOrderCreateComponent::class)->name('optical.orders.create');
 Route::get('/optical/orders/{order}/docket', function (int $order) {
     $order = \App\Models\LensOrder::with(['patient', 'opticalPrescription', 'frameProduct', 'lensProduct', 'frameOpticalProduct', 'lensOpticalProduct', 'user'])->findOrFail($order);
@@ -239,6 +241,7 @@ Route::get('/optical/orders/{order}/docket', function (int $order) {
 })->name('optical.orders.docket');
 Route::get('/optical/orders', \App\Livewire\Optical\OpticalOrdersComponent::class)->name('optical.orders');
 Route::get('/optical/lab-workbench', \App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->name('optical.lab-workbench');
+Route::get('/optical/lab-workbench/print', fn (\Illuminate\Http\Request $request) => \App\Livewire\Optical\OpticalLabWorkbenchComponent::printSheet($request))->name('optical.lab-workbench.print');
 Route::get('/optical/collections', \App\Livewire\Optical\OpticalCollectionsComponent::class)->name('optical.collections');
 Route::get('/optical/jobs', \App\Livewire\Optical\OpticalJobsComponent::class)->name('optical.jobs');
 Route::get('/optical/stock-counts', \App\Livewire\Optical\OpticalStockCountsComponent::class)->name('optical.stock-counts');
@@ -265,8 +268,9 @@ Route::get('/optical/receipt/{saleId}', function (int $saleId, \Illuminate\Http\
     return app(ReceiptController::class)->show($saleId, $request);
 })->name('optical.receipt');
 Route::get('/optical/reports', \App\Livewire\Optical\OpticalReportsComponent::class)->name('optical.reports');
+Route::get('/optical/reports/{report}/{format}', \App\Http\Controllers\OpticalReportExportController::class)
+    ->whereIn('report', array_keys(\App\Http\Controllers\OpticalReportExportController::REPORTS))->whereIn('format', ['print', 'pdf', 'csv'])->name('optical.reports.export');
 Route::get('/optical/settings', \App\Livewire\Optical\OpticalSettingsComponent::class)->middleware('role:Manager|Super Admin')->name('optical.settings');
-});
 });
 
 //admin
@@ -358,8 +362,8 @@ Route::middleware(['auth', 'role:Super Admin'])->group(function () {
 
     // Legacy URLs redirect to the unified settings page with the correct tab
     Route::get('admin/backups',          fn() => redirect()->route('admin.settings', ['tab' => 'backup']))->name('admin.backups')->middleware('tenant.backup-access');
-    Route::get('admin/report-delivery',  fn() => redirect()->route('admin.settings', ['tab' => 'report']))->name('admin.report-delivery')->middleware('feature:report_delivery');
-    Route::get('admin/mail-settings',    fn() => redirect()->route('admin.settings', ['tab' => 'mail']))->name('admin.mail-settings');
+    Route::get('admin/report-delivery',  fn() => redirect()->route('admin.settings', ['tab' => 'report']))->name('admin.report-delivery');
+    Route::get('admin/mail-settings',    fn() => redirect()->route('admin.settings'))->name('admin.mail-settings');
     Route::get('admin/backups/download/{filename}', function (string $filename) {
         $decoded = base64_decode($filename, strict: true);
         abort_if($decoded === false, 400);

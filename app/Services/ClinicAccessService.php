@@ -77,7 +77,7 @@ class ClinicAccessService
         if ($stage->stage === AccessStage::ACTIVE && !$forAdmin) return null;
 
         return ['stage' => $stage->stage, 'read_only' => $this->access()['read_only'], 'hosted' => $stage->hosted,
-            'cutoff' => $stage->expiresAt->format('d M Y H:i:s T'), 'locks' => $stage->lockedAt?->format('d M Y H:i T'),
+            'cutoff' => $stage->expiresAt->format('d M Y H:i:s T'), 'cutoff_date' => $stage->expiresAt->format('d M Y'), 'locks' => $stage->lockedAt?->format('d M Y H:i T'),
             'blocks' => $stage->expiresAt->copy()->addDays((int) config('subscriptions.grace_days', 1))->format('d M Y H:i T'),
             'days' => max(0, (int) now()->startOfDay()->diffInDays($stage->expiresAt->copy()->startOfDay(), false))];
     }

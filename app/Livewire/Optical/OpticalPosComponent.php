@@ -25,11 +25,19 @@ class OpticalPosComponent extends Component
 
     public const METHODS = ['Cash' => 'cash', 'MoMo' => 'momo', 'Card' => 'card', 'Bank transfer' => 'bank_transfer'];
 
+    private function assertSoldIndividually(OpticalProduct $product): void
+    {
+        if ($product->isPairOnlyLens()) {
+            throw ValidationException::withMessages(['cart' => 'Progressive and bifocal lenses are sold as a pair (right and left). Create a lens order instead.']);
+        }
+    }
+
     public function addToCart($productId)
     {
         if (is_string($productId) && str_starts_with($productId, 'o:')) {
             $id = (int) substr($productId, 2);
             $product = OpticalProduct::where('is_active', true)->with('stocks')->findOrFail($id);
+            $this->assertSoldIndividually($product);
             $key = 'o:'.$id;
             if (app(OpticalProductInventoryService::class)->available($product) <= ($this->cart[$key]['qty'] ?? 0)) {
                 throw ValidationException::withMessages(['cart' => 'Insufficient stock for '.$product->name.'.']);
@@ -63,6 +71,7 @@ class OpticalPosComponent extends Component
             foreach ($this->cart as $id => $item) {
                 abort_unless(is_string($id) && str_starts_with($id, 'o:'), 422);
                 $product = OpticalProduct::where('is_active', true)->with('stocks')->findOrFail((int) substr($id, 2));
+                $this->assertSoldIndividually($product);
                 $quantity = (int) $item['qty'];
                 $available = app(OpticalProductInventoryService::class)->available($product); // excludes lenses held for orders
                 if ($quantity < 1 || $available < $quantity) {
@@ -130,7 +139,7 @@ class OpticalPosComponent extends Component
 
     public function render()
     {
-        $opticalProducts = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)
+        $opticalProducts = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)->soldIndividually()
             ->when(trim($this->searchTerm) !== '', fn ($q) => $q->where(fn ($search) => $search
                 ->where('name', 'like', '%'.trim($this->searchTerm).'%')
                 ->orWhere('sku', 'like', '%'.trim($this->searchTerm).'%')))

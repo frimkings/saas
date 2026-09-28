@@ -21,6 +21,33 @@
     </style>
 </head>
 <body class="clinic-ui min-h-screen bg-slate-100 text-slate-800">
+{{-- Toasts: fixed to the viewport so they are seen however far the page is scrolled. Placed
+     first in the body so the listener exists before any page flash message fires. Errors and
+     toasts with an action stay until closed; the rest close after 5 seconds unless hovered. --}}
+<div x-data="{
+        toasts: [],
+        add(detail) {
+            const toast = { id: Date.now() + Math.random(), type: 'success', ...detail };
+            this.toasts = [toast, ...this.toasts].slice(0, 4);
+            if (toast.type !== 'error' && ! toast.link) this.schedule(toast, 5000);
+        },
+        schedule(toast, ms) { clearTimeout(toast.timer); toast.timer = setTimeout(() => this.close(toast.id), ms) },
+        close(id) { this.toasts = this.toasts.filter(t => t.id !== id) },
+     }"
+     x-on:notify.window="add($event.detail)"
+     class="optical-toasts" aria-live="polite">
+    <template x-for="toast in toasts" :key="toast.id">
+        <div class="optical-toast" :class="'optical-toast--' + toast.type" :role="toast.type === 'error' ? 'alert' : 'status'"
+             x-on:mouseenter="clearTimeout(toast.timer)" x-on:mouseleave="if (toast.type !== 'error' && ! toast.link) schedule(toast, 2000)">
+            <span class="optical-toast__icon" aria-hidden="true" x-text="{ success: '✓', error: '!', warning: '!', info: 'i' }[toast.type] ?? 'i'"></span>
+            <div class="flex-1 min-w-0">
+                <p x-text="toast.message"></p>
+                <a x-show="toast.link" :href="toast.link" :target="toast.newTab ? '_blank' : null" class="optical-toast__link" x-text="toast.linkLabel" x-on:click="close(toast.id)"></a>
+            </div>
+            <button type="button" class="optical-toast__close" aria-label="Dismiss notification" x-on:click="close(toast.id)">&times;</button>
+        </div>
+    </template>
+</div>
 @php
     $tenant = app(\App\Support\Tenancy\TenantContext::class);
     $links = \App\Support\OpticalNavigation::links();
@@ -64,6 +91,10 @@
                         </div>
                         <a href="{{ route('optical.settings') }}" class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.settings') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Settings</a>
                     @endhasanyrole
+                    @if(\App\Support\OpticalNavigation::canManageStaff())
+                        {{-- Staff are managed on the shared staff screen; it links back here. --}}
+                        <a href="{{ route('admin.users', ['from' => 'optical']) }}" class="block px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800">Staff &amp; roles</a>
+                    @endif
                 </nav>
             </div>
             <div class="p-3 border-t border-slate-800 text-xs text-slate-500">Optical Suite</div>
@@ -72,6 +103,7 @@
             <nav class="md:hidden flex gap-2 overflow-x-auto p-2 bg-slate-900 text-white text-xs" aria-label="Optical navigation">
                 @foreach($links as [$route, $label])@if(! \App\Support\OpticalNavigation::allowed($route)) @continue @endif<a href="{{ route($route) }}" class="whitespace-nowrap px-2 py-1 rounded {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600' : '' }}">{{ $label }}</a>@endforeach
                 @hasanyrole('Manager|Super Admin')<a href="{{ route('optical.categories') }}" class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.categories') ? 'bg-teal-600' : '' }}">Optical Categories</a><a href="{{ route('optical.products') }}" class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.products') ? 'bg-teal-600' : '' }}">Optical Products</a><a href="{{ route('optical.stock') }}" class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.stock') ? 'bg-teal-600' : '' }}">Stock Restocking &amp; Batches</a>@endhasanyrole
+                @if(\App\Support\OpticalNavigation::canManageStaff())<a href="{{ route('admin.users', ['from' => 'optical']) }}" class="whitespace-nowrap px-2 py-1 rounded">Staff &amp; roles</a>@endif
             </nav>
             {{-- Notices line up with the page content below and sit close to it. --}}
             @php $opticalNotices = trim(view('components.license-notice')->render()); @endphp
@@ -80,12 +112,8 @@
         </main>
     </div>
 </div>
-<div x-data="{ toasts: [] }" role="status" aria-live="polite" class="fixed bottom-4 right-4 z-50 space-y-2"
-     x-on:notify.window="const t = { id: Date.now() + Math.random(), ...$event.detail }; toasts.push(t); setTimeout(() => toasts = toasts.filter(x => x.id !== t.id), 4000)">
-    <template x-for="toast in toasts" :key="toast.id">
-        <div class="rounded-lg px-4 py-2 text-sm text-white shadow-lg" :class="toast.type === 'error' ? 'bg-red-700' : 'bg-teal-700'" x-text="toast.message"></div>
-    </template>
-</div>
+<x-ui.flash />
+@include('layouts.partials.confirm-dialog')
 @livewireScripts
 </body>
 </html>

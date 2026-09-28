@@ -70,7 +70,9 @@ class OpticalLensAvailabilityService
                         'source' => $stocked ? 'stock' : 'special_order',
                         'product_id' => $stocked?->id,
                         'free' => (int) $matches->sum(fn ($product) => $freeByProduct[$product->id]),
-                        'unit_price' => (float) ($priced ? $priced->selling_price : $group->max('selling_price')),
+                        // A power the range has never stocked is priced from the range's price list when there is one.
+                        'unit_price' => (float) ($priced ? $priced->selling_price
+                            : (app(OpticalLensPriceList::class)->lensPrice(array_merge($first->lens_specs, ['sphere' => $rx[0], 'power' => $multifocal ? $rx[2] : $rx[1]])) ?? $group->max('selling_price'))),
                         'price_estimated' => $priced === null,
                     ];
                     if ($stocked) $freeByProduct[$stocked->id]--;

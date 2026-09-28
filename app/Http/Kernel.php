@@ -82,6 +82,7 @@ class Kernel extends HttpKernel
     'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         'feature' => \App\Http\Middleware\EnsureFeatureEnabled::class,
         'optical-only' => \App\Http\Middleware\RedirectOpticalOnly::class,
+        'optical.access' => \App\Http\Middleware\EnsureOpticalAccess::class,
         'tenant' => \App\Http\Middleware\ResolveTenantContext::class,
         'tenant.backup-access' => \App\Http\Middleware\EnsureTenantBackupAccess::class,
         'platform.admin' => \App\Http\Middleware\EnsurePlatformAdmin::class,

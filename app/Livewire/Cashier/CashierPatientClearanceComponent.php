@@ -461,7 +461,7 @@ class CashierPatientClearanceComponent extends Component
             return;
         }
 
-        ClearanceRevokeLog::create([
+        $revokeLog = ClearanceRevokeLog::create([
             'clearance_id' => $clearance->id,
             'status'       => ClearanceRevokeLog::STATUS_PENDING,
             'requested_by' => Auth::id(),
@@ -482,6 +482,7 @@ class CashierPatientClearanceComponent extends Component
             null,
             Auth::id()
         );
+        app(\App\Services\OwnerAlerts::class)->revokeRequested($revokeLog, (string) $this->requestingRevokeName);
 
         $name = $this->requestingRevokeName;
         $this->cancelRevokeRequest();

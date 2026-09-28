@@ -7,12 +7,7 @@
         <span class="ui-badge" style="background:#dcfce7; color:#166534;">POS Register Active</span>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded text-xs font-semibold">
-            {{ session('success') }}
-            @if($lastSaleId) <a class="underline ml-2" target="_blank" href="{{ route('optical.receipt', $lastSaleId) }}">Print receipt</a> @endif
-        </div>
-    @endif
+    <x-ui.flash :link="$lastSaleId ? route('optical.receipt', $lastSaleId) : null" link-label="Print receipt" link-new-tab />
     @error('cart') <div class="ui-panel p-3 text-red-700" role="alert">{{ $message }}</div> @enderror
     @error('discount') <div class="ui-panel p-3 text-red-700" role="alert">{{ $message }}</div> @enderror
 
@@ -20,7 +15,7 @@
         <!-- Products & Search -->
         <div class="lg:col-span-2 space-y-4">
             <div class="ui-panel p-3">
-                <input type="search" wire:model.live.debounce.250ms="searchTerm" placeholder="Scan SKU or search optical products..." class="ui-input">
+                <input autocomplete="off" type="search" wire:model.live.debounce.250ms="searchTerm" placeholder="Scan SKU or search optical products..." class="ui-input">
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -69,8 +64,8 @@
 
             <div class="border-t border-slate-200 pt-3 space-y-2 text-xs">
                 <div class="grid grid-cols-2 gap-2">
-                    <label class="font-semibold text-slate-700">Customer (optional)<input type="text" wire:model="customerName" maxlength="255" placeholder="Walk-in" class="ui-input mt-1 text-xs"></label>
-                    <label class="font-semibold text-slate-700">Phone<input type="tel" wire:model="customerPhone" maxlength="30" class="ui-input mt-1 text-xs"></label>
+                    <label class="font-semibold text-slate-700">Customer (optional)<input autocomplete="off" type="text" wire:model="customerName" maxlength="255" placeholder="Walk-in" class="ui-input mt-1 text-xs"></label>
+                    <label class="font-semibold text-slate-700">Phone<input autocomplete="off" type="tel" wire:model="customerPhone" maxlength="30" class="ui-input mt-1 text-xs"></label>
                 </div>
                 @error('customerName')<p class="text-red-700">{{ $message }}</p>@enderror
                 @error('customerPhone')<p class="text-red-700">{{ $message }}</p>@enderror
@@ -80,11 +75,12 @@
                 </div>
                 <label class="flex items-center justify-between gap-2 text-slate-700">
                     <span>Discount ({{ currency() }})<span class="block text-[10px] text-slate-500">Up to {{ $discountLimit }}% without a manager</span></span>
-                    <input type="number" min="0" step="0.01" wire:model.live.debounce.300ms="discount" class="ui-input w-28 text-right text-xs">
+                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="discount" class="ui-input w-28 text-right text-xs">
                 </label>
                 <div class="flex justify-between text-slate-900 text-sm font-bold border-t border-slate-200 pt-2">
                     <span>Total Amount:</span>
-                    <span class="text-teal-800 text-base">{{ currency() }} {{ number_format($total, 2) }}</span>
+                    {{-- The discount is taken off in the browser; keyed on the subtotal, which changes with the cart (a server call). Checkout checks the discount again. --}}
+                    <span class="text-teal-800 text-base" wire:key="pos-total-{{ $subtotal }}" x-data="{ subtotal: {{ (float) $subtotal }} }" x-text="@js(currency()) + ' ' + money(subtotal - Math.min(subtotal, Math.max(0, Math.round(num($wire.discount) * 100) / 100)))">{{ currency() }} {{ number_format($total, 2) }}</span>
                 </div>
             </div>
 
@@ -92,7 +88,8 @@
                 <label class="block text-xs font-semibold text-slate-700">Payment Method</label>
                 <div class="grid grid-cols-2 gap-1">
                     @foreach($methods as $method)
-                        <button type="button" wire:click="$set('paymentMethod', '{{ $method }}')" class="ui-button {{ $paymentMethod === $method ? 'ui-button-primary' : 'ui-button-secondary' }} text-xs py-1" aria-pressed="{{ $paymentMethod === $method ? 'true' : 'false' }}">{{ $method }}</button>
+                        {{-- Picking a method is kept in the browser; Complete checkout sends it. --}}
+                        <button type="button" x-on:click="$wire.$set('paymentMethod', @js($method), false)" class="ui-button text-xs py-1" :class="$wire.paymentMethod === @js($method) ? 'ui-button-primary' : 'ui-button-secondary'" :aria-pressed="($wire.paymentMethod === @js($method)).toString()">{{ $method }}</button>
                     @endforeach
                 </div>
                 <button wire:click="completeSale" class="ui-button ui-button-primary w-full py-2.5 text-sm font-bold shadow" {{ empty($cart) ? 'disabled' : '' }}>

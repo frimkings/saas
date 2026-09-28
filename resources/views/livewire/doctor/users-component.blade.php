@@ -52,7 +52,7 @@
 
                         @if(auth()->user()->role === '0')
                             <button wire:click="delete({{ $user->id }})" 
-                                    onclick="confirm('Are you sure?') || event.stopImmediatePropagation()" 
+                                    wire:confirm="Are you sure?" 
                                     class="text-red-600 hover:text-red-900">Delete</button>
                         @endif
                     </td>

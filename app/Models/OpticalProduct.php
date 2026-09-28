@@ -33,4 +33,20 @@ class OpticalProduct extends Model
     {
         return $this->hasMany(OpticalProductStock::class);
     }
+
+    /**
+     * Progressive and bifocal stock lenses are sold only as a right + left pair through a
+     * lens order. Single vision lenses can be sold one at a time (half a pair).
+     */
+    public function isPairOnlyLens(): bool
+    {
+        return \App\Support\LensDesign::isEyeSpecific(data_get($this->lens_specs, 'design'));
+    }
+
+    /** Products that may be sold on their own, e.g. at the optical POS. */
+    public function scopeSoldIndividually($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull('lens_specs')
+            ->orWhereNotIn('lens_specs->design', \App\Support\LensDesign::EYE_SPECIFIC));
+    }
 }

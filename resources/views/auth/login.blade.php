@@ -1,8 +1,8 @@
 <x-guest-layout>
 @php
-    $settings = \App\Models\Setting::getSettings();
-    $clinicName = $settings->clinic_name ?? config('app.name', 'Eye Clinic');
-    $logoUri = $settings->logoDataUri();
+    $branding = \App\Models\PlatformSetting::guestBranding();
+    $clinicName = $branding['name'];
+    $logoUri = $branding['logo'];
 @endphp
 
 <style>
@@ -127,6 +127,25 @@
         height: 18px;
         stroke: #14d9c4;
         flex-shrink: 0;
+    }
+
+    .brand-contact {
+        margin-top: 2rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid rgba(255,255,255,0.12);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+        color: rgba(255,255,255,0.75);
+        font-size: 0.85rem;
+    }
+
+    .brand-contact-title {
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #14d9c4;
     }
 
     /* ── Right form panel ── */
@@ -430,7 +449,13 @@
 
         <div class="brand-name">{{ $clinicName }}</div>
         <div class="brand-divider"></div>
-        <div class="brand-tagline">Comprehensive eye care services delivered with precision and compassion.</div>
+        <div class="brand-tagline">
+            @if($branding['platform'])
+                Eye clinic management platform. Sign in to access your clinic.
+            @else
+                Comprehensive eye care services delivered with precision and compassion.
+            @endif
+        </div>
 
         <div class="brand-features">
             <div class="brand-feature">
@@ -452,6 +477,14 @@
                 <span>Prescriptions &amp; pharmacy integration</span>
             </div>
         </div>
+
+        @if($branding['phone'] || $branding['email'])
+            <div class="brand-contact">
+                <span class="brand-contact-title">Developer contact</span>
+                @if($branding['phone'])<span>☏ {{ $branding['phone'] }}</span>@endif
+                @if($branding['email'])<span>✉ {{ $branding['email'] }}</span>@endif
+            </div>
+        @endif
     </div>
 
     {{-- ── Right form panel ── --}}
@@ -482,6 +515,10 @@
             {{-- Session status --}}
             @if (session('status'))
                 <div class="alert-success">{{ session('status') }}</div>
+            @endif
+            {{-- Why the user was signed out (inactivity, deactivated account, changed permissions). --}}
+            @if (session('error'))
+                <div class="alert-error" role="alert">{{ session('error') }}</div>
             @endif
 
             {{-- Validation errors --}}

@@ -121,5 +121,7 @@
             })();
         </script>
     @endauth
+<x-ui.flash />
+@include('layouts.partials.confirm-dialog')
 </body>
 </html>

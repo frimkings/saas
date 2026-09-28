@@ -20,4 +20,10 @@ class Feature
     const REPORT_DELIVERY      = 'report_delivery';
     const SPECTACLES_PRO       = 'spectacles_pro';
     const UNLIMITED_USERS      = 'unlimited_users';
+    // Sales summary emails to the clinic owner (App\Services\OwnerSummaryService).
+    const DAILY_SUMMARY        = 'owner_daily_summary';
+    const WEEKLY_SUMMARY       = 'owner_weekly_summary';
+    const MONTHLY_SUMMARY      = 'owner_monthly_summary';
+    // Morning email to the owner: low stock, expiring stock, bills due, late lab jobs (App\Services\OwnerAlertDigestService).
+    const MORNING_ALERTS       = 'owner_morning_alerts';
 }

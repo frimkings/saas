@@ -18,15 +18,10 @@
             <h1 class="text-xl font-bold text-slate-900">Lab Workbench</h1>
             <p class="ui-muted text-sm">Glazing, frame transfers, repairs and quality checks. Most urgent jobs are listed first.</p>
         </div>
-        <button type="button" onclick="window.print()" class="oo-btn wb-noprint" style="padding:9px 14px">Print this queue</button>
+        <a href="{{ route('optical.lab-workbench.print', array_filter(['stage' => $stage !== 'active' ? $stage : null, 'typeFilter' => $typeFilter, 'searchTerm' => $searchTerm])) }}" target="_blank" rel="noopener" class="oo-btn wb-noprint" style="padding:9px 14px" title="Every job in this view with Rx, measurements and frame details">Print bench sheet</a>
     </div>
 
-    @if(session()->has('success'))
-        <div class="p-3 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-xs font-semibold flex items-center justify-between" role="status">
-            <span>{{ session('success') }}</span>
-            <button type="button" onclick="this.parentElement.remove()" class="text-teal-600 hover:text-teal-900 font-bold" aria-label="Dismiss">&times;</button>
-        </div>
-    @endif
+    <x-ui.flash />
     @if($errors->any() && ! $viewOrderId)<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
     @if($lateCount)<div class="oo-note red wb-noprint"><b>{{ $lateCount }} {{ \Illuminate\Support\Str::plural('job', $lateCount) }} past the pickup date.</b> They are at the top of "All open work".</div>@endif
 
@@ -40,7 +35,7 @@
 
     <div class="ui-panel bg-white">
         <div class="oo-toolbar wb-noprint" style="grid-template-columns:minmax(220px,1fr) 220px auto">
-            <input type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search job, customer, partner, frame or service…" class="ui-input text-sm" aria-label="Search jobs">
+            <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search job, customer, partner, frame or service…" class="ui-input text-sm" aria-label="Search jobs">
             <select wire:model.live="typeFilter" class="ui-input text-sm" aria-label="Job type">
                 <option value="">All job types</option>
                 <option value="Glazing">Lens glazing &amp; edging</option>
