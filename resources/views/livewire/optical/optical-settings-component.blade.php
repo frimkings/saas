@@ -42,5 +42,6 @@
     {{-- Where the owner's emails go and what has been sent. Optical-only clinics have no clinic Settings page. --}}
     @if(auth()->user()?->hasRole('Super Admin'))
         <livewire:admin.owner-emails-component :optical="true" />
+        <livewire:admin.branch-sms-limits-component :optical="true" />
     @endif
 </div>

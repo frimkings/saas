@@ -28,6 +28,10 @@
                 </button>
             </div>
 
+            @if(auth()->user()?->hasRole('Super Admin'))
+                <livewire:admin.branch-sms-limits-component />
+            @endif
+
             @if($platformManaged)
             {{-- Platform-managed gateway (hosted clinics) --}}
             <div class="card border-0 shadow-sm rounded-lg mb-4">

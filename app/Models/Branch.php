@@ -29,6 +29,11 @@ class Branch extends Model
     protected $casts = [
         'is_default' => 'boolean',
         'is_active' => 'boolean',
+        // SMS limit (App\Services\Messaging\BranchSmsLimits); set through that service, not mass assignment.
+        'sms_limit' => 'integer',
+        'sms_used' => 'integer',
+        'sms_warned_at' => 'datetime',
+        'sms_out_at' => 'datetime',
     ];
 
     protected static function booted(): void

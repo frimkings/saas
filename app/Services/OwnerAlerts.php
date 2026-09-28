@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\OwnerNoticeMail;
+use App\Models\Branch;
 use App\Models\ClearanceRevokeLog;
 use App\Models\Clinic;
 use App\Models\DiscountApprovalRequest;
@@ -132,6 +133,31 @@ class OwnerAlerts
             "Only {$balance} SMS credits are left. When they run out, patients stop getting appointment, receipt and collection messages.",
             ['Credits left' => number_format($balance)],
             'Buy SMS credits', route('admin.settings', ['tab' => 'sms']));
+    }
+
+    /** A branch has used 80% of its SMS limit. */
+    public function branchSmsLow(Branch $branch): void
+    {
+        $this->branchSmsNotice($branch, 'low', "{$branch->name} is running low on SMS",
+            "{$branch->name} has used {$branch->sms_used} of its {$branch->sms_limit} SMS. When it runs out, its messages to patients stop until you add more.");
+    }
+
+    /** A branch has used all of its SMS limit: its messages have stopped. */
+    public function branchSmsOut(Branch $branch): void
+    {
+        $this->branchSmsNotice($branch, 'out', "{$branch->name} has run out of SMS",
+            "{$branch->name} has used all {$branch->sms_limit} of its SMS, so its messages to patients (receipts, reminders, collection messages) are not being sent. Add more to start them again.");
+    }
+
+    private function branchSmsNotice(Branch $branch, string $level, string $heading, string $intro): void
+    {
+        $clinic = Clinic::find($branch->clinic_id);
+        if (! $clinic) return;
+
+        $this->notice($clinic, 'branch_sms_' . $level, "branch_sms:{$branch->id}:{$level}:{$branch->sms_limit}", $heading, $intro,
+            ['Branch' => $branch->name, 'Used' => number_format($branch->sms_used), 'Limit' => number_format($branch->sms_limit),
+                'Left' => number_format(max(0, $branch->sms_limit - $branch->sms_used)), 'Clinic credits' => number_format(app(\App\Services\Messaging\SmsCreditService::class)->balance($clinic->id))],
+            'Add SMS for ' . $branch->name, route('admin.settings', ['tab' => 'sms']));
     }
 
     /** Someone joined the clinic's staff. */

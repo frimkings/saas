@@ -6,6 +6,8 @@ use App\Jobs\SendSmsMessage;
 use App\Models\Patient;
 use App\Models\Setting;
 use App\Models\SmsLog;
+use App\Services\Messaging\BranchSmsLimitReachedException;
+use App\Services\Messaging\BranchSmsLimits;
 use App\Services\Messaging\InsufficientSmsCreditsException;
 use App\Services\Messaging\MessageDispatcher;
 use App\Services\Messaging\SmsCreditService;
@@ -17,6 +19,7 @@ use App\Support\Messaging\PhoneNumber;
 use App\Support\Messaging\SmsSegments;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class SmsService
 {
@@ -50,6 +53,7 @@ class SmsService
         } catch (SmsNotConfiguredException $e) {
             $log->update(['status' => 'failed', 'success' => false, 'error' => $e->getMessage()]);
             app(SmsCreditService::class)->refund($log);
+            app(BranchSmsLimits::class)->giveBack($log);
             return ['success' => false, 'error' => $e->getMessage()];
         }
 
@@ -67,6 +71,7 @@ class SmsService
 
         if (!$result['success'] && ($finalAttempt || !($result['retryable'] ?? false))) {
             app(SmsCreditService::class)->refund($log);
+            app(BranchSmsLimits::class)->giveBack($log);
         }
 
         return $result['success']
@@ -123,19 +128,33 @@ class SmsService
         }
 
         $log += ['status' => 'queued', 'success' => false];
+        $limits = app(BranchSmsLimits::class);
+        $branchId = $limits->branchFor($patientId, $templateKey);
+        $clinicId = SmsLog::clinicIdForWrite();
 
-        if ($credentials->platformManaged) {
-            // Hosted clinics pay for platform SMS with prepaid credits, taken under a wallet lock.
-            $clinicId = SmsLog::clinicIdForWrite();
-            try {
-                $log = app(SmsCreditService::class)->charge($clinicId, $segments, fn () => SmsLog::create($log));
-            } catch (InsufficientSmsCreditsException $e) {
-                $this->notifyCreditsExhausted($clinicId);
-                return ['success' => false, 'error' => $e->getMessage()];
-            }
-        } else {
-            $log = SmsLog::create($log);
+        // The branch's share and the clinic wallet are both taken in one transaction: if either
+        // is short, nothing is counted and nothing is sent.
+        try {
+            [$log, $taken] = DB::transaction(function () use ($log, $limits, $branchId, $segments, $credentials, $clinicId) {
+                $taken = $limits->take($branchId, $segments);
+                // Hosted clinics pay for platform SMS with prepaid credits, taken under a wallet lock.
+                $log = $credentials->platformManaged
+                    ? app(SmsCreditService::class)->charge($clinicId, $segments, fn () => SmsLog::create($log))
+                    : SmsLog::create($log);
+                if ($branchId) $log->forceFill(['branch_id' => $branchId, 'branch_counted' => $taken ? $segments : 0])->save();
+
+                return [$log, $taken];
+            });
+        } catch (BranchSmsLimitReachedException $e) {
+            $skipped = SmsLog::create(['status' => 'skipped', 'success' => false, 'error' => $e->getMessage()] + $log);
+            if ($branchId) $skipped->forceFill(['branch_id' => $branchId])->save();
+            $this->notifyBranchLimitReached($clinicId, $e->branchName);
+            return ['success' => false, 'error' => $e->getMessage()];
+        } catch (InsufficientSmsCreditsException $e) {
+            $this->notifyCreditsExhausted($clinicId);
+            return ['success' => false, 'error' => $e->getMessage()];
         }
+        $limits->announce($taken);
 
         if ($immediate || !app(MessageDispatcher::class)->queues()) {
             return $this->deliver($log) + ['queued' => false, 'log_id' => $log->id];
@@ -144,6 +163,24 @@ class SmsService
         app(MessageDispatcher::class)->dispatch(new SendSmsMessage($log->id));
 
         return ['success' => true, 'queued' => true, 'log_id' => $log->id];
+    }
+
+    /** Tell clinic admins once a day per branch that the branch's SMS share is used up. */
+    private function notifyBranchLimitReached(int $clinicId, string $branchName): void
+    {
+        if (!Cache::add("sms-branch-limit:{$clinicId}:{$branchName}:" . now()->toDateString(), true, now()->endOfDay())) {
+            return;
+        }
+
+        NotificationService::sendToRoles(
+            ['Super Admin'],
+            'sms_branch_limit_reached',
+            "{$branchName} is out of SMS",
+            "{$branchName} has used its SMS limit, so its messages are not being sent. Add more in Settings → SMS.",
+            'fas fa-sms',
+            'text-danger',
+            route('admin.settings', ['tab' => 'sms'], absolute: false)
+        );
     }
 
     /** Tell clinic admins once a day (per branch) that sends are being refused, instead of once per patient. */
