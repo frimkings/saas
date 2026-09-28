@@ -13,7 +13,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Emails to the platform's requests inbox (Platform → Support) when a clinic asks for
- * something only the platform can do: change plan, buy SMS, or use its own sender ID.
+ * something only the platform can do: change plan, buy SMS, use its own sender ID, or add an add-on.
  * Each request is emailed once as it arrives; every morning at 8:00 one reminder lists those
  * still waiting after a day.
  */
@@ -77,6 +77,25 @@ class PlatformRequestAlerts
             'Review sender IDs', route('platform.sms'));
     }
 
+    public function addonRequested(\App\Models\ClinicAddonRequest $request): void
+    {
+        $request->loadMissing(['clinic', 'requester']);
+        if (! $request->clinic) return;
+        $offer = app(ClinicAddonService::class)->catalogue($request->clinic)->get($request->feature);
+
+        $this->send($request->clinic, 'platform_addon_request', 'addon_request:' . $request->id,
+            "{$request->clinic->name} wants the {$request->name()} add-on",
+            ($request->requester?->name ?? 'The clinic') . " asked to add {$request->name()} to {$request->clinic->name}'s plan. Approve or decline it on the clinic's Plan tab.",
+            array_filter([
+                'Clinic' => $request->clinic->name,
+                'Add-on' => $request->name(),
+                'Listed price' => $offer ? $offer['currency'] . ' ' . number_format($offer['price'], 2) . ' a month' : null,
+                'Message' => $request->message,
+                'Asked by' => $request->requester ? "{$request->requester->name} ({$request->requester->email})" : null,
+            ]),
+            'Review request', route('platform.dashboard', ['tab' => 'clinics']));
+    }
+
     /** One morning email listing every request still waiting after a day. Nothing is sent if none are. */
     public function remindWaiting(): ?string
     {
@@ -107,13 +126,15 @@ class PlatformRequestAlerts
         $bundles = PlatformInvoice::where('source', 'sms_bundle')->whereIn('status', ['unpaid', 'partial'])->where('created_at', '<', $cutoff)->get(['clinic_id', 'created_at']);
         $senders = Setting::withoutGlobalScopes()->where('sms_sender_id_status', 'pending')->where('sms_sender_id_requested_at', '<', $cutoff)
             ->get(['clinic_id', 'sms_sender_id_requested', 'sms_sender_id_requested_at']);
-        $names = $clinics($plans->pluck('clinic_id')->merge($bundles->pluck('clinic_id'))->merge($senders->pluck('clinic_id'))->unique());
+        $addons = \App\Models\ClinicAddonRequest::where('status', 'pending')->where('created_at', '<', $cutoff)->get(['clinic_id', 'feature', 'created_at']);
+        $names = $clinics($plans->pluck('clinic_id')->merge($bundles->pluck('clinic_id'))->merge($senders->pluck('clinic_id'))->merge($addons->pluck('clinic_id'))->unique());
 
         return collect()
             ->merge($plans->map(fn ($r) => ['what' => 'Plan change', 'clinic' => $names[$r->clinic_id] ?? 'Clinic', 'since' => $r->created_at]))
             ->merge($bundles->map(fn ($r) => ['what' => 'SMS credits', 'clinic' => $names[$r->clinic_id] ?? 'Clinic', 'since' => $r->created_at]))
             ->merge($senders->map(fn ($r) => ['what' => "Sender ID {$r->sms_sender_id_requested}", 'clinic' => $names[$r->clinic_id] ?? 'Clinic',
                 'since' => \Illuminate\Support\Carbon::parse($r->sms_sender_id_requested_at)]))
+            ->merge($addons->map(fn ($r) => ['what' => 'Add-on: ' . $r->name(), 'clinic' => $names[$r->clinic_id] ?? 'Clinic', 'since' => $r->created_at]))
             ->sortBy('since')->values();
     }
 

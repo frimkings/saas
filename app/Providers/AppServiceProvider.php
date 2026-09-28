@@ -28,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
         );
         // Caches price lists for the request; stock option pricing looks them up per eye.
         $this->app->scoped(\App\Services\OpticalLensPriceList::class);
+        // Caches each clinic's active add-ons for the request; feature checks run many times per page.
+        $this->app->scoped(\App\Services\ClinicAddonService::class);
     }
 
     /**
@@ -62,6 +64,15 @@ class AppServiceProvider extends ServiceProvider
                     app(\App\Services\ClinicAccessService::class)->assertWritable();
                 }
             }
+        });
+
+        // A running worker checks in (at most every 30s, also while idle) so messages are only
+        // queued when something will actually send them.
+        Queue::looping(function (): void {
+            static $last = 0;
+            if (time() - $last < 30) return;
+            $last = time();
+            try { \Illuminate\Support\Facades\Cache::put(\App\Services\Messaging\MessageDispatcher::WORKER_HEARTBEAT, $last, 300); } catch (\Throwable) {}
         });
 
         // Every clinic sends through the platform's Resend account (config/mail.php), so

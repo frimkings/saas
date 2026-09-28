@@ -25,7 +25,11 @@ class SubscriptionBillingService
         $limit = $subscription->branchLimit();
         $branches = $subscription->clinic->branches()->where('is_active', true)->count();
         $extras = $limit === null ? 0 : max(0, $branches - $limit);
-        $subtotal = round($base + ($extras * (float)($pricing['additional_branch_price'] ?? 0)), 2);
+        // Each charge is its own invoice line: the plan, extra branches, then the clinic's add-ons.
+        $lines = [[($subscription->plan?->name ?? 'Subscription') . ' plan (' . $subscription->billing_interval . ')', round($base, 2), null]];
+        if ($extras > 0) $lines[] = [$extras . ' extra ' . Str::plural('branch', $extras), round($extras * (float)($pricing['additional_branch_price'] ?? 0), 2), null];
+        array_push($lines, ...app(ClinicAddonService::class)->renewalLines($subscription, $start, $end));
+        $subtotal = round(array_sum(array_column($lines, 1)), 2);
         $tax = round($subtotal * ((float)($pricing['tax_rate'] ?? 0) / 100), 2);
 
         $invoice = PlatformInvoice::firstOrCreate(['idempotency_key'=>$key], [
@@ -37,7 +41,12 @@ class SubscriptionBillingService
             'currency'=>$pricing['currency']??'GHS','status'=>'unpaid','source'=>'renewal',
             'notes'=>"Automated {$subscription->billing_interval} subscription renewal",
         ]);
-        if ($invoice->wasRecentlyCreated) app(BillingNotificationService::class)->invoiceIssued($invoice->load(['clinic','subscription']));
+        if ($invoice->wasRecentlyCreated) {
+            foreach ($lines as $i => [$description, $amount, $addonId]) {
+                $invoice->lines()->create(['description' => $description, 'amount' => $amount, 'clinic_addon_id' => $addonId, 'sort' => $i]);
+            }
+            app(BillingNotificationService::class)->invoiceIssued($invoice->load(['clinic','subscription']));
+        }
         return $invoice;
     }
 

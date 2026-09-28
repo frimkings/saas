@@ -43,6 +43,10 @@ class SubscriptionService
         }
         $readOnly = in_array($status, ['restricted', 'expired'], true);
         $features = $subscription->feature_snapshot;
+        // Plus the clinic's add-ons (a list that already means "everything" needs none).
+        if (! empty($features) && ! in_array('*', $features, true)) {
+            $features = array_values(array_unique([...$features, ...app(ClinicAddonService::class)->activeFeatures($clinic->id)]));
+        }
         $allowed = ! $feature || \App\Support\PlanProduct::allows($features, $feature);
         return ['allowed'=>$allowed,'read_only'=>$readOnly,'status'=>$status,'reason'=>$allowed?null:'This feature is not included in your subscription.'];
     }

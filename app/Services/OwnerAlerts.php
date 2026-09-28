@@ -135,6 +135,50 @@ class OwnerAlerts
             'Buy SMS credits', route('admin.settings', ['tab' => 'sms']));
     }
 
+    /** An add-on was switched on for the clinic, with what it costs now and from the next renewal. */
+    public function addonAdded(\App\Models\ClinicAddon $addon, ?\App\Models\PlatformInvoice $invoice): void
+    {
+        $clinic = Clinic::find($addon->clinic_id);
+        if (! $clinic) return;
+        $monthly = (float) $addon->monthly_price;
+
+        $this->notice($clinic, 'addon_added', 'addon_added:' . $addon->id, "{$addon->name()} has been added",
+            "{$addon->name()} is now switched on for {$clinic->name}." . ($invoice ? ' The rest of this billing period is charged now; after that it is added to each renewal.' : ''),
+            array_filter([
+                'Add-on' => $addon->name(),
+                'Price' => $monthly > 0 ? $addon->currency . ' ' . number_format($monthly, 2) . ' a month' : 'Free',
+                'Charged now' => $invoice ? $invoice->currency . ' ' . number_format((float) $invoice->total, 2) . " (invoice {$invoice->number}, due {$invoice->due_date?->format('j M Y')})" : null,
+            ]),
+            'View subscription', route('admin.subscription'));
+    }
+
+    /** An add-on was cancelled; it keeps working until the end of the paid period. */
+    public function addonCancelled(\App\Models\ClinicAddon $addon): void
+    {
+        $clinic = Clinic::find($addon->clinic_id);
+        if (! $clinic) return;
+        $until = $addon->ends_at?->timezone($clinic->default_timezone ?: config('app.timezone'));
+
+        $this->notice($clinic, 'addon_cancelled', 'addon_cancelled:' . $addon->id, "{$addon->name()} has been cancelled",
+            $until && $until->isFuture()
+                ? "{$addon->name()} keeps working until {$until->format('j M Y')}, the end of the period already paid for. It won't be charged again."
+                : "{$addon->name()} has been switched off and won't be charged again.",
+            ['Add-on' => $addon->name(), 'Works until' => $until?->format('j M Y')],
+            'View subscription', route('admin.subscription'));
+    }
+
+    /** The platform turned down the clinic's request for an add-on. */
+    public function addonRequestRejected(\App\Models\ClinicAddonRequest $request): void
+    {
+        $clinic = Clinic::find($request->clinic_id);
+        if (! $clinic) return;
+
+        $this->notice($clinic, 'addon_request_rejected', 'addon_request:' . $request->id . ':rejected', "Your request for {$request->name()} was not approved",
+            "The platform did not approve {$clinic->name}'s request for {$request->name()}. Reply to this email if you'd like to discuss it.",
+            array_filter(['Add-on' => $request->name(), 'Note' => $request->review_notes]),
+            'View subscription', route('admin.subscription'));
+    }
+
     /** A branch has used 80% of its SMS limit. */
     public function branchSmsLow(Branch $branch): void
     {
