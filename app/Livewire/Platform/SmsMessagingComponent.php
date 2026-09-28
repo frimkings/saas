@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Platform;
 
-use App\Models\{Clinic, PlatformInvoice, Setting, SmsBundle, SmsWallet};
+use App\Models\{Clinic, PlatformInvoice, PlatformSetting, Setting, SmsBundle, SmsWallet};
 use App\Services\Messaging\{PlatformSmsBalance, SmsCreditService};
 use App\Services\{PlatformAuditService, SubscriptionBillingService};
 use Livewire\Component;
@@ -27,6 +27,10 @@ class SmsMessagingComponent extends Component
     public ?string $bundlePrice = null;
     public string $bundleCurrency = 'GHS';
 
+    // Allowed price per SMS credit; every bundle must fall inside it
+    public ?string $minPerCredit = null;
+    public ?string $maxPerCredit = null;
+
     // Manual credit grant / adjustment
     public ?int $creditClinicId = null;
     public ?int $creditAmount = null;
@@ -38,6 +42,10 @@ class SmsMessagingComponent extends Component
 
     public function mount(): void
     {
+        [$min, $max] = SmsBundle::priceRange();
+        $this->minPerCredit = number_format($min, 3, '.', '');
+        $this->maxPerCredit = number_format($max, 3, '.', '');
+
         // Open on whatever needs attention first.
         if (PlatformInvoice::where('source', 'sms_bundle')->whereIn('status', ['unpaid', 'partial'])->exists()) {
             $this->section = 'payments';
@@ -128,6 +136,14 @@ class SmsMessagingComponent extends Component
             'bundleCurrency' => 'required|string|size:3',
         ]);
 
+        [$min, $max] = SmsBundle::priceRange();
+        $per = round((float) $data['bundlePrice'] / $data['bundleCredits'], 4);
+        if ($per < $min || $per > $max) {
+            $this->addError('bundlePrice', sprintf('That is %.3f per SMS. Keep it between %.3f and %.3f (the price range above), e.g. %s to %s for %s credits.',
+                $per, $min, $max, number_format($min * $data['bundleCredits'], 2), number_format($max * $data['bundleCredits'], 2), number_format($data['bundleCredits'])));
+            return;
+        }
+
         $bundle = SmsBundle::updateOrCreate(['id' => $this->editingBundleId], [
             'name'     => $data['bundleName'],
             'credits'  => $data['bundleCredits'],
@@ -138,6 +154,22 @@ class SmsMessagingComponent extends Component
         $audit->record($this->editingBundleId ? 'SMS_BUNDLE_UPDATED' : 'SMS_BUNDLE_CREATED', null, [], $bundle->toArray());
         $this->reset(['editingBundleId', 'bundleName', 'bundleCredits', 'bundlePrice']);
         session()->flash('sms_message', "Bundle {$bundle->name} saved. Invoices already issued keep their original price.");
+    }
+
+    public function savePriceRange(PlatformAuditService $audit): void
+    {
+        $data = $this->validate([
+            'minPerCredit' => 'required|numeric|min:0.001|max:10',
+            'maxPerCredit' => 'required|numeric|max:10|gte:minPerCredit',
+        ], [], ['minPerCredit' => 'lowest price per SMS', 'maxPerCredit' => 'highest price per SMS']);
+
+        $before = SmsBundle::priceRange();
+        PlatformSetting::put(['sms_min_price_per_credit' => $data['minPerCredit'], 'sms_max_price_per_credit' => $data['maxPerCredit']]);
+        $audit->record('SMS_PRICE_RANGE_UPDATED', null, ['min' => $before[0], 'max' => $before[1]],
+            ['min' => (float) $data['minPerCredit'], 'max' => (float) $data['maxPerCredit']]);
+
+        $outside = SmsBundle::where('is_active', true)->get()->reject->withinRange()->count();
+        session()->flash('sms_message', 'Price range saved.'.($outside ? " {$outside} bundle(s) on sale are now outside it; edit their prices." : ''));
     }
 
     public function toggleBundle(int $id, PlatformAuditService $audit): void
@@ -198,6 +230,7 @@ class SmsMessagingComponent extends Component
             'settings'       => $settings,
             'wallets'        => $wallets,
             'bundles'        => SmsBundle::orderBy('sort_order')->orderBy('credits')->get(),
+            'priceRange'     => SmsBundle::priceRange(),
             'bundleInvoices' => PlatformInvoice::with('clinic')->where('source', 'sms_bundle')->whereIn('status', ['unpaid', 'partial'])->oldest()->get(),
             'providerStatus' => $balance->last(),
             'outstanding'    => $credits->outstandingCredits(),

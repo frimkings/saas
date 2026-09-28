@@ -133,20 +133,41 @@
         </section>
 
     @elseif($section === 'bundles')
+        {{-- Allowed price per SMS: bundles are checked against it when saved --}}
+        <section class="pp-card">
+            <div class="pp-card-head"><div><h2>Price range per SMS</h2><p>Every bundle's price per credit must fall inside this range. Small bundles usually sit at the top of it and large ones at the bottom.</p></div></div>
+            <form wire:submit="savePriceRange" class="pp-form">
+                <div class="pp-row" style="grid-template-columns:repeat(2,minmax(120px,200px)) auto;align-items:end">
+                    <label class="pp-field"><span>Lowest per SMS</span><input type="number" step="0.001" min="0" wire:model="minPerCredit" placeholder="0.040"></label>
+                    <label class="pp-field"><span>Highest per SMS</span><input type="number" step="0.001" min="0" wire:model="maxPerCredit" placeholder="0.080"></label>
+                    <div class="pp-actions"><button type="submit" class="pp-btn" wire:loading.attr="disabled" wire:target="savePriceRange">Save range</button></div>
+                </div>
+                @error('minPerCredit')<small class="pp-err">{{ $message }}</small>@enderror
+                @error('maxPerCredit')<small class="pp-err">{{ $message }}</small>@enderror
+            </form>
+        </section>
+
         {{-- Bundle catalogue --}}
         <section class="pp-card">
             <div class="pp-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Settings → SMS. Credits never expire. Price changes apply to new purchases only.</p></div></div>
             <form wire:submit="saveBundle" class="pp-form">
                 <div class="pp-row" style="grid-template-columns:minmax(160px,1.5fr) repeat(3,minmax(90px,.7fr)) auto;align-items:end">
                     <label class="pp-field"><span>Name</span><input type="text" wire:model="bundleName" placeholder="e.g. Starter"></label>
-                    <label class="pp-field"><span>Credits</span><input type="number" wire:model="bundleCredits" placeholder="1000"></label>
-                    <label class="pp-field"><span>Price</span><input type="number" step="0.01" wire:model="bundlePrice" placeholder="50.00"></label>
+                    <label class="pp-field"><span>Credits</span><input type="number" wire:model.live.debounce.400ms="bundleCredits" placeholder="1000"></label>
+                    <label class="pp-field"><span>Price</span><input type="number" step="0.01" wire:model.live.debounce.400ms="bundlePrice" placeholder="70.00"></label>
                     <label class="pp-field"><span>Currency</span><input type="text" wire:model="bundleCurrency" maxlength="3" style="text-transform:uppercase"></label>
                     <div class="pp-actions">
                         <button type="submit" class="pp-btn" wire:loading.attr="disabled" wire:target="saveBundle">{{ $editingBundleId ? 'Update bundle' : 'Add bundle' }}</button>
                         @if($editingBundleId)<button type="button" class="pp-btn alt" wire:click="cancelBundleEdit">Cancel</button>@endif
                     </div>
                 </div>
+                @if((int) $bundleCredits > 0 && is_numeric($bundlePrice))
+                    @php $per = (float) $bundlePrice / (int) $bundleCredits; @endphp
+                    <small style="display:block;margin-top:6px;color:{{ round($per, 4) < $priceRange[0] || round($per, 4) > $priceRange[1] ? '#f87171' : '#94a3b8' }}">
+                        {{ number_format($per, 3) }} per SMS · allowed {{ number_format($priceRange[0], 3) }}–{{ number_format($priceRange[1], 3) }}
+                        ({{ number_format($priceRange[0] * (int) $bundleCredits, 2) }} to {{ number_format($priceRange[1] * (int) $bundleCredits, 2) }} for this many credits)
+                    </small>
+                @endif
                 @foreach(['bundleName', 'bundleCredits', 'bundlePrice', 'bundleCurrency'] as $field)
                     @error($field)<small class="pp-err">{{ $message }}</small>@enderror
                 @endforeach
@@ -162,7 +183,8 @@
                         <td><b>{{ $bundle->name }}</b></td>
                         <td>{{ number_format($bundle->credits) }}</td>
                         <td>{{ $bundle->currency }} {{ number_format($bundle->price, 2) }}</td>
-                        <td>{{ $bundle->currency }} {{ number_format($bundle->price / max(1, $bundle->credits), 3) }}</td>
+                        <td>{{ $bundle->currency }} {{ number_format($bundle->perCredit(), 3) }}
+                            @unless($bundle->withinRange())<span class="pp-badge grey" style="background:#7f1d1d;color:#fecaca" title="Outside the price range above">Outside range</span>@endunless</td>
                         <td><span class="pp-badge {{ $bundle->is_active ? '' : 'grey' }}">{{ $bundle->is_active ? 'On sale' : 'Hidden' }}</span></td>
                         <td><div class="pp-actions" style="justify-content:flex-end">
                             <button type="button" class="pp-btn alt sm" wire:click="editBundle({{ $bundle->id }})">Edit</button>

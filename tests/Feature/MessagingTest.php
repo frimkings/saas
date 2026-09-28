@@ -464,6 +464,39 @@ class MessagingTest extends TestCase
         $component->assertSeeHtml('https://wa.me/233241234567?text=');
     }
 
+    public function test_bundles_start_at_0_08_to_0_04_per_sms_and_the_platform_edits_the_range(): void
+    {
+        // The starting catalogue runs from 0.08 per SMS (small packs) down to 0.04 (large).
+        $this->assertSame(['Starter', 'Basic', 'Standard', 'Plus', 'Pro'], SmsBundle::active()->pluck('name')->all());
+        $this->assertEqualsWithDelta([0.08, 0.07, 0.06, 0.05, 0.04], SmsBundle::active()->get()->map->perCredit()->all(), 0.0001);
+        $this->assertTrue(SmsBundle::all()->every->withinRange());
+
+        $this->actingAs(User::factory()->create(['is_platform_admin' => true]));
+        $component = Livewire::test(SmsMessagingComponent::class)->call('setSection', 'bundles')
+            ->assertSet('minPerCredit', '0.040')->assertSet('maxPerCredit', '0.080');
+
+        // Outside the range: 1,000 credits for GHS 30 is 0.03 per SMS, for GHS 100 is 0.10.
+        $component->set('bundleName', 'Cheap')->set('bundleCredits', 1000)->set('bundlePrice', '30')->call('saveBundle')->assertHasErrors('bundlePrice');
+        $component->set('bundlePrice', '100')->call('saveBundle')->assertHasErrors('bundlePrice');
+        $this->assertFalse(SmsBundle::where('name', 'Cheap')->exists());
+        $component->set('bundlePrice', '55')->call('saveBundle')->assertHasNoErrors();
+        $this->assertTrue(SmsBundle::where('name', 'Cheap')->exists());
+
+        // Editing a default bundle's price is checked the same way.
+        $basic = SmsBundle::where('name', 'Basic')->first();
+        $component->call('editBundle', $basic->id)->set('bundlePrice', '75')->call('saveBundle')->assertHasNoErrors();
+        $this->assertSame('75.00', $basic->fresh()->price);
+
+        // The range itself is editable; a narrower one flags bundles now outside it.
+        $component->set('minPerCredit', '0.09')->set('maxPerCredit', '0.05')->call('savePriceRange')->assertHasErrors('maxPerCredit');
+        $component->set('minPerCredit', '0.05')->set('maxPerCredit', '0.10')->call('savePriceRange')->assertHasNoErrors();
+        $this->assertSame([0.05, 0.10], SmsBundle::priceRange());
+        $this->assertFalse(SmsBundle::where('name', 'Pro')->first()->withinRange());
+        $component->assertSee('Outside range');
+        $component->set('bundleName', 'Cheap')->set('bundleCredits', 1000)->set('bundlePrice', '100')->call('saveBundle')->assertHasNoErrors();
+        $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SMS_PRICE_RANGE_UPDATED']);
+    }
+
     public function test_clinic_admin_sees_credits_and_requests_a_bundle(): void
     {
         \Illuminate\Support\Facades\Mail::fake();
