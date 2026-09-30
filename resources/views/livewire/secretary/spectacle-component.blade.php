@@ -651,7 +651,7 @@
                                         @error('ownFrameDescription')<small>{{ $message }}</small>@enderror
                                     </label>
                                 @else
-                                    <label class="so-form-field"><select wire:model.live="selectedFrameId" aria-label="Frame"><option value="">Select frame</option>@foreach($availableFrames as $frame)<option value="{{ $frame->id }}">{{ $frame->name }} ({{ $frame->quantity }})</option>@endforeach</select>@error('selectedFrameId')<small>{{ $message }}</small>@enderror</label>
+                                    <label class="so-form-field"><select wire:model.live="selectedFrameId" aria-label="Frame"><option value="">Select frame</option>@foreach($availableFrames as $frame)<option value="{{ $frame->id }}">{{ $frame->name }} ({{ $frame->made_to_order ? 'Made to order' : $frame->quantity }})</option>@endforeach</select>@error('selectedFrameId')<small>{{ $message }}</small>@enderror</label>
                                 @endif
                             @endif
                         </div>
@@ -659,7 +659,7 @@
                             @if($orderPosProducts['lens'])
                                 <label class="so-form-field"><span>Lens</span><input type="text" value="{{ $orderPosProducts['lens']->name }}" readonly title="{{ $orderPosProducts['lens']->name }}"><small class="so-field-hint">Sold at POS &mdash; stock already deducted.</small></label>
                             @else
-                                <label class="so-form-field"><span>Lens <strong>*</strong></span><select wire:model.live="selectedLensId"><option value="">Select lens</option>@foreach($availableLenses as $lens)<option value="{{ $lens->id }}">{{ $lens->name }} ({{ $lens->quantity }})</option>@endforeach</select>@error('selectedLensId')<small>{{ $message }}</small>@enderror</label>
+                                <label class="so-form-field"><span>Lens <strong>*</strong></span><select wire:model.live="selectedLensId"><option value="">Select lens</option>@foreach($availableLenses as $lens)<option value="{{ $lens->id }}">{{ $lens->name }} ({{ $lens->made_to_order ? 'Made to order' : $lens->quantity }})</option>@endforeach</select>@error('selectedLensId')<small>{{ $message }}</small>@enderror</label>
                             @endif
                         </div>
                         <label class="so-form-field"><span>Lab</span><input type="text" wire:model="labName"></label>

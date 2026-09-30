@@ -69,7 +69,8 @@ class SecretaryDashboardComponent extends Component
             ->whereNull('renewal_reminder_sent_at')
             ->count();
 
-        $this->spectaclesReady = LensOrder::where('status', 'Ready')->count();
+        // Clinic spectacle orders only (made from a refraction), under either page's "ready" status.
+        $this->spectaclesReady = LensOrder::whereNotNull('refraction_id')->whereIn('status', LensOrder::READY)->count();
 
         // ── Chart — new patients past 7 days (single grouped query) ──────
         $chartStart = Carbon::today()->subDays(6)->startOfDay();

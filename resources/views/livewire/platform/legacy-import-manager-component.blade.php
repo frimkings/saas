@@ -30,7 +30,7 @@
 <div class="im-overlay" style="display:none" wire:loading.flex wire:target="analyzeImport,commitImport" role="status" aria-live="polite">
     <div class="im-overlay-panel"><span class="im-spinner" aria-hidden="true"></span><h3>Please wait</h3><p>Processing your request. Please keep this page open.</p></div>
 </div>
-<div x-data x-on:legacy-import-notice.window="Swal.fire({ icon: $event.detail.icon, title: $event.detail.title, text: $event.detail.message, confirmButtonColor: '#1688c4' })"></div>
+<div x-data x-on:legacy-import-notice.window="window.appAlert($event.detail.title, $event.detail.message, $event.detail.icon)"></div>
 @if($selected && in_array($selected->status, ['queued', 'importing'], true))
     <div class="im-overlay" wire:poll.2s="refreshImport" wire:key="active-import-poll-{{ $selected->id }}" role="status" aria-live="polite">
         <div class="im-overlay-panel"><span class="im-spinner" aria-hidden="true"></span><h3>{{ $selected->status === 'queued' ? 'Import queued' : 'Import in progress' }}</h3><p>{{ $selected->progress_percent }}% complete &middot; {{ $selected->processed_rows }} / {{ $selected->total_rows }} rows</p>@if($selected->error)<p class="im-warn">{{ $selected->error }} Retrying automatically.</p>@endif @if($workerMissing)<p class="im-error"><b>No queue worker is running.</b> Start one on the server: <code>php artisan queue:work --queue=imports</code></p>@else<p>The import runs on the server. You can leave this page and come back.</p>@endif</div>

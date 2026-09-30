@@ -85,6 +85,11 @@ class StockMovementComponent extends Component
             return;
         }
 
+        if (Product::whereKey($this->productId)->value('made_to_order')) {
+            $this->addError('productId', 'This product is made to order, so its stock is not counted. Untick "Made to order" on the product to keep it in stock.');
+            return;
+        }
+
         DB::transaction(function () {
             $product = Product::whereKey($this->productId)->lockForUpdate()->firstOrFail();
             $inventory = app(\App\Services\Inventory\BranchInventoryService::class);

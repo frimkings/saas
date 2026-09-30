@@ -520,18 +520,8 @@
 
 <script>
     window.addEventListener('show-po-confirm', event => {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: event.detail.message,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            confirmButtonText: 'Yes, cancel it',
-        }).then(result => {
-            if (result.isConfirmed) {
-                @this.call(event.detail.action, event.detail.id);
-            }
-        });
+        window.appConfirm(event.detail.message, { title: 'Are you sure?', confirmText: 'Yes, cancel it', danger: true })
+            .then(ok => ok && @this.call(event.detail.action, event.detail.id));
     });
 </script>
 </div>{{-- single Livewire root --}}

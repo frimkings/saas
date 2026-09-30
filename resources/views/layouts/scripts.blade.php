@@ -173,38 +173,15 @@
         window.addEventListener('show-delete-confirmation', event => {
             const id = event.detail?.id;
             const method = event.detail?.method || 'confirmDelete';
-            Swal.fire({
-                title: 'Are you sure?',
-                text: "You won't be able to revert this!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete it!'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    Livewire.dispatch(method, { id: id });
-                }
-            });
+            window.appConfirm("You won't be able to undo this.", { title: 'Are you sure?', confirmText: 'Yes, delete it', danger: true })
+                .then(ok => ok && Livewire.dispatch(method, { id: id }));
         });
 
         // Refund confirmation
         ['confirmRefund', 'confirm-refund'].forEach(eventName => {
             window.addEventListener(eventName, () => {
-                Swal.fire({
-                    title: 'Confirm Refund',
-                    text: "Are you sure you want to refund this sale?",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#ffc107',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: 'Yes, refund it!',
-                    cancelButtonText: 'Cancel'
-                }).then(result => {
-                    if (result.isConfirmed) {
-                        Livewire.dispatch(eventName === 'confirmRefund' ? 'confirmRefund' : 'initiateRefund');
-                    }
-                });
+                window.appConfirm('Are you sure you want to refund this sale?', { title: 'Confirm refund', confirmText: 'Yes, refund it', danger: true })
+                    .then(ok => ok && Livewire.dispatch(eventName === 'confirmRefund' ? 'confirmRefund' : 'initiateRefund'));
             });
         });
 

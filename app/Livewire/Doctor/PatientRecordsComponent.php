@@ -52,7 +52,8 @@ class PatientRecordsComponent extends Component
     public $clearance;
     
     // Consultation state
-    public $state = [];
+    private const BLANK_STATE = ['odq' => [], 'odq_details' => [], 'examination_assessments' => []];
+    public $state = self::BLANK_STATE;
     public $consultation;
     public $consultationID;
     public $isEditMode = false;
@@ -186,6 +187,13 @@ public $isEditingAppointment = false;
         $this->initializeAppointmentBooking();
     }
     
+    public function dehydrate(): void
+    {
+        // An empty PHP array reaches the browser as a JS array, which silently drops the
+        // named examination keys Alpine writes to it, so the next request wipes them.
+        $this->state = (array) $this->state + self::BLANK_STATE;
+    }
+
     public function getCanStartConsultationProperty()
     {
         if (!$this->clearance) {
@@ -303,7 +311,7 @@ public $isEditingAppointment = false;
 
     public function resetForm()
     {
-        $this->state = ['odq' => [], 'odq_details' => [], 'examination_assessments' => []];
+        $this->state = self::BLANK_STATE;
         $this->isEditMode = false;
         $this->consultation = null;
         $this->consultationID = null;
@@ -666,14 +674,14 @@ public function deleteAppointment($appointmentId)
         $term = trim((string) $value);
         if ($this->activeTab === 'prescription' && mb_strlen($term) >= 2) {
             $this->searchResults = Product::query()
-                ->select(['id', 'category_id', 'name', 'batch_number', 'quantity', 'selling_price'])
+                ->select(['id', 'category_id', 'name', 'batch_number', 'quantity', 'made_to_order', 'selling_price'])
                 ->with('category:id,name')
                 ->where(function ($query) use ($term) {
                     $likeTerm = '%' . addcslashes($term, '%_\\') . '%';
                     $query->where('name', 'like', $likeTerm)
                         ->orWhere('batch_number', 'like', $likeTerm);
                 })
-                ->where('quantity', '>', 0)
+                ->inStock()
                 ->orderBy('name')
                 ->limit(25)
                 ->get();
@@ -690,7 +698,7 @@ public function deleteAppointment($appointmentId)
             return;
         }
 
-        if ($product->quantity <= 0) {
+        if (!$product->canSupply()) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Product out of stock']);
             return;
         }
@@ -1728,7 +1736,7 @@ public function deleteAppointment($appointmentId)
             return 0;
         }
 
-        return max(0, (int) $product->quantity);
+        return $product->maxSupply();
     }
 
     private function validatePrescriptionItems(): bool
@@ -2317,7 +2325,7 @@ public function deleteAppointment($appointmentId)
                 $query->where('name', 'Lenses');
             })
             ->where('selling_price', '>', 0)
-            ->where('quantity', '>', 0)
+            ->inStock()
             ->get();
         } else {
             $this->lensProducts = [];

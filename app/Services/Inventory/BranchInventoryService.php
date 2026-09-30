@@ -50,7 +50,8 @@ class BranchInventoryService
         return 0;
     }
 
-    public function increase(Product|int $product, int $quantity, array $lot = [], ?int $branchId = null): BranchInventoryItem
+    /** Returns null for a made-to-order product: its stock is never counted. */
+    public function increase(Product|int $product, int $quantity, array $lot = [], ?int $branchId = null): ?BranchInventoryItem
     {
         if ($quantity <= 0) {
             throw new RuntimeException('Inventory quantity must be greater than zero.');
@@ -59,7 +60,8 @@ class BranchInventoryService
         return $this->adjust($product, $quantity, $branchId, $lot);
     }
 
-    public function decrease(Product|int $product, int $quantity, ?int $branchId = null): BranchInventoryItem
+    /** Returns null for a made-to-order product: its stock is never counted. */
+    public function decrease(Product|int $product, int $quantity, ?int $branchId = null): ?BranchInventoryItem
     {
         if ($quantity <= 0) {
             throw new RuntimeException('Inventory quantity must be greater than zero.');
@@ -68,7 +70,7 @@ class BranchInventoryService
         return $this->adjust($product, -$quantity, $branchId);
     }
 
-    private function adjust(Product|int $product, int $delta, ?int $branchId, array $lot = []): BranchInventoryItem
+    private function adjust(Product|int $product, int $delta, ?int $branchId, array $lot = []): ?BranchInventoryItem
     {
         $productId = $product instanceof Product ? (int) $product->getKey() : $product;
         $branch = $this->branch($branchId);
@@ -78,6 +80,7 @@ class BranchInventoryService
             if ((int) $product->clinic_id !== (int) $branch->clinic_id) {
                 throw new RuntimeException('The product and branch belong to different clinics.');
             }
+            if ($product->made_to_order) return null;
 
             $hasInventory = BranchInventoryItem::withoutGlobalScopes()
                 ->where('product_id', $productId)->exists();

@@ -23,7 +23,7 @@ class InventoryAlertsComponent extends Component
 
     private function query()
     {
-        $query = Product::with('category')
+        $query = Product::with('category')->stocked()
             ->when($this->search, function ($query) {
                 $search = '%' . $this->search . '%';
                 $query->where(function ($q) use ($search) {
@@ -48,12 +48,13 @@ class InventoryAlertsComponent extends Component
 
     public function render()
     {
+        // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
         return view('livewire.admin.inventory-alerts-component', [
             'products' => $this->query()->paginate(20),
-            'lowCount' => Product::where('quantity', '<=', 10)->count(),
-            'expiringCount' => Product::whereDate('expiry_date', '>=', Carbon::today())
+            'lowCount' => Product::stocked()->where('quantity', '<=', 10)->count(),
+            'expiringCount' => Product::stocked()->whereDate('expiry_date', '>=', Carbon::today())
                 ->whereDate('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))->count(),
-            'expiredCount' => Product::whereDate('expiry_date', '<', Carbon::today())->count(),
+            'expiredCount' => Product::stocked()->whereDate('expiry_date', '<', Carbon::today())->count(),
         ])->layout('layouts.admin.admin-layout');
     }
 }

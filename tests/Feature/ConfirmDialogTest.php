@@ -13,9 +13,21 @@ class ConfirmDialogTest extends TestCase
 
         $this->assertStringContainsString('window.appConfirm', $html);
         $this->assertStringContainsString("hook('directive.init'", $html);
+        $this->assertStringNotContainsString('Swal', $html, 'Every layout uses the built-in dialog, not SweetAlert.');
         foreach (['admin/admin-layout', 'doctor/doctor-layout', 'secretary/secretary-layout', 'platform', 'optical'] as $layout) {
             $this->assertStringContainsString("@include('layouts.partials.confirm-dialog')", File::get(resource_path("views/layouts/{$layout}.blade.php")), $layout);
         }
+    }
+
+    /** SweetAlert is being retired; only the till checkout, discount approval and session warning still use it. */
+    public function test_sweetalert_is_left_only_in_the_shared_till_scripts(): void
+    {
+        $users = collect(File::allFiles(resource_path('views')))
+            ->filter(fn ($file) => str_ends_with($file->getFilename(), '.blade.php') && str_contains(File::get($file->getPathname()), 'Swal.'))
+            ->map(fn ($file) => str_replace(DIRECTORY_SEPARATOR, '/', str_replace(resource_path('views').DIRECTORY_SEPARATOR, '', $file->getPathname())))
+            ->values()->all();
+
+        $this->assertSame(['layouts/scripts.blade.php'], $users);
     }
 
     /** `onclick="return confirm()"` does not stop Livewire's own click handler, so Cancel still ran the action. */

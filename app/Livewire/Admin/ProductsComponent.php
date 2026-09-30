@@ -2,10 +2,12 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\AuditTrail;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\LensOption;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
@@ -189,11 +191,35 @@ class ProductsComponent extends Component
             'expiry_date'      => '',
             'manufacture_date' => '',
             'quantity'         => '',
+            'made_to_order'    => false,
             'cost_price'       => '',
             'selling_price'    => '',
             'profit_margin'    => '',
         ];
         $this->editingProduct = null;
+    }
+
+    /** Quantity is only asked for products kept in stock; made-to-order products are never counted. */
+    private function quantityRule(int $min): string
+    {
+        return ! empty($this->state['made_to_order']) ? 'nullable' : "required|integer|min:{$min}|max:10000";
+    }
+
+    /**
+     * Stock is no longer counted once a product is made to order: clear the quantities
+     * typed in before, keeping the old numbers in the audit trail.
+     */
+    private function clearCountedStock(Product $product): void
+    {
+        $branchStock = $product->branchInventory()->withoutGlobalScopes()->where('quantity', '!=', 0)->pluck('quantity', 'branch_id')->all();
+        $old = ['quantity' => (int) $product->quantity, 'branch_quantities' => $branchStock];
+
+        $product->branchInventory()->withoutGlobalScopes()->update(['quantity' => 0]);
+        $product->inventoryLots()->withoutGlobalScopes()->update(['quantity' => 0]);
+        $product->forceFill(['quantity' => 0, 'made_to_order' => true])->save();
+
+        AuditTrail::record('product.made_to_order', "{$product->name} set to made to order; stock of {$old['quantity']} cleared", $product,
+            $old, ['quantity' => 0, 'made_to_order' => true], null, true);
     }
 
     public function updatedStateCostPrice()
@@ -249,13 +275,16 @@ class ProductsComponent extends Component
             'category_id' => ['required', Rule::exists('categories', 'id')->where('clinic_id', $clinicId)],
             'expiry_date' => 'required|date|date_format:Y-m-d|after:manufacture_date',
             'manufacture_date' => 'required|date|date_format:Y-m-d|before:expiry_date',
-            'quantity' => 'required|integer|min:1|max:10000',
+            'quantity' => $this->quantityRule(1),
+            'made_to_order' => 'boolean',
             'cost_price' => 'required|numeric|min:0.01',
             'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
         ])->validate();
 
         $validatedData['user_id'] = Auth::id();
         $validatedData['optical_category_id'] = null;
+        $validatedData['made_to_order'] = (bool) ($validatedData['made_to_order'] ?? false);
+        if ($validatedData['made_to_order']) $validatedData['quantity'] = 0;
 
         Product::create($validatedData);
 
@@ -282,6 +311,7 @@ class ProductsComponent extends Component
             'manufacture_date' => $this->editingProduct->manufacture_date->format('Y-m-d'),
             'expiry_date'      => $this->editingProduct->expiry_date->format('Y-m-d'),
             'quantity'         => $this->editingProduct->quantity,
+            'made_to_order'    => (bool) $this->editingProduct->made_to_order,
             'cost_price'       => $cost,
             'selling_price'    => $sell,
             'profit_margin'    => $cost > 0 ? round((($sell - $cost) / $cost) * 100, 2) : '',
@@ -306,13 +336,32 @@ class ProductsComponent extends Component
             'category_id' => ['required', Rule::exists('categories', 'id')->where('clinic_id', $clinicId)],
             'expiry_date' => 'required|date|date_format:Y-m-d|after:manufacture_date',
             'manufacture_date' => 'required|date|date_format:Y-m-d|before:expiry_date',
-            'quantity' => 'required|integer|min:0|max:10000',
+            'quantity' => $this->quantityRule(0),
+            'made_to_order' => 'boolean',
             'cost_price' => 'required|numeric|min:0.01',
             'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
         ])->validate();
 
         $validatedData['optical_category_id'] = null;
-        $this->editingProduct->update($validatedData);
+        $madeToOrder = (bool) ($validatedData['made_to_order'] ?? false);
+        unset($validatedData['made_to_order']);
+
+        DB::transaction(function () use ($validatedData, $madeToOrder) {
+            if ($madeToOrder) {
+                // Stock is cleared (and recorded) once, when the product becomes made to order.
+                unset($validatedData['quantity']);
+                if (! $this->editingProduct->made_to_order) $this->clearCountedStock($this->editingProduct);
+            } else {
+                $wasMadeToOrder = (bool) $this->editingProduct->made_to_order;
+                $validatedData['made_to_order'] = false;
+                // Back to counted stock: the quantity typed now is this branch's starting stock.
+                if ($wasMadeToOrder && ($branchId = app(\App\Support\Tenancy\TenantContext::class)->branchId())) {
+                    $this->editingProduct->branchInventory()->withoutGlobalScopes()->where('branch_id', $branchId)
+                        ->update(['quantity' => (int) $validatedData['quantity']]);
+                }
+            }
+            $this->editingProduct->update($validatedData);
+        });
 
         $this->cancelForm();
         
@@ -542,6 +591,10 @@ class ProductsComponent extends Component
 
     private function getProductStatus($product)
     {
+        if ($product->made_to_order) {
+            return 'Made to order';
+        }
+
         $expiryDate = $product->expiry_date->startOfDay();
         $today = Carbon::today();
 
@@ -592,21 +645,22 @@ class ProductsComponent extends Component
 
         // Apply tab filters
         switch ($this->activeTab) {
+            // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
             case 'low-stock':
-                $query->where('quantity', '<', 10);
+                $query->stocked()->where('quantity', '<', 10);
                 break;
-                
+
             case 'expiring':
                 $today = Carbon::today();
                 $fourMonthsFromNow = Carbon::today()->addMonths(4);
                 // Products that expire from today up to 4 months from now
-                $query->whereDate('expiry_date', '>=', $today)
+                $query->stocked()->whereDate('expiry_date', '>=', $today)
                       ->whereDate('expiry_date', '<=', $fourMonthsFromNow);
                 break;
-                
+
             case 'expired':
                 // Products that expired before today
-                $query->whereDate('expiry_date', '<', Carbon::today());
+                $query->stocked()->whereDate('expiry_date', '<', Carbon::today());
                 break;
         }
 
@@ -677,9 +731,9 @@ class ProductsComponent extends Component
         $fourMonths = Carbon::today()->addMonths(4);
         $allProducts = Product::selectRaw("
             COUNT(*) as total,
-            SUM(CASE WHEN quantity < 10 THEN 1 ELSE 0 END) as low_stock,
-            SUM(CASE WHEN DATE(expiry_date) >= ? AND DATE(expiry_date) <= ? THEN 1 ELSE 0 END) as expiring,
-            SUM(CASE WHEN DATE(expiry_date) < ? THEN 1 ELSE 0 END) as expired
+            SUM(CASE WHEN made_to_order = 0 AND quantity < 10 THEN 1 ELSE 0 END) as low_stock,
+            SUM(CASE WHEN made_to_order = 0 AND DATE(expiry_date) >= ? AND DATE(expiry_date) <= ? THEN 1 ELSE 0 END) as expiring,
+            SUM(CASE WHEN made_to_order = 0 AND DATE(expiry_date) < ? THEN 1 ELSE 0 END) as expired
         ", [$today, $fourMonths, $today])->first();
 
         $stats = [

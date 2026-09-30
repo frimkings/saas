@@ -220,20 +220,8 @@
         });
 
         window.addEventListener('show-category-delete-confirmation', event => {
-            Swal.fire({
-                title: 'Archive category?',
-                text: event.detail?.message || 'This category will be archived.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Yes, archive it',
-                cancelButtonText: 'Cancel'
-            }).then(result => {
-                if (result.isConfirmed) {
-                    @this.call('confirmCategoryDelete');
-                }
-            });
+            window.appConfirm(event.detail?.message || 'This category will be archived.', { title: 'Archive category?', confirmText: 'Yes, archive it', danger: true })
+                .then(ok => ok && @this.call('confirmCategoryDelete'));
         });
     </script>
 </div>

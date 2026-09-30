@@ -497,7 +497,7 @@ class SpectaclesComponent extends Component
                 throw \Illuminate\Validation\ValidationException::withMessages(['selectedLensId' => 'Select a product from the lens category.']);
             }
             $requiredFrame = $deductFrame && !$lensFromSale && $frame->id === $lens->id ? 2 : 1;
-            if (($deductFrame && $frame->quantity < $requiredFrame) || (!$lensFromSale && $lens->quantity < 1)) {
+            if (($deductFrame && !$frame->canSupply($requiredFrame)) || (!$lensFromSale && !$lens->canSupply())) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['selectedFrameId' => 'Selected frame or lens is no longer in stock.']);
             }
             $inventory = app(\App\Services\Inventory\BranchInventoryService::class);
@@ -962,7 +962,7 @@ class SpectaclesComponent extends Component
 
         if ($this->showFrameResults && strlen($this->frameSearchTerm) >= 2) {
             $frameSearchResults = Product::whereHas('category', fn($q) => $q->where('name', 'LIKE', '%frame%'))
-                ->where('quantity', '>', 0)
+                ->inStock()
                 ->where(fn($q) =>
                     $q->where('name', 'LIKE', "%{$this->frameSearchTerm}%")
                       ->orWhere('batch_number', 'LIKE', "%{$this->frameSearchTerm}%")
@@ -972,7 +972,7 @@ class SpectaclesComponent extends Component
 
         if ($this->showLensResults && strlen($this->lensSearchTerm) >= 2) {
             $lensSearchResults = Product::whereHas('category', fn($q) => $q->where('name', 'LIKE', '%lens%'))
-                ->where('quantity', '>', 0)
+                ->inStock()
                 ->where(fn($q) =>
                     $q->where('name', 'LIKE', "%{$this->lensSearchTerm}%")
                       ->orWhere('batch_number', 'LIKE', "%{$this->lensSearchTerm}%")
@@ -1010,8 +1010,8 @@ class SpectaclesComponent extends Component
             'appSettings'        => Setting::getSettings(),
             'doctors'            => User::whereIn('id', \App\Models\Consultations::whereNotNull('user_id')->select('user_id'))->orderBy('name')->get(['id', 'name']),
             'labs'               => LensOrder::whereNotNull('notes')->get()->map(fn($o) => $this->extractNoteValue($o, 'Lab'))->filter()->unique()->values(),
-            'availableFrames'    => Product::whereHas('category', fn($q) => $q->where('name', 'like', '%frame%'))->where('quantity', '>', 0)->orderBy('name')->get(['id','name','quantity','selling_price']),
-            'availableLenses'    => Product::whereHas('category', fn($q) => $q->where('name', 'like', '%lens%'))->where('quantity', '>', 0)->orderBy('name')->get(['id','name','quantity','selling_price']),
+            'availableFrames'    => Product::whereHas('category', fn($q) => $q->where('name', 'like', '%frame%'))->inStock()->orderBy('name')->get(['id','name','quantity','made_to_order','selling_price']),
+            'availableLenses'    => Product::whereHas('category', fn($q) => $q->where('name', 'like', '%lens%'))->inStock()->orderBy('name')->get(['id','name','quantity','made_to_order','selling_price']),
         ])->layout('layouts.secretary.secretary-layout');
     }
 }

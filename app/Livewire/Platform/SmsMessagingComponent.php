@@ -17,6 +17,13 @@ class SmsMessagingComponent extends Component
     /** Setting id => the sender ID exactly as registered with the network, when it differs from the request. */
     public array $approveAs = [];
 
+    // Platform override of a clinic's sender ID, without waiting for a request
+    public ?int $editingSenderClinicId = null;
+    public string $senderOverride = '';
+
+    private const SENDER_RULE = ['regex:/^(?=.*[A-Za-z])[A-Za-z0-9 ]{3,11}$/'];
+    private const SENDER_MESSAGE = 'Use 3–11 letters, digits or spaces, including at least one letter.';
+
     // Section tab: payments | credits | bundles | senders
     public string $section = 'credits';
 
@@ -80,8 +87,7 @@ class SmsMessagingComponent extends Component
         $old = $setting->only(['sms_sender_id', 'sms_sender_id_status']);
         $as = trim((string) ($this->approveAs[$settingId] ?? ''));
         if ($as !== '') {
-            $this->validate(["approveAs.$settingId" => ['regex:/^(?=.*[A-Za-z])[A-Za-z0-9 ]{3,11}$/']],
-                ["approveAs.$settingId.regex" => 'Use 3–11 letters, digits or spaces, including at least one letter.']);
+            $this->validate(["approveAs.$settingId" => self::SENDER_RULE], ["approveAs.$settingId.regex" => self::SENDER_MESSAGE]);
         }
 
         $setting->update([
@@ -109,6 +115,59 @@ class SmsMessagingComponent extends Component
         $audit->record('SMS_SENDER_ID_REJECTED', $setting->clinic_id, [], ['requested' => $setting->sms_sender_id_requested], $this->rejectNotes[$settingId]);
         unset($this->rejectNotes[$settingId]);
         session()->flash('sms_message', "Sender ID {$setting->sms_sender_id_requested} rejected.");
+    }
+
+    /** A hosted clinic's settings row; the sender ID is only the platform's to set for hosted clinics. */
+    private function hostedSetting(int $clinicId): Setting
+    {
+        abort_unless(Clinic::whereKey($clinicId)->where('deployment_mode', 'hosted')->exists(), 404);
+        return Setting::withoutGlobalScopes()->where('clinic_id', $clinicId)->firstOrFail();
+    }
+
+    public function editSender(int $clinicId): void
+    {
+        $this->editingSenderClinicId = $clinicId;
+        $this->senderOverride = (string) $this->hostedSetting($clinicId)->sms_sender_id;
+        $this->resetErrorBag();
+    }
+
+    public function cancelSenderEdit(): void
+    {
+        $this->reset(['editingSenderClinicId', 'senderOverride']);
+        $this->resetErrorBag();
+    }
+
+    /** Set the clinic's sender ID directly. It replaces any request still pending. */
+    public function saveSender(PlatformAuditService $audit): void
+    {
+        $this->senderOverride = trim($this->senderOverride);
+        $this->validate(['senderOverride' => array_merge(['required'], self::SENDER_RULE)],
+            ['senderOverride.regex' => self::SENDER_MESSAGE], ['senderOverride' => 'sender ID']);
+
+        $setting = $this->hostedSetting((int) $this->editingSenderClinicId);
+        $old = $setting->only(['sms_sender_id', 'sms_sender_id_requested', 'sms_sender_id_status']);
+        $setting->update([
+            'sms_sender_id'           => $this->senderOverride,
+            'sms_sender_id_requested' => $this->senderOverride,
+            'sms_sender_id_status'    => 'approved',
+            'sms_sender_id_note'      => null,
+        ]);
+
+        $audit->record('SMS_SENDER_ID_OVERRIDDEN', $setting->clinic_id, $old, $setting->only(['sms_sender_id', 'sms_sender_id_requested', 'sms_sender_id_status']));
+        $this->reset(['editingSenderClinicId', 'senderOverride']);
+        session()->flash('sms_message', "Sender ID set to {$setting->sms_sender_id}".($old['sms_sender_id_status'] === 'pending' ? "; the pending request for {$old['sms_sender_id_requested']} was replaced." : '.'));
+    }
+
+    /** Send as the platform default sender again. */
+    public function resetSender(int $clinicId, PlatformAuditService $audit): void
+    {
+        $setting = $this->hostedSetting($clinicId);
+        $old = $setting->only(['sms_sender_id', 'sms_sender_id_requested', 'sms_sender_id_status']);
+        $setting->update(['sms_sender_id' => null, 'sms_sender_id_requested' => null, 'sms_sender_id_status' => 'none', 'sms_sender_id_note' => null]);
+
+        $audit->record('SMS_SENDER_ID_RESET', $clinicId, $old, $setting->only(['sms_sender_id', 'sms_sender_id_requested', 'sms_sender_id_status']));
+        if ($this->editingSenderClinicId === $clinicId) $this->cancelSenderEdit();
+        session()->flash('sms_message', 'Sender ID reset; the clinic now sends as the platform default.');
     }
 
     public function checkBalance(PlatformSmsBalance $balance): void

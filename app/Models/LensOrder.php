@@ -95,6 +95,26 @@ class LensOrder extends Model
         'other' => 'Other',
     ];
 
+    /** Ready to collect: the Optical Suite marks "Ready for Collection", the clinic Spectacles page "Ready". */
+    public const READY = ['Ready for Collection', 'Ready'];
+
+    /** At an outside or in-house lab, under either page's status names. */
+    public const AT_LAB = ['Sent to Lab', 'In Lab', 'In Production'];
+
+    /** The job's total as SQL; empty prices count as 0. */
+    public const TOTAL_SQL = '(COALESCE(frame_price,0)+COALESCE(lens_price,0)+COALESCE(glazing_fee,0)+COALESCE(service_total,0)-COALESCE(discount_amount,0))';
+
+    /**
+     * Jobs with money still to pay on the order itself. Clinic spectacle orders are paid on
+     * the consultation bill (App\Support\Optical\ClinicSpectacleBilling), so they are left out.
+     */
+    public function scopeBalanceDue($query)
+    {
+        return $query->whereNotIn('status', ['Quotation', 'Cancelled'])
+            ->where(fn ($q) => $q->whereNotNull('sale_id')->orWhereNull('refraction_id'))
+            ->whereRaw(self::TOTAL_SQL.' > COALESCE(paid_amount,0) + 0.004');
+    }
+
     protected $casts = [
         'lab_cost'                 => 'decimal:2',
         'glazing_fee'              => 'decimal:2',

@@ -103,7 +103,7 @@ class AdminDashboardComponent extends Component
             ->whereNotIn('status', ['cancelled'])
             ->count();
 
-        $this->productsInStock = Product::where('quantity', '>', 0)->count();
+        $this->productsInStock = Product::inStock()->count();
 
         // ── Row 2 ────────────────────────────────────────────────────────
         $this->monthRevenue = $this->lineSales()->whereBetween('created_at', [$monthStart, $monthEnd])
@@ -167,13 +167,13 @@ class AdminDashboardComponent extends Component
             $this->expiredCount,
         ] = Cache::remember(\App\Support\Tenancy\TenantCache::key('dashboard_inventory_counts', true), 300, function () use ($today) {
             return [
-                Product::where('quantity', '>', 0)->where('quantity', '<=', 10)->count(),
-                Product::where('quantity', 0)->count(),
-                Product::whereNotNull('expiry_date')
+                Product::lowStock()->count(),
+                Product::outOfStock()->count(),
+                Product::stocked()->whereNotNull('expiry_date')
                     ->whereDate('expiry_date', '>=', $today)
                     ->whereDate('expiry_date', '<=', Carbon::today()->addDays(90))
                     ->count(),
-                Product::whereNotNull('expiry_date')
+                Product::stocked()->whereNotNull('expiry_date')
                     ->whereDate('expiry_date', '<', $today)
                     ->count(),
             ];

@@ -47,7 +47,8 @@ class LicenseService
             ? (!\App\Support\PlanProduct::isProductAware($features) || in_array($feature, $features, true))
             : (in_array('*', $features, true) || in_array($feature, $features, true)
                 || !in_array($feature, config('license.pro_features', []), true)));
-        if (!$rollback && $setting->license_last_seen !== now()->toDateString()) {
+        // With no clinic resolved, getSettings() returns unsaved platform defaults; never insert those.
+        if ($setting->exists && !$rollback && $setting->license_last_seen !== now()->toDateString()) {
             $setting->license_last_seen = now()->toDateString();
             $setting->saveQuietly();
         }

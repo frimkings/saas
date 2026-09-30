@@ -101,12 +101,11 @@ class OpticalOrdersComponent extends Component
 
     private function applyFilter($query, string $filter)
     {
-        $balanceDue = '(COALESCE(frame_price,0)+COALESCE(lens_price,0)+COALESCE(glazing_fee,0)+COALESCE(service_total,0)-COALESCE(discount_amount,0)) > COALESCE(paid_amount,0) + 0.004';
         return match ($filter) {
             '' => $query,
-            'lab' => $query->whereIn('status', ['Sent to Lab', 'In Production']),
-            'ready' => $query->whereIn('status', ['Ready for Collection', 'Ready']),
-            'due' => $query->whereNotIn('status', ['Quotation', 'Cancelled'])->where(fn ($q) => $q->whereNotNull('sale_id')->orWhereNull('refraction_id'))->whereRaw($balanceDue),
+            'lab' => $query->whereIn('status', LensOrder::AT_LAB),
+            'ready' => $query->whereIn('status', LensOrder::READY),
+            'due' => $query->balanceDue(),
             default => $query->where('status', $filter),
         };
     }

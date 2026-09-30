@@ -133,8 +133,37 @@ class SmsCreditService
     {
         abort_unless($bundle->is_active, 422, 'This SMS bundle is no longer available.');
 
+        return $this->issueInvoice($clinic, (float) $bundle->price, $bundle->currency, $bundle->credits, $bundle->id,
+            "SMS bundle: {$bundle->name} (" . number_format($bundle->credits) . ' credits)');
+    }
+
+    /**
+     * A clinic types its own amount: credits are worked out here (never trusted from the browser)
+     * at the rate of the bundles that amount can pay for. An amount equal to a bundle's price is that bundle.
+     */
+    public function requestTopUp(Clinic $clinic, float $amount): PlatformInvoice
+    {
+        $amount = round($amount, 2);
+        if ($amount < SmsBundle::MIN_TOP_UP || $amount > SmsBundle::MAX_TOP_UP) {
+            throw ValidationException::withMessages(['topUpAmount' => sprintf('Enter an amount between GHS %s and GHS %s.',
+                number_format(SmsBundle::MIN_TOP_UP), number_format(SmsBundle::MAX_TOP_UP))]);
+        }
+
+        $quote = SmsBundle::quoteFor($amount);
+        abort_unless($quote && $quote['credits'] > 0, 422, 'SMS credits are not on sale right now.');
+
+        if (abs($quote['tier']['price'] - $amount) < 0.005) {
+            return $this->requestBundle($clinic, SmsBundle::findOrFail($quote['tier']['id']));
+        }
+
+        return $this->issueInvoice($clinic, $amount, 'GHS', $quote['credits'], null, sprintf('SMS top-up: GHS %s at %s per SMS (%s credits)',
+            number_format($amount, 2), number_format($quote['rate'], 3), number_format($quote['credits'])));
+    }
+
+    private function issueInvoice(Clinic $clinic, float $subtotal, string $currency, int $credits, ?int $bundleId, string $notes): PlatformInvoice
+    {
         $subscription = $clinic->currentSubscription;
-        $tax = round((float) $bundle->price * ((float) ($subscription?->pricing_snapshot['tax_rate'] ?? 0) / 100), 2);
+        $tax = round($subtotal * ((float) ($subscription?->pricing_snapshot['tax_rate'] ?? 0) / 100), 2);
 
         $invoice = PlatformInvoice::create([
             'number'                 => 'SMS-' . now()->format('YmHis') . '-' . Str::upper(Str::random(4)),
@@ -143,16 +172,16 @@ class SmsCreditService
             'period_start'           => now()->toDateString(),
             'period_end'             => now()->toDateString(),
             'due_date'               => now()->addDays(7)->toDateString(),
-            'subtotal'               => $bundle->price,
+            'subtotal'               => $subtotal,
             'tax'                    => $tax,
-            'total'                  => (float) $bundle->price + $tax,
+            'total'                  => $subtotal + $tax,
             'amount_paid'            => 0,
-            'currency'               => $bundle->currency,
+            'currency'               => $currency,
             'status'                 => 'unpaid',
             'source'                 => 'sms_bundle',
-            'sms_bundle_id'          => $bundle->id,
-            'sms_credits'            => $bundle->credits,
-            'notes'                  => "SMS bundle: {$bundle->name} (" . number_format($bundle->credits) . ' credits)',
+            'sms_bundle_id'          => $bundleId,
+            'sms_credits'            => $credits,
+            'notes'                  => $notes,
         ]);
 
         app(BillingNotificationService::class)->invoiceIssued($invoice->load(['clinic', 'subscription']));

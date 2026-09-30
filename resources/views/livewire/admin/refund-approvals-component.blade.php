@@ -362,28 +362,13 @@
     }
 
     function confirmRefundProcess(logId, txnId) {
-        Swal.fire({
-            title: 'Process Refund?',
-            html: '<p>Transaction <strong>#' + txnId + '</strong> will be permanently marked <strong>REFUNDED</strong> and stock will be restored.</p>' +
-                  '<p class="mt-2 mb-0"><small class="text-danger"><i class="fas fa-exclamation-triangle mr-1"></i>This cannot be undone.</small></p>',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: '<i class="fas fa-undo mr-1"></i> Yes, Process Refund',
-            cancelButtonText: 'Cancel',
-            reverseButtons: true,
-        }).then(function (result) {
-            if (!result.isConfirmed) return;
-            Swal.fire({
-                title: 'Processing Refund…',
-                html: 'Restoring stock and marking sale as refunded.',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                didOpen: function () { Swal.showLoading(); }
+        window.appConfirm('Transaction #' + txnId + ' will be permanently marked REFUNDED and stock will be restored.\nThis cannot be undone.',
+            { title: 'Process refund?', confirmText: 'Yes, process refund', danger: true })
+            .then(function (ok) {
+                if (!ok) return;
+                var done = window.appBusy('Processing refund…', 'Restoring stock and marking the sale as refunded.');
+                @this.call('process', logId).finally(done);
             });
-            @this.call('process', logId);
-        });
     }
 
     window.addEventListener('refund-receipt-ready', function (event) {

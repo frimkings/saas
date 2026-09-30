@@ -149,7 +149,7 @@
 
         {{-- Bundle catalogue --}}
         <section class="pp-card">
-            <div class="pp-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Settings → SMS. Credits never expire. Price changes apply to new purchases only.</p></div></div>
+            <div class="pp-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Settings → SMS, or type their own amount (GHS {{ number_format(\App\Models\SmsBundle::MIN_TOP_UP) }}–{{ number_format(\App\Models\SmsBundle::MAX_TOP_UP) }}) and get the best bundle rate that amount reaches. Credits never expire. Price changes apply to new purchases only.</p></div></div>
             <form wire:submit="saveBundle" class="pp-form">
                 <div class="pp-row" style="grid-template-columns:minmax(160px,1.5fr) repeat(3,minmax(90px,.7fr)) auto;align-items:end">
                     <label class="pp-field"><span>Name</span><input type="text" wire:model="bundleName" placeholder="e.g. Starter"></label>
@@ -225,6 +225,51 @@
                     </tr>
                 @empty
                     <tr><td colspan="5" class="pp-empty">No pending requests.</td></tr>
+                @endforelse
+                </tbody>
+            </table></div>
+        </section>
+
+        {{-- Platform override: set or reset any hosted clinic's sender ID directly --}}
+        <section class="pp-card">
+            <div class="pp-card-head"><div><h2>Clinic sender IDs</h2><p>Set a clinic's sender ID directly, or put it back on the platform default. Register it in EazismsPro first. A change replaces any pending request.</p></div></div>
+            <div class="pp-table-wrap"><table class="pp-table">
+                <thead><tr><th>Clinic</th><th>Sender in use</th><th>Status</th><th style="min-width:320px"></th></tr></thead>
+                <tbody>
+                @forelse($clinics as $clinic)
+                    @php $setting = $settings[$clinic->id] ?? null; @endphp
+                    <tr wire:key="sender-{{ $clinic->id }}">
+                        <td><b>{{ $clinic->name }}</b></td>
+                        <td>{{ $setting?->sms_sender_id ?: ($defaultSender ?: '—') }}@if(!$setting?->sms_sender_id)<small>Platform default</small>@endif</td>
+                        <td>
+                            @if(!$setting)<span class="pp-badge grey">Not set up yet</span>
+                            @elseif($setting->sms_sender_id_status === 'pending')<span class="pp-badge amber">Requested {{ $setting->sms_sender_id_requested }}</span>
+                            @elseif($setting->sms_sender_id_status === 'rejected')<span class="pp-badge grey">Last request rejected</span>
+                            @elseif($setting->sms_sender_id)<span class="pp-badge">Approved</span>
+                            @else<span class="pp-badge grey">Default</span>@endif
+                        </td>
+                        <td>
+                            @if(!$setting)
+                                <small>The clinic has not opened its settings yet.</small>
+                            @elseif($editingSenderClinicId === $clinic->id)
+                                <form wire:submit="saveSender" class="pp-actions" style="flex-wrap:nowrap;justify-content:flex-end">
+                                    <input type="text" wire:model="senderOverride" maxlength="11" placeholder="Exact spelling" aria-label="Sender ID for {{ $clinic->name }}" autofocus>
+                                    <button type="submit" class="pp-btn sm" wire:loading.attr="disabled" wire:target="saveSender">Save</button>
+                                    <button type="button" class="pp-btn alt sm" wire:click="cancelSenderEdit">Cancel</button>
+                                </form>
+                                @error('senderOverride')<small class="pp-err">{{ $message }}</small>@enderror
+                            @else
+                                <div class="pp-actions" style="justify-content:flex-end">
+                                    <button type="button" class="pp-btn alt sm" wire:click="editSender({{ $clinic->id }})">Edit</button>
+                                    @if($setting->sms_sender_id)
+                                        <button type="button" class="pp-btn danger sm" wire:click="resetSender({{ $clinic->id }})" wire:loading.attr="disabled" wire:confirm="Put {{ $clinic->name }} back on the platform default sender?">Reset to default</button>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="4" class="pp-empty">No hosted clinics.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>

@@ -283,11 +283,24 @@
                             <div class="row">
                                 <div class="col-md-3">
                                     <div class="form-group">
-                                        <label>Quantity <span class="text-danger">*</span></label>
-                                        <input type="number" min="0" wire:model="state.quantity"
-                                               class="form-control @error('quantity') is-invalid @enderror"
-                                               placeholder="0">
-                                        @error('quantity') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @if(empty($state['made_to_order']))
+                                            <label>Quantity <span class="text-danger">*</span></label>
+                                            <input type="number" min="0" wire:model="state.quantity"
+                                                   class="form-control @error('quantity') is-invalid @enderror"
+                                                   placeholder="0">
+                                            @error('quantity') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @else
+                                            <label>Quantity</label>
+                                            <p class="form-control-plaintext text-muted">Not counted</p>
+                                        @endif
+                                        <div class="custom-control custom-checkbox mt-1">
+                                            <input type="checkbox" class="custom-control-input" id="made-to-order" wire:model.live="state.made_to_order">
+                                            <label class="custom-control-label" for="made-to-order">Made to order (not stocked)</label>
+                                        </div>
+                                        <small class="form-text text-muted">For lenses ordered per job from a lab. Sold and billed at these prices, never counted in stock.</small>
+                                        @if(!empty($state['made_to_order']) && $editingProduct && !$editingProduct->made_to_order && $editingProduct->quantity > 0)
+                                            <small class="form-text text-warning">Saving clears the current quantity of {{ $editingProduct->quantity }}. The old number is kept in the audit trail.</small>
+                                        @endif
                                     </div>
                                 </div>
 
@@ -499,7 +512,7 @@
                                         $isExpired = $expiryDate->lt($today);
                                         $daysToExpiry = $isExpired ? 0 : $today->diffInDays($expiryDate);
                                         $isExpiringSoon = !$isExpired && $daysToExpiry <= 120;
-                                        $isLowStock = $product->quantity < 10;
+                                        $isLowStock = !$product->made_to_order && $product->quantity < 10;
                                     @endphp
                                     <tr class="{{ $isExpired ? 'table-danger' : ($isExpiringSoon ? 'table-warning' : '') }}">
                                         <td class="text-center">
@@ -519,9 +532,13 @@
                                             <code>{{ $product->batch_number }}</code>
                                         </td>
                                         <td class="text-center">
-                                            <span class="badge {{ $isLowStock ? 'badge-warning' : 'badge-success' }}">
-                                                {{ $product->quantity }}
-                                            </span>
+                                            @if($product->made_to_order)
+                                                <span class="badge badge-secondary">Made to order</span>
+                                            @else
+                                                <span class="badge {{ $isLowStock ? 'badge-warning' : 'badge-success' }}">
+                                                    {{ $product->quantity }}
+                                                </span>
+                                            @endif
                                         </td>
                                         <td class="text-right">{{ currency() }} {{ number_format($product->cost_price, 2) }}</td>
                                         <td class="text-right">

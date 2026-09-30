@@ -10,7 +10,7 @@
                         <option value="">-- Select Product --</option>
                         @foreach($productsList as $product)
                             <option value="{{ $product->id }}">
-                                {{ $product->name }} (Stock: {{ $product->quantity }})
+                                {{ $product->name }} (Stock: {{ $product->made_to_order ? 'Made to order' : $product->quantity }})
                             </option>
                         @endforeach
                     </select>

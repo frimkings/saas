@@ -18,14 +18,19 @@ class Product extends Model
         'optical_category_id',
         'batch_number',
         'quantity',
+        'made_to_order',
         'cost_price',
         'selling_price',
         'manufacture_date',
         'expiry_date',
     ];
 
+    /** Most a made-to-order product can be sold at once: it is limited by the lab, not by stock. */
+    public const MADE_TO_ORDER_LIMIT = 10000;
+
     protected $casts = [
         'quantity' => 'integer',
+        'made_to_order' => 'boolean',
         'cost_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
         'manufacture_date' => 'date',
@@ -99,19 +104,37 @@ class Product extends Model
     }
 
     /**
-     * Check if product is in stock.
+     * Check if product is in stock. Made-to-order products are always available.
      */
     public function isInStock()
     {
-        return $this->quantity > 0;
+        return $this->made_to_order || $this->quantity > 0;
     }
 
     /**
-     * Check if product is low on stock.
+     * Check if product is low on stock. Made-to-order products are never low.
      */
     public function isLowStock($threshold = 10)
     {
-        return $this->quantity > 0 && $this->quantity <= $threshold;
+        return ! $this->made_to_order && $this->quantity > 0 && $this->quantity <= $threshold;
+    }
+
+    /** Whether $quantity can be sold now: made-to-order products are never limited by stock. */
+    public function canSupply(int $quantity = 1): bool
+    {
+        return $this->made_to_order || $this->quantity >= $quantity;
+    }
+
+    /** The most that can be sold at once. */
+    public function maxSupply(): int
+    {
+        return $this->made_to_order ? self::MADE_TO_ORDER_LIMIT : max(0, (int) $this->quantity);
+    }
+
+    /** Short stock wording for pickers: "Made to order" or "12 in stock". */
+    public function stockLabel(): string
+    {
+        return $this->made_to_order ? 'Made to order' : $this->quantity.' in stock';
     }
 
     /**
@@ -146,7 +169,13 @@ class Product extends Model
      */
     public function scopeInStock($query)
     {
-        return $query->where('quantity', '>', 0);
+        return $query->where(fn ($q) => $q->where('made_to_order', true)->orWhere('quantity', '>', 0));
+    }
+
+    /** Products whose stock is counted (not made to order). */
+    public function scopeStocked($query)
+    {
+        return $query->where('made_to_order', false);
     }
 
     /**
@@ -154,7 +183,7 @@ class Product extends Model
      */
     public function scopeLowStock($query, $threshold = 10)
     {
-        return $query->where('quantity', '>', 0)->where('quantity', '<=', $threshold);
+        return $query->stocked()->where('quantity', '>', 0)->where('quantity', '<=', $threshold);
     }
 
     /**
@@ -162,7 +191,7 @@ class Product extends Model
      */
     public function scopeOutOfStock($query)
     {
-        return $query->where('quantity', 0);
+        return $query->stocked()->where('quantity', 0);
     }
 
     /**

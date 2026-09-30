@@ -66,26 +66,95 @@
                             </div>
                         @endif
 
-                        @if($smsCredits['bundles']->isNotEmpty())
-                            <label class="small font-weight-bold text-muted">BUY SMS CREDITS</label>
-                            <div class="row">
-                                @foreach($smsCredits['bundles'] as $bundle)
-                                    <div class="col-sm-6 mb-2" wire:key="bundle-{{ $bundle->id }}">
-                                        <div class="border rounded p-2 d-flex justify-content-between align-items-center h-100">
-                                            <div>
-                                                <div class="font-weight-bold">{{ $bundle->name }}</div>
-                                                <div class="small text-muted">{{ number_format($bundle->credits) }} credits · {{ $bundle->currency }} {{ number_format($bundle->price, 2) }}</div>
-                                            </div>
-                                            <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold"
-                                                    wire:click="buyBundle({{ $bundle->id }})" wire:loading.attr="disabled"
-                                                    wire:confirm="Request {{ number_format($bundle->credits) }} SMS credits for {{ $bundle->currency }} {{ number_format($bundle->price, 2) }}? An invoice will be issued; credits are added once it is paid.">
-                                                Buy
+                        @if($smsCredits['tiers'])
+                            {{-- Bundles are quick picks and rate tiers; the clinic can also type any amount in the range. --}}
+                            <div x-data="{
+                                    tiers: @js($smsCredits['tiers']),
+                                    min: {{ \App\Models\SmsBundle::MIN_TOP_UP }},
+                                    max: {{ \App\Models\SmsBundle::MAX_TOP_UP }},
+                                    taxRate: {{ $smsCredits['taxRate'] }},
+                                    amount: '',
+                                    rate(t) { return t.credits / t.price },
+                                    get value() { return parseFloat(this.amount) || 0 },
+                                    get valid() { return this.value >= this.min && this.value <= this.max },
+                                    get tier() {
+                                        let best = this.tiers[0];
+                                        for (const t of this.tiers) if (t.price <= this.value + 0.00001 && this.rate(t) > this.rate(best)) best = t;
+                                        return best;
+                                    },
+                                    get credits() { return Math.floor(this.value * this.rate(this.tier) + 0.000001) },
+                                    get next() {
+                                        return this.tiers.find(t => t.price > this.value && t.price <= this.max && this.rate(t) > this.rate(this.tier)) || null;
+                                    },
+                                    worst() { return Math.max(...this.tiers.map(t => t.price / t.credits)) },
+                                    money(n) { return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) },
+                                    count(n) { return n.toLocaleString('en-US') },
+                                    submit() {
+                                        if (!this.valid) return;
+                                        const value = this.value;
+                                        window.appConfirm('Request ' + this.count(this.credits) + ' SMS credits for GHS ' + this.money(value) + '? An invoice will be issued; credits are added once it is paid.', this.$refs.requestButton)
+                                            .then(ok => ok && $wire.requestTopUp(value));
+                                    },
+                                 }"
+                                 x-on:sms-top-up-requested.window="amount = ''">
+                                {{-- The preview above follows the same rule as SmsBundle::quoteFor(); the server recalculates on submit. --}}
+                                <label class="small font-weight-bold text-muted">BUY SMS CREDITS</label>
+                                <div class="row">
+                                    <template x-for="t in tiers" :key="t.id">
+                                        <div class="col-sm-6 col-lg-4 mb-2">
+                                            <button type="button" class="btn btn-block text-left border rounded p-2 h-100" style="white-space: normal"
+                                                    :class="valid && tier.id === t.id ? 'border-primary bg-light' : 'bg-white'"
+                                                    x-on:click="amount = t.price">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="small text-muted text-uppercase font-weight-bold" x-text="t.name"></span>
+                                                    <span class="badge badge-success" x-show="t.price / t.credits < worst() - 0.00001"
+                                                          x-text="'save ' + Math.round((1 - (t.price / t.credits) / worst()) * 100) + '%'"></span>
+                                                </div>
+                                                <div class="h5 font-weight-bold mb-0" x-text="'GHS ' + count(t.price)"></div>
+                                                <div class="small" x-text="count(t.credits) + ' SMS'"></div>
+                                                <div class="small text-muted" x-text="(t.price / t.credits).toFixed(3) + ' per SMS'"></div>
                                             </button>
                                         </div>
+                                    </template>
+                                </div>
+
+                                <label class="small font-weight-bold text-muted mt-2 mb-1" for="sms-top-up-amount">OR ENTER AN AMOUNT</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend"><span class="input-group-text">GHS</span></div>
+                                    <input type="number" id="sms-top-up-amount" class="form-control @error('topUpAmount') is-invalid @enderror"
+                                           x-model="amount" :min="min" :max="max" step="0.01" placeholder="e.g. 250"
+                                           x-on:keydown.enter.prevent="submit()">
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-primary font-weight-bold" :disabled="!valid" x-ref="requestButton"
+                                                data-confirm-button="Request invoice" data-confirm-danger="false"
+                                                x-on:click="submit()" wire:loading.attr="disabled" wire:target="requestTopUp">
+                                            Request invoice
+                                        </button>
                                     </div>
-                                @endforeach
+                                </div>
+                                @error('topUpAmount')<div class="small text-danger mt-1">{{ $message }}</div>@enderror
+
+                                <div class="small text-danger mt-2" x-show="amount !== '' && !valid" style="display: none"
+                                     x-text="'Enter between GHS ' + count(min) + ' and GHS ' + count(max) + '.'"></div>
+                                <div class="border rounded p-2 mt-2 bg-light" x-show="valid" style="display: none">
+                                    <div>
+                                        You get <strong class="text-success" x-text="count(credits) + ' SMS'"></strong>
+                                        at GHS <span x-text="(tier.price / tier.credits).toFixed(3)"></span> each
+                                        <span class="text-muted" x-text="'(' + tier.name + ' rate)'"></span>
+                                    </div>
+                                    <div class="small text-muted" x-show="taxRate > 0"
+                                         x-text="'Invoice total with ' + taxRate + '% tax: GHS ' + money(Math.round(value * (1 + taxRate / 100) * 100) / 100)"></div>
+                                    <div class="small mt-1" x-show="next">
+                                        <i class="fas fa-lightbulb text-warning mr-1"></i>
+                                        <a href="#" class="font-weight-bold" x-on:click.prevent="amount = next.price"
+                                           x-text="next ? 'Add GHS ' + money(next.price - value) + ' more' : ''"></a>
+                                        <span x-text="next ? 'and get ' + count(next.credits) + ' SMS at ' + (next.price / next.credits).toFixed(3) + ' each (+' + count(next.credits - credits) + ' SMS).' : ''"></span>
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted mb-2">
+                                    Bigger amounts get a lower price per SMS. Pay the invoice as you pay your subscription; credits appear here once payment is confirmed.
+                                </small>
                             </div>
-                            <small class="form-text text-muted mb-2">Pay the invoice as you pay your subscription; credits appear here once payment is confirmed.</small>
                         @else
                             <p class="small text-muted">SMS bundles are not available yet. Contact the platform administrator to buy credits.</p>
                         @endif

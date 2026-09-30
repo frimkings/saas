@@ -56,10 +56,11 @@ class ClinicalTaskCenterComponent extends Component
                     ->orWhereColumn('amount_paid', '<', 'total_amount');
             });
 
-        $lowStockQuery = Product::with('category')->where('quantity', '>', 0)->where('quantity', '<=', 10);
-        $outOfStockQuery = Product::with('category')->where('quantity', 0);
-        $expiredQuery = Product::with('category')->whereNotNull('expiry_date')->whereDate('expiry_date', '<', $today);
-        $expiringQuery = Product::with('category')
+        // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
+        $lowStockQuery = Product::with('category')->lowStock();
+        $outOfStockQuery = Product::with('category')->outOfStock();
+        $expiredQuery = Product::with('category')->stocked()->whereNotNull('expiry_date')->whereDate('expiry_date', '<', $today);
+        $expiringQuery = Product::with('category')->stocked()
             ->whereNotNull('expiry_date')
             ->whereDate('expiry_date', '>=', $today)
             ->whereDate('expiry_date', '<=', $today->copy()->addDays(30));

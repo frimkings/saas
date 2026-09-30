@@ -21,7 +21,7 @@ class OpticalReportService
 {
     public const METHODS = ['cash' => 'Cash', 'momo' => 'Mobile Money', 'card' => 'Card', 'bank_transfer' => 'Bank transfer'];
     public const AGES = ['0-30' => '0–30 days', '31-60' => '31–60 days', '61-90' => '61–90 days', '90+' => 'Over 90 days'];
-    private const ORDER_TOTAL = '(COALESCE(frame_price,0)+COALESCE(lens_price,0)+COALESCE(glazing_fee,0)+COALESCE(service_total,0)-COALESCE(discount_amount,0))';
+    private const ORDER_TOTAL = LensOrder::TOTAL_SQL;
 
     /** Sales made in the period: jobs ordered, accessories sold at the counter, and fees kept on cancelled jobs. */
     public function sales(Carbon $from, Carbon $to): array
@@ -138,9 +138,7 @@ class OpticalReportService
     public function owed(?Carbon $from = null, ?Carbon $to = null): array
     {
         $today = today();
-        $orders = LensOrder::with(['patient', 'refraction.consultation.patient'])->whereNotIn('status', ['Quotation', 'Cancelled'])
-            ->where(fn ($query) => $query->whereNotNull('sale_id')->orWhereNull('refraction_id'))
-            ->whereRaw(self::ORDER_TOTAL.' > COALESCE(paid_amount,0) + 0.004')
+        $orders = LensOrder::with(['patient', 'refraction.consultation.patient'])->balanceDue()
             ->orderBy('created_at')->get()
             ->map(function (LensOrder $order) use ($today) {
                 $days = (int) $order->created_at->copy()->startOfDay()->diffInDays($today);

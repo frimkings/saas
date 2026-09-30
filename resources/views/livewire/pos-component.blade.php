@@ -309,7 +309,7 @@ window.printReceiptFromDom = function(event) {
             {{-- Product grid --}}
             <div class="pos-grid">
                 @forelse($products as $product)
-                    <div class="pos-product {{ $product->quantity <= 0 ? 'pos-product--oos' : '' }}"
+                    <div class="pos-product {{ $product->canSupply() ? '' : 'pos-product--oos' }}"
                          wire:click="addToCart({{ $product->id }})">
                         <div class="pos-product__icon">
                             <i class="fas fa-pills"></i>
@@ -317,7 +317,9 @@ window.printReceiptFromDom = function(event) {
                         <div class="pos-product__name">{{ Str::limit($product->name, 28) }}</div>
                         <div class="pos-product__price">{{ currency() }} {{ number_format($product->selling_price, 2) }}</div>
                         <div class="pos-product__stock">
-                            @if($product->quantity > 10)
+                            @if($product->made_to_order)
+                                <span class="pos-stock pos-stock--ok">Made to order</span>
+                            @elseif($product->quantity > 10)
                                 <span class="pos-stock pos-stock--ok">{{ $product->quantity }}</span>
                             @elseif($product->quantity > 0)
                                 <span class="pos-stock pos-stock--low">Low {{ $product->quantity }}</span>
@@ -530,7 +532,7 @@ window.printReceiptFromDom = function(event) {
                                 <span class="pos-frame-adder__option-meta">
                                     {{ currency() }} {{ number_format($fr['price'], 2) }}
                                     &nbsp;·&nbsp;
-                                    <span class="{{ $fr['stock'] <= 3 ? 'text-warning' : '' }}">{{ $fr['stock'] }} in stock</span>
+                                    @if(is_numeric($fr['stock']))<span class="{{ $fr['stock'] <= 3 ? 'text-warning' : '' }}">{{ $fr['stock'] }} in stock</span>@else<span>{{ $fr['stock'] }}</span>@endif
                                 </span>
                             </button>
                             @endforeach

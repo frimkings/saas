@@ -655,37 +655,16 @@
         window.addEventListener('show-backup-restore-confirmation', function(event) {
             var index = event.detail.index;
             var name  = event.detail.name;
-            Swal.fire({
-                title: 'Restore this backup?',
-                html: 'This will <strong>overwrite</strong> the current database and all uploaded files with:<br><br><code>' + name + '</code>',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#c0392b',
-                confirmButtonText: 'Yes, restore it',
-                cancelButtonText: 'Cancel',
-            }).then(function(result) {
-                if (result.isConfirmed) {
-                    @this.call('restoreBackup', index);
-                }
-            });
+            window.appConfirm('This will overwrite the current database and all uploaded files with:\n' + name,
+                { title: 'Restore this backup?', confirmText: 'Yes, restore it', danger: true })
+                .then(function(ok) { if (ok) @this.call('restoreBackup', index); });
         });
 
         window.addEventListener('show-backup-delete-confirmation', function(event) {
             var index = event.detail.index;
             var name  = event.detail.name;
-            Swal.fire({
-                title: 'Delete this backup?',
-                html: '<code>' + name + '</code><br><small class="text-muted">This cannot be undone.</small>',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete it',
-                cancelButtonText: 'Cancel',
-            }).then(function(result) {
-                if (result.isConfirmed) {
-                    @this.call('deleteBackup', index);
-                }
-            });
+            window.appConfirm(name + '\nThis cannot be undone.', { title: 'Delete this backup?', confirmText: 'Yes, delete it', danger: true })
+                .then(function(ok) { if (ok) @this.call('deleteBackup', index); });
         });
     </script>
 

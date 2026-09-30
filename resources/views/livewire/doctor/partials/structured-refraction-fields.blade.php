@@ -116,7 +116,7 @@
       <select class="form-control" wire:change="selectLensProduct($event.target.value)">
        <option value="">Choose a stocked lens to add to the prescription...</option>
        @foreach($lensProducts as $product)
-        <option value="{{ $product->id }}">{{ $product->name }} — {{ currency() }} {{ number_format($product->selling_price, 2) }} ({{ $product->quantity }} in stock)</option>
+        <option value="{{ $product->id }}">{{ $product->name }} — {{ currency() }} {{ number_format($product->selling_price, 2) }} ({{ $product->stockLabel() }})</option>
        @endforeach
       </select>
      </div>

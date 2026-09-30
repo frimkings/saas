@@ -187,20 +187,9 @@
 
 <script>
     function confirmApproveRevoke(logId, patientName) {
-        Swal.fire({
-            title: 'Approve Revoke?',
-            html: 'Approve revoke for <strong>' + patientName + '</strong>?<br><span class="text-danger small">The clearance will be permanently removed.</span>',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#28a745',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: '<i class="fas fa-check mr-1"></i> Yes, Approve',
-            cancelButtonText: 'Cancel',
-        }).then((result) => {
-            if (result.isConfirmed) {
-                @this.call('approve', logId);
-            }
-        });
+        window.appConfirm('Approve revoke for ' + patientName + '?\nThe clearance will be permanently removed.',
+            { title: 'Approve revoke?', confirmText: 'Yes, approve', danger: true })
+            .then(ok => ok && @this.call('approve', logId));
     }
 </script>
 </div>

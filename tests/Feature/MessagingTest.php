@@ -271,7 +271,7 @@ class MessagingTest extends TestCase
             ->set('creditClinicId', $tenant['clinic']->id)->set('creditAmount', -60)->set('creditNote', 'Too much')->call('adjustCredits')->assertHasErrors('credits')
             ->call('markBundlePaid', $invoice->id)->assertHasErrors('paymentMethods.'.$invoice->id)
             ->set('paymentMethods.'.$invoice->id, 'mobile_money')->call('markBundlePaid', $invoice->id)->assertHasNoErrors()
-            ->set('bundleName', 'Mega')->set('bundleCredits', 10000)->set('bundlePrice', '800')->call('saveBundle')->assertHasNoErrors();
+            ->set('bundleName', 'Mega')->set('bundleCredits', 10000)->set('bundlePrice', '1500')->call('saveBundle')->assertHasNoErrors();
 
         $this->assertSame(1050, $this->credits($tenant));
         $this->assertSame('paid', $invoice->fresh()->status);
@@ -400,6 +400,35 @@ class MessagingTest extends TestCase
         $this->assertSame(['CLEARSIGHT', 'rejected', 'Misleading sender name'], [$setting->sms_sender_id, $setting->sms_sender_id_status, $setting->sms_sender_id_note]);
     }
 
+    public function test_platform_sets_or_resets_a_clinic_sender_id_without_a_request(): void
+    {
+        $tenant = $this->tenant();
+        $setting = Setting::getSettings();
+        $setting->update(['sms_sender_id' => 'OLDNAME', 'sms_sender_id_requested' => 'WANTED', 'sms_sender_id_status' => 'pending']);
+        app(TenantContext::class)->clear();
+        $this->actingAs(User::factory()->create(['is_platform_admin' => true]));
+        $clinicId = $tenant['clinic']->id;
+
+        Livewire::test(SmsMessagingComponent::class)->call('setSection', 'senders')->assertSee('Clinic sender IDs')
+            ->call('editSender', $clinicId)->assertSet('senderOverride', 'OLDNAME')
+            ->set('senderOverride', 'Bad!')->call('saveSender')->assertHasErrors('senderOverride')
+            ->set('senderOverride', ' EyeCare GH ')->call('saveSender')->assertHasNoErrors()->assertSet('editingSenderClinicId', null);
+
+        // The override replaces the pending request and is used for sending straight away.
+        $setting->refresh();
+        $this->assertSame(['EyeCare GH', 'EyeCare GH', 'approved'], [$setting->sms_sender_id, $setting->sms_sender_id_requested, $setting->sms_sender_id_status]);
+        $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SMS_SENDER_ID_OVERRIDDEN', 'clinic_id' => $clinicId]);
+
+        Livewire::test(SmsMessagingComponent::class)->call('resetSender', $clinicId)->assertHasNoErrors();
+        $setting->refresh();
+        $this->assertSame([null, 'none'], [$setting->sms_sender_id, $setting->sms_sender_id_status]);
+        $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SMS_SENDER_ID_RESET', 'clinic_id' => $clinicId]);
+
+        // Offline clinics use their own gateway: the platform cannot set their sender.
+        $offline = Clinic::create(['name' => 'Offline Clinic', 'slug' => 'offline-clinic', 'deployment_mode' => 'local']);
+        Livewire::test(SmsMessagingComponent::class)->call('editSender', $offline->id)->assertStatus(404);
+    }
+
     public function test_whatsapp_links_use_international_numbers_and_automatic_channels_fall_back_to_sms(): void
     {
         $this->assertSame('https://wa.me/233241234567?text=Hi%20Ama%20%26%20co', WhatsAppLink::to('024 123 4567', 'Hi Ama & co'));
@@ -464,37 +493,79 @@ class MessagingTest extends TestCase
         $component->assertSeeHtml('https://wa.me/233241234567?text=');
     }
 
-    public function test_bundles_start_at_0_08_to_0_04_per_sms_and_the_platform_edits_the_range(): void
+    public function test_bundles_start_at_0_20_to_0_12_per_sms_and_the_platform_edits_the_range(): void
     {
-        // The starting catalogue runs from 0.08 per SMS (small packs) down to 0.04 (large).
-        $this->assertSame(['Starter', 'Basic', 'Standard', 'Plus', 'Pro'], SmsBundle::active()->pluck('name')->all());
-        $this->assertEqualsWithDelta([0.08, 0.07, 0.06, 0.05, 0.04], SmsBundle::active()->get()->map->perCredit()->all(), 0.0001);
+        // The starting catalogue runs from 0.20 per SMS (small packs) down to 0.12 (large).
+        $this->assertSame(['Starter', 'Basic', 'Standard', 'Professional', 'Enterprise'], SmsBundle::active()->pluck('name')->all());
+        $this->assertEqualsWithDelta([0.20, 0.18, 0.16, 0.14, 0.12], SmsBundle::active()->get()->map->perCredit()->all(), 0.0001);
         $this->assertTrue(SmsBundle::all()->every->withinRange());
 
         $this->actingAs(User::factory()->create(['is_platform_admin' => true]));
         $component = Livewire::test(SmsMessagingComponent::class)->call('setSection', 'bundles')
-            ->assertSet('minPerCredit', '0.040')->assertSet('maxPerCredit', '0.080');
+            ->assertSet('minPerCredit', '0.120')->assertSet('maxPerCredit', '0.200');
 
-        // Outside the range: 1,000 credits for GHS 30 is 0.03 per SMS, for GHS 100 is 0.10.
-        $component->set('bundleName', 'Cheap')->set('bundleCredits', 1000)->set('bundlePrice', '30')->call('saveBundle')->assertHasErrors('bundlePrice');
-        $component->set('bundlePrice', '100')->call('saveBundle')->assertHasErrors('bundlePrice');
+        // Outside the range: 1,000 credits for GHS 100 is 0.10 per SMS, for GHS 250 is 0.25.
+        $component->set('bundleName', 'Cheap')->set('bundleCredits', 1000)->set('bundlePrice', '100')->call('saveBundle')->assertHasErrors('bundlePrice');
+        $component->set('bundlePrice', '250')->call('saveBundle')->assertHasErrors('bundlePrice');
         $this->assertFalse(SmsBundle::where('name', 'Cheap')->exists());
-        $component->set('bundlePrice', '55')->call('saveBundle')->assertHasNoErrors();
+        $component->set('bundlePrice', '150')->call('saveBundle')->assertHasNoErrors();
         $this->assertTrue(SmsBundle::where('name', 'Cheap')->exists());
 
         // Editing a default bundle's price is checked the same way.
         $basic = SmsBundle::where('name', 'Basic')->first();
-        $component->call('editBundle', $basic->id)->set('bundlePrice', '75')->call('saveBundle')->assertHasNoErrors();
-        $this->assertSame('75.00', $basic->fresh()->price);
+        $component->call('editBundle', $basic->id)->set('bundlePrice', '190')->call('saveBundle')->assertHasNoErrors();
+        $this->assertSame('190.00', $basic->fresh()->price);
 
         // The range itself is editable; a narrower one flags bundles now outside it.
-        $component->set('minPerCredit', '0.09')->set('maxPerCredit', '0.05')->call('savePriceRange')->assertHasErrors('maxPerCredit');
-        $component->set('minPerCredit', '0.05')->set('maxPerCredit', '0.10')->call('savePriceRange')->assertHasNoErrors();
-        $this->assertSame([0.05, 0.10], SmsBundle::priceRange());
-        $this->assertFalse(SmsBundle::where('name', 'Pro')->first()->withinRange());
+        $component->set('minPerCredit', '0.20')->set('maxPerCredit', '0.10')->call('savePriceRange')->assertHasErrors('maxPerCredit');
+        $component->set('minPerCredit', '0.15')->set('maxPerCredit', '0.25')->call('savePriceRange')->assertHasNoErrors();
+        $this->assertSame([0.15, 0.25], SmsBundle::priceRange());
+        $this->assertFalse(SmsBundle::where('name', 'Enterprise')->first()->withinRange());
         $component->assertSee('Outside range');
-        $component->set('bundleName', 'Cheap')->set('bundleCredits', 1000)->set('bundlePrice', '100')->call('saveBundle')->assertHasNoErrors();
+        $component->set('bundleName', 'Cheap')->set('bundleCredits', 1000)->set('bundlePrice', '250')->call('saveBundle')->assertHasNoErrors();
         $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SMS_PRICE_RANGE_UPDATED']);
+    }
+
+    public function test_a_custom_amount_buys_credits_at_the_best_rate_it_can_afford(): void
+    {
+        // Below the smallest bundle the smallest bundle's rate applies; each bundle price unlocks its rate.
+        $credits = fn (float $amount) => SmsBundle::quoteFor($amount)['credits'];
+        $this->assertSame(250, $credits(50));        // 0.20
+        $this->assertSame(899, $credits(179.99));    // still 0.20, rounded down
+        $this->assertSame(1000, $credits(180));      // Basic, 0.18
+        $this->assertSame(1388, $credits(250));      // 0.18
+        $this->assertSame(2500, $credits(400));      // Standard, 0.16
+        $this->assertSame(10000, $credits(1200));    // Enterprise, 0.12
+        // A pricier bundle with a worse rate never lowers what an amount buys.
+        SmsBundle::create(['name' => 'Odd', 'credits' => 1000, 'price' => 300]);
+        $this->assertSame(1777, $credits(320));    // Basic, not Odd
+
+        \Illuminate\Support\Facades\Mail::fake();
+        $tenant = $this->tenant(credits: 0);
+        \Spatie\Permission\Models\Role::findOrCreate('Super Admin', 'web');
+        $tenant['user']->assignRole('Super Admin');
+
+        $component = Livewire::test(SmsSettingsComponent::class)->assertSee('OR ENTER AN AMOUNT')
+            ->call('requestTopUp', 49)->assertHasErrors('topUpAmount')
+            ->call('requestTopUp', 1201)->assertHasErrors('topUpAmount')
+            ->call('requestTopUp', 'abc')->assertHasErrors('topUpAmount');
+        $this->assertSame(0, \App\Models\PlatformInvoice::count());
+
+        // The server works the credits out itself; the browser only sends the amount.
+        $component->call('requestTopUp', '250')->assertHasNoErrors();
+        $invoice = \App\Models\PlatformInvoice::where('source', 'sms_bundle')->sole();
+        $this->assertSame(['250.00', 1388, null], [$invoice->subtotal, $invoice->sms_credits, $invoice->sms_bundle_id]);
+        $this->assertStringContainsString('0.180 per SMS', $invoice->notes);
+
+        // Paying exactly a bundle's price is that bundle.
+        $component->call('requestTopUp', 400)->assertHasNoErrors();
+        $bundleInvoice = \App\Models\PlatformInvoice::latest('id')->first();
+        $this->assertSame([2500, SmsBundle::where('name', 'Standard')->value('id')], [$bundleInvoice->sms_credits, $bundleInvoice->sms_bundle_id]);
+
+        // Once paid, the custom invoice adds its credits like any bundle.
+        $invoice->update(['amount_paid' => $invoice->total, 'status' => 'paid']);
+        app(SmsCreditService::class)->creditFromInvoice($invoice);
+        $this->assertSame(1388, $this->credits($tenant));
     }
 
     public function test_clinic_admin_sees_credits_and_requests_a_bundle(): void

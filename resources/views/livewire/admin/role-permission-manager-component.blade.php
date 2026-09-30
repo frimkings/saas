@@ -580,48 +580,18 @@
     // ── Delete confirmations ──────────────────────────────────────────────────
     function confirmDeleteRole(roleId, roleName, userCount) {
         if (userCount > 0) {
-            Swal.fire({
-                title: 'Cannot Delete Role',
-                html: '<p>The role <strong>' + roleName + '</strong> is assigned to <strong>' + userCount + '</strong> user(s).</p>' +
-                      '<p class="mb-0">Re-assign those users to a different role before deleting.</p>',
-                icon: 'error',
-                confirmButtonColor: '#3085d6',
-            });
+            window.appAlert('Cannot delete role',
+                'The role ' + roleName + ' is assigned to ' + userCount + ' user(s).\nRe-assign those users to a different role before deleting.', 'error');
             return;
         }
-        Swal.fire({
-            title: 'Delete Role?',
-            html: 'The role <strong>' + roleName + '</strong> will be permanently removed.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Yes, delete',
-            cancelButtonText: 'Cancel',
-            reverseButtons: true,
-        }).then(function (result) {
-            if (result.isConfirmed) { @this.call('deleteRole', roleId); }
-        });
+        window.appConfirm('The role ' + roleName + ' will be permanently removed.', { title: 'Delete role?', confirmText: 'Yes, delete', danger: true })
+            .then(function (ok) { if (ok) @this.call('deleteRole', roleId); });
     }
 
     function confirmDeletePermission(permId, permName, roleCount) {
-        var note = roleCount > 0
-            ? '<p class="text-warning mt-2 mb-0"><i class="fas fa-exclamation-triangle mr-1"></i>' +
-              'Assigned to <strong>' + roleCount + '</strong> role(s) — it will be removed from all of them.</p>'
-            : '';
-        Swal.fire({
-            title: 'Delete Permission?',
-            html: '<p>Permission <code>' + permName + '</code> will be permanently deleted.</p>' + note,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Yes, delete',
-            cancelButtonText: 'Cancel',
-            reverseButtons: true,
-        }).then(function (result) {
-            if (result.isConfirmed) { @this.call('deletePermission', permId); }
-        });
+        var note = roleCount > 0 ? '\nAssigned to ' + roleCount + ' role(s) — it will be removed from all of them.' : '';
+        window.appConfirm('Permission ' + permName + ' will be permanently deleted.' + note, { title: 'Delete permission?', confirmText: 'Yes, delete', danger: true })
+            .then(function (ok) { if (ok) @this.call('deletePermission', permId); });
     }
 </script>
 

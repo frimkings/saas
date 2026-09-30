@@ -102,15 +102,15 @@ class OwnerAlertDigestService
             $inventory = $clinical && LicenseService::has(Feature::INVENTORY);
 
             if ($inventory) {
-                BranchInventoryItem::with('product:id,name')->where('is_active', true)->where('reorder_level', '>', 0)
+                BranchInventoryItem::with('product:id,name,made_to_order')->where('is_active', true)->where('reorder_level', '>', 0)
                     ->whereColumn('quantity', '<=', 'reorder_level')->get()
-                    ->each(fn ($stock) => $stock->product && $add('low_stock', 'c' . $stock->id, $stock->quantity > 0 ? 'low' : 'out', $stock->product->name,
+                    ->each(fn ($stock) => $stock->product && ! $stock->product->made_to_order && $add('low_stock', 'c' . $stock->id, $stock->quantity > 0 ? 'low' : 'out', $stock->product->name,
                         $stock->quantity > 0 ? "{$stock->quantity} left (reorder at {$stock->reorder_level})" : 'Out of stock'));
 
-                InventoryLot::with('product:id,name')->where('quantity', '>', 0)->whereNotNull('expiry_date')
+                InventoryLot::with('product:id,name,made_to_order')->where('quantity', '>', 0)->whereNotNull('expiry_date')
                     ->whereDate('expiry_date', '<=', $today->copy()->addDays(self::EXPIRY_DAYS))->get()
                     ->each(function ($lot) use ($add, $today) {
-                        if (! $lot->product) return;
+                        if (! $lot->product || $lot->product->made_to_order) return;
                         $days = (int) $today->diffInDays($lot->expiry_date, false);
                         $when = $days < 0 ? 'expired ' . $lot->expiry_date->format('j M Y') : 'expires ' . $lot->expiry_date->format('j M Y') . ($days === 0 ? ' (today)' : " (in {$days} days)");
                         $add('expiry', 'lot' . $lot->id, $days < 0 ? 'expired' : ($days <= 30 ? '30' : '90'), $lot->product->name,

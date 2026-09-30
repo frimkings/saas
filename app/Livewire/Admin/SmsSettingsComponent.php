@@ -202,6 +202,24 @@ class SmsSettingsComponent extends Component
         ]);
     }
 
+    /** The clinic's own amount; the browser only previews the credits, the service works them out. */
+    public function requestTopUp($amount): void
+    {
+        abort_unless(app(ClinicAccessService::class)->hosted() && Auth::user()->hasRole('Super Admin'), 403);
+        if (!is_numeric($amount)) {
+            $this->addError('topUpAmount', 'Enter an amount in GHS.');
+            return;
+        }
+
+        $invoice = app(SmsCreditService::class)->requestTopUp(app(TenantContext::class)->requireClinic(), (float) $amount);
+
+        $this->dispatch('sms-top-up-requested');
+        $this->dispatch('notify', ...[
+            'type'    => 'success',
+            'message' => "Invoice {$invoice->number} issued for " . number_format($invoice->sms_credits) . ' SMS. Credits are added as soon as payment is confirmed.',
+        ]);
+    }
+
     public function cancelBundleRequest(int $invoiceId): void
     {
         abort_unless(app(ClinicAccessService::class)->hosted() && Auth::user()->hasRole('Super Admin'), 403);
@@ -217,7 +235,8 @@ class SmsSettingsComponent extends Component
         if ($this->platformManaged && ($clinic = app(TenantContext::class)->clinic())) {
             $credits = [
                 'balance' => app(SmsCreditService::class)->balance($clinic->id),
-                'bundles' => SmsBundle::active()->get(),
+                'tiers'   => SmsBundle::tiers(),
+                'taxRate' => (float) ($clinic->currentSubscription?->pricing_snapshot['tax_rate'] ?? 0),
                 'pending' => PlatformInvoice::where('clinic_id', $clinic->id)->where('source', 'sms_bundle')
                     ->whereIn('status', ['unpaid', 'partial'])->latest()->get(),
                 'history' => SmsCreditTransaction::where('clinic_id', $clinic->id)->where('type', '!=', 'usage')

@@ -500,7 +500,7 @@ class POSComponent extends Component
     public function addToCart($productId)
     {
         $product = Product::with('category')->find($productId);
-        if (!$product || $product->quantity <= 0) {
+        if (!$product || !$product->canSupply()) {
             $this->dispatch('notify', ...[
                 'type'    => 'error',
                 'message' => 'Product not available or out of stock.'
@@ -509,7 +509,7 @@ class POSComponent extends Component
         }
 
         $currentQty = isset($this->cart[$productId]) ? $this->cart[$productId]['quantity'] : 0;
-        if ($currentQty >= $product->quantity) {
+        if (!$product->canSupply($currentQty + 1)) {
             $this->dispatch('notify', ...[
                 'type'    => 'warning',
                 'message' => 'Cannot add more. Maximum stock: ' . $product->quantity
@@ -543,7 +543,7 @@ class POSComponent extends Component
         $product = Product::find($productId);
         if (!$product) return;
 
-        $qty = max(1, min((int) $qty, $product->quantity));
+        $qty = max(1, min((int) $qty, $product->maxSupply()));
 
         if (isset($this->cart[$cartKey])) {
             $this->cart[$cartKey]['quantity'] = $qty;
@@ -660,7 +660,7 @@ class POSComponent extends Component
                 $q->where('name', 'like', '%' . $this->frameSearchTerm . '%')
                   ->orWhere('batch_number', 'like', '%' . $this->frameSearchTerm . '%')
             )
-            ->where('quantity', '>', 0)
+            ->inStock()
             ->orderBy('name')
             ->limit(8)
             ->get()
@@ -669,7 +669,7 @@ class POSComponent extends Component
                 'name'  => $p->name,
                 'batch' => $p->batch_number ?? '',
                 'price' => (float) $p->selling_price,
-                'stock' => $p->quantity,
+                'stock' => $p->made_to_order ? 'Made to order' : $p->quantity,
             ])
             ->toArray();
     }
@@ -688,7 +688,7 @@ class POSComponent extends Component
             return;
         }
 
-        if ($product->quantity <= 0) {
+        if (!$product->canSupply()) {
             $this->dispatch('notify', ...['type' => 'warning', 'message' => 'This frame is out of stock.']);
             return;
         }
@@ -698,7 +698,7 @@ class POSComponent extends Component
             $existingProductId = $this->getCartItemProductId($cartKey, $cartItem);
             if ($existingProductId === (int) $productId) {
                 $currentQty = is_array($cartItem) ? $cartItem['quantity'] : $cartItem;
-                if ($currentQty >= $product->quantity) {
+                if (!$product->canSupply($currentQty + 1)) {
                     $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Maximum stock reached for this frame.']);
                     return;
                 }
@@ -1580,7 +1580,7 @@ class POSComponent extends Component
         $this->cart = [];
         if ($items->isNotEmpty()) {
             foreach ($items as $item) {
-                if ($item->product && $item->product->quantity >= $item->quantity) {
+                if ($item->product && $item->product->canSupply((int) $item->quantity)) {
                     $fromPrescription = !empty($item->consultation_id) && $item->consultation_id != 0;
                     $categoryName     = strtolower($item->product->category->name ?? '');
                     $this->cart['cart_' . $item->id] = [
@@ -1639,11 +1639,11 @@ class POSComponent extends Component
 
             $product = Product::with('category')->find($productId);
 
-            if (!$product || $product->quantity <= 0) {
+            if (!$product || !$product->canSupply()) {
                 continue;
             }
 
-            $quantity = max(1, min((int) ($item['quantity'] ?? 1), (int) $product->quantity));
+            $quantity = max(1, min((int) ($item['quantity'] ?? 1), $product->maxSupply()));
 
             $this->cart[$productId] = [
                 'product_id' => (int) $productId,
@@ -1870,7 +1870,7 @@ class POSComponent extends Component
 
             // Stock validation
             foreach ($requiredQuantities as $productId => $requiredQuantity) {
-                if (!isset($products[$productId]) || $products[$productId]->quantity < $requiredQuantity) {
+                if (!isset($products[$productId]) || !$products[$productId]->canSupply((int) $requiredQuantity)) {
                     $productName = isset($products[$productId]) ? $products[$productId]->name : 'Unknown';
                     throw new \Exception('Insufficient stock for ' . $productName);
                 }
@@ -2150,7 +2150,7 @@ class POSComponent extends Component
             // Low-stock alerts — fire after commit so stock values are final in DB
             $lowStockThreshold = 5;
             foreach (array_keys($requiredQuantities) as $productId) {
-                if (!isset($products[$productId])) continue;
+                if (!isset($products[$productId]) || $products[$productId]->made_to_order) continue;
                 $remaining = (int) Product::whereKey($productId)->value('quantity');
                 if ($remaining >= 0 && $remaining <= $lowStockThreshold) {
                     $stockLabel = $remaining === 0 ? 'OUT OF STOCK' : $remaining . ' unit' . ($remaining === 1 ? '' : 's') . ' left';

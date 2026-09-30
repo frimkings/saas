@@ -868,7 +868,7 @@
                                                             <strong class="d-block" style="font-size: 12px;">{{ $product->name }}</strong>
                                                             <small class="text-muted" style="font-size: 10px;">
                                                                 <i class="fas fa-warehouse"></i> Stock:
-                                                                <strong>{{ $product->quantity }}</strong>
+                                                                <strong>{{ $product->made_to_order ? 'Made to order' : $product->quantity }}</strong>
                                                             </small>
                                                         </div>
                                                         <span class="badge badge-primary badge-pill px-2 py-1" style="font-size: 10px;">
