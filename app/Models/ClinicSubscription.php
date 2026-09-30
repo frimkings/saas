@@ -18,6 +18,8 @@ class ClinicSubscription extends Model
             }
             $subscription->status_changed_at ??= now();
         });
+        static::saved(fn () => app(\App\Services\SubscriptionService::class)->forgetCurrent());
+        static::deleted(fn () => app(\App\Services\SubscriptionService::class)->forgetCurrent());
         static::created(function (self $subscription): void {
             $plan=$subscription->plan;
             \App\Models\SubscriptionAgreement::firstOrCreate(['clinic_subscription_id'=>$subscription->id],[

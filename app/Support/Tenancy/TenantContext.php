@@ -5,6 +5,7 @@ namespace App\Support\Tenancy;
 use App\Models\Branch;
 use App\Models\Clinic;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use LogicException;
 
 class TenantContext
@@ -13,6 +14,9 @@ class TenantContext
     private ?Clinic $clinic = null;
     private ?Branch $branch = null;
     private array $authorizedBranchIds = [];
+    /** The user's active clinics and this clinic's active branches, when already loaded. */
+    private ?Collection $availableClinics = null;
+    private ?Collection $availableBranches = null;
 
     public function set(User $user, Clinic $clinic, Branch $branch, array $authorizedBranchIds): void
     {
@@ -28,6 +32,34 @@ class TenantContext
         $this->clinic = $clinic;
         $this->branch = $branch;
         $this->authorizedBranchIds = array_values(array_unique(array_map('intval', $authorizedBranchIds)));
+        $this->availableClinics = null;
+        $this->availableBranches = null;
+    }
+
+    /** Keeps the membership lists the middleware already loaded, for the clinic/branch switcher. */
+    public function setAvailable(Collection $clinics, Collection $branches): void
+    {
+        $this->availableClinics = $clinics;
+        $this->availableBranches = $branches;
+    }
+
+    /** The signed-in user's active clinics. */
+    public function availableClinics(): Collection
+    {
+        $user = $this->user ?? auth()->user();
+
+        return $this->availableClinics ??= $user
+            ? $user->clinics()->where('clinics.status', 'active')->wherePivot('status', 'active')->get()
+            : collect();
+    }
+
+    /** The user's active branches in the current clinic, by name. */
+    public function availableBranches(): Collection
+    {
+        return $this->availableBranches ??= $this->user && $this->clinic
+            ? $this->user->branches()->where('branches.clinic_id', $this->clinic->id)
+                ->where('branches.is_active', true)->wherePivot('status', 'active')->orderBy('branches.name')->get()
+            : collect();
     }
 
     public function clear(): void
@@ -36,6 +68,8 @@ class TenantContext
         $this->clinic = null;
         $this->branch = null;
         $this->authorizedBranchIds = [];
+        $this->availableClinics = null;
+        $this->availableBranches = null;
     }
 
     public function resolved(): bool

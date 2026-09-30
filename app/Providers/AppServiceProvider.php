@@ -30,6 +30,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Services\OpticalLensPriceList::class);
         // Caches each clinic's active add-ons for the request; feature checks run many times per page.
         $this->app->scoped(\App\Services\ClinicAddonService::class);
+        // Caches each clinic's current subscription for the request; middleware, menus and
+        // feature checks ask for it dozens of times per page.
+        $this->app->scoped(\App\Services\SubscriptionService::class);
+        // Per-request lookups (clinic settings); workers and requests each start empty.
+        $this->app->scoped(\App\Support\RequestMemo::class);
     }
 
     /**

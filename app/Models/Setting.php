@@ -32,8 +32,6 @@ class Setting extends Model
         'ETB' => 'Ethiopian Birr (ETB)',
     ];
 
-    private static array $currencyCache = [];
-
     public function getClinicNameAttribute($value): ?string
     {
         // Registration owns the clinic identity; legacy records keep their saved name.
@@ -106,15 +104,26 @@ class Setting extends Model
         'trial_started_at'                => 'date',
     ];
 
+    protected static function booted(): void
+    {
+        static::saved(fn () => static::forgetCached());
+        static::deleted(fn () => static::forgetCached());
+    }
+
     public static function currency(): string
     {
-        $clinicId = app(\App\Support\Tenancy\TenantContext::class)->clinicId() ?? 0;
-        return static::$currencyCache[$clinicId] ??= static::getSettings()->currency_symbol ?? self::DEFAULT_CURRENCY;
+        return static::getSettings()->currency_symbol ?? self::DEFAULT_CURRENCY;
     }
 
     public static function clearCurrencyCache(): void
     {
-        static::$currencyCache = [];
+        static::forgetCached();
+    }
+
+    /** Drops this request's cached settings so the next getSettings() reads the database. */
+    public static function forgetCached(): void
+    {
+        app(\App\Support\RequestMemo::class)->forget('settings:');
     }
 
     public static function getSettings()
@@ -133,12 +142,24 @@ class Setting extends Model
             ]);
         }
 
-        return static::first() ?? static::create([
-            'clinic_name' => self::DEFAULT_CLINIC_NAME,
-            'clinic_address' => self::DEFAULT_CLINIC_ADDRESS,
-            'clinic_contact' => self::DEFAULT_CLINIC_CONTACT,
-            'clinic_email' => self::DEFAULT_CLINIC_EMAIL,
-        ]);
+        // Read once per request per clinic: layouts, middleware and components each ask for it.
+        // Callers get their own copy, so an edit that is never saved stays with that caller.
+        $settings = app(\App\Support\RequestMemo::class)->remember('settings:'.($context->clinicId() ?? 0), function () use ($context) {
+            $settings = static::first() ?? static::create([
+                'clinic_name' => self::DEFAULT_CLINIC_NAME,
+                'clinic_address' => self::DEFAULT_CLINIC_ADDRESS,
+                'clinic_contact' => self::DEFAULT_CLINIC_CONTACT,
+                'clinic_email' => self::DEFAULT_CLINIC_EMAIL,
+            ]);
+            // The clinic name accessor needs the clinic; reuse the one already resolved.
+            if ($context->clinic() && (int) $settings->clinic_id === $context->clinicId()) {
+                $settings->setRelation('clinic', $context->clinic());
+            }
+
+            return $settings;
+        });
+
+        return clone $settings;
     }
 
     public function needsSetup(): bool

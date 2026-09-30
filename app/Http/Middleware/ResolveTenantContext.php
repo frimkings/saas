@@ -44,13 +44,15 @@ class ResolveTenantContext
             return redirect()->route('platform.dashboard');
         }
 
-        $clinic = $this->resolveClinic($request);
+        [$clinic, $clinics] = $this->resolveClinic($request);
         abort_unless($clinic, 403, 'You do not have access to an active clinic.');
 
-        [$branch, $authorizedBranchIds] = $this->resolveBranch($request, $clinic);
+        [$branch, $branches] = $this->resolveBranch($request, $clinic);
         abort_unless($branch, 403, 'You do not have access to an active branch for this clinic.');
 
-        $this->context->set($user, $clinic, $branch, $authorizedBranchIds);
+        $this->context->set($user, $clinic, $branch, $branches->pluck('id')->map(static fn ($id) => (int) $id)->all());
+        // The navbar's clinic/branch switcher lists these; save it querying them again.
+        $this->context->setAvailable($clinics, $branches->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values());
         app(\App\Support\Tenancy\BranchRoleManager::class)->hydrate($user, $branch);
         $request->session()->put(config('tenancy.session_keys.clinic'), $clinic->id);
         $request->session()->put(config('tenancy.session_keys.branch'), $branch->id);
@@ -58,50 +60,35 @@ class ResolveTenantContext
         return $next($request);
     }
 
-    private function resolveClinic(Request $request): ?Clinic
+    /** The selected (or default) clinic and all of the user's active clinics, default first. */
+    private function resolveClinic(Request $request): array
     {
-        $query = $request->user()->clinics()
+        $clinics = $request->user()->clinics()
             ->where('clinics.status', 'active')
-            ->wherePivot('status', 'active');
+            ->wherePivot('status', 'active')
+            ->orderByDesc('clinic_user.is_default')
+            ->orderBy('clinics.id')
+            ->get();
 
         $requestedId = (int) $request->session()->get(config('tenancy.session_keys.clinic'), 0);
-        if ($requestedId > 0) {
-            $selected = (clone $query)->whereKey($requestedId)->first();
-            if ($selected) {
-                return $selected;
-            }
-        }
 
-        return $query->orderByDesc('clinic_user.is_default')->orderBy('clinics.id')->first();
+        return [$clinics->firstWhere('id', $requestedId) ?? $clinics->first(), $clinics];
     }
 
+    /** The selected (or default) branch and all of the user's active branches in the clinic. */
     private function resolveBranch(Request $request, Clinic $clinic): array
     {
-        $query = $request->user()->branches()
+        $branches = $request->user()->branches()
             ->where('branches.clinic_id', $clinic->id)
             ->where('branches.is_active', true)
-            ->wherePivot('status', 'active');
-
-        $authorizedBranchIds = (clone $query)
-            ->pluck('branches.id')
-            ->map(static fn ($id) => (int) $id)
-            ->all();
-
-        if ($authorizedBranchIds === []) {
-            return [null, []];
-        }
-
-        $requestedId = (int) $request->session()->get(config('tenancy.session_keys.branch'), 0);
-        if ($requestedId > 0 && in_array($requestedId, $authorizedBranchIds, true)) {
-            return [(clone $query)->whereKey($requestedId)->first(), $authorizedBranchIds];
-        }
-
-        $branch = (clone $query)
+            ->wherePivot('status', 'active')
             ->orderByDesc('branch_user.is_default')
             ->orderByDesc('branches.is_default')
             ->orderBy('branches.id')
-            ->first();
+            ->get();
 
-        return [$branch, $authorizedBranchIds];
+        $requestedId = (int) $request->session()->get(config('tenancy.session_keys.branch'), 0);
+
+        return [$branches->firstWhere('id', $requestedId) ?? $branches->first(), $branches];
     }
 }

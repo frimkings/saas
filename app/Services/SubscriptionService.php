@@ -7,9 +7,22 @@ use App\Models\ClinicSubscription;
 
 class SubscriptionService
 {
+    /** Each clinic's current subscription for this request, or null when it has none. */
+    private array $current = [];
+
     public function current(Clinic $clinic): ?ClinicSubscription
     {
-        return $clinic->subscriptions()->with('plan')->latest('id')->first();
+        if (! array_key_exists($clinic->id, $this->current)) {
+            $this->current[$clinic->id] = $clinic->subscriptions()->with('plan')->latest('id')->first();
+        }
+
+        return $this->current[$clinic->id];
+    }
+
+    /** Called when a subscription or plan is saved, so the next check reads the change. */
+    public function forgetCurrent(): void
+    {
+        $this->current = [];
     }
 
     public function branchAllowance(Clinic $clinic): array

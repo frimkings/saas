@@ -28,8 +28,8 @@
           $tenantContext = app(\App\Support\Tenancy\TenantContext::class);
           $activeClinicId = $tenantContext->clinicId();
           $activeBranchId = $tenantContext->branchId();
-          $availableClinics = auth()->user()->clinics()->where('clinics.status', 'active')->wherePivot('status', 'active')->get();
-          $availableBranches = auth()->user()->branches()->where('branches.clinic_id', $activeClinicId)->where('branches.is_active', true)->wherePivot('status', 'active')->orderBy('branches.name')->get();
+          $availableClinics = $tenantContext->availableClinics();
+          $availableBranches = $tenantContext->availableBranches();
         @endphp
         @if(auth()->user()->is_platform_admin)
         <li class="nav-item mr-2"><form method="POST" action="{{ route('tenant.mode.switch') }}">@csrf<input type="hidden" name="mode" value="platform"><button class="btn btn-sm btn-outline-dark mt-1"><i class="fas fa-server mr-1"></i>Platform</button></form></li>
