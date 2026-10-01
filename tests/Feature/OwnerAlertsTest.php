@@ -72,11 +72,11 @@ class OwnerAlertsTest extends TestCase
         $this->product($clinic, $branch, 'Plenty drops', 50, 10);
         $alerts = app(OwnerAlertDigestService::class);
 
-        $this->assertNull($alerts->sendDue($clinic, $this->at('2026-09-29 06:30')));
-        $this->assertSame('sent', $alerts->sendDue($clinic, $this->at('2026-09-29 07:00')));
-        $this->assertSame('sent', $alerts->sendDue($clinic, $this->at('2026-09-29 09:00')));
+        $this->assertNull($alerts->sendDue($clinic, $this->at('2026-09-29 09:30')));
+        $this->assertSame('sent', $alerts->sendDue($clinic, $this->at('2026-09-29 10:00')));
+        $this->assertSame('sent', $alerts->sendDue($clinic, $this->at('2026-09-29 12:00')));
         // Next day, nothing new: no email.
-        $this->assertNull($alerts->sendDue($clinic, $this->at('2026-09-30 07:00')));
+        $this->assertNull($alerts->sendDue($clinic, $this->at('2026-09-30 10:00')));
         Mail::assertSent(OwnerAlertsMail::class, 1);
         Mail::assertSent(OwnerAlertsMail::class, fn (OwnerAlertsMail $mail) => $mail->hasTo(self::OWNER)
             && $mail->alerts['sections']['low_stock']['rows'][0]['title'] === 'Timolol drops'
@@ -85,13 +85,13 @@ class OwnerAlertsTest extends TestCase
 
         // It runs out: reported again, as out of stock.
         DB::table('branch_inventory_items')->where('id', $stock)->update(['quantity' => 0]);
-        $this->assertSame('sent', $alerts->sendDue($clinic, $this->at('2026-10-01 07:00')));
+        $this->assertSame('sent', $alerts->sendDue($clinic, $this->at('2026-10-01 10:00')));
         Mail::assertSent(OwnerAlertsMail::class, fn (OwnerAlertsMail $mail) => ($mail->alerts['sections']['low_stock']['rows'][0]['detail'] ?? null) === 'Out of stock'
             && $mail->alerts['sections']['low_stock']['rows'][0]['urgent']);
 
         // Restocked: the alert is closed, so running low later alerts again.
         DB::table('branch_inventory_items')->where('id', $stock)->update(['quantity' => 40]);
-        $this->assertNull($alerts->sendDue($clinic, $this->at('2026-10-02 07:00')));
+        $this->assertNull($alerts->sendDue($clinic, $this->at('2026-10-02 10:00')));
         $this->assertSame(0, OwnerAlertItem::whereNull('resolved_at')->count());
     }
 
@@ -102,10 +102,10 @@ class OwnerAlertsTest extends TestCase
         $this->product($clinic, $branch, 'Cyclopentolate', 20, 0, '2026-11-15');
         $alerts = app(OwnerAlertDigestService::class);
 
-        $alerts->sendDue($clinic, $this->at('2026-09-29 07:00'));   // 47 days: within 90
-        $alerts->sendDue($clinic, $this->at('2026-10-05 07:00'));   // 41 days: same stage, nothing new
-        $alerts->sendDue($clinic, $this->at('2026-10-20 07:00'));   // 26 days: within 30
-        $alerts->sendDue($clinic, $this->at('2026-11-16 07:00'));   // expired, still on the shelf
+        $alerts->sendDue($clinic, $this->at('2026-09-29 10:00'));   // 47 days: within 90
+        $alerts->sendDue($clinic, $this->at('2026-10-05 10:00'));   // 41 days: same stage, nothing new
+        $alerts->sendDue($clinic, $this->at('2026-10-20 10:00'));   // 26 days: within 30
+        $alerts->sendDue($clinic, $this->at('2026-11-16 10:00'));   // expired, still on the shelf
 
         $details = Mail::sent(OwnerAlertsMail::class)->map(fn ($mail) => $mail->alerts['sections']['expiry']['rows'][0]['detail'])->all();
         $this->assertCount(3, $details);
@@ -120,7 +120,7 @@ class OwnerAlertsTest extends TestCase
         [$clinic, $branch] = $this->clinic(['clinical', Feature::INVENTORY, Feature::DAILY_SUMMARY]);
         $this->product($clinic, $branch, 'Timolol drops', 3, 10);
 
-        $this->assertNull(app(OwnerAlertDigestService::class)->sendDue($clinic, $this->at('2026-09-29 07:00')));
+        $this->assertNull(app(OwnerAlertDigestService::class)->sendDue($clinic, $this->at('2026-09-29 10:00')));
         Mail::assertNotSent(OwnerAlertsMail::class);
     }
 
@@ -136,7 +136,7 @@ class OwnerAlertsTest extends TestCase
             'payee' => 'Landlord', 'amount' => 1500, 'payment_method' => 'bank_transfer', 'frequency' => 'monthly', 'next_due_date' => '2026-09-28', 'is_active' => true,
             'created_by' => $admin->id, 'created_at' => now(), 'updated_at' => now()]);
 
-        app(OwnerAlertDigestService::class)->sendDue($clinic, $this->at('2026-09-29 07:00'));
+        app(OwnerAlertDigestService::class)->sendDue($clinic, $this->at('2026-09-29 10:00'));
 
         Mail::assertSent(OwnerAlertsMail::class, fn (OwnerAlertsMail $mail) => $mail->alerts['sections']['bills']['rows'][0]['title'] === 'Lens World · PO-7'
             && $mail->alerts['sections']['bills']['rows'][0]['detail'] === 'GHS 500.00 overdue since 25 Sep 2026'
@@ -158,7 +158,7 @@ class OwnerAlertsTest extends TestCase
         $this->lensOrder($clinic, $branch, $admin, 'OPT-3', ['status' => 'Ready', 'customer_name' => 'Abena Owusu', 'ready_at' => '2026-07-25 10:00:00', 'paid_amount' => 350]);
         $this->lensOrder($clinic, $branch, $admin, 'OPT-4', ['status' => 'Ready', 'customer_name' => 'Recently Ready', 'ready_at' => '2026-09-20 10:00:00', 'paid_amount' => 500]);
 
-        app(OwnerAlertDigestService::class)->sendDue($clinic, $this->at('2026-09-29 07:00'));
+        app(OwnerAlertDigestService::class)->sendDue($clinic, $this->at('2026-09-29 10:00'));
 
         Mail::assertSent(OwnerAlertsMail::class, function (OwnerAlertsMail $mail) {
             $lab = $mail->alerts['sections']['lab']['rows'];

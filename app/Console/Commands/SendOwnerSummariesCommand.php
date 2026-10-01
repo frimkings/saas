@@ -8,7 +8,7 @@ use App\Services\OwnerSummaryService;
 use Illuminate\Console\Command;
 
 /**
- * Runs hourly. From 7 AM clinic time, sends each clinic owner the morning alerts and the
+ * Runs hourly. From 10 AM clinic time, sends each clinic owner the morning alerts and the
  * sales summaries their plan includes, if they haven't gone yet today.
  */
 class SendOwnerSummariesCommand extends Command

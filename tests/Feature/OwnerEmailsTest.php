@@ -60,7 +60,7 @@ class OwnerEmailsTest extends TestCase
             'payment_method' => $method, 'collected_by' => $clinic->users()->value('users.id'), 'created_at' => $at, 'updated_at' => $at]);
     }
 
-    public function test_daily_summary_goes_to_the_owner_at_seven_clinic_time_once_and_counts_every_branch(): void
+    public function test_daily_summary_goes_to_the_owner_at_ten_clinic_time_once_and_counts_every_branch(): void
     {
         Mail::fake();
         [$clinic, $main, $second] = $this->clinic();
@@ -69,9 +69,9 @@ class OwnerEmailsTest extends TestCase
         $this->sale($clinic, $main, 250, '2026-09-27 10:00:00');
         $summaries = app(OwnerSummaryService::class);
 
-        $this->assertSame([], $summaries->sendDue($clinic, Carbon::parse('2026-09-29 06:59:00', 'Africa/Accra')));
-        $this->assertSame(['daily' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-09-29 07:05:00', 'Africa/Accra')));
-        $this->assertSame(['daily' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-09-29 08:05:00', 'Africa/Accra')));
+        $this->assertSame([], $summaries->sendDue($clinic, Carbon::parse('2026-09-29 09:59:00', 'Africa/Accra')));
+        $this->assertSame(['daily' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-09-29 10:05:00', 'Africa/Accra')));
+        $this->assertSame(['daily' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-09-29 11:05:00', 'Africa/Accra')));
 
         Mail::assertSent(OwnerSummaryMail::class, 1);
         Mail::assertSent(OwnerSummaryMail::class, function (OwnerSummaryMail $mail) {
@@ -93,7 +93,7 @@ class OwnerEmailsTest extends TestCase
         $this->sale($clinic, $main, 250, '2026-09-28 16:00:00');     // 01:00 on the 29th in Tokyo
         $this->sale($clinic, $main, 40, '2026-09-29 14:30:00');      // 23:30 on the 29th in Tokyo
 
-        app(OwnerSummaryService::class)->sendDue($clinic, Carbon::parse('2026-09-30 07:00:00', 'Asia/Tokyo'));
+        app(OwnerSummaryService::class)->sendDue($clinic, Carbon::parse('2026-09-30 10:00:00', 'Asia/Tokyo'));
 
         Mail::assertSent(OwnerSummaryMail::class, fn (OwnerSummaryMail $mail) => $mail->summary['label'] === 'Tue 29 Sep 2026'
             && $mail->summary['total']['sales'] == 290 && $mail->summary['total']['received'] == 290);
@@ -115,7 +115,7 @@ class OwnerEmailsTest extends TestCase
         DB::table('insurance_claims')->insert($claim + ['claim_amount' => 120, 'status' => 'submitted', 'submission_date' => '2026-08-01', 'created_at' => '2026-08-01', 'updated_at' => '2026-08-01']);
         DB::table('insurance_claims')->insert($claim + ['claim_amount' => 75, 'status' => 'rejected', 'submission_date' => '2026-09-10', 'created_at' => '2026-09-10', 'updated_at' => '2026-09-24 09:00:00']);
 
-        $this->travelTo(Carbon::parse('2026-09-28 07:00:00', 'Africa/Accra'));
+        $this->travelTo(Carbon::parse('2026-09-28 10:00:00', 'Africa/Accra'));
         app(OwnerSummaryService::class)->sendDue($clinic);
 
         Mail::assertSent(OwnerSummaryMail::class, function (OwnerSummaryMail $mail) {
@@ -137,9 +137,9 @@ class OwnerEmailsTest extends TestCase
         $summaries = app(OwnerSummaryService::class);
 
         // Thursday 1 October: daily and monthly are due; weekly isn't a Monday anyway.
-        $this->assertSame(['daily' => 'sent', 'monthly' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-10-01 07:00:00', 'Africa/Accra')));
+        $this->assertSame(['daily' => 'sent', 'monthly' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-10-01 10:00:00', 'Africa/Accra')));
         // Monday 5 October: weekly is due but not on this plan.
-        $this->assertSame(['daily' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-10-05 07:00:00', 'Africa/Accra')));
+        $this->assertSame(['daily' => 'sent'], $summaries->sendDue($clinic, Carbon::parse('2026-10-05 10:00:00', 'Africa/Accra')));
 
         $monthly = OwnerEmail::where('kind', 'summary_monthly')->sole();
         $this->assertStringContainsString('September 2026', $monthly->subject);
@@ -151,7 +151,7 @@ class OwnerEmailsTest extends TestCase
         [$clinic] = $this->clinic();
         $clinic->update(['billing_email' => null]);
         $summaries = app(OwnerSummaryService::class);
-        $at = Carbon::parse('2026-09-29 07:00:00', 'Africa/Accra');
+        $at = Carbon::parse('2026-09-29 10:00:00', 'Africa/Accra');
         $this->assertSame(['daily' => 'skipped'], $summaries->sendDue($clinic, $at));
 
         OwnerEmail::query()->delete();

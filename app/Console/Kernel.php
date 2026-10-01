@@ -79,7 +79,7 @@ class Kernel extends ConsoleKernel
             $schedule->command('tenancy:run-scheduled sms:recall-patients --clinic-only')->dailyAt('09:00')->withoutOverlapping();
         } catch (\Throwable) {}
 
-        // Daily, weekly and monthly sales emails to each clinic owner, from 7 AM clinic time;
+        // Daily, weekly and monthly sales emails to each clinic owner, from 10 AM clinic time;
         // the platform ticks which ones each plan includes. Replaces the old report delivery.
         $schedule->command('owner:send-summaries')->hourly()->withoutOverlapping();
         // Clinic requests (plan changes, SMS orders, sender IDs) still waiting after a day.

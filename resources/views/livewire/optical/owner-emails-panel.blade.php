@@ -23,10 +23,10 @@
     <div class="rounded-lg border border-slate-200 p-4 space-y-1">
         <div class="text-xs font-semibold uppercase text-slate-500 mb-1">Scheduled emails on your plan</div>
         @foreach([
-            'daily' => ['Daily summary', 'Every morning at 7:00, for the day before'],
-            'weekly' => ['Weekly summary', 'Monday at 7:00, for the week before'],
-            'monthly' => ['Monthly summary', 'The 1st at 7:00, for the month before'],
-            'alerts' => ['Morning alerts', 'At 7:00 when something new needs attention: low stock, late or uncollected jobs, bills due'],
+            'daily' => ['Daily summary', 'Every morning at 10:00, for the day before'],
+            'weekly' => ['Weekly summary', 'Monday at 10:00, for the week before'],
+            'monthly' => ['Monthly summary', 'The 1st at 10:00, for the month before'],
+            'alerts' => ['Morning alerts', 'At 10:00 when something new needs attention: low stock, late or uncollected jobs, bills due'],
         ] as $period => [$name, $when])
             <div class="flex items-baseline gap-2 text-sm">
                 @if($included[$period])

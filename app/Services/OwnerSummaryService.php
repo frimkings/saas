@@ -16,14 +16,14 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The daily, weekly and monthly sales emails to the clinic owner. Each goes at 7 AM clinic
+ * The daily, weekly and monthly sales emails to the clinic owner. Each goes at 10 AM clinic
  * time: the daily one for yesterday, the weekly one on Monday for last week, the monthly one
  * on the 1st for last month. The platform decides which a clinic gets by ticking them on its
  * plan. Every branch is counted, and each is also shown on its own.
  */
 class OwnerSummaryService
 {
-    public const SEND_HOUR = 7;
+    public const SEND_HOUR = 10;
 
     public const PERIODS = [
         'daily' => Feature::DAILY_SUMMARY,
@@ -183,7 +183,7 @@ class OwnerSummaryService
                     + (float) ($opticalSales['discounts'] ?? 0), 2);
                 if ($clinical) {
                     // Claims sent over 30 days ago with no answer yet, and claims turned down in the period.
-                    $waiting = InsuranceClaim::where('status', 'submitted')->whereDate('submission_date', '<', today()->subDays(30));
+                    $waiting = InsuranceClaim::where('status', 'submitted')->whereDateIndexed('submission_date', '<', today()->subDays(30));
                     $rejected = InsuranceClaim::where('status', 'rejected')->whereBetween('updated_at', $range);
                     $figures['claimsWaiting'] = (clone $waiting)->count();
                     $figures['claimsWaitingAmount'] = round((float) $waiting->sum('claim_amount'), 2);

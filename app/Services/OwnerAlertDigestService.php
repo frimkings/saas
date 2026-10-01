@@ -19,13 +19,13 @@ use Illuminate\Support\Carbon;
 
 /**
  * The morning alerts email to the clinic owner: things that need attention across every
- * branch. It goes from 7 AM clinic time, only when something new came up, and each item is
+ * branch. It goes from 10 AM clinic time, only when something new came up, and each item is
  * reported once per stage (low, then out of stock; 90 days, 30 days, then expired; bill due,
  * then overdue ...). An item that clears and comes back later is reported again.
  */
 class OwnerAlertDigestService
 {
-    public const SEND_HOUR = 7;
+    public const SEND_HOUR = 10;
     public const EXPIRY_DAYS = 90;
     public const BILL_DAYS = 7;
     public const UNCOLLECTED_DAYS = 30;
@@ -55,7 +55,7 @@ class OwnerAlertDigestService
         $email = OwnerEmail::where('dedupe_key', $clinic->id . ':' . $key)->first();
         if (! $email) $this->sync($clinic, $local);
 
-        $new = OwnerAlertItem::where('clinic_id', $clinic->id)->whereNull('resolved_at')->whereDate('alerted_on', $date)->get();
+        $new = OwnerAlertItem::where('clinic_id', $clinic->id)->whereNull('resolved_at')->whereDateIndexed('alerted_on', $date)->get();
         if ($new->isEmpty()) return null;
 
         $count = $new->count();
@@ -108,7 +108,7 @@ class OwnerAlertDigestService
                         $stock->quantity > 0 ? "{$stock->quantity} left (reorder at {$stock->reorder_level})" : 'Out of stock'));
 
                 InventoryLot::with('product:id,name,made_to_order')->where('quantity', '>', 0)->whereNotNull('expiry_date')
-                    ->whereDate('expiry_date', '<=', $today->copy()->addDays(self::EXPIRY_DAYS))->get()
+                    ->whereDateIndexed('expiry_date', '<=', $today->copy()->addDays(self::EXPIRY_DAYS))->get()
                     ->each(function ($lot) use ($add, $today) {
                         if (! $lot->product || $lot->product->made_to_order) return;
                         $days = (int) $today->diffInDays($lot->expiry_date, false);
@@ -118,7 +118,7 @@ class OwnerAlertDigestService
                     });
 
                 PurchaseOrder::with('supplier:id,name')->whereNotIn('invoice_status', ['none', 'paid'])->whereNotNull('invoice_due_date')
-                    ->whereDate('invoice_due_date', '<=', $today->copy()->addDays(self::BILL_DAYS))->get()
+                    ->whereDateIndexed('invoice_due_date', '<=', $today->copy()->addDays(self::BILL_DAYS))->get()
                     ->each(function ($po) use ($add, $today, $money) {
                         $owed = (float) $po->invoice_amount - (float) $po->paid_amount;
                         if ($owed <= 0.004) return;
@@ -130,7 +130,7 @@ class OwnerAlertDigestService
             }
 
             if (LicenseService::has(Feature::EXPENSE_TRACKING)) {
-                RecurringExpense::where('is_active', true)->whereDate('next_due_date', '<=', $today)->get()
+                RecurringExpense::where('is_active', true)->whereDateIndexed('next_due_date', '<=', $today)->get()
                     ->each(fn ($expense) => $add('recurring', 'r' . $expense->id . ':' . $expense->next_due_date->toDateString(), 'due', $expense->description,
                         trim($money($expense->amount) . ($expense->payee ? " to {$expense->payee}" : '') . ' · due ' . $expense->next_due_date->format('j M Y'))));
             }
@@ -140,7 +140,7 @@ class OwnerAlertDigestService
                     ->each(fn ($stock) => $stock->product?->is_active && $add('low_stock', 'o' . $stock->id, $stock->quantity > 0 ? 'low' : 'out', $stock->product->name,
                         $stock->quantity > 0 ? "{$stock->quantity} left (reorder at {$stock->reorder_level})" : 'Out of stock'));
 
-                LensOrder::whereIn('status', ['In Lab', 'In Production'])->whereNotNull('expected_back_at')->whereDate('expected_back_at', '<', $today)->get()
+                LensOrder::whereIn('status', ['In Lab', 'In Production'])->whereNotNull('expected_back_at')->whereDateIndexed('expected_back_at', '<', $today)->get()
                     ->each(fn ($order) => $add('lab', 'lab' . $order->id, 'late', "{$order->order_id} · {$order->display_customer_name}",
                         'Expected back ' . $order->expected_back_at->format('j M') . ' (' . (int) $order->expected_back_at->diffInDays($today) . ' days late)'));
 
@@ -160,7 +160,7 @@ class OwnerAlertDigestService
     /** What the email shows: today's new items by section, and how many older ones are still open. */
     private function build(Clinic $clinic, $new, string $date): array
     {
-        $older = OwnerAlertItem::where('clinic_id', $clinic->id)->whereNull('resolved_at')->whereDate('alerted_on', '<', $date)
+        $older = OwnerAlertItem::where('clinic_id', $clinic->id)->whereNull('resolved_at')->whereDateIndexed('alerted_on', '<', $date)
             ->selectRaw('section, COUNT(*) as n')->groupBy('section')->pluck('n', 'section');
         $multiBranch = $clinic->branches()->where('is_active', true)->count() > 1;
         $links = [
