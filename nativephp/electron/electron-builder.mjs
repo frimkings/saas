@@ -17,7 +17,6 @@ const deleteAppDataOnUninstall = process.env.NATIVEPHP_NSIS_DELETE_APP_DATA === 
 const azureEndpoint = process.env.NATIVEPHP_AZURE_ENDPOINT;
 const azureCertificateProfileName = process.env.NATIVEPHP_AZURE_CERTIFICATE_PROFILE_NAME;
 const azureCodeSigningAccountName = process.env.NATIVEPHP_AZURE_CODE_SIGNING_ACCOUNT_NAME;
-const hasAzureSigning = azureEndpoint && azureCertificateProfileName && azureCodeSigningAccountName;
 
 // Since we do not copy the php executable here, we only need these for building
 const isWindows = process.argv.includes('--win');
@@ -84,11 +83,7 @@ export default {
     afterSign: 'build/notarize.js',
     win: {
         executableName: fileName,
-        // Avoid downloading the Windows signing helper for unsigned local
-        // builds. Its archive contains symlinks that require Developer Mode
-        // or elevated privileges to extract on Windows.
-        ...(!hasAzureSigning ? { signAndEditExecutable: false } : {}),
-        ...(hasAzureSigning
+        ...(azureEndpoint && azureCertificateProfileName && azureCodeSigningAccountName
             ? {
                   azureSignOptions: {
                       endpoint: azureEndpoint,

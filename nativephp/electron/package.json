@@ -1,10 +1,10 @@
 {
-    "name": "nativephp",
-    "version": "2.0.0",
-    "description": "A NativePHP Electron application",
+    "name": "eye-clinic",
+    "version": "1.0.0",
+    "description": " DEVELOPED BY DR. KINGSFORD OSEI FRIMPONG - 0266457979",
     "main": "./out/main/index.js",
-    "author": "NativePHP",
-    "homepage": "https://nativephp.com",
+    "author": "Your Clinic Name",
+    "homepage": "https://yourclinicdomain.com",
     "type": "module",
     "engines": {
         "node": ">=22.0.0"
