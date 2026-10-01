@@ -3,7 +3,13 @@
 
     @if($confirmationWhatsAppUrl)
     <div class="alert alert-success border-0 shadow-sm d-flex align-items-center justify-content-between flex-wrap mb-0 rounded-0" style="gap:.5rem">
-        <span><i class="fab fa-whatsapp mr-1"></i> Booking saved. Send {{ $confirmationPatientName }} the confirmation on WhatsApp.</span>
+        <span><i class="fab fa-whatsapp mr-1"></i>
+            @switch($confirmationKind)
+                @case('rescheduled') Appointment moved. Send {{ $confirmationPatientName }} the new time on WhatsApp. @break
+                @case('cancelled') Appointment cancelled. Let {{ $confirmationPatientName }} know on WhatsApp. @break
+                @default Booking saved. Send {{ $confirmationPatientName }} the confirmation on WhatsApp.
+            @endswitch
+        </span>
         <span class="d-flex" style="gap:.5rem">
             <a href="{{ $confirmationWhatsAppUrl }}" target="_blank" rel="noopener" wire:click="dismissConfirmationWhatsApp"
                class="btn btn-success btn-sm font-weight-bold"><i class="fab fa-whatsapp mr-1"></i> Open WhatsApp</a>
@@ -66,11 +72,53 @@
         <div class="alert alert-dark shadow border-0 d-flex justify-content-between align-items-center mb-3 py-2 px-3">
             <div class="d-flex align-items-center flex-wrap gap-2">
                 <span class="font-weight-bold mr-3"><i class="fas fa-check-double mr-1"></i>{{ count($selectedAppointments) }} selected</span>
-                <button wire:click="bulkMarkAsSeen" class="btn btn-success btn-sm font-weight-bold mr-1">Mark Seen</button>
-                <button wire:click="bulkMarkRemindersSent" class="btn btn-info btn-sm font-weight-bold mr-1">Mark Reminders Sent</button>
+                @if($activeFilter === 'missed')
+                    <button wire:click="prepareBulkFollowUp" wire:loading.attr="disabled" wire:target="prepareBulkFollowUp" class="btn btn-primary btn-sm font-weight-bold mr-1"><i class="fas fa-sms mr-1"></i>Send follow-up SMS</button>
+                    <button wire:click="bulkMarkAsSeen" class="btn btn-success btn-sm font-weight-bold mr-1">Mark resolved</button>
+                @else
+                    <button wire:click="bulkMarkAsSeen" class="btn btn-success btn-sm font-weight-bold mr-1">Mark Seen</button>
+                    <button wire:click="bulkMarkRemindersSent" class="btn btn-info btn-sm font-weight-bold mr-1">Mark Reminders Sent</button>
+                @endif
                 <button wire:click="bulkDelete" wire:confirm="Move selected to trash?" class="btn btn-danger btn-sm font-weight-bold">Trash</button>
             </div>
             <button wire:click="resetSelection" class="btn btn-link text-white font-weight-bold p-0"><i class="fas fa-times"></i></button>
+        </div>
+        @endif
+
+        {{-- ===== BULK FOLLOW-UP CONFIRM (missed tab) ===== --}}
+        @if($bulkFollowUpPlan)
+        <div class="card border-primary shadow-sm mb-3" role="dialog" aria-label="Confirm follow-up SMS">
+            <div class="card-body">
+                <h6 class="font-weight-bold mb-2"><i class="fas fa-sms text-primary mr-1"></i>
+                    Send the missed-appointment follow-up to {{ count($bulkFollowUpPlan['send']) }} {{ Str::plural('patient', count($bulkFollowUpPlan['send'])) }}?</h6>
+                @if($bulkFollowUpPlan['preview'])
+                    <div class="small text-muted mb-1">Preview ({{ $bulkFollowUpPlan['send'][0]['name'] }}):</div>
+                    <div class="border rounded bg-light p-2 small mb-2" style="white-space:pre-wrap">{{ $bulkFollowUpPlan['preview'] }}</div>
+                @endif
+                <ul class="list-unstyled small mb-2">
+                    @if(count($bulkFollowUpPlan['send']))
+                        <li class="text-success"><i class="fas fa-check mr-1"></i>{{ count($bulkFollowUpPlan['send']) }} will be texted · about {{ $bulkFollowUpPlan['credits'] }} SMS {{ Str::plural('credit', $bulkFollowUpPlan['credits']) }}@if($bulkFollowUpPlan['creditsLeft'] !== null) ({{ number_format($bulkFollowUpPlan['creditsLeft']) }} left)@endif</li>
+                    @endif
+                    @foreach($bulkFollowUpPlan['skipped'] as $skip)
+                        <li class="text-warning"><i class="fas fa-minus-circle mr-1"></i>Skipped: {{ $skip['name'] }} — {{ $skip['reason'] }}</li>
+                    @endforeach
+                    @if($bulkFollowUpPlan['leftOver'])
+                        <li class="text-warning"><i class="fas fa-exclamation-triangle mr-1"></i>{{ $bulkFollowUpPlan['leftOver'] }} more not sent this time (at most {{ \App\Livewire\Secretary\AppointmentsComponent::BULK_FOLLOW_UP_LIMIT }} per batch, and no more than your credits cover). Send them in another batch.</li>
+                    @endif
+                    @unless($bulkFollowUpPlan['available'])
+                        <li class="text-danger"><i class="fas fa-exclamation-circle mr-1"></i>{{ $bulkFollowUpPlan['reason'] }}</li>
+                    @endunless
+                </ul>
+                <div class="d-flex justify-content-end" style="gap:.5rem">
+                    <button type="button" wire:click="cancelBulkFollowUp" class="btn btn-sm btn-outline-secondary">Cancel</button>
+                    @if($bulkFollowUpPlan['available'] && count($bulkFollowUpPlan['send']))
+                        <button type="button" wire:click="sendBulkFollowUp" wire:loading.attr="disabled" wire:target="sendBulkFollowUp" class="btn btn-sm btn-primary font-weight-bold">
+                            <span wire:loading.remove wire:target="sendBulkFollowUp">Send {{ count($bulkFollowUpPlan['send']) }} SMS</span>
+                            <span wire:loading wire:target="sendBulkFollowUp">Sending…</span>
+                        </button>
+                    @endif
+                </div>
+            </div>
         </div>
         @endif
 
@@ -112,7 +160,7 @@
                         <small class="text-muted">
                             Reminder, confirmation and follow-up wording (for both SMS and WhatsApp) comes from the
                             @role('Super Admin')
-                                <a href="{{ route('admin.settings', ['tab' => 'templates']) }}">SMS Templates</a>.
+                                <a href="{{ route('admin.messages') }}">SMS Templates</a>.
                             @else
                                 SMS Templates in Settings.
                             @endrole
@@ -569,8 +617,15 @@
             {{-- ============================= MISSED ============================= --}}
             @elseif($activeFilter === 'missed')
             <div class="appt-toolbar">
-                <div class="d-flex align-items-center justify-content-between w-100">
-                    <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search patient…" style="max-width:260px">
+                <div class="d-flex align-items-center justify-content-between w-100 flex-wrap" style="gap:.5rem">
+                    <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
+                        <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search patient…" style="max-width:260px">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Show missed appointments">
+                            @foreach(['all' => 'All', 'not_followed' => 'Not followed up', 'recent' => 'Last 7 days'] as $view => $label)
+                                <button type="button" wire:click="$set('missedView', '{{ $view }}')" class="btn {{ $missedView === $view ? 'btn-secondary' : 'btn-outline-secondary' }}">{{ $label }}</button>
+                            @endforeach
+                        </div>
+                    </div>
                     <button wire:click="exportReport" class="btn btn-sm btn-outline-secondary"><i class="fas fa-download mr-1"></i>Export</button>
                 </div>
             </div>
@@ -616,7 +671,10 @@
                                     <button wire:click="closeMissedAction" class="btn btn-sm btn-outline-secondary">Cancel</button>
                                 </div>
                                 @else
-                                <div class="d-flex flex-wrap" style="gap:.3rem">
+                                <div class="d-flex flex-wrap align-items-center" style="gap:.3rem">
+                                    @if($app->missed_followup_sent_at)
+                                    <span class="badge badge-light border text-success mr-1" title="Follow-up SMS sent"><i class="fas fa-check mr-1"></i>SMS sent {{ $app->missed_followup_sent_at->format('M d') }}</span>
+                                    @endif
                                     @if($app->patient->contact)
                                     <a href="tel:{{ $app->patient->contact }}" class="btn btn-xs btn-outline-success" title="Call"><i class="fas fa-phone-alt"></i></a>
                                     @if($followUpUrl = $this->missedFollowUpWhatsAppUrl($app))

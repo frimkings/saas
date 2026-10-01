@@ -83,8 +83,6 @@ class DailyCashSummaryComponent extends Component
             ->groupBy('payment_method')
             ->get();
 
-        $methodColors = ['cash' => '#28a745', 'card' => '#007bff', 'momo' => '#fd7e14', 'code' => '#6f42c1'];
-        $methodLabels = ['cash' => 'Cash', 'card' => 'Card', 'momo' => 'Mobile Money', 'code' => 'Hubtel Wallet'];
 
         $labels = [];
         $data   = [];
@@ -92,9 +90,9 @@ class DailyCashSummaryComponent extends Component
         $counts = [];
 
         foreach ($payments as $p) {
-            $labels[] = $methodLabels[$p->payment_method] ?? strtoupper($p->payment_method);
+            $labels[] = \App\Support\PaymentMethods::label($p->payment_method);
             $data[]   = round((float) $p->total, 2);
-            $colors[] = $methodColors[$p->payment_method] ?? '#6c757d';
+            $colors[] = \App\Support\PaymentMethods::color($p->payment_method);
             $counts[] = (int) $p->cnt;
         }
 

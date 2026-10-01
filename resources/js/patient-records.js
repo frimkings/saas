@@ -256,7 +256,7 @@ function renderPatientClinicalTrendCharts() {
 
 // Auto-hide flash messages after 10 seconds
 document.addEventListener('DOMContentLoaded', function () {
-    renderPatientClinicalTrendCharts();
+    refreshPatientClinicalTrendCharts();
 
     setTimeout(function () {
         document.querySelectorAll('.alert-dismissible').forEach(alert => {
@@ -272,19 +272,60 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 10000); // 10 seconds
 });
 
+// Redraw only when the trend data changed or a chart canvas has no chart yet (it was just
+// added, e.g. on switching back to the History tab). The canvases are wire:ignore, so a
+// Livewire update never wipes a drawn chart.
+let renderedTrendJson = null;
+
+function refreshPatientClinicalTrendCharts() {
+    if (typeof Chart === 'undefined') {
+        return;
+    }
+
+    const dataElement = document.getElementById('clinical-trend-data');
+    const trendJson = dataElement ? dataElement.dataset.trends : null;
+    const missingChart = ['visualAcuityTrendChart', 'iopTrendChart'].some(function (id) {
+        const canvas = document.getElementById(id);
+        return canvas && !Chart.getChart(canvas);
+    });
+
+    if (trendJson !== renderedTrendJson || missingChart) {
+        renderedTrendJson = trendJson;
+        renderPatientClinicalTrendCharts();
+    }
+}
+
 document.addEventListener('livewire:init', function () {
-    renderPatientClinicalTrendCharts();
+    refreshPatientClinicalTrendCharts();
 
     if (window.Livewire && window.Livewire.hook) {
-        window.Livewire.hook('morph.updated', function () {
-            renderPatientClinicalTrendCharts();
+        // After the server's update has been applied to the page, not in the middle of it.
+        window.Livewire.hook('commit', function ({ succeed }) {
+            succeed(function () {
+                setTimeout(refreshPatientClinicalTrendCharts, 0);
+            });
         });
     }
 });
 
 window.addEventListener('render-clinical-trend-charts', function () {
-    setTimeout(renderPatientClinicalTrendCharts, 100);
+    setTimeout(refreshPatientClinicalTrendCharts, 100);
 });
+
+// Refraction: "Continue to Dispensing" takes the doctor to the Dispensing card.
+window.goToDispensing = function () {
+    const card = document.querySelector('.refraction-dispensing');
+    if (!card) return;
+
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.style.transition = 'box-shadow .3s ease';
+    card.style.boxShadow = '0 0 0 4px rgba(180, 83, 9, .35)';
+    setTimeout(() => { card.style.boxShadow = ''; }, 1600);
+
+    // P.D. when dispensing is on, otherwise the switch that turns it on.
+    const field = card.querySelector('input[wire\\:model="state.pd"]') || card.querySelector('#dispensing-required');
+    setTimeout(() => field?.focus({ preventScroll: true }), 400);
+};
 
 // Print refraction
 window.addEventListener('printRefraction', event => {

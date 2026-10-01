@@ -25,14 +25,14 @@ class SmsCredentialResolver
         }
 
         if (empty($settings->sms_api_url) || empty($settings->sms_api_key)) {
-            throw new SmsNotConfiguredException('SMS not configured. Add credentials in Settings → SMS Settings.');
+            throw new SmsNotConfiguredException('SMS not configured. Add credentials in Communications → SMS Credits & Sending.');
         }
 
         try {
             $key = Crypt::decryptString($settings->sms_api_key);
         } catch (\Exception $e) {
-            Log::error('SmsCredentialResolver: failed to decrypt API key. Re-save credentials in Settings → SMS Settings.', ['error' => $e->getMessage()]);
-            throw new SmsNotConfiguredException('SMS credentials are corrupted. Please re-save them in Settings → SMS Settings.');
+            Log::error('SmsCredentialResolver: failed to decrypt API key. Re-save credentials in Communications → SMS Credits & Sending.', ['error' => $e->getMessage()]);
+            throw new SmsNotConfiguredException('SMS credentials are corrupted. Please re-save them in Communications → SMS Credits & Sending.');
         }
 
         return new SmsCredentials($settings->sms_api_url, $key, $settings->sms_sender_id, false);

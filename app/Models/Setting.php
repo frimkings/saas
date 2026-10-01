@@ -86,10 +86,19 @@ class Setting extends Model
         'whatsapp_renewal_template',
         'whatsapp_bulk_channel',
         'trial_started_at',
+        'aftercare_sms_days',
+        'clinical_recall_lead_days',
+        'balance_reminder_first_days',
+        'balance_reminder_every_days',
+        'balance_reminder_max',
+        'review_link',
+        'visit_receipts_enabled',
+        'closing_time',
     ];
 
     protected $casts = [
         'backup_extra_paths'         => 'array',
+        'visit_receipts_enabled'     => 'boolean',
         'report_enabled'             => 'boolean',
         'report_day'                 => 'integer',
         'report_recipients'          => 'array',

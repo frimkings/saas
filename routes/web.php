@@ -180,6 +180,9 @@ Route::get('/cashier/receipt/{saleId}', function (int $saleId, \Illuminate\Http\
     return app(ReceiptController::class)->show($saleId, $request);
 })
     ->name('cashier.receipt.show');
+// One receipt per visit (interim until the bill is settled).
+Route::get('/cashier/visit-receipt/{visit}', [\App\Http\Controllers\Cashier\VisitReceiptController::class, 'show'])->name('cashier.visit-receipt.show');
+Route::get('/cashier/visit-receipt/sale/{saleId}', [\App\Http\Controllers\Cashier\VisitReceiptController::class, 'forSale'])->whereNumber('saleId')->name('cashier.visit-receipt.sale');
 Route::get('/cashier/receipt/{saleId}/pdf', function (int $saleId, \Illuminate\Http\Request $request) {
     \App\Models\Sales::clinicSales()->findOrFail($saleId);
     return app(ReceiptController::class)->downloadPdf($saleId, $request);
@@ -302,7 +305,7 @@ Route::get('/admin/lens-outstanding-report', function () { // feature:spectacles
 Route::get('/admin/login-history', LoginHistoryComponent::class)->name('admin.login-history')->middleware('feature:audit_trail');
 Route::get('/admin/audit-trail', AuditTrailViewerComponent::class)->name('admin.audit-trail')->middleware('feature:audit_trail');
 Route::get('/admin/license', LicenseComponent::class)->name('admin.license')->middleware(['auth', 'role:Super Admin']);
-Route::get('/admin/sms-logs', SmsLogsComponent::class)->name('admin.sms-logs')->middleware('feature:sms_campaigns');
+Route::get('/admin/sms-logs', SmsLogsComponent::class)->name('admin.sms-logs');
 Route::get('/admin/expenses', \App\Livewire\Admin\ExpensesComponent::class)->name('admin.expenses')->middleware(['optical-only', 'feature:expense_tracking']);
 Route::get('/admin/expenses/receipt/{expense}', function (\App\Models\Expense $expense) {
     abort_unless($expense->receipt_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($expense->receipt_path), 404);
@@ -342,6 +345,14 @@ Route::get('/admin/insurance/receivables', \App\Livewire\Admin\InsurerReceivable
 // Patient Recall dashboard
 Route::get('/admin/patient-recall', \App\Livewire\Admin\PatientRecallComponent::class)->name('admin.patient-recall')->middleware('feature:sms_campaigns');
 
+});
+
+// Communications: the clinic's messages, SMS credits, WhatsApp and broadcasts (Super Admin, as in Settings).
+Route::middleware(['auth', 'role:Super Admin'])->prefix('admin/communications')->group(function () {
+    Route::get('messages', \App\Livewire\Admin\SmsTemplatesComponent::class)->name('admin.messages');
+    Route::get('sms', \App\Livewire\Admin\SmsSettingsComponent::class)->name('admin.sms-settings');
+    Route::get('whatsapp', \App\Livewire\Admin\WhatsAppSettingsComponent::class)->name('admin.whatsapp-settings');
+    Route::get('broadcast', \App\Livewire\Admin\BroadcastComponent::class)->name('admin.broadcast')->middleware('feature:sms_campaigns');
 });
 
 // Insurer remittances: Super Admin, or any role given the "record insurer payments" permission.

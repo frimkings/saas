@@ -149,7 +149,7 @@
 
         {{-- Bundle catalogue --}}
         <section class="pp-card">
-            <div class="pp-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Settings → SMS, or type their own amount (GHS {{ number_format(\App\Models\SmsBundle::MIN_TOP_UP) }}–{{ number_format(\App\Models\SmsBundle::MAX_TOP_UP) }}) and get the best bundle rate that amount reaches. Credits never expire. Price changes apply to new purchases only.</p></div></div>
+            <div class="pp-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Communications → SMS Credits & Sending, or type their own amount (GHS {{ number_format(\App\Models\SmsBundle::MIN_TOP_UP) }}–{{ number_format(\App\Models\SmsBundle::MAX_TOP_UP) }}) and get the best bundle rate that amount reaches. Credits never expire. Price changes apply to new purchases only.</p></div></div>
             <form wire:submit="saveBundle" class="pp-form">
                 <div class="pp-row" style="grid-template-columns:minmax(160px,1.5fr) repeat(3,minmax(90px,.7fr)) auto;align-items:end">
                     <label class="pp-field"><span>Name</span><input type="text" wire:model="bundleName" placeholder="e.g. Starter"></label>

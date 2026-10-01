@@ -189,7 +189,7 @@
         <div class="so-queue-panel">
             <div class="so-queue-head">
                 <span>Patient</span>
-                <span>POS</span>
+                <span class="so-q-pos">POS</span>
                 <span>Status</span>
                 <span>Pickup</span>
                 <span>Action</span>
@@ -231,7 +231,7 @@
                                 </small>
                             </span>
                         </span>
-                        <span>
+                        <span class="so-q-pos">
                             <strong>{{ $posSummary['label'] }}</strong>
                             <small>{{ currency() }} {{ number_format($posSummary['amount'], 2) }}</small>
                         </span>
@@ -332,6 +332,9 @@
                         <div>
                             <span>POS amount</span>
                             <strong>{{ currency() }} {{ number_format($activePosSummary['amount'], 2) }}</strong>
+                            @if(($activePosSummary['insurer'] ?? 0) > 0)
+                                <small>Insurer pays {{ currency() }} {{ number_format($activePosSummary['insurer'], 2) }}</small>
+                            @endif
                             @if($activePosSummary['balance'] > 0)
                                 <small>Balance {{ currency() }} {{ number_format($activePosSummary['balance'], 2) }}</small>
                             @endif
@@ -2100,6 +2103,29 @@
         padding: 10px;
         align-items: flex-start;
     }
+}
+
+/* ── Layout fixes ─────────────────────────────────────────────────────────
+   The search text clears its icon, the date picker fits its column, and the
+   queue fits beside the case panel at any width (long text ends in "…";
+   when the queue is narrow the POS column steps aside: the case panel shows it). */
+.so-filter-grid .so-search input { padding-left: 36px; }
+.so-search i { top: calc(50% + 10px); }
+.so-field .drp,
+.so-field .drp-trigger { width: 100%; min-width: 0; }
+.so-field .drp-trigger { height: 42px; }
+
+.so-queue-panel { container-type: inline-size; container-name: soqueue; }
+.so-queue-main { grid-template-columns: minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .9fr) minmax(78px, .5fr); }
+.so-queue-head { grid-template-columns: minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .9fr) minmax(78px, .5fr) 88px; }
+.so-queue-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-queue-patient > span:last-child { min-width: 0; flex: 1 1 auto; }
+.so-status-pill { overflow: hidden; white-space: nowrap; }
+
+@container soqueue (max-width: 640px) {
+    .so-q-pos { display: none !important; }
+    .so-queue-main { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(78px, .6fr); }
+    .so-queue-head { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(78px, .6fr) 88px; }
 }
 </style>
 

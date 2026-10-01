@@ -171,7 +171,7 @@
                             </div>
                             <div class="metrics-card__body--chart">
                                 @if($clinicalTrendData['summary']['hasVaData'] ?? false)
-                                    <canvas id="visualAcuityTrendChart"></canvas>
+                                    <canvas id="visualAcuityTrendChart" wire:ignore></canvas>
                                 @else
                                     <div class="chart-empty">
                                         <i class="fas fa-eye"></i>
@@ -190,7 +190,7 @@
                         </div>
                         <div class="metrics-card__body--chart">
                             @if($clinicalTrendData['summary']['hasIopData'] ?? false)
-                                <canvas id="iopTrendChart"></canvas>
+                                <canvas id="iopTrendChart" wire:ignore></canvas>
                             @else
                                 <div class="chart-empty">
                                     <i class="fas fa-chart-line"></i>
@@ -738,6 +738,38 @@
                         @else
                             <div class="text-muted small">No upcoming appointment booked for this patient.</div>
                         @endif
+                    </div>
+                </div>
+
+                {{-- Next routine eye exam: the recall SMS goes out ahead of it (when the clinic switches it on) --}}
+                <div class="card border mb-3">
+                    <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 font-weight-bold"><i class="fas fa-calendar-alt text-primary"></i> Next Routine Eye Exam</h6>
+                        @if($patient->next_exam_due_on)
+                            <span class="badge badge-info">Due {{ $patient->next_exam_due_on->format('d M Y') }}</span>
+                        @endif
+                    </div>
+                    <div class="card-body py-3">
+                        <div class="d-flex flex-wrap align-items-center">
+                            <input type="date" wire:model="nextExamDueOn" min="{{ today()->addDay()->toDateString() }}"
+                                   class="form-control form-control-sm mr-2 mb-2 @error('nextExamDueOn') is-invalid @enderror" style="max-width:170px" aria-label="Next eye exam due">
+                            <button type="button" wire:click="saveNextExamDue" class="btn btn-sm btn-primary mr-2 mb-2"><i class="fas fa-save"></i> Save</button>
+                            <span class="small text-muted mr-2 mb-2">or in</span>
+                            @foreach([6 => '6 months', 12 => '1 year', 24 => '2 years'] as $months => $label)
+                                <button type="button" wire:click="setNextExamIn({{ $months }})" class="btn btn-sm btn-outline-secondary mr-1 mb-2">{{ $label }}</button>
+                            @endforeach
+                            @if($patient->next_exam_due_on)
+                                <button type="button" wire:click="clearNextExamDue" class="btn btn-sm btn-link text-danger mb-2">Clear</button>
+                            @endif
+                        </div>
+                        @error('nextExamDueOn') <div class="text-danger small">{{ $message }}</div> @enderror
+                        <div class="small text-muted">
+                            @if($patient->next_exam_due_on && $patient->clinical_recall_sent_for?->equalTo($patient->next_exam_due_on))
+                                <i class="fas fa-check text-success"></i> Recall text sent for this date.
+                            @else
+                                The patient is texted before this date if the clinic has "Eye Exam Due" switched on in SMS templates, unless they are already booked.
+                            @endif
+                        </div>
                     </div>
                 </div>
 

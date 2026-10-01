@@ -12,6 +12,8 @@ use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\Sales;
 use App\Services\Insurance\InsuranceBilling;
+use App\Services\Visits\PatientVisits;
+use App\Support\PaymentMethods;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -192,7 +194,7 @@ class CashierPatientClearanceComponent extends Component
             return;
         }
 
-        $allowedMethods = ['cash', 'momo', 'card', 'cheque'];
+        $allowedMethods = PaymentMethods::keys(PaymentMethods::CLINIC);
         $payments = collect($decodedPayments)->map(function ($payment) use ($allowedMethods) {
             $method = strtolower(trim((string) ($payment['method'] ?? '')));
             $amount = round((float) ($payment['amount'] ?? 0), 2);
@@ -299,6 +301,7 @@ class CashierPatientClearanceComponent extends Component
 
             // Record sale for paid clearances
             $receiptUrl = route('cashier.clearance-receipt', $clearance->id);
+            $visit = null;
             if (!$isUnpaid && $serviceId) {
                 $transactionId = now()->format('dmY') . '-' . strtoupper(Str::random(8));
                 $amountPaid    = collect($payments)->sum('amount');
@@ -364,6 +367,7 @@ class CashierPatientClearanceComponent extends Component
                 }
 
                 app(InsuranceBilling::class)->syncDraftClaim($sale);
+                $visit = app(PatientVisits::class)->attach($sale);
 
                 $receiptUrl = route('cashier.receipt.show', $sale->id);
             }
@@ -374,7 +378,7 @@ class CashierPatientClearanceComponent extends Component
             $paymentLines = [];
             foreach ($payments as $p) {
                 $paymentLines[] = [
-                    'method' => ucfirst($p['method']),
+                    'method' => PaymentMethods::label($p['method'], PaymentMethods::CLINIC),
                     'amount' => number_format((float) $p['amount'], 2),
                 ];
             }
@@ -382,23 +386,32 @@ class CashierPatientClearanceComponent extends Component
             DB::commit();
 
             $this->dispatch('hide-addClearanceModal-modal');
-            $this->dispatch('notify', ...[
-                'type'    => 'success',
-                'message' => "Patient {$this->patientName} cleared successfully!",
-            ]);
-            $this->dispatch('show-clearance-receipt-modal', ...[
-                'patient'  => $clearance->patient->name ?? '',
-                'pxnumber' => $clearance->patient->pxnumber ?? '',
-                'txn'      => $clearance->sale?->transaction_id
-                                ?? 'CLR-' . str_pad($clearance->id, 6, '0', STR_PAD_LEFT),
-                'service'  => $clearance->service?->name ?? 'No specific service',
-                'amount'   => number_format((float) ($clearance->sale?->total_amount ?? $clearance->service?->selling_price ?? 0), 2),
-                'insurer'  => $insurerAmount > 0 ? $insurer->name : null,
-                'insurerAmount' => number_format($insurerAmount, 2),
-                'status'   => $clearance->payment_status,
-                'payments' => $paymentLines,
-                'printUrl' => $receiptUrl,
-            ]);
+
+            if ($visit && PatientVisits::enabled()) {
+                // One receipt per visit: no slip now; the visit receipt is printed when the patient leaves.
+                $this->dispatch('notify', ...[
+                    'type'    => 'success',
+                    'message' => "Patient {$this->patientName} cleared. Payment recorded on visit {$visit->visit_number}.",
+                ]);
+            } else {
+                $this->dispatch('notify', ...[
+                    'type'    => 'success',
+                    'message' => "Patient {$this->patientName} cleared successfully!",
+                ]);
+                $this->dispatch('show-clearance-receipt-modal', ...[
+                    'patient'  => $clearance->patient->name ?? '',
+                    'pxnumber' => $clearance->patient->pxnumber ?? '',
+                    'txn'      => $clearance->sale?->transaction_id
+                                    ?? 'CLR-' . str_pad($clearance->id, 6, '0', STR_PAD_LEFT),
+                    'service'  => $clearance->service?->name ?? 'No specific service',
+                    'amount'   => number_format((float) ($clearance->sale?->total_amount ?? $clearance->service?->selling_price ?? 0), 2),
+                    'insurer'  => $insurerAmount > 0 ? $insurer->name : null,
+                    'insurerAmount' => number_format($insurerAmount, 2),
+                    'status'   => $clearance->payment_status,
+                    'payments' => $paymentLines,
+                    'printUrl' => $receiptUrl,
+                ]);
+            }
 
             $this->reset(['patientClearanceId', 'selectedServiceId', 'patientName', 'clearancePayments', 'insuranceSummary', 'insuranceSplits']);
             $this->resetPage();
@@ -633,6 +646,6 @@ class CashierPatientClearanceComponent extends Component
             'patients', 'clearances', 'services',
             'pendingCount', 'clearedToday', 'paidToday', 'unpaidToday',
             'reconciliation', 'reconciliationTotal'
-        ))->layout('layouts.secretary.secretary-layout');
+        ) + ['visitReceipts' => PatientVisits::enabled()])->layout('layouts.secretary.secretary-layout');
     }
 }

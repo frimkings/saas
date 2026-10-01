@@ -156,7 +156,7 @@
    @endforeach
    </tbody></table></div>
    <details class="mt-2" @if(filled($state['subjective_notes'] ?? null)) open @endif><summary class="text-primary font-weight-bold small" style="cursor:pointer;">{{ filled($state['subjective_notes'] ?? null) ? 'Subjective notes' : '+ Add subjective notes' }}</summary><textarea wire:model="state.subjective_notes" class="form-control form-control-sm mt-2" rows="2" placeholder="Patient acceptance, binocular balance or adaptation advice"></textarea></details>
-   <div class="d-flex justify-content-between flex-wrap mt-2" style="gap:6px;"><div><button type="button" class="btn btn-outline-secondary btn-sm" wire:click="copyOdAddToOs">Copy OD ADD to OS</button> <button type="button" class="btn btn-outline-secondary btn-sm" wire:click="copyOdNearVaToOs">Copy OD Near VA to OS</button></div><button type="button" class="btn btn-outline-primary btn-sm" wire:click="$set('refractionSection', 'dispensing')">Continue to Dispensing <i class="fas fa-arrow-right ml-1"></i></button></div>
+   <div class="d-flex justify-content-between flex-wrap mt-2" style="gap:6px;"><div><button type="button" class="btn btn-outline-secondary btn-sm" wire:click="copyOdAddToOs">Copy OD ADD to OS</button> <button type="button" class="btn btn-outline-secondary btn-sm" wire:click="copyOdNearVaToOs">Copy OD Near VA to OS</button></div><button type="button" class="btn btn-outline-primary btn-sm" onclick="window.goToDispensing()">Continue to Dispensing <i class="fas fa-arrow-right ml-1"></i></button></div>
   </div>
  </div>
 </div>

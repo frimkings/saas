@@ -22,6 +22,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\SmsService;
 use App\Services\Insurance\InsuranceBilling;
+use App\Services\Visits\PatientVisits;
+use App\Support\PaymentMethods;
+use App\Models\PatientVisit;
 use App\Models\Insurer;
 use App\Models\SmsTemplate;
 use Livewire\Attributes\Locked;
@@ -83,6 +86,10 @@ class POSComponent extends Component
 
     public $lastSaleId;
 
+    // One receipt per visit (when the clinic has it on): the visit the last checkout went to.
+    public $visitReceiptUrl    = null;
+    public $visitReceiptNumber = null;
+
     // Receipt data for inline printing
     public $receiptData = null;
     public $showReceipt = false;
@@ -125,6 +132,7 @@ class POSComponent extends Component
 
     public function mount()
     {
+        $this->newPaymentMethod = PaymentMethods::first(PaymentMethods::CLINIC);
         $this->rotateCheckoutIdempotencyKey();
         $this->calculateTotal();
     }
@@ -200,7 +208,7 @@ class POSComponent extends Component
         $this->patientSearchTerm          = '';
         $this->cart                       = [];
         $this->payments                   = [];
-        $this->newPaymentMethod           = 'cash';
+        $this->newPaymentMethod           = PaymentMethods::first(PaymentMethods::CLINIC);
         $this->newPaymentAmount           = '';
         $this->amountPaid                 = 0;
         $this->discountValue              = 0;
@@ -211,6 +219,8 @@ class POSComponent extends Component
         $this->frameSearchResults         = [];
         $this->isPartPayment              = false;
         $this->addToOpenVisitBill         = true;
+        $this->visitReceiptUrl            = null;
+        $this->visitReceiptNumber         = null;
         $this->resetInsuranceChoices();
         $this->resetDiscountApproval();
         $this->calculateTotal();
@@ -639,7 +649,7 @@ class POSComponent extends Component
 
         $this->cart                = [];
         $this->payments            = [];
-        $this->newPaymentMethod    = 'cash';
+        $this->newPaymentMethod    = PaymentMethods::first(PaymentMethods::CLINIC);
         $this->newPaymentAmount    = '';
         $this->amountPaid          = 0;
         $this->discountValue       = 0;
@@ -1047,6 +1057,14 @@ class POSComponent extends Component
     {
         $amount = round((float) ($this->newPaymentAmount ?? 0), 2);
 
+        if (!PaymentMethods::isActive(PaymentMethods::CLINIC, $this->newPaymentMethod)) {
+            $this->dispatch('notify', ...[
+                'type'    => 'error',
+                'message' => 'Choose one of the payment methods shown.',
+            ]);
+            return;
+        }
+
         if ($amount <= 0) {
             $this->dispatch('notify', ...[
                 'type'    => 'error',
@@ -1082,6 +1100,9 @@ class POSComponent extends Component
 
     public function selectNewPaymentMethod($method)
     {
+        if (!PaymentMethods::isActive(PaymentMethods::CLINIC, $method)) {
+            return;
+        }
         $this->newPaymentMethod = $method;
         // Pre-fill with remaining when switching method
         $remaining = max(0, round($this->amountDue - $this->getTotalPaid(), 2));
@@ -1673,7 +1694,7 @@ class POSComponent extends Component
             return;
         }
 
-        Cart::updateOrCreate(
+        $row = Cart::updateOrCreate(
             [
                 'patient_id'   => $this->patientId,
                 'dispensed_by' => Auth::id(),
@@ -1693,14 +1714,22 @@ class POSComponent extends Component
                 'is_dispensed'    => false,
             ]
         );
+
+        // Remember the row on the till's line, so checkout marks exactly this row as sold
+        // (items reception adds, e.g. a frame, would otherwise stay pending on the prescription).
+        if (is_array($this->cart[$cartKey] ?? null)) {
+            $this->cart[$cartKey]['cart_id'] = $row->id;
+        }
     }
 
     private function loadPatientCart($consultationId = null, array $cartIds = [])
     {
+        $this->visitReceiptUrl    = null;
+        $this->visitReceiptNumber = null;
         if (!$this->patientId) return;
 
         $this->payments         = [];
-        $this->newPaymentMethod = 'cash';
+        $this->newPaymentMethod = PaymentMethods::first(PaymentMethods::CLINIC);
         $this->newPaymentAmount = '';
         $this->discountValue    = 0;
         $this->resetDiscountApproval();
@@ -1967,6 +1996,14 @@ class POSComponent extends Component
             return;
         }
 
+        foreach ($this->payments as $payment) {
+            if (!PaymentMethods::isActive(PaymentMethods::CLINIC, $payment['method'] ?? null)) {
+                $this->checkoutProcessing = false;
+                $this->dispatch('notify', ...['type' => 'error', 'message' => 'A payment uses a method this clinic no longer takes. Remove it and add it again.']);
+                return;
+            }
+        }
+
         $amountPaid    = (float) ($this->amountPaid ?? 0);
         $isPartPayment = $this->isPartPayment;
         $finalAmount   = (float) ($this->finalAmount ?? 0); // the bill
@@ -2213,29 +2250,28 @@ class POSComponent extends Component
                     ->unique()
                     ->values();
 
+                $sold = [
+                    'purchased'    => true,
+                    'status'       => 'completed',
+                    'is_dispensed' => !$isPartPayment,
+                    'dispensed_at' => !$isPartPayment ? now() : null,
+                    'dispensed_by' => Auth::id(),
+                ];
+
                 if ($cartIds->isNotEmpty()) {
                     Cart::whereIn('id', $cartIds)
                         ->where('patient_id', $this->patientId)
                         ->where('purchased', false)
-                        ->update([
-                            'purchased'    => true,
-                            'status'       => 'completed',
-                            'is_dispensed' => !$isPartPayment,
-                            'dispensed_at' => !$isPartPayment ? now() : null,
-                            'dispensed_by' => Auth::id(),
-                        ]);
-                } else {
-                    Cart::where('patient_id', $this->patientId)
-                        ->where('dispensed_by', Auth::id())
-                        ->where('purchased', false)
-                        ->update([
-                            'purchased'    => true,
-                            'status'       => 'completed',
-                            'is_dispensed' => !$isPartPayment,
-                            'dispensed_at' => !$isPartPayment ? now() : null,
-                            'dispensed_by' => Auth::id(),
-                        ]);
+                        ->update($sold);
                 }
+
+                // Rows this cashier saved for the products just sold (items reception added at the
+                // till), in case a line lost its row id.
+                Cart::where('patient_id', $this->patientId)
+                    ->where('dispensed_by', Auth::id())
+                    ->where('purchased', false)
+                    ->whereIn('product_id', array_keys($requiredQuantities))
+                    ->update($sold);
             }
 
             if ($this->discountAmount > 0 && $this->discountApprovedById) {
@@ -2329,12 +2365,18 @@ class POSComponent extends Component
                 );
             }
 
+            $visit = app(PatientVisits::class)->attach($sale);
+            $visitMode = $visit && PatientVisits::enabled();
+
             DB::commit();
 
             // External delivery must happen only after the sale and stock changes
             // are durable. Delivery failures are logged and never reverse or
-            // misreport an already committed checkout.
-            $this->sendCommittedSaleReceipt($sale);
+            // misreport an already committed checkout. With one receipt per visit,
+            // the visit's SMS goes at closing time instead.
+            if (!$visitMode) {
+                $this->sendCommittedSaleReceipt($sale);
+            }
 
             // Low-stock alerts — fire after commit so stock values are final in DB
             $lowStockThreshold = 5;
@@ -2361,7 +2403,7 @@ class POSComponent extends Component
             $changeAmount = $this->change;
             $cumulativePaid = (float) $saleData->paymentTransactions->sum('amount');
             $receiptPayments = $saleData->paymentTransactions->map(fn ($payment) => [
-                'method' => $payment->payment_method,
+                'method' => PaymentMethods::label($payment->payment_method, PaymentMethods::CLINIC),
                 'amount' => (float) $payment->amount,
             ])->values()->toArray();
 
@@ -2408,26 +2450,34 @@ class POSComponent extends Component
                 })->toArray(),
             ];
 
-            $this->dispatch('receipt-data-ready', ...array_merge(
-                $this->receiptData,
-                ['printed_at' => now()->format('M d, Y h:i A')]
-            ));
+            if ($visitMode) {
+                // No slip per payment: the visit receipt is printed when the patient leaves.
+                $this->visitReceiptUrl    = route('cashier.visit-receipt.show', $visit);
+                $this->visitReceiptNumber = $visit->visit_number;
+            } else {
+                $this->dispatch('receipt-data-ready', ...array_merge(
+                    $this->receiptData,
+                    ['printed_at' => now()->format('M d, Y h:i A')]
+                ));
 
-            $this->showReceipt = true;
+                $this->showReceipt = true;
+            }
 
             $this->dispatch('pos-stock-changed');
             $this->dispatch('close-processing-modal');
 
             $this->dispatch('notify', ...[
                 'type'    => 'success',
-                'message' => $openVisitSale
-                    ? 'Items added to the visit bill successfully!'
-                    : 'Transaction completed successfully!',
+                'message' => $visitMode
+                    ? "Payment recorded on visit {$visit->visit_number}. Print the visit receipt when the patient leaves."
+                    : ($openVisitSale
+                        ? 'Items added to the visit bill successfully!'
+                        : 'Transaction completed successfully!'),
             ]);
 
             $this->cart             = [];
             $this->payments         = [];
-            $this->newPaymentMethod = 'cash';
+            $this->newPaymentMethod = PaymentMethods::first(PaymentMethods::CLINIC);
             $this->newPaymentAmount = '';
             $this->amountPaid       = 0;
             $this->change           = 0;
@@ -2676,8 +2726,13 @@ class POSComponent extends Component
             ->where('cashier_id', Auth::id())
             ->count();
         $openVisitSale = $this->findOpenVisitSale();
+        // The selected patient's latest clinical visit, so its receipt can be reprinted any time.
+        $patientVisit = $this->patientId && PatientVisits::enabled()
+            ? PatientVisit::where('patient_id', $this->patientId)->latest('id')->first()
+            : null;
 
         return view('livewire.pos-component', compact(
+            'patientVisit',
             'clinicSettings',
             'cartProducts', 'discountBlocked', 'canCheckout', 'totalPaid',
             'pendingPrescriptionCartCount', 'approvedDiscountCount', 'openVisitSale'

@@ -12,6 +12,12 @@
                 <i class="fas fa-cogs mr-1"></i> Clinic Profile &amp; Branding
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $activeTab === 'receipts' ? 'active' : '' }}"
+               wire:click.prevent="setTab('receipts')" href="#">
+                <i class="fas fa-receipt mr-1"></i> Receipts &amp; Payments
+            </a>
+        </li>
         @if($this->canManageFullBackups())<li class="nav-item">
             <a class="nav-link {{ $activeTab === 'backup' ? 'active' : '' }}"
                wire:click.prevent="setTab('backup')" href="#">
@@ -22,24 +28,6 @@
             <a class="nav-link {{ $activeTab === 'report' ? 'active' : '' }}"
                wire:click.prevent="setTab('report')" href="#">
                 <i class="fas fa-envelope-open-text mr-1"></i> Owner Emails
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link {{ $activeTab === 'sms' ? 'active' : '' }}"
-               wire:click.prevent="setTab('sms')" href="#">
-                <i class="fas fa-sms mr-1"></i> SMS Settings
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link {{ $activeTab === 'templates' ? 'active' : '' }}"
-               wire:click.prevent="setTab('templates')" href="#">
-                <i class="fas fa-comment-dots mr-1"></i> SMS Templates
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link {{ $activeTab === 'whatsapp' ? 'active' : '' }}"
-               wire:click.prevent="setTab('whatsapp')" href="#">
-                <i class="fab fa-whatsapp mr-1" style="color:#25D366;"></i> WhatsApp
             </a>
         </li>
         <li class="nav-item ml-auto">
@@ -54,16 +42,12 @@
     <div class="tab-content bg-white border border-top-0 rounded-bottom shadow-sm">
         @if($activeTab === 'system')
             @livewire('admin.settings-component', [], key('tab-system'))
+        @elseif($activeTab === 'receipts')
+            @livewire('admin.receipt-settings-component', [], key('tab-receipts'))
         @elseif($activeTab === 'backup')
             @livewire('admin.backup-manager-component', [], key('tab-backup'))
         @elseif($activeTab === 'report')
             @livewire('admin.owner-emails-component', [], key('tab-report'))
-        @elseif($activeTab === 'sms')
-            @livewire('admin.sms-settings-component', [], key('tab-sms'))
-        @elseif($activeTab === 'templates')
-            @livewire('admin.sms-templates-component', [], key('tab-templates'))
-        @elseif($activeTab === 'whatsapp')
-            @livewire('admin.whats-app-settings-component', [], key('tab-whatsapp'))
         @elseif($activeTab === 'license')
             @livewire('admin.license-component', [], key('tab-license'))
         @endif

@@ -14,19 +14,27 @@ class AdminSettingsComponent extends Component
         return ! config('tenancy.enabled') || app()->environment('local');
     }
 
-    public function mount(): void
+    private const TABS = ['system', 'receipts', 'backup', 'report', 'license'];
+
+    /** SMS, templates and WhatsApp moved to Communications; old links still land on them. */
+    private const MOVED = ['sms' => 'admin.sms-settings', 'templates' => 'admin.messages', 'whatsapp' => 'admin.whatsapp-settings'];
+
+    public function mount()
     {
         abort_if(!Auth::user()->hasRole('Super Admin'), 403);
 
         $tab = request()->query('tab', 'system');
-        if (in_array($tab, ['system', 'backup', 'report', 'sms', 'templates', 'whatsapp', 'license']) && ($tab !== 'backup' || $this->canManageFullBackups())) {
+        if (isset(self::MOVED[$tab])) {
+            return $this->redirectRoute(self::MOVED[$tab]);
+        }
+        if (in_array($tab, self::TABS, true) && ($tab !== 'backup' || $this->canManageFullBackups())) {
             $this->activeTab = $tab;
         }
     }
 
     public function setTab(string $tab): void
     {
-        if (in_array($tab, ['system', 'backup', 'report', 'sms', 'templates', 'whatsapp', 'license']) && ($tab !== 'backup' || $this->canManageFullBackups())) {
+        if (in_array($tab, self::TABS, true) && ($tab !== 'backup' || $this->canManageFullBackups())) {
             $this->activeTab = $tab;
         }
     }

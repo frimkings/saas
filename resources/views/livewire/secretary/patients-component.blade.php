@@ -291,14 +291,47 @@
                                 <i class="fas fa-shield-alt mr-1 text-primary"></i>INSURANCE DETAILS
                                 <span class="font-weight-normal text-muted">(optional)</span>
                             </div>
-                            <div class="form-group mb-2">
+                            {{-- Insurer: type to search the clinic's active insurers --}}
+                            <div class="form-group mb-2 position-relative"
+                                 x-data="{
+                                     open: false,
+                                     q: '',
+                                     options: @js($insurers->map(fn ($ins) => ['id' => $ins->id, 'name' => $ins->name, 'scheme' => $ins->scheme_type])->values()),
+                                     selected: $wire.entangle('state.insurer_id'),
+                                     get current() { return this.options.find(o => String(o.id) === String(this.selected)) },
+                                     get matches() {
+                                         const term = this.q.trim().toLowerCase();
+                                         return this.options.filter(o => !term || o.name.toLowerCase().includes(term) || (o.scheme || '').toLowerCase().includes(term)).slice(0, 8);
+                                     },
+                                     pick(id) { this.selected = id; this.q = ''; this.open = false; },
+                                 }"
+                                 @click.outside="open = false">
                                 <label class="small text-muted">Insurer</label>
-                                <select wire:model="state.insurer_id" class="form-control form-control-sm bg-light border-0 @error('insurer_id') is-invalid @enderror">
-                                    <option value="">— None / Cash Patient —</option>
-                                    @foreach($insurers as $ins)
-                                        <option value="{{ $ins->id }}">{{ $ins->name }}</option>
-                                    @endforeach
-                                </select>
+                                <input type="text" x-model="q" @focus="open = true" @input="open = true"
+                                       @keydown.escape="open = false"
+                                       @keydown.enter.prevent="matches.length && pick(matches[0].id)"
+                                       :placeholder="current ? 'Search to change insurer…' : 'Type to search insurers…'"
+                                       class="form-control form-control-sm bg-light border-0 @error('insurer_id') is-invalid @enderror"
+                                       autocomplete="off">
+                                <div x-show="open" class="list-group position-absolute w-100 shadow-sm" style="display:none;z-index:1060;max-height:220px;overflow-y:auto;">
+                                    <button type="button" class="list-group-item list-group-item-action py-1 small text-muted" @click="pick('')">
+                                        — None / Cash Patient —
+                                    </button>
+                                    <template x-for="o in matches" :key="o.id">
+                                        <button type="button" class="list-group-item list-group-item-action py-1 small d-flex justify-content-between"
+                                                :class="{ 'active': String(o.id) === String(selected) }" @click="pick(o.id)">
+                                            <span x-text="o.name"></span>
+                                            <span class="text-muted" x-text="o.scheme"></span>
+                                        </button>
+                                    </template>
+                                    <div x-show="!matches.length" class="list-group-item py-1 small text-muted">No insurer matches "<span x-text="q"></span>"</div>
+                                </div>
+                                <div class="small mt-1" x-show="current" style="display:none;">
+                                    <i class="fas fa-check-circle text-success mr-1"></i>
+                                    <strong x-text="current?.name"></strong>
+                                    <span class="text-muted" x-text="current?.scheme"></span>
+                                    <a href="#" class="ml-2 text-danger" @click.prevent="pick('')">Clear</a>
+                                </div>
                                 @error('insurer_id') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
                             </div>
                             <div class="row">

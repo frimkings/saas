@@ -143,7 +143,6 @@ class OwnerSummaryService
             : null;
         $opticalSales = $optical ? $this->optical->sales($from, $to) : null;
         $payments = PaymentTransaction::whereBetween('created_at', $range)->get(['amount', 'payment_method']);
-        $methods = OpticalReportService::METHODS;
 
         $figures = [
             'hasClinic' => $clinical,
@@ -153,7 +152,7 @@ class OwnerSummaryService
             'transactions' => (int) ($clinicSales->n ?? 0) + (int) ($opticalSales['jobs'] ?? 0) + (int) ($opticalSales['retailCount'] ?? 0),
             'received' => round((float) $payments->sum('amount'), 2),
             'byMethod' => $payments->groupBy('payment_method')
-                ->mapWithKeys(fn ($group, $method) => [$methods[$method] ?? (ucfirst(str_replace('_', ' ', (string) $method)) ?: 'Other') => (float) $group->sum('amount')])->all(),
+                ->mapWithKeys(fn ($group, $method) => [\App\Support\PaymentMethods::label((string) $method) => (float) $group->sum('amount')])->all(),
             'refunds' => round((float) RefundLog::where('status', RefundLog::STATUS_PROCESSED)->whereBetween('processed_at', $range)->sum('refunded_amount'), 2),
             'expenses' => round((float) Expense::whereBetween('expense_date', [$from->toDateString(), $to->toDateString()])->sum('amount'), 2),
             'owed' => 0.0,

@@ -121,7 +121,7 @@
                     <h3>Payments</h3>
                     @forelse($panelSale->paymentTransactions as $payment)
                         <div class="flex justify-between gap-2" style="padding:6px 0;border-bottom:1px solid var(--clinic-line)">
-                            <span>{{ ucwords(str_replace('_', ' ', $payment->payment_method)) }}<span class="oo-sub">{{ $payment->created_at?->format('d M Y H:i') }}@if($payment->notes) · {{ $payment->notes }}@endif</span></span>
+                            <span>{{ \App\Support\PaymentMethods::label($payment->payment_method, \App\Support\PaymentMethods::OPTICAL) }}<span class="oo-sub">{{ $payment->created_at?->format('d M Y H:i') }}@if($payment->notes) · {{ $payment->notes }}@endif</span></span>
                             <b style="font-variant-numeric:tabular-nums">{{ $money($payment->amount) }}</b>
                         </div>
                     @empty

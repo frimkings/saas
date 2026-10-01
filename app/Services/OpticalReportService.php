@@ -19,7 +19,6 @@ use Illuminate\Support\Collection;
  */
 class OpticalReportService
 {
-    public const METHODS = ['cash' => 'Cash', 'momo' => 'Mobile Money', 'card' => 'Card', 'bank_transfer' => 'Bank transfer'];
     public const AGES = ['0-30' => '0–30 days', '31-60' => '31–60 days', '61-90' => '61–90 days', '90+' => 'Over 90 days'];
     private const ORDER_TOTAL = LensOrder::TOTAL_SQL;
 
@@ -105,9 +104,10 @@ class OpticalReportService
         $refunds = RefundLog::whereIn('sale_id', $opticalSales)->where('status', RefundLog::STATUS_PROCESSED)->whereBetween('processed_at', $range)->get(['id', 'refunded_amount', 'processed_at']);
         $received = round((float) $payments->sum('amount'), 2);
         $refunded = round((float) $refunds->sum('refunded_amount'), 2);
-        $byMethod = collect(self::METHODS)->mapWithKeys(fn ($label, $method) => [$label => (float) $payments->where('payment_method', $method)->sum('amount')]);
-        $payments->whereNotIn('payment_method', array_keys(self::METHODS))->groupBy('payment_method')
-            ->each(function ($group, $method) use (&$byMethod) { $byMethod[ucfirst(str_replace('_', ' ', (string) $method)) ?: 'Other'] = (float) $group->sum('amount'); });
+        // The clinic's optical methods first (even at zero), then any others found on payments.
+        $byMethod = collect(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL))->mapWithKeys(fn ($label, $method) => [$label => (float) $payments->where('payment_method', $method)->sum('amount')]);
+        $payments->whereNotIn('payment_method', \App\Support\PaymentMethods::keys(\App\Support\PaymentMethods::OPTICAL))->groupBy('payment_method')
+            ->each(function ($group, $method) use (&$byMethod) { $byMethod[\App\Support\PaymentMethods::label((string) $method, \App\Support\PaymentMethods::OPTICAL)] = (float) $group->sum('amount'); });
         $days = $payments->groupBy(fn ($payment) => $payment->created_at->toDateString())->map(fn ($group) => (float) $group->sum('amount'));
         $refundDays = $refunds->groupBy(fn ($refund) => Carbon::parse($refund->processed_at)->toDateString())->map(fn ($group) => (float) $group->sum('refunded_amount'));
 

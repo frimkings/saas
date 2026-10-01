@@ -4,7 +4,8 @@ namespace App\Support\Messaging;
 
 /**
  * Built-in SMS wording. Clinics get an editable copy of each template on the SMS
- * Templates screen; until they have one, messages fall back to this text.
+ * Templates screen; until they have one, messages fall back to this text. Every message
+ * starts switched off: a clinic chooses which ones its patients get, since each spends credits.
  */
 class DefaultSmsTemplates
 {
@@ -28,6 +29,49 @@ class DefaultSmsTemplates
             'label'        => 'Missed Appointment Follow-up',
             'message'      => 'Hello [NAME], we noticed you missed your appointment on [DATE]. Please call us to reschedule.',
             'placeholders' => ['[NAME]', '[DATE]', '[REASON]', '[CLINIC]'],
+        ],
+        // Automatic follow-ups (FollowUpSms).
+        'appointment_missed_auto' => [
+            'label'        => 'Missed Appointment — Automatic Follow-up',
+            'message'      => 'Hello [NAME], we missed you at [CLINIC] on [DATE]. Please call us to book a new time that suits you.',
+            'placeholders' => ['[NAME]', '[DATE]', '[REASON]', '[CLINIC]'],
+        ],
+        'order_delay' => [
+            'label'        => 'Order Delay — New Ready Date',
+            'message'      => 'Hello [NAME], an update on your order [ORDER_ID] at [CLINIC]: it will now be ready on [DATE]. We are sorry for the wait.',
+            'placeholders' => ['[NAME]', '[ORDER_ID]', '[DATE]', '[CLINIC]'],
+        ],
+        'aftercare_followup' => [
+            'label'        => 'Aftercare Follow-up',
+            'message'      => 'Hello [NAME], we hope you are enjoying your new glasses from [CLINIC]. If anything feels uncomfortable or unclear, please call us, we are happy to help.',
+            'placeholders' => ['[NAME]', '[ORDER_ID]', '[CLINIC]'],
+        ],
+        'clinical_recall' => [
+            'label'        => 'Eye Exam Due (Doctor\'s Recall)',
+            'message'      => 'Hello [NAME], your next eye examination at [CLINIC] is due on [DATE]. Please call us to book your appointment.',
+            'placeholders' => ['[NAME]', '[DATE]', '[CLINIC]'],
+        ],
+        // Sent when staff move or cancel an upcoming appointment (AppointmentNotifier).
+        'appointment_rescheduled' => [
+            'label'        => 'Appointment Rescheduled',
+            'message'      => 'Hello [NAME], your appointment at [CLINIC] has been moved to [DATE] at [TIME]. Please call us if this time does not suit you.',
+            'placeholders' => ['[NAME]', '[DATE]', '[TIME]', '[REASON]', '[CLINIC]'],
+        ],
+        'appointment_cancelled' => [
+            'label'        => 'Appointment Cancelled',
+            'message'      => 'Hello [NAME], your appointment at [CLINIC] on [DATE] at [TIME] has been cancelled. Please call us to book a new time.',
+            'placeholders' => ['[NAME]', '[DATE]', '[TIME]', '[REASON]', '[CLINIC]'],
+        ],
+        // Automatic (FollowUpSms).
+        'balance_reminder' => [
+            'label'        => 'Outstanding Balance Reminder',
+            'message'      => 'Hello [NAME], a friendly reminder from [CLINIC] that you have an outstanding balance of [AMOUNT]. Please visit or call us to settle it. Thank you.',
+            'placeholders' => ['[NAME]', '[AMOUNT]', '[CLINIC]'],
+        ],
+        'feedback_request' => [
+            'label'        => 'Feedback / Review Request',
+            'message'      => 'Hello [NAME], thank you for visiting [CLINIC]. How was your experience? We would love your feedback: [REVIEW_LINK]',
+            'placeholders' => ['[NAME]', '[CLINIC]', '[REVIEW_LINK]'],
         ],
         'online_booking_received' => [
             'label'        => 'Online Booking Received',
@@ -59,6 +103,17 @@ class DefaultSmsTemplates
             'message'      => 'Hello [NAME], payment of GHS [AMOUNT] received at [CLINIC]. Transaction: [TXN_ID]. Thank you!',
             'placeholders' => ['[NAME]', '[AMOUNT]', '[TXN_ID]', '[CLINIC]'],
         ],
+        // One receipt per visit (VisitReceiptSms), sent at the clinic's closing time.
+        'visit_receipt' => [
+            'label'        => 'Visit Receipt',
+            'message'      => 'Hello [NAME], thank you for visiting [CLINIC]. You have paid GHS [AMOUNT] in full. Receipt: [VISIT_NO].',
+            'placeholders' => ['[NAME]', '[AMOUNT]', '[VISIT_NO]', '[CLINIC]'],
+        ],
+        'visit_part_payment' => [
+            'label'        => 'Visit Part Payment',
+            'message'      => 'Hello [NAME], [CLINIC] received GHS [PAID] from you today. Paid so far: GHS [AMOUNT]. Balance due: GHS [BALANCE]. Ref: [VISIT_NO].',
+            'placeholders' => ['[NAME]', '[PAID]', '[AMOUNT]', '[BALANCE]', '[VISIT_NO]', '[CLINIC]'],
+        ],
         'birthday_wishes' => [
             'label'        => 'Birthday Wishes',
             'message'      => 'Happy Birthday [NAME]! Wishing you good health and clear vision. From all of us at [CLINIC].',
@@ -84,5 +139,14 @@ class DefaultSmsTemplates
     public static function message(string $key): ?string
     {
         return self::TEMPLATES[$key]['message'] ?? null;
+    }
+
+    /**
+     * Whether a clinic that has no saved switch for this message gets it: never. Every message
+     * is the clinic's own choice (all were switched off on release, 2026_10_01_000006).
+     */
+    public static function onByDefault(string $key): bool
+    {
+        return false;
     }
 }

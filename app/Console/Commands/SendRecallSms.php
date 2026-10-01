@@ -21,12 +21,12 @@ class SendRecallSms extends Command
         $s = Setting::getSettings();
 
         if (isset($s->sms_enabled) && !$s->sms_enabled) {
-            $this->warn('SMS notifications are paused. Enable them in Settings → SMS Settings.');
+            $this->warn('SMS notifications are paused. Enable them in Communications → SMS Credits & Sending.');
             return self::SUCCESS;
         }
 
         if (empty($s->recall_sms_enabled)) {
-            $this->warn('Patient recall SMS is disabled. Enable it in Settings → SMS Templates.');
+            $this->warn('Patient recall SMS is disabled. Enable it in Communications → Messages.');
             return self::SUCCESS;
         }
 

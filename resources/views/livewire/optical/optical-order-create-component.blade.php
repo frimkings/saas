@@ -559,10 +559,9 @@
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
                     <select wire:model="payment_method" class="ui-input w-full text-xs bg-white">
-                        <option value="momo">Mobile Money (MTN / Telecel)</option>
-                        <option value="cash">Cash</option>
-                        <option value="card">Visa / Mastercard</option>
-                        <option value="bank_transfer">Bank Transfer</option>
+                        @foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL) as $methodKey => $methodLabel)
+                            <option value="{{ $methodKey }}">{{ $methodLabel }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg flex flex-col justify-center">

@@ -43,6 +43,50 @@ class AppointmentNotifier
         return $msg;
     }
 
+    /** The appointment moved: tell the patient the new date and time. See notify(). */
+    public function rescheduled(Appointments $appointment): string
+    {
+        return $this->notify($appointment, 'appointment_rescheduled');
+    }
+
+    /** The clinic cancelled the appointment. See notify(). */
+    public function cancelled(Appointments $appointment): string
+    {
+        return $this->notify($appointment, 'appointment_cancelled');
+    }
+
+    /**
+     * Same channel rule as the confirmation: SMS, unless the booking prefers WhatsApp (the text
+     * is returned for a WhatsApp link instead) or asked for no messages. Only upcoming
+     * appointments: tidying up old ones never texts anyone. Never throws.
+     */
+    private function notify(Appointments $appointment, string $templateKey): string
+    {
+        $patient = $appointment->patient;
+        $channel = $appointment->reminder_channel ?: 'sms';
+        if (! $patient || $channel === 'none' || $appointment->scheduled_at->lt(now()->startOfDay())) {
+            return '';
+        }
+
+        $sendSms = $channel !== 'whatsapp';
+        $msg = '';
+        try {
+            $msg = SmsTemplate::render($templateKey, [
+                '[NAME]'   => $patient->name,
+                '[DATE]'   => $appointment->scheduled_at->format('M d, Y'),
+                '[TIME]'   => $appointment->scheduled_at->format('h:i A'),
+                '[REASON]' => (string) $appointment->title,
+            ], $appointment->branch_id ? $appointment->branch : null);
+            if ($sendSms && $msg && $patient->contact) {
+                app(SmsService::class)->send($patient->contact, $msg, $patient->id, $templateKey);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Appointment change could not be sent.', ['appointment_id' => $appointment->id, 'template' => $templateKey, 'error' => $e->getMessage()]);
+        }
+
+        return $msg;
+    }
+
     /** Acknowledge a website booking request and alert the branch front desk. */
     public function onlineBookingReceived(OnlineBooking $booking): void
     {

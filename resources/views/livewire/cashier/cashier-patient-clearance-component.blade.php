@@ -353,7 +353,14 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="d-flex justify-content-center" style="gap:4px;">
-                                            @if($clearance->sale_id)
+                                            @if($clearance->sale_id && $visitReceipts)
+                                                <a href="javascript:void(0)"
+                                                   onclick="window.open('{{ route('cashier.visit-receipt.sale', $clearance->sale_id) }}','_blank','width=302,height=600')"
+                                                   class="btn btn-xs btn-outline-success"
+                                                   title="Print visit receipt">
+                                                    <i class="fas fa-file-invoice"></i>
+                                                </a>
+                                            @elseif($clearance->sale_id)
                                                 <a href="javascript:void(0)"
                                                    onclick="window.open('{{ route('cashier.receipt.show', $clearance->sale_id) }}','_blank','width=302,height=600')"
                                                    class="btn btn-xs btn-outline-info"
@@ -399,7 +406,7 @@
 
     <!-- Clearance Modal -->
     <div id="addClearanceModal" class="modal fade" tabindex="-1" role="dialog" wire:ignore.self>
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header bg-info text-white">
                     <h5 class="modal-title">
@@ -408,113 +415,148 @@
                     <button type="button" class="close text-white" wire:click="closeModal">&times;</button>
                 </div>
                 <div class="modal-body p-4">
-                    <div class="text-center mb-4">
-                        <div class="icon-box">
-                            <i class="fas fa-user-check fa-2x text-info"></i>
-                        </div>
-                        <h5 class="mt-3 mb-1">{{ $patientName }}</h5>
-                        <p class="text-muted small">Confirm payment status before clearing</p>
-                    </div>
-                    @if($outstandingBalance > 0)
-                        <div class="alert alert-warning">
-                            <strong><i class="fas fa-exclamation-triangle mr-1"></i>Previous outstanding balance:</strong>
-                            {{ currency() }} {{ number_format($outstandingBalance, 2) }}
-                            <div class="small mt-1">This is from earlier visits and is not included in the service total below.</div>
-                        </div>
-                    @endif
-                    @if(!empty($insuranceSummary))
-                        <div class="border rounded p-3 mb-3 bg-light">
-                            <div class="font-weight-bold text-primary mb-2"><i class="fas fa-shield-alt mr-1"></i>Insurance Details</div>
-                            <div class="row small">
-                                <div class="col-6 mb-2"><span class="text-muted">Insurer</span><br><strong>{{ $insuranceSummary['insurer'] }}</strong></div>
-                                <div class="col-6 mb-2"><span class="text-muted">Policy</span><br><strong>{{ $insuranceSummary['policy_number'] ?: 'N/A' }}</strong></div>
-                                <div class="col-12"><span class="text-muted">Member</span><br><strong>{{ $insuranceSummary['member_name'] ?: 'N/A' }} ({{ $insuranceSummary['member_id'] ?: 'No ID' }})</strong></div>
+                    <div class="row">
+                        {{-- Patient, earlier balance and insurance --}}
+                        <div class="col-md-5">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="fas fa-user-check fa-2x text-info mr-3"></i>
+                                <div>
+                                    <h5 class="mb-0">{{ $patientName }}</h5>
+                                    <small class="text-muted">Confirm payment status before clearing</small>
+                                </div>
                             </div>
-                            @unless($insuranceSummary['active'])
-                                <div class="small text-danger mt-2">This insurer is inactive, so the patient pays the full amount.</div>
-                            @endunless
-                        </div>
-                    @endif
-                    <div class="form-group">
-                        <label class="font-weight-bold">
-                            <i class="fas fa-concierge-bell mr-2 text-success"></i>Service
-                        </label>
-                        <select class="custom-select custom-select-lg"
-                                wire:model="selectedServiceId"
-                                id="selectedServiceId"
-                                onchange="window.toggleClearancePaymentMethod(this.value)">
-                            <option value="">Select service…</option>
-                            @foreach($services as $svc)
-                                <option value="{{ $svc->id }}">{{ $svc->name }} — {{ currency() }} {{ number_format($svc->selling_price, 2) }}</option>
-                            @endforeach
-                            <option value="unpaid">✗ Unpaid (no charge)</option>
-                        </select>
-                        @error('selectedServiceId')
-                            <div class="text-danger mt-1"><small>{{ $message }}</small></div>
-                        @enderror
-                    </div>
-
-                    {{-- Split payment section --}}
-                    <div id="clearancePaymentSection" style="display:none;">
-                        <hr class="my-2">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label class="font-weight-bold mb-0">
-                                <i class="fas fa-credit-card mr-1 text-primary"></i>Payment
-                            </label>
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    onclick="window.addClearancePaymentRow()">
-                                <i class="fas fa-plus mr-1"></i>Split
-                            </button>
+                            @if($outstandingBalance > 0)
+                                <div class="alert alert-warning small">
+                                    <strong><i class="fas fa-exclamation-triangle mr-1"></i>Previous outstanding balance:</strong>
+                                    {{ currency() }} {{ number_format($outstandingBalance, 2) }}
+                                    <div class="small mt-1">This is from earlier visits and is not included in the service total below.</div>
+                                </div>
+                            @endif
+                            @if(!empty($insuranceSummary))
+                                <div class="border rounded p-3 mb-3 mb-md-0 bg-light">
+                                    <div class="font-weight-bold text-primary mb-2"><i class="fas fa-shield-alt mr-1"></i>Insurance Details</div>
+                                    <div class="row small">
+                                        <div class="col-6 mb-2"><span class="text-muted">Insurer</span><br><strong>{{ $insuranceSummary['insurer'] }}</strong></div>
+                                        <div class="col-6 mb-2"><span class="text-muted">Policy</span><br><strong>{{ $insuranceSummary['policy_number'] ?: 'N/A' }}</strong></div>
+                                        <div class="col-12"><span class="text-muted">Member</span><br><strong>{{ $insuranceSummary['member_name'] ?: 'N/A' }} ({{ $insuranceSummary['member_id'] ?: 'No ID' }})</strong></div>
+                                    </div>
+                                    @unless($insuranceSummary['active'])
+                                        <div class="small text-danger mt-2">This insurer is inactive, so the patient pays the full amount.</div>
+                                    @endunless
+                                </div>
+                            @endif
                         </div>
 
-                        {{-- Insurance split (insured patients only); read by the script below --}}
-                        <div id="clr-insurance-data" class="d-none"
-                             data-insurer="{{ $insuranceSummary['insurer'] ?? '' }}"
-                             data-splits='@json((object) $insuranceSplits)'></div>
-                        <div id="clr-insurance-box" wire:ignore class="border rounded p-2 mb-2" style="display:none;font-size:.85rem;">
-                            <div class="custom-control custom-switch mb-2">
-                                <input type="checkbox" class="custom-control-input" id="clr-bill-insurer" checked
-                                       onchange="window.recalcClearanceInsurance()">
-                                <label class="custom-control-label font-weight-bold" for="clr-bill-insurer">
-                                    Bill <span id="clr-insurer-name">insurer</span>
+                        {{-- Service and payment --}}
+                        <div class="col-md-7 border-left">
+                            <div class="form-group">
+                                <label class="font-weight-bold">
+                                    <i class="fas fa-concierge-bell mr-2 text-success"></i>Service
                                 </label>
+                                {{-- Type to search; the hidden select below holds the choice for the payment script --}}
+                                <div class="position-relative" wire:ignore>
+                                    <input type="text" id="clr-service-search" class="custom-select" autocomplete="off"
+                                           placeholder="Search service…"
+                                           onfocus="window.openServiceList()" onclick="window.openServiceList()"
+                                           oninput="window.filterServiceList()" onkeydown="window.serviceListKeydown(event)">
+                                    <div id="clr-service-list" class="list-group position-absolute w-100 shadow-sm"
+                                         style="display:none;z-index:1060;max-height:260px;overflow-y:auto;">
+                                        @foreach($services as $svc)
+                                            <button type="button" class="list-group-item list-group-item-action py-1 small d-flex justify-content-between clr-service-option"
+                                                    data-id="{{ $svc->id }}"
+                                                    data-label="{{ $svc->name }} — {{ currency() }} {{ number_format($svc->selling_price, 2) }}"
+                                                    data-search="{{ strtolower($svc->name) }}"
+                                                    onmousedown="event.preventDefault()" onclick="window.pickService(this)">
+                                                <span>{{ $svc->name }}</span>
+                                                <span class="text-muted text-nowrap ml-2">{{ currency() }} {{ number_format($svc->selling_price, 2) }}</span>
+                                            </button>
+                                        @endforeach
+                                        <button type="button" class="list-group-item list-group-item-action py-1 small text-danger clr-service-option"
+                                                data-id="unpaid" data-label="✗ Unpaid (no charge)" data-search="unpaid no charge"
+                                                onmousedown="event.preventDefault()" onclick="window.pickService(this)">
+                                            ✗ Unpaid (no charge)
+                                        </button>
+                                        <div id="clr-service-empty" class="list-group-item py-1 small text-muted" style="display:none;">No service matches</div>
+                                    </div>
+                                </div>
+                                <select class="d-none"
+                                        wire:model="selectedServiceId"
+                                        id="selectedServiceId"
+                                        onchange="window.toggleClearancePaymentMethod(this.value)">
+                                    <option value="">Select service…</option>
+                                    @foreach($services as $svc)
+                                        <option value="{{ $svc->id }}">{{ $svc->name }} — {{ currency() }} {{ number_format($svc->selling_price, 2) }}</option>
+                                    @endforeach
+                                    <option value="unpaid">✗ Unpaid (no charge)</option>
+                                </select>
+                                @error('selectedServiceId')
+                                    <div class="text-danger mt-1"><small>{{ $message }}</small></div>
+                                @enderror
                             </div>
-                            <div class="d-flex align-items-center" style="gap:6px;">
-                                <label for="clr-insurer-amount" class="mb-0 text-muted">Insurer pays</label>
-                                <input type="number" id="clr-insurer-amount" class="form-control form-control-sm" min="0" step="0.01"
-                                       style="width:110px;" oninput="window.recalcClearanceInsurance()">
-                            </div>
-                            <div id="clr-insurance-reason-row" class="mt-2" style="display:none;">
-                                <input type="text" id="clr-insurance-reason" class="form-control form-control-sm" maxlength="200"
-                                       placeholder="Reason for changing what the insurer pays (required)">
+
+                            {{-- Split payment section --}}
+                            <div id="clearancePaymentSection" style="display:none;">
+                                <hr class="my-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="font-weight-bold mb-0">
+                                        <i class="fas fa-credit-card mr-1 text-primary"></i>Payment
+                                    </label>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            onclick="window.addClearancePaymentRow()">
+                                        <i class="fas fa-plus mr-1"></i>Split
+                                    </button>
+                                </div>
+
+                                {{-- Insurance split (insured patients only); read by the script below --}}
+                                <div id="clr-insurance-data" class="d-none"
+                                     data-insurer="{{ $insuranceSummary['insurer'] ?? '' }}"
+                                     data-splits='@json((object) $insuranceSplits)'></div>
+                                <div id="clr-insurance-box" wire:ignore class="border rounded p-2 mb-2" style="display:none;font-size:.85rem;">
+                                    <div class="custom-control custom-switch mb-2">
+                                        <input type="checkbox" class="custom-control-input" id="clr-bill-insurer" checked
+                                               onchange="window.recalcClearanceInsurance()">
+                                        <label class="custom-control-label font-weight-bold" for="clr-bill-insurer">
+                                            Bill <span id="clr-insurer-name">insurer</span>
+                                        </label>
+                                    </div>
+                                    <div class="d-flex align-items-center" style="gap:6px;">
+                                        <label for="clr-insurer-amount" class="mb-0 text-muted">Insurer pays</label>
+                                        <input type="number" id="clr-insurer-amount" class="form-control form-control-sm" min="0" step="0.01"
+                                               style="width:110px;" oninput="window.recalcClearanceInsurance()">
+                                    </div>
+                                    <div id="clr-insurance-reason-row" class="mt-2" style="display:none;">
+                                        <input type="text" id="clr-insurance-reason" class="form-control form-control-sm" maxlength="200"
+                                               placeholder="Reason for changing what the insurer pays (required)">
+                                    </div>
+                                </div>
+
+                                <div id="clearancePaymentRows"></div>
+
+                                <div class="mt-2 p-2 rounded" wire:ignore style="background:#f8f9fa;font-size:.85rem;">
+                                    <div class="clr-insured-row d-flex justify-content-between" style="display:none !important;">
+                                        <span>Bill Total</span>
+                                        <strong id="clr-bill-total">0.00</strong>
+                                    </div>
+                                    <div class="clr-insured-row d-flex justify-content-between text-info" style="display:none !important;">
+                                        <span>Insurer Pays</span>
+                                        <strong id="clr-insurer-total">0.00</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span id="clr-svc-total-label">Service Total</span>
+                                        <strong id="clr-svc-total">0.00</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between text-success">
+                                        <span>Amount Entered</span>
+                                        <strong id="clr-entered">0.00</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between text-danger" id="clr-balance-row">
+                                        <span>Remaining</span>
+                                        <strong id="clr-remaining">0.00</strong>
+                                    </div>
+                                </div>
+                                <div id="clr-payment-error" class="text-danger small mt-1" style="display:none;"></div>
                             </div>
                         </div>
-
-                        <div id="clearancePaymentRows"></div>
-
-                        <div class="mt-2 p-2 rounded" wire:ignore style="background:#f8f9fa;font-size:.85rem;">
-                            <div class="clr-insured-row d-flex justify-content-between" style="display:none !important;">
-                                <span>Bill Total</span>
-                                <strong id="clr-bill-total">0.00</strong>
-                            </div>
-                            <div class="clr-insured-row d-flex justify-content-between text-info" style="display:none !important;">
-                                <span>Insurer Pays</span>
-                                <strong id="clr-insurer-total">0.00</strong>
-                            </div>
-                            <div class="d-flex justify-content-between">
-                                <span id="clr-svc-total-label">Service Total</span>
-                                <strong id="clr-svc-total">0.00</strong>
-                            </div>
-                            <div class="d-flex justify-content-between text-success">
-                                <span>Amount Entered</span>
-                                <strong id="clr-entered">0.00</strong>
-                            </div>
-                            <div class="d-flex justify-content-between text-danger" id="clr-balance-row">
-                                <span>Remaining</span>
-                                <strong id="clr-remaining">0.00</strong>
-                            </div>
-                        </div>
-                        <div id="clr-payment-error" class="text-danger small mt-1" style="display:none;"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -756,6 +798,77 @@
             resetClearanceRows();
         };
 
+        // Searchable service picker: filters the list, then sets the hidden select.
+        var _clrServiceActive = -1;
+
+        function serviceOptions(visibleOnly) {
+            var all = Array.prototype.slice.call(document.querySelectorAll('#clr-service-list .clr-service-option'));
+            return visibleOnly ? all.filter(function (o) { return o.style.display !== 'none'; }) : all;
+        }
+
+        function highlightService(index) {
+            var options = serviceOptions(true);
+            options.forEach(function (o) { o.classList.remove('active'); });
+            _clrServiceActive = options.length ? Math.max(0, Math.min(index, options.length - 1)) : -1;
+            if (_clrServiceActive >= 0) {
+                options[_clrServiceActive].classList.add('active');
+                options[_clrServiceActive].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        window.openServiceList = function () {
+            document.getElementById('clr-service-list').style.display = 'block';
+            window.filterServiceList();
+        };
+
+        window.closeServiceList = function () {
+            var list = document.getElementById('clr-service-list');
+            if (list) list.style.display = 'none';
+        };
+
+        window.filterServiceList = function () {
+            var input = document.getElementById('clr-service-search');
+            var selected = document.getElementById('selectedServiceId').value;
+            var current = serviceOptions(false).find(function (o) { return o.dataset.id === selected; });
+            // While the box shows the chosen service, list everything.
+            var term = current && input.value === current.dataset.label ? '' : input.value.trim().toLowerCase();
+            var shown = 0;
+            serviceOptions(false).forEach(function (o) {
+                var match = !term || o.dataset.search.indexOf(term) !== -1;
+                o.style.display = match ? '' : 'none';
+                if (match) shown++;
+            });
+            document.getElementById('clr-service-empty').style.display = shown ? 'none' : 'block';
+            highlightService(0);
+        };
+
+        window.pickService = function (option) {
+            var select = document.getElementById('selectedServiceId');
+            select.value = option.dataset.id;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            document.getElementById('clr-service-search').value = option.dataset.label;
+            window.closeServiceList();
+        };
+
+        window.serviceListKeydown = function (e) {
+            var list = document.getElementById('clr-service-list');
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (list.style.display === 'none') { window.openServiceList(); return; }
+                highlightService(_clrServiceActive + (e.key === 'ArrowDown' ? 1 : -1));
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                var options = serviceOptions(true);
+                if (list.style.display !== 'none' && options[_clrServiceActive]) window.pickService(options[_clrServiceActive]);
+            } else if (e.key === 'Escape') {
+                window.closeServiceList();
+            }
+        };
+
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest || !e.target.closest('#clr-service-search, #clr-service-list')) window.closeServiceList();
+        });
+
         window.toggleClearancePaymentMethod = function (val) {
             var section = document.getElementById('clearancePaymentSection');
             if (!section) return;
@@ -786,6 +899,17 @@
         };
 
         var _clrRowIdx = 0;
+        // The clinic's payment methods (Settings → Payment methods).
+        var _clrMethods = @js(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::CLINIC));
+
+        function clearanceMethodOptions() {
+            return Object.keys(_clrMethods).map(function (key) {
+                var option = document.createElement('option');
+                option.value = key;
+                option.textContent = _clrMethods[key];
+                return option.outerHTML;
+            }).join('');
+        }
         window.addClearancePaymentRow = function () {
             var idx = _clrRowIdx++;
             var remaining = _clrServiceTotal - getClearanceEntered();
@@ -796,10 +920,7 @@
             row.id = 'clr-row-' + idx;
             row.innerHTML =
                 '<select class="custom-select custom-select-sm clr-method" style="width:140px;" onchange="window.updateClearanceTotals()">' +
-                    '<option value="cash">Cash</option>' +
-                    '<option value="momo">Mobile Money</option>' +
-                    '<option value="card">Card</option>' +
-                    '<option value="cheque">Cheque</option>' +
+                    clearanceMethodOptions() +
                 '</select>' +
                 '<input type="number" class="form-control form-control-sm clr-amount" min="0.01" step="0.01" ' +
                        'placeholder="Amount" value="' + amount + '" oninput="window.updateClearanceTotals()" style="width:110px;">' +
@@ -892,6 +1013,8 @@
             document.getElementById('clearancePaymentSection')?.style.setProperty('display', 'none');
             if (document.getElementById('clearancePaymentRows')) document.getElementById('clearancePaymentRows').innerHTML = '';
             if (document.getElementById('selectedServiceId')) document.getElementById('selectedServiceId').value = '';
+            if (document.getElementById('clr-service-search')) document.getElementById('clr-service-search').value = '';
+            window.closeServiceList();
             if (document.getElementById('clr-payment-error')) document.getElementById('clr-payment-error').style.display = 'none';
             if (document.getElementById('clr-insurance-box')) document.getElementById('clr-insurance-box').style.display = 'none';
             setInsuredRowsVisible(false);

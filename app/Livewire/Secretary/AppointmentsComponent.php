@@ -16,6 +16,8 @@ use App\Livewire\Traits\HasAppointmentBooking;
 use App\Services\SmsService;
 use App\Services\Messaging\AppointmentNotifier;
 use App\Support\Messaging\DefaultSmsTemplates;
+use App\Support\Messaging\SmsAvailability;
+use App\Support\Messaging\SmsSegments;
 use App\Support\Messaging\WhatsAppLink;
 use App\Models\SmsTemplate;
 use Illuminate\Validation\Rule;
@@ -80,6 +82,16 @@ public $recallCategories = [
     // WhatsApp link for the booking just made, shown until staff open or dismiss it.
     public ?string $confirmationWhatsAppUrl = null;
     public ?string $confirmationPatientName = null;
+    /** What the WhatsApp banner offers to send: booked, rescheduled or cancelled. */
+    public string $confirmationKind = 'booked';
+
+    // --- Bulk follow-up SMS for missed appointments ---
+    /** Most texts one click sends: longer runs could time out without a queue worker. */
+    public const BULK_FOLLOW_UP_LIMIT = 100;
+    /** Missed tab quick filter: all | not_followed | recent (last 7 days). */
+    public string $missedView = 'all';
+    /** The confirm step: who will be texted, who is skipped and why, and the credits needed. */
+    public ?array $bulkFollowUpPlan = null;
     // Message wording per template key, loaded once per request.
     private array $templateText = [];
     public $showReminderPreview = false;
@@ -136,6 +148,7 @@ public $recallCategories = [
     {
         $this->resetSelection();
         $this->quickFilter = '';
+        $this->bulkFollowUpPlan = null;
         $this->resetPage();
     }
 
@@ -204,10 +217,13 @@ public $recallCategories = [
             return;
         }
 
-        Appointments::findOrFail($appointmentId)->update([
+        $appointment = Appointments::findOrFail($appointmentId);
+        $moved = ! $appointment->scheduled_at->equalTo($scheduledAt);
+        $appointment->update([
             'scheduled_at' => $scheduledAt,
             'status' => 'Rescheduled',
         ]);
+        if ($moved) $this->tellPatient($appointment, 'rescheduled');
 
         $this->dispatch('notify', ...[
             'type' => 'success',
@@ -384,7 +400,9 @@ public $recallCategories = [
             $query->whereDateIndexed('scheduled_at', Carbon::today())
                 ->whereNotIn('status', ['Seen', 'Missed', 'Cancelled']);
         } elseif ($this->activeFilter === 'missed') {
-            $query->where('status', 'Missed');
+            $query->where('status', 'Missed')
+                ->when($this->missedView === 'not_followed', fn ($q) => $q->whereNull('missed_followup_sent_at'))
+                ->when($this->missedView === 'recent', fn ($q) => $q->where('scheduled_at', '>=', Carbon::today()->subDays(7)));
         } elseif ($this->activeFilter !== 'trash'
             && $this->activeFilter !== 'settings'
             && !($this->activeFilter === 'schedule' && $this->scheduleView === 'range' && $this->statusFilter !== 'All')) {
@@ -448,7 +466,9 @@ public $recallCategories = [
         if ($status === 'With Doctor') $payload['doctor_started_at'] = now();
         if (in_array($status, ['Done', 'Seen'], true)) $payload['completed_at'] = now();
 
+        $wasCancelled = $appointment->status === 'Cancelled';
         $appointment->update($payload);
+        if ($status === 'Cancelled' && ! $wasCancelled) $this->tellPatient($appointment, 'cancelled');
         $this->dispatch('notify', ...['type' => 'success', 'message' => ($status === 'Seen') ? "Moved to History." : "Status updated."]);
     }
 
@@ -563,7 +583,7 @@ public $recallCategories = [
         return WhatsAppLink::to($this->previewReminderPhone, $this->previewReminderMessage) ?? '#';
     }
 
-    /** Reminder wording from the clinic's "Appointment Reminder" template (Settings → Templates). */
+    /** Reminder wording from the clinic's "Appointment Reminder" template (Communications → Messages). */
     public function reminderMessage(Appointments $appointment): string
     {
         return $this->appointmentMessage('appointment_reminder', $appointment);
@@ -588,6 +608,28 @@ public $recallCategories = [
     {
         $this->confirmationWhatsAppUrl = null;
         $this->confirmationPatientName = null;
+        $this->confirmationKind = 'booked';
+    }
+
+    /**
+     * Tell the patient an upcoming appointment moved or was cancelled (AppointmentNotifier picks
+     * SMS or, for WhatsApp bookings, a pre-filled chat offered on screen). A move also re-arms
+     * the 24-hour reminder so it goes out again for the new date.
+     */
+    private function tellPatient(Appointments $appointment, string $kind): void
+    {
+        if ($kind === 'rescheduled') {
+            $appointment->forceFill(['reminder_sent_at' => null, 'reminder_status' => 'not_sent'])->save();
+        }
+
+        $appointment->loadMissing('patient');
+        $notifier = app(AppointmentNotifier::class);
+        $message = $kind === 'rescheduled' ? $notifier->rescheduled($appointment) : $notifier->cancelled($appointment);
+        if ($message && in_array($appointment->reminder_channel, ['whatsapp', 'both'], true)) {
+            $this->confirmationWhatsAppUrl = WhatsAppLink::to($appointment->patient?->contact, $message);
+            $this->confirmationPatientName = $appointment->patient?->name;
+            $this->confirmationKind = $kind;
+        }
     }
 
     private function appointmentMessage(string $key, Appointments $appointment): string
@@ -628,12 +670,7 @@ public $recallCategories = [
 
     private function markPastAppointmentsAsMissed(): void
     {
-        Appointments::whereDateIndexed('scheduled_at', '<', Carbon::today())
-            ->whereIn('status', ['Pending', 'Called', 'Couldnt Answer'])
-            ->update([
-                'status' => 'Missed',
-                'missed_at' => now(),
-            ]);
+        Appointments::markPastAsMissed();
     }
 
     public function getCountsProperty()
@@ -777,7 +814,9 @@ public $recallCategories = [
             if ($apt->trashed()) {
                 $apt->restore();
             }
+            $moved = ! $apt->scheduled_at->equalTo($scheduledAt);
             $apt->update($payload);
+            if ($moved && ! in_array($apt->status, ['Cancelled', 'Seen', 'Done'], true)) $this->tellPatient($apt, 'rescheduled');
             $this->dispatch('notify', ...['type' => 'success', 'message' => 'Record updated.']);
         } else {
             $this->flashDailyLimitWarning($scheduledAt);
@@ -795,6 +834,7 @@ public $recallCategories = [
             if (in_array($channel, ['whatsapp', 'both'], true) && $message) {
                 $this->confirmationWhatsAppUrl = WhatsAppLink::to($appointment->patient?->contact, $message);
                 $this->confirmationPatientName = $appointment->patient?->name;
+                $this->confirmationKind = 'booked';
             }
         }
 
@@ -929,10 +969,12 @@ public $recallCategories = [
     {
         if (!$this->cancellingId) return;
         $apt = Appointments::findOrFail($this->cancellingId);
+        $wasCancelled = $apt->status === 'Cancelled';
         $apt->update([
             'status' => 'Cancelled',
             'notes'  => trim($apt->notes . "\n[Cancelled: " . ($this->cancelReason ?: 'No reason given') . "]"),
         ]);
+        if (! $wasCancelled) $this->tellPatient($apt, 'cancelled');
         $this->closeCancelModal();
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Appointment cancelled.']);
     }
@@ -947,7 +989,9 @@ public $recallCategories = [
             return;
         }
 
+        $moved = ! $apt->scheduled_at->equalTo($newScheduledAt);
         $apt->update(['scheduled_at' => $newScheduledAt, 'status' => 'Rescheduled']);
+        if ($moved) $this->tellPatient($apt, 'rescheduled');
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Moved to ' . $newScheduledAt->format('M d, Y') . '.']);
     }
 
@@ -973,11 +1017,13 @@ public $recallCategories = [
             'rescheduleTime' => 'required',
         ]);
         $newAt = Carbon::parse($this->rescheduleDate . ' ' . $this->rescheduleTime);
-        Appointments::findOrFail($this->missedActionId)->update([
+        $appointment = Appointments::findOrFail($this->missedActionId);
+        $appointment->update([
             'scheduled_at' => $newAt,
             'status'       => 'Pending',
             'missed_at'    => null,
         ]);
+        $this->tellPatient($appointment, 'rescheduled');
         $this->closeMissedAction();
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Rescheduled to ' . $newAt->format('M d, Y h:i A') . '.']);
     }
@@ -999,10 +1045,135 @@ public $recallCategories = [
         $msg    = $this->missedFollowUpMessage($apt);
         $result = (new SmsService)->send($phone, $msg, $apt->patient->id, 'appointment_missed_followup');
         if ($result['success']) {
+            // The automatic follow-up (FollowUpSms) won't text this patient again.
+            $apt->forceFill(['missed_followup_sent_at' => now()])->save();
             $this->dispatch('notify', ...['type' => 'success', 'message' => 'Follow-up SMS sent.']);
         } else {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'SMS failed: ' . ($result['error'] ?? 'Unknown error')]);
         }
+    }
+
+    public function updatedMissedView(): void
+    {
+        $this->resetPage();
+        $this->resetSelection();
+        $this->bulkFollowUpPlan = null;
+    }
+
+    /** Step 1: check the ticked missed appointments and show who will be texted before anything is sent. */
+    public function prepareBulkFollowUp(): void
+    {
+        $this->bulkFollowUpPlan = $this->planBulkFollowUp();
+        if ($this->bulkFollowUpPlan['send'] === [] && $this->bulkFollowUpPlan['skipped'] === []) {
+            $this->bulkFollowUpPlan = null;
+            $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Tick the missed appointments to follow up first.']);
+        }
+    }
+
+    public function cancelBulkFollowUp(): void
+    {
+        $this->bulkFollowUpPlan = null;
+    }
+
+    /** Step 2: send to everyone the plan cleared (worked out again, in case anything changed). */
+    public function sendBulkFollowUp(): void
+    {
+        $plan = $this->planBulkFollowUp();
+        $this->bulkFollowUpPlan = null;
+        if (! $plan['available']) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $plan['reason']]);
+            return;
+        }
+
+        $sms = new SmsService();
+        $sent = $failed = 0;
+        $appointments = Appointments::with(['patient', 'branch'])->whereIn('id', array_column($plan['send'], 'id'))->get()->keyBy('id');
+        foreach ($plan['send'] as $row) {
+            $appointment = $appointments[$row['id']] ?? null;
+            if (! $appointment) continue;
+            $result = $sms->send($appointment->patient->contact, $this->missedFollowUpMessage($appointment), $appointment->patient_id, 'appointment_missed_followup');
+            if ($result['success'] ?? false) {
+                // The automatic follow-up (FollowUpSms) won't text these patients again.
+                $appointment->forceFill(['missed_followup_sent_at' => now()])->save();
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+
+        \App\Models\AuditTrail::record('appointments.bulk_followup', "Missed-appointment follow-up SMS: {$sent} sent, {$failed} failed, ".count($plan['skipped']).' skipped');
+        $this->resetSelection();
+        $skipped = count($plan['skipped']) + $plan['leftOver'];
+        $this->dispatch('notify', ...[
+            'type' => $failed === 0 ? 'success' : 'warning',
+            'message' => "Follow-up SMS sent: {$sent}" . ($skipped ? " · skipped: {$skipped}" : '') . ($failed ? " · failed: {$failed}" : '') . '.',
+        ]);
+    }
+
+    /**
+     * Who of the ticked appointments gets the follow-up. Skipped, with the reason: not a
+     * missed appointment, no phone, opted out of SMS, reminders set to "none", already followed
+     * up, or the same patient ticked twice. At most BULK_FOLLOW_UP_LIMIT go per click, and no
+     * more than the clinic's credits cover.
+     */
+    private function planBulkFollowUp(): array
+    {
+        $availability = SmsAvailability::check();
+        $appointments = Appointments::with(['patient', 'branch'])
+            ->whereIn('id', array_map('intval', $this->selectedAppointments))->orderBy('scheduled_at')->get();
+
+        $send = $skipped = $seenPatients = [];
+        $credits = 0;
+        foreach ($appointments as $appointment) {
+            $patient = $appointment->patient;
+            $reason = match (true) {
+                $appointment->status !== 'Missed' => 'not a missed appointment',
+                ! $patient || trim((string) $patient->contact) === '' => 'no phone number',
+                (bool) $patient->sms_opt_out => 'opted out of SMS',
+                $appointment->reminder_channel === 'none' => 'asked for no messages',
+                $appointment->missed_followup_sent_at !== null => 'already followed up on ' . $appointment->missed_followup_sent_at->format('M d'),
+                isset($seenPatients[$patient->id]) => 'same patient ticked twice',
+                default => null,
+            };
+            if ($reason) {
+                $skipped[] = ['name' => $patient?->name ?? 'Unknown patient', 'reason' => $reason];
+                continue;
+            }
+
+            $seenPatients[$patient->id] = true;
+            $parts = SmsSegments::count($this->missedFollowUpMessage($appointment));
+            $send[] = ['id' => $appointment->id, 'name' => $patient->name, 'parts' => $parts];
+            $credits += $parts;
+        }
+
+        // Keep within one click's limit and, on the platform gateway, within the credits left.
+        $leftOver = 0;
+        if (count($send) > self::BULK_FOLLOW_UP_LIMIT) {
+            $leftOver = count($send) - self::BULK_FOLLOW_UP_LIMIT;
+            $send = array_slice($send, 0, self::BULK_FOLLOW_UP_LIMIT);
+        }
+        if ($availability['credits'] !== null) {
+            $affordable = [];
+            $running = 0;
+            foreach ($send as $row) {
+                if ($running + $row['parts'] > $availability['credits']) break;
+                $running += $row['parts'];
+                $affordable[] = $row;
+            }
+            $leftOver += count($send) - count($affordable);
+            $send = $affordable;
+        }
+
+        return [
+            'send' => $send,
+            'skipped' => $skipped,
+            'leftOver' => $leftOver,
+            'credits' => array_sum(array_column($send, 'parts')),
+            'creditsLeft' => $availability['credits'],
+            'available' => $availability['available'],
+            'reason' => $availability['reason'],
+            'preview' => ($first = $appointments->firstWhere('id', $send[0]['id'] ?? null)) ? $this->missedFollowUpMessage($first) : null,
+        ];
     }
 
     public function render()

@@ -2,18 +2,27 @@
     <div class="row justify-content-center">
         <div class="col-lg-7">
 
+            <div class="mb-3">
+                <p class="text-muted small text-uppercase font-weight-bold mb-0">Communications</p>
+                <h2 class="text-primary font-weight-bold mb-1">SMS Credits &amp; Sending</h2>
+                <p class="text-muted small mb-0">Credits, your sender name and per-branch limits. Choose which messages go out under <a href="{{ route('admin.messages') }}">Messages</a>.</p>
+            </div>
+
             {{-- Status banner --}}
-            <div class="alert border-0 shadow-sm mb-4 d-flex align-items-center justify-content-between
-                        {{ $smsEnabled ? 'alert-success' : 'alert-warning' }}">
+            <div class="alert border-0 shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap
+                        {{ $smsEnabled ? 'alert-success' : 'alert-warning' }}" style="gap:.75rem">
                 <div>
                     @if($smsEnabled)
                         <i class="fas fa-check-circle mr-2"></i>
-                        <strong>SMS Notifications Active</strong>
-                        <span class="d-block small mt-1">All SMS triggers (appointments, spectacles, payments) are enabled.</span>
+                        <strong>SMS sending is on</strong>
+                        <span class="d-block small mt-1">
+                            {{ $messagesOn }} of {{ $messagesTotal }} automatic messages switched on.
+                            <a href="{{ route('admin.messages') }}" class="font-weight-bold">{{ $messagesOn === 0 ? 'Choose messages →' : 'Manage messages →' }}</a>
+                        </span>
                     @else
                         <i class="fas fa-pause-circle mr-2"></i>
-                        <strong>SMS Notifications Paused</strong>
-                        <span class="d-block small mt-1">No SMS messages will be sent until notifications are resumed.</span>
+                        <strong>SMS sending is paused</strong>
+                        <span class="d-block small mt-1">No SMS is sent until you resume, whichever messages are switched on.</span>
                     @endif
                 </div>
                 <button type="button" wire:click="toggleSms"
@@ -327,56 +336,6 @@
 
                 </div>
             </div>
-
-            {{-- Spectacle Renewal Reminders --}}
-            <div class="card border-0 shadow-sm rounded-lg mb-4">
-                <div class="card-header bg-info text-white py-3 border-0">
-                    <h5 class="mb-0 font-weight-bold"><i class="fas fa-redo mr-2"></i> Spectacle Renewal Reminders</h5>
-                </div>
-                <div class="card-body">
-                    <p class="small text-muted mb-3">
-                        Automatically sends an SMS reminder to patients whose spectacles are due for their annual eye review.
-                        The reminder fires daily at 09:00 when a patient's renewal date is within the configured number of days.
-                    </p>
-
-                    <form wire:submit="saveRenewalSettings">
-                        <div class="form-group d-flex align-items-center justify-content-between">
-                            <div>
-                                <label class="small font-weight-bold text-muted mb-0">ENABLE RENEWAL REMINDERS</label>
-                                <div class="small text-muted">Send SMS when renewal date approaches</div>
-                            </div>
-                            <div class="custom-control custom-switch">
-                                <input type="checkbox" class="custom-control-input" id="renewalEnabled"
-                                       wire:model.live="spectacleRenewalEnabled">
-                                <label class="custom-control-label" for="renewalEnabled"></label>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">DAYS BEFORE RENEWAL TO SEND REMINDER</label>
-                            <div class="input-group" style="max-width:200px">
-                                <input type="number" wire:model="spectacleRenewalReminderDays"
-                                       class="form-control bg-light border-0 @error('spectacleRenewalReminderDays') is-invalid @enderror"
-                                       min="1" max="90" placeholder="30">
-                                <div class="input-group-append">
-                                    <span class="input-group-text bg-light border-0">days</span>
-                                </div>
-                            </div>
-                            @error('spectacleRenewalReminderDays')
-                                <span class="text-danger small">{{ $message }}</span>
-                            @enderror
-                            <small class="form-text text-muted">Between 1 and 90 days. Default: 30 days.</small>
-                        </div>
-
-                        <button type="submit" class="btn btn-info btn-block py-2 font-weight-bold shadow-sm text-white"
-                                wire:loading.attr="disabled" wire:target="saveRenewalSettings">
-                            <span wire:loading.remove wire:target="saveRenewalSettings"><i class="fas fa-save mr-2"></i> Save Renewal Settings</span>
-                            <span wire:loading wire:target="saveRenewalSettings">Saving…</span>
-                        </button>
-                    </form>
-                </div>
-            </div>
-
             @unless($platformManaged)
             {{-- Provider info --}}
             <div class="alert alert-info border-0 shadow-sm small mb-0">

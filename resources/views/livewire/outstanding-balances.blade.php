@@ -366,10 +366,9 @@
                         <div class="col-md-4 mb-3">
                             <label class="form-label font-weight-bold">Payment Method</label>
                             <select class="form-control" wire:model.live="paymentMethod">
-                                <option value="cash">Cash</option>
-                                <option value="momo">Mobile Money</option>
-                                <option value="card">Card</option>
-                                <option value="cheque">Cheque</option>
+                                @foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::CLINIC) as $methodKey => $methodLabel)
+                                    <option value="{{ $methodKey }}">{{ $methodLabel }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">

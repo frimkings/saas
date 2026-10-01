@@ -19,7 +19,7 @@ final class SmsAvailability
     {
         $settings ??= Setting::getSettings();
         if (isset($settings->sms_enabled) && ! $settings->sms_enabled) {
-            return ['available' => false, 'reason' => 'SMS is paused in Settings → SMS.', 'credits' => null];
+            return ['available' => false, 'reason' => 'SMS is paused in Communications → SMS Credits & Sending.', 'credits' => null];
         }
         try {
             $credentials = app(SmsCredentialResolver::class)->resolve($settings);
@@ -35,6 +35,6 @@ final class SmsAvailability
 
         return $credits > 0
             ? ['available' => true, 'reason' => null, 'credits' => $credits]
-            : ['available' => false, 'reason' => 'No SMS credits left. Buy an SMS bundle in Settings → SMS.', 'credits' => 0];
+            : ['available' => false, 'reason' => 'No SMS credits left. Buy an SMS bundle in Communications → SMS Credits & Sending.', 'credits' => 0];
     }
 }

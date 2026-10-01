@@ -87,9 +87,9 @@
             <div class="space-y-3 border-t border-slate-200 pt-3">
                 <label class="block text-xs font-semibold text-slate-700">Payment Method</label>
                 <div class="grid grid-cols-2 gap-1">
-                    @foreach($methods as $method)
+                    @foreach($methods as $method => $methodLabel)
                         {{-- Picking a method is kept in the browser; Complete checkout sends it. --}}
-                        <button type="button" x-on:click="$wire.$set('paymentMethod', @js($method), false)" class="ui-button text-xs py-1" :class="$wire.paymentMethod === @js($method) ? 'ui-button-primary' : 'ui-button-secondary'" :aria-pressed="($wire.paymentMethod === @js($method)).toString()">{{ $method }}</button>
+                        <button type="button" x-on:click="$wire.$set('paymentMethod', @js($method), false)" class="ui-button text-xs py-1" :class="$wire.paymentMethod === @js($method) ? 'ui-button-primary' : 'ui-button-secondary'" :aria-pressed="($wire.paymentMethod === @js($method)).toString()">{{ $methodLabel }}</button>
                     @endforeach
                 </div>
                 <button wire:click="completeSale" class="ui-button ui-button-primary w-full py-2.5 text-sm font-bold shadow" {{ empty($cart) ? 'disabled' : '' }}>

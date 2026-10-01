@@ -54,7 +54,7 @@ class SmsCreditService
 
         if ($crossedLow) {
             $this->notifyClinic('sms_credits_low', 'SMS credits running low',
-                "Only {$this->balance($clinicId)} SMS credits are left. Buy more in Settings → SMS to keep messages going.");
+                "Only {$this->balance($clinicId)} SMS credits are left. Buy more in Communications → SMS Credits & Sending to keep messages going.");
             app(\App\Services\OwnerAlerts::class)->smsCreditsLow($clinicId, $this->balance($clinicId));
         }
 
@@ -227,7 +227,7 @@ class SmsCreditService
     {
         try {
             NotificationService::sendToRoles(['Super Admin'], $type, $title, $body, 'fas fa-sms', 'text-warning',
-                route('admin.settings', ['tab' => 'sms'], absolute: false));
+                route('admin.sms-settings', [], absolute: false));
         } catch (\Throwable $e) {
             report($e);
         }

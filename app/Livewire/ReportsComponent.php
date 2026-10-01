@@ -3,6 +3,9 @@
 namespace App\Livewire;
 
 use App\Models\AuditTrail;
+use App\Models\Insurer;
+use App\Models\InsurerPayment;
+use App\Models\SaleAdjustment;
 use App\Models\PaymentTransaction;
 use App\Models\RefundLog;
 use App\Models\Sales;
@@ -35,6 +38,7 @@ class ReportsComponent extends Component
     /* Payment status filter */
     public $paymentStatus = '';
     public $purchaseType = '';
+    public $insuranceFilter = ''; // '' | insured | uninsured
 
     /* Refund */
     public $refundReason = '';
@@ -167,6 +171,15 @@ class ReportsComponent extends Component
         $this->resetPage();
     }
 
+    public function updatedInsuranceFilter()
+    {
+        if (!in_array($this->insuranceFilter, ['', 'insured', 'uninsured'], true)) {
+            $this->insuranceFilter = '';
+        }
+        $this->resetPage();
+        $this->dispatchChart();
+    }
+
     public function updatedPurchaseType()
     {
         if (!in_array($this->purchaseType, ['', 'patient', 'direct'], true)) {
@@ -203,7 +216,9 @@ class ReportsComponent extends Component
             })
             ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('patient_id'))
             ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('patient_id'))
-            ->when($this->paymentStatus, fn ($q) => $q->where('payment_status', $this->paymentStatus));
+            ->when($this->paymentStatus, fn ($q) => $q->where('payment_status', $this->paymentStatus))
+            ->when($this->insuranceFilter === 'insured', fn ($q) => $q->where('insurer_amount', '>', 0))
+            ->when($this->insuranceFilter === 'uninsured', fn ($q) => $q->where('insurer_amount', '<=', 0));
     }
 
     protected function salesQuery()
@@ -232,7 +247,7 @@ class ReportsComponent extends Component
         $cacheKey = \App\Support\Tenancy\TenantCache::key('reports_summary_' . md5(
             auth()->id() . $this->activeTab . $this->fromDate . $this->toDate .
             ($this->showRefunded ? '1' : '0') . $this->paymentStatus .
-            $this->purchaseType . $this->searchQuery
+            $this->purchaseType . $this->insuranceFilter . $this->searchQuery
         ), true);
 
         return Cache::remember($cacheKey, now()->addMinutes(5), function () {
@@ -258,6 +273,8 @@ class ReportsComponent extends Component
                 ])
                 ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('sales.patient_id'))
                 ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('sales.patient_id'))
+                ->when($this->insuranceFilter === 'insured', fn ($q) => $q->where('sales.insurer_amount', '>', 0))
+                ->when($this->insuranceFilter === 'uninsured', fn ($q) => $q->where('sales.insurer_amount', '<=', 0))
                 ->whereNull('sale_items.deleted_at')
                 ->whereNull('sales.deleted_at')
                 ->sum(DB::raw('sale_items.dispensed_quantity * COALESCE(sale_items.unit_cost, products.cost_price, 0)'));
@@ -278,6 +295,32 @@ class ReportsComponent extends Component
                 'margin'          => $totalSales > 0 ? ($gross / $totalSales) * 100 : 0,
             ];
         });
+    }
+
+    /* ---------------- INSURANCE ---------------- */
+
+    /**
+     * Insurer figures for the period, or null for a clinic that has never used insurance.
+     * Billed: the insurer's share of the bills in view (Net Revenue already includes it).
+     * Received / written off: insurer payments and shortfalls written off in the dates.
+     * Owed now: what insurers still owe on every insured bill, whatever its date.
+     */
+    public function getInsuranceSummaryProperty(): ?array
+    {
+        $billed = round((float) $this->salesBaseQuery()->sum('insurer_amount'), 2);
+        if ($billed <= 0 && !Insurer::exists()) {
+            return null;
+        }
+
+        $range = [$this->fromDate . ' 00:00:00', $this->toDate . ' 23:59:59'];
+
+        return [
+            'billed'     => $billed,
+            'patient'    => round((float) $this->summary['total_sales'] - $billed, 2),
+            'received'   => round((float) InsurerPayment::whereBetween('paid_on', [$this->fromDate, $this->toDate])->sum('amount'), 2),
+            'writtenOff' => round((float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', $range)->sum('amount'), 2),
+            'owedNow'    => round((float) Sales::awaitingInsurer()->sum(DB::raw(Sales::INSURER_OWED_SQL)), 2),
+        ];
     }
 
     /* ---------------- SALES BY ITEM ---------------- */
@@ -378,9 +421,6 @@ class ReportsComponent extends Component
 
     public function getPaymentMethodsProperty()
     {
-        $methodLabels = ['cash' => 'Cash', 'card' => 'Card', 'momo' => 'Mobile Money', 'code' => 'Hubtel Wallet'];
-        $methodColors = ['cash' => '#28a745', 'card' => '#007bff', 'momo' => '#fd7e14', 'code' => '#6f42c1'];
-
         return PaymentTransaction::whereBetween('created_at', [
             $this->fromDate . ' 00:00:00',
             $this->toDate   . ' 23:59:59',
@@ -393,10 +433,26 @@ class ReportsComponent extends Component
         ->groupBy('payment_method')
         ->orderByDesc('total')
         ->get()
-        ->map(function ($p) use ($methodLabels, $methodColors) {
-            $p->label = $methodLabels[$p->payment_method] ?? strtoupper($p->payment_method);
-            $p->color = $methodColors[$p->payment_method] ?? '#6c757d';
+        ->map(function ($p) {
+            $p->label = \App\Support\PaymentMethods::label($p->payment_method);
+            $p->color = \App\Support\PaymentMethods::color($p->payment_method);
             return $p;
+        })
+        ->when($this->purchaseType !== 'direct', function ($methods) {
+            // Money in from insurers for patients' bills, alongside what patients paid at the tills.
+            $insurers = InsurerPayment::whereBetween('paid_on', [$this->fromDate, $this->toDate])
+                ->selectRaw('COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt')->first();
+            if ((float) $insurers->total <= 0) {
+                return $methods;
+            }
+
+            return $methods->push((object) [
+                'payment_method' => 'insurer',
+                'label'          => 'Insurer payments',
+                'color'          => '#0d6efd',
+                'total'          => (float) $insurers->total,
+                'cnt'            => (int) $insurers->cnt,
+            ])->sortByDesc('total')->values();
         });
     }
 
@@ -439,6 +495,7 @@ class ReportsComponent extends Component
         $this->showRefunded  = false;
         $this->paymentStatus = '';
         $this->purchaseType  = '';
+        $this->insuranceFilter = '';
         $this->perPage       = 25;
         $this->setDateRangeForTab($this->activeTab);
         $this->resetPage();
@@ -467,11 +524,11 @@ class ReportsComponent extends Component
     public function exportCsv()
     {
         $filename = 'sales-report-' . $this->fromDate . '-to-' . $this->toDate . '.csv';
-        $query    = $this->salesBaseQuery()->with(['patient:id,name']);
+        $query    = $this->salesBaseQuery()->with(['patient:id,name', 'insurer:id,name']);
 
         return response()->streamDownload(function () use ($query) {
             $f = fopen('php://output', 'w');
-            fputcsv($f, ['Transaction ID', 'Customer', 'Purchase Type', 'Date', 'Time', 'Total Amount', 'Amount Paid', 'Payment Status', 'Profit']);
+            fputcsv($f, ['Transaction ID', 'Customer', 'Purchase Type', 'Date', 'Time', 'Total Amount', 'Insurer', 'Insurer Share', 'Patient Share', 'Amount Paid', 'Patient Balance', 'Payment Status', 'Profit']);
             $query->chunkById(500, function ($chunk) use ($f) {
                 foreach ($chunk as $sale) {
                     fputcsv($f, [
@@ -481,7 +538,11 @@ class ReportsComponent extends Component
                         $sale->created_at->format('Y-m-d'),
                         $sale->created_at->format('H:i:s'),
                         $sale->total_amount,
+                        (float) $sale->insurer_amount > 0 ? ($sale->insurer?->name ?? 'Insurer') : '',
+                        $sale->insurer_amount,
+                        number_format($sale->patient_share, 2, '.', ''),
                         $sale->amount_paid,
+                        number_format($sale->remaining_balance, 2, '.', ''),
                         $sale->payment_status,
                         $sale->profit,
                     ]);
@@ -752,6 +813,7 @@ class ReportsComponent extends Component
         return view('livewire.reports-component', [
             'sales'           => $this->salesQuery()->latest()->paginate($this->perPage),
             'summary'         => $this->summary,
+            'insurance'       => $this->insuranceSummary,
             'salesByItems'    => $this->analyticsView === 'items'      ? $this->salesByItems    : collect(),
             'salesByCategory' => $this->analyticsView === 'categories' ? $this->salesByCategory : collect(),
             'paymentMethods'  => $this->analyticsView === 'payments'   ? $this->paymentMethods  : collect(),

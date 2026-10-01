@@ -1,4 +1,5 @@
-<div class="p-4">
+<div class="p-4" style="max-width:980px;margin:0 auto">
+    <p class="text-muted small text-uppercase font-weight-bold mb-1">Communications</p>
 
     {{-- Header --}}
     <div class="d-flex align-items-center justify-content-between mb-4">

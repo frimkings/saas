@@ -86,6 +86,11 @@
                     <option value="patient">Patient Purchase</option>
                     <option value="direct">Direct Purchase / Walk-in</option>
                 </select>
+                <select wire:model.live="insuranceFilter" class="form-control form-control-sm mt-2">
+                    <option value="">Insured &amp; uninsured bills</option>
+                    <option value="insured">Insured bills only</option>
+                    <option value="uninsured">Exclude insured bills</option>
+                </select>
             </div>
             @endif
 
@@ -110,7 +115,7 @@
             </button>
 
             {{-- ACTIVE FILTERS --}}
-            @if($searchQuery || ($showRefunded && $activeTab !== 'trash') || $paymentStatus || $purchaseType)
+            @if($searchQuery || ($showRefunded && $activeTab !== 'trash') || $paymentStatus || $purchaseType || $insuranceFilter)
             <div class="mt-3 pt-3 border-top">
                 <p class="sidebar-label">Active Filters</p>
                 @if($searchQuery)
@@ -126,6 +131,9 @@
                     <span class="badge badge-success d-inline-block mb-1">
                         {{ $purchaseType === 'patient' ? 'Patient Purchase' : 'Direct Purchase' }}
                     </span>
+                @endif
+                @if($insuranceFilter)
+                    <span class="badge badge-primary d-inline-block mb-1">{{ $insuranceFilter === 'insured' ? 'Insured only' : 'Uninsured only' }}</span>
                 @endif
             </div>
             @endif
@@ -230,6 +238,44 @@
                 </div>
             </div>
             {{-- end KPI cards --}}
+
+            {{-- Insurance: who pays the bills above, and what insurers paid, owe and did not pay --}}
+            @if($insurance)
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center flex-wrap" style="gap:6px;">
+                    <span class="font-weight-bold"><i class="fas fa-shield-alt text-info mr-1"></i>Insurance</span>
+                    <a href="{{ route('admin.insurance.receivables') }}" class="small">Insurer receivables &rarr;</a>
+                </div>
+                <div class="card-body py-3">
+                    <div class="row text-center">
+                        <div class="col-6 col-md mb-2">
+                            <div class="small text-muted">Patients' share</div>
+                            <div class="h6 font-weight-bold mb-0">{{ currency() }} {{ number_format($insurance['patient'], 2) }}</div>
+                        </div>
+                        <div class="col-6 col-md mb-2">
+                            <div class="small text-muted">Billed to insurers</div>
+                            <div class="h6 font-weight-bold mb-0 text-info">{{ currency() }} {{ number_format($insurance['billed'], 2) }}</div>
+                        </div>
+                        <div class="col-6 col-md mb-2">
+                            <div class="small text-muted">Received from insurers</div>
+                            <div class="h6 font-weight-bold mb-0 text-success">{{ currency() }} {{ number_format($insurance['received'], 2) }}</div>
+                        </div>
+                        <div class="col-6 col-md mb-2">
+                            <div class="small text-muted">Insurer shortfalls written off</div>
+                            <div class="h6 font-weight-bold mb-0 text-danger">{{ currency() }} {{ number_format($insurance['writtenOff'], 2) }}</div>
+                        </div>
+                        <div class="col-12 col-md mb-2">
+                            <div class="small text-muted">Insurers owe now</div>
+                            <div class="h6 font-weight-bold mb-0 text-warning">{{ currency() }} {{ number_format($insurance['owedNow'], 2) }}</div>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        Net Revenue includes the insurers' share. Received and written off cover payments and write-offs dated in this period;
+                        "owe now" is every insured bill still unpaid by its insurer, whatever its date.
+                    </div>
+                </div>
+            </div>
+            @endif
 
             {{-- ── ANALYTICS NAVIGATION ── --}}
             <div class="analytics-nav mb-4">

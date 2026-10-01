@@ -24,7 +24,7 @@
       <div class="alert alert-warning shadow-sm">
         <i class="fas fa-exclamation-triangle mr-2"></i>
         Automated recall SMS is <strong>disabled</strong>.
-        Enable it in <a href="{{ route('admin.settings') }}">Settings → SMS Templates</a> to run the daily scheduler.
+        Enable it in <a href="{{ route('admin.messages') }}">Communications → Messages</a> to run the daily scheduler.
         You can still send manual recalls from this page.
       </div>
       @endif

@@ -176,10 +176,10 @@ class SmsService
             ['Super Admin'],
             'sms_branch_limit_reached',
             "{$branchName} is out of SMS",
-            "{$branchName} has used its SMS limit, so its messages are not being sent. Add more in Settings → SMS.",
+            "{$branchName} has used its SMS limit, so its messages are not being sent. Add more in Communications → SMS Credits & Sending.",
             'fas fa-sms',
             'text-danger',
-            route('admin.settings', ['tab' => 'sms'], absolute: false)
+            route('admin.sms-settings', [], absolute: false)
         );
     }
 
@@ -195,10 +195,10 @@ class SmsService
             ['Super Admin'],
             'sms_credits_exhausted',
             'Out of SMS credits',
-            'SMS messages are not being sent because the clinic has run out of SMS credits. Buy a bundle in Settings → SMS; WhatsApp links and email are unaffected.',
+            'SMS messages are not being sent because the clinic has run out of SMS credits. Buy a bundle in Communications → SMS Credits & Sending; WhatsApp links and email are unaffected.',
             'fas fa-sms',
             'text-danger',
-            route('admin.settings', ['tab' => 'sms'], absolute: false)
+            route('admin.sms-settings', [], absolute: false)
         );
     }
 

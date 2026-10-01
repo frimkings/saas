@@ -3,6 +3,7 @@
 namespace App\Livewire\Optical\Concerns;
 
 use App\Models\LensOrder;
+use App\Support\PaymentMethods;
 use App\Services\OpticalCollectionNotifier;
 use App\Services\OpticalOrderWorkflowService;
 
@@ -37,6 +38,12 @@ trait ManagesOrderPanel
     public ?int $convertOrderId = null;
     public string $convertDeposit = '';
     public string $convertMethod = 'cash';
+
+    /** Start the payment pickers on the clinic's first optical method. */
+    public function mountManagesOrderPanel(): void
+    {
+        $this->paymentMethod = $this->convertMethod = PaymentMethods::first(PaymentMethods::OPTICAL);
+    }
     public string $convertPricing = '';
 
     public function openOrder(int $id): void
@@ -99,7 +106,7 @@ trait ManagesOrderPanel
         $this->convertOrderId = $quotation->id;
         $minimum = app(OpticalOrderWorkflowService::class)->minimumDeposit($quotation);
         $this->convertDeposit = $minimum > 0 ? number_format($minimum, 2, '.', '') : '';
-        $this->convertMethod = 'cash';
+        $this->convertMethod = PaymentMethods::first(PaymentMethods::OPTICAL);
         // A valid quote keeps its prices unless repriced; an expired one must choose.
         $this->convertPricing = $quotation->isQuoteExpired() ? '' : 'keep';
         $this->resetValidation();
@@ -111,7 +118,7 @@ trait ManagesOrderPanel
         $quotation = LensOrder::where('status', 'Quotation')->findOrFail((int) $this->convertOrderId);
         $this->validate([
             'convertDeposit' => 'nullable|numeric|min:0',
-            'convertMethod' => 'required|in:cash,momo,card,bank_transfer',
+            'convertMethod' => ['required', \Illuminate\Validation\Rule::in(PaymentMethods::keys(PaymentMethods::OPTICAL))],
             'convertPricing' => $quotation->isQuoteExpired() ? 'required|in:keep,reprice' : 'nullable|in:keep,reprice',
         ], ['convertPricing.required' => 'This quotation has expired. Choose which prices to charge.']);
         $order = app(OpticalOrderWorkflowService::class)->activateQuotation(
@@ -238,7 +245,7 @@ trait ManagesOrderPanel
         $this->validate([
             'paymentOrderId' => 'required|integer',
             'paymentAmount' => 'required|numeric|gt:0',
-            'paymentMethod' => 'required|in:cash,momo,card,bank_transfer',
+            'paymentMethod' => ['required', \Illuminate\Validation\Rule::in(PaymentMethods::keys(PaymentMethods::OPTICAL))],
         ]);
         app(OpticalOrderWorkflowService::class)->recordPayment(
             (int) $this->paymentOrderId, (float) $this->paymentAmount, $this->paymentMethod

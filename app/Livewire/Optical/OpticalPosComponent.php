@@ -3,6 +3,7 @@
 namespace App\Livewire\Optical;
 
 use App\Models\OpticalProduct;
+use App\Support\PaymentMethods;
 use App\Models\Sales;
 use App\Models\SaleItem;
 use App\Models\PaymentTransaction;
@@ -17,13 +18,16 @@ class OpticalPosComponent extends Component
 {
     public $searchTerm = '';
     public $cart = [];
-    public $paymentMethod = 'Cash';
+    public $paymentMethod = '';
     public ?int $lastSaleId = null;
     public string $customerName = '';
     public string $customerPhone = '';
     public string $discount = '';
 
-    public const METHODS = ['Cash' => 'cash', 'MoMo' => 'momo', 'Card' => 'card', 'Bank transfer' => 'bank_transfer'];
+    public function mount(): void
+    {
+        $this->paymentMethod = PaymentMethods::first(PaymentMethods::OPTICAL);
+    }
 
     private function assertSoldIndividually(OpticalProduct $product): void
     {
@@ -57,7 +61,9 @@ class OpticalPosComponent extends Component
     public function completeSale()
     {
         if (empty($this->cart)) throw ValidationException::withMessages(['cart' => 'Cart is empty.']);
-        if (! array_key_exists($this->paymentMethod, self::METHODS)) abort(422);
+        if (! PaymentMethods::isActive(PaymentMethods::OPTICAL, $this->paymentMethod)) {
+            throw ValidationException::withMessages(['paymentMethod' => 'Choose one of the payment methods shown.']);
+        }
         $this->validate([
             'customerName' => 'nullable|string|max:255',
             'customerPhone' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+()\-\s]*$/'],
@@ -110,7 +116,7 @@ class OpticalPosComponent extends Component
             }
             PaymentTransaction::create([
                 'sale_id' => $sale->id, 'amount' => round($total, 2),
-                'payment_method' => self::METHODS[$this->paymentMethod],
+                'payment_method' => $this->paymentMethod,
                 'collected_by' => auth()->id(),
             ]);
             return $sale->id;
@@ -155,7 +161,7 @@ class OpticalPosComponent extends Component
             'discountShown' => $discount,
             'total' => $subtotal - $discount,
             'discountLimit' => \App\Models\OpticalSetting::posMaxDiscountPercent(),
-            'methods' => array_keys(self::METHODS),
+            'methods' => PaymentMethods::active(PaymentMethods::OPTICAL),
         ])->layout('layouts.optical');
     }
 

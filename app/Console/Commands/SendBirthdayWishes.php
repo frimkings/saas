@@ -21,7 +21,7 @@ class SendBirthdayWishes extends Command
         $s = Setting::getSettings();
 
         if (isset($s->sms_enabled) && !$s->sms_enabled) {
-            $this->warn('SMS notifications are paused. Enable them in Settings → SMS Settings.');
+            $this->warn('SMS notifications are paused. Enable them in Communications → SMS Credits & Sending.');
             return self::SUCCESS;
         }
 

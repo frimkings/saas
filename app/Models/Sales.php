@@ -16,6 +16,7 @@ protected $fillable = [
     'business_line',
     'user_id',
     'patient_id',
+    'patient_visit_id',
     'insurer_id',
     'customer_name',
     'customer_phone',
@@ -81,6 +82,11 @@ public function scopeAwaitingInsurer($query)
     return $query->where('insurer_amount', '>', 0)
         ->where('is_refunded', false)
         ->whereDoesntHave('insuranceClaim', fn ($claim) => $claim->whereIn('status', ['paid', 'rejected']));
+}
+
+public function visit()
+{
+    return $this->belongsTo(PatientVisit::class, 'patient_visit_id');
 }
 
 public function insurer()

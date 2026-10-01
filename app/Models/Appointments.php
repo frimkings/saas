@@ -24,6 +24,7 @@ class Appointments extends Model
         'reminder_status',
         'reminder_sent_at',
         'missed_at',
+        'missed_followup_sent_at',
         'arrived_at',
         'doctor_started_at',
         'completed_at',
@@ -35,10 +36,19 @@ class Appointments extends Model
         'scheduled_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
         'missed_at' => 'datetime',
+        'missed_followup_sent_at' => 'datetime',
         'arrived_at' => 'datetime',
         'doctor_started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
+
+    /** Appointments from before today that nobody marked as attended become "Missed". */
+    public static function markPastAsMissed(): int
+    {
+        return static::whereDateIndexed('scheduled_at', '<', \Illuminate\Support\Carbon::today())
+            ->whereIn('status', ['Pending', 'Called', 'Couldnt Answer'])
+            ->update(['status' => 'Missed', 'missed_at' => now()]);
+    }
 
     public function patient()
     {

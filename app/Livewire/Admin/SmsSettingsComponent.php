@@ -4,18 +4,19 @@ namespace App\Livewire\Admin;
 
 use App\Models\Setting;
 use App\Services\ClinicAccessService;
-use App\Services\LicenseService;
 use App\Services\SmsService;
 use App\Models\{PlatformInvoice, SmsBundle, SmsCreditTransaction};
 use App\Services\Messaging\SmsCreditService;
 use App\Support\Tenancy\TenantContext;
-use App\Support\Feature;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Livewire\Component;
 
+/** Communications → SMS Credits & Sending: pause switch, credits, sender ID, branch limits. */
 class SmsSettingsComponent extends Component
 {
+    use \App\Livewire\Concerns\RequiresSuperAdmin;
+
     public string $smsApiUrl    = '';
     public string $smsApiKey    = '';   // never pre-filled; blank = keep existing
     public string $smsSenderId  = '';
@@ -29,9 +30,6 @@ class SmsSettingsComponent extends Component
     public string  $senderIdStatus      = 'none';
     public ?string $senderIdNote        = null;
     public ?string $approvedSenderId    = null;
-
-    public bool $spectacleRenewalEnabled      = true;
-    public int  $spectacleRenewalReminderDays = 30;
 
     protected $rules = [
         'smsApiUrl'   => 'required|url|max:500',
@@ -47,11 +45,7 @@ class SmsSettingsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(!LicenseService::has(Feature::SMS_CAMPAIGNS), 403, 'SMS campaigns require a Pro license.');
-        if (!Auth::user()->hasRole('Super Admin')) {
-            return;
-        }
-
+        // Every plan: everyday messages (confirmations, "ready", receipts) need credits too.
         $s = Setting::getSettings();
         $this->platformManaged              = app(ClinicAccessService::class)->hosted();
         $this->senderIdStatus               = $s->sms_sender_id_status ?? 'none';
@@ -61,8 +55,6 @@ class SmsSettingsComponent extends Component
         $this->smsApiUrl                    = $s->sms_api_url   ?? '';
         $this->smsSenderId                  = $s->sms_sender_id ?? '';
         $this->smsEnabled                   = (bool) ($s->sms_enabled ?? true);
-        $this->spectacleRenewalEnabled      = (bool) ($s->spectacle_renewal_enabled ?? true);
-        $this->spectacleRenewalReminderDays = (int) ($s->spectacle_renewal_reminder_days ?? 30);
         $this->testPhone                    = '';
         // API key intentionally blank — user must re-enter to change
     }
@@ -130,23 +122,6 @@ class SmsSettingsComponent extends Component
         $this->dispatch('notify', ...[
             'type'    => 'success',
             'message' => $this->smsEnabled ? 'SMS notifications resumed.' : 'SMS notifications paused.',
-        ]);
-    }
-
-    public function saveRenewalSettings(): void
-    {
-        $this->validate([
-            'spectacleRenewalReminderDays' => 'required|integer|min:1|max:90',
-        ]);
-
-        Setting::getSettings()->update([
-            'spectacle_renewal_enabled'       => $this->spectacleRenewalEnabled,
-            'spectacle_renewal_reminder_days' => $this->spectacleRenewalReminderDays,
-        ]);
-
-        $this->dispatch('notify', ...[
-            'type'    => 'success',
-            'message' => 'Spectacle renewal settings saved.',
         ]);
     }
 
@@ -244,7 +219,15 @@ class SmsSettingsComponent extends Component
             ];
         }
 
-        return view('livewire.admin.sms-settings-component', ['smsCredits' => $credits])
-            ->layout('layouts.admin.admin-layout');
+        // How many automatic messages the clinic has switched on (staff-sent wording has no switch).
+        $automatic = \App\Models\SmsTemplate::where('key', '!=', 'custom_broadcast')->get(['key', 'is_enabled'])
+            ->reject(fn ($t) => \App\Support\Messaging\MessageCatalog::isStaffSent($t->key));
+
+        return view('livewire.admin.sms-settings-component', [
+            'smsCredits' => $credits,
+            'messagesOn' => $automatic->where('is_enabled', true)->count(),
+            'messagesTotal' => $automatic->count()
+                ?: count(array_filter(\App\Support\Messaging\MessageCatalog::MESSAGES, fn ($meta) => $meta[4] === 'automatic')),
+        ])->layout('layouts.admin.admin-layout');
     }
 }

@@ -263,7 +263,7 @@
                 <div><label class="block text-xs font-semibold mb-1" for="convert-deposit">Deposit ({{ currency() }})</label><input autocomplete="off" id="convert-deposit" type="number" min="0" step="0.01" wire:model="convertDeposit" class="ui-input w-full">
                     @error('convertDeposit')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     @error('paid_amount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                <div><label class="block text-xs font-semibold mb-1" for="convert-method">Method</label><select id="convert-method" wire:model="convertMethod" class="ui-input w-full"><option value="cash">Cash</option><option value="momo">Mobile Money</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option></select></div>
+                <div><label class="block text-xs font-semibold mb-1" for="convert-method">Method</label><select id="convert-method" wire:model="convertMethod" class="ui-input w-full">@foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL) as $methodKey => $methodLabel)<option value="{{ $methodKey }}">{{ $methodLabel }}</option>@endforeach</select></div>
                 @error('order')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showConvertModal: false })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Convert to order</button></div>
             </form>
@@ -274,7 +274,7 @@
             <form wire:submit.prevent="recordPayment" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
                 <h3 class="text-base font-bold text-slate-900">Record order payment</h3>
                 <div><label class="block text-xs font-semibold mb-1">Amount ({{ currency() }})</label><input autocomplete="off" type="number" min="0.01" step="0.01" wire:model="paymentAmount" class="ui-input w-full">@error('paymentAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                <div><label class="block text-xs font-semibold mb-1">Method</label><select wire:model="paymentMethod" class="ui-input w-full"><option value="cash">Cash</option><option value="momo">Mobile Money</option><option value="card">Card</option><option value="bank_transfer">Bank Transfer</option></select></div>
+                <div><label class="block text-xs font-semibold mb-1">Method</label><select wire:model="paymentMethod" class="ui-input w-full">@foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL) as $methodKey => $methodLabel)<option value="{{ $methodKey }}">{{ $methodLabel }}</option>@endforeach</select></div>
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showPaymentModal: false })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Record payment</button></div>
             </form>
         </div>

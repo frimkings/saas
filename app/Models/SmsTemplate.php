@@ -26,7 +26,7 @@ class SmsTemplate extends Model
     public static function render(string $key, array $replacements, ?Branch $branch = null, bool $evenIfOff = false): string
     {
         $row = static::where('key', $key)->first(['message', 'is_enabled']);
-        if ($row && ! $row->is_enabled && ! $evenIfOff) return '';
+        if (! $evenIfOff && ! ($row ? $row->is_enabled : DefaultSmsTemplates::onByDefault($key))) return '';
         $message = $row?->message ?? DefaultSmsTemplates::message($key);
         if (!$message) return '';
 
@@ -48,7 +48,7 @@ class SmsTemplate extends Model
 
         foreach (DefaultSmsTemplates::TEMPLATES as $key => $template) {
             if (!in_array($key, $existing, true)) {
-                static::create(['key' => $key] + $template);
+                static::create(['key' => $key, 'is_enabled' => DefaultSmsTemplates::onByDefault($key)] + $template);
             }
         }
     }

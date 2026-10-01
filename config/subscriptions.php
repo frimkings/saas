@@ -48,7 +48,6 @@ return [
         'admin.lens-outstanding-report' => 'spectacles_pro',
         'admin.audit-trail' => 'audit_trail',
         'admin.login-history' => 'audit_trail',
-        'admin.sms-logs' => 'sms_campaigns',
         'admin.expenses' => 'expense_tracking',
         'admin.report-delivery' => 'report_delivery',
         'cashier.outstanding-balances' => 'outstanding_balances',

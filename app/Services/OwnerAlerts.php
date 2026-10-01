@@ -132,7 +132,7 @@ class OwnerAlerts
             'SMS credits are running low',
             "Only {$balance} SMS credits are left. When they run out, patients stop getting appointment, receipt and collection messages.",
             ['Credits left' => number_format($balance)],
-            'Buy SMS credits', route('admin.settings', ['tab' => 'sms']));
+            'Buy SMS credits', route('admin.sms-settings'));
     }
 
     /** An add-on was switched on for the clinic, with what it costs now and from the next renewal. */
@@ -201,7 +201,7 @@ class OwnerAlerts
         $this->notice($clinic, 'branch_sms_' . $level, "branch_sms:{$branch->id}:{$level}:{$branch->sms_limit}", $heading, $intro,
             ['Branch' => $branch->name, 'Used' => number_format($branch->sms_used), 'Limit' => number_format($branch->sms_limit),
                 'Left' => number_format(max(0, $branch->sms_limit - $branch->sms_used)), 'Clinic credits' => number_format(app(\App\Services\Messaging\SmsCreditService::class)->balance($clinic->id))],
-            'Add SMS for ' . $branch->name, route('admin.settings', ['tab' => 'sms']));
+            'Add SMS for ' . $branch->name, route('admin.sms-settings'));
     }
 
     /** Someone joined the clinic's staff. */

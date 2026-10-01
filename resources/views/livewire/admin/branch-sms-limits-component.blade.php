@@ -8,18 +8,19 @@
     </div>
     <div class="card-body pt-0">
         <div class="table-responsive">
-            <table class="table table-sm mb-0">
+            <style>@media (max-width:767px){.bsl-table thead{display:none}.bsl-table tr{display:block;border-bottom:1px solid #dee2e6;padding:.5rem 0}.bsl-table td{display:flex;justify-content:space-between;align-items:center;border:0;text-align:right;padding:.25rem .5rem}.bsl-table td::before{content:attr(data-label);font-weight:600;color:#6c757d;margin-right:1rem;text-align:left}.bsl-table td.bsl-change{display:block;text-align:left}.bsl-table td.bsl-change::before{display:block;margin-bottom:.35rem}.bsl-table th.bsl-change{min-width:0!important}}</style>
+            <table class="table table-sm mb-0 bsl-table">
                 <thead class="thead-light">
-                    <tr><th>Branch</th><th class="text-right">Used</th><th class="text-right">Limit</th><th class="text-right">Left</th><th style="min-width:340px">Change</th></tr>
+                    <tr><th>Branch</th><th class="text-right">Used</th><th class="text-right">Limit</th><th class="text-right">Left</th><th class="bsl-change" style="min-width:340px">Change</th></tr>
                 </thead>
                 <tbody>
                     @foreach($branches as $branch)
                         @php($left = $branch->sms_limit === null ? null : max(0, $branch->sms_limit - $branch->sms_used))
                         <tr wire:key="branch-sms-{{ $branch->id }}">
-                            <td class="align-middle font-weight-bold">{{ $branch->name }}</td>
-                            <td class="align-middle text-right">{{ number_format($branch->sms_used) }}</td>
-                            <td class="align-middle text-right">{{ $branch->sms_limit === null ? 'No limit' : number_format($branch->sms_limit) }}</td>
-                            <td class="align-middle text-right">
+                            <td class="align-middle font-weight-bold" data-label="Branch">{{ $branch->name }}</td>
+                            <td class="align-middle text-right" data-label="Used">{{ number_format($branch->sms_used) }}</td>
+                            <td class="align-middle text-right" data-label="Limit">{{ $branch->sms_limit === null ? 'No limit' : number_format($branch->sms_limit) }}</td>
+                            <td class="align-middle text-right" data-label="Left">
                                 @if($left === null)
                                     <span class="text-muted">—</span>
                                 @elseif($left === 0)
@@ -30,7 +31,7 @@
                                     {{ number_format($left) }}
                                 @endif
                             </td>
-                            <td class="align-middle">
+                            <td class="align-middle bsl-change" data-label="Change">
                                 <div class="d-flex flex-wrap" style="gap:.4rem">
                                     <div class="input-group input-group-sm" style="width:150px">
                                         <input type="number" min="1" class="form-control" id="add-{{ $branch->id }}" wire:model="add.{{ $branch->id }}" placeholder="SMS" aria-label="SMS to add for {{ $branch->name }}">

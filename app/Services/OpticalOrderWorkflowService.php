@@ -203,7 +203,7 @@ class OpticalOrderWorkflowService
     public function recordPayment(int $id, float $amount, string $method, ?string $note = null): LensOrder
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        if ($amount <= 0 || ! in_array($method, ['cash', 'momo', 'card', 'bank_transfer'], true)) {
+        if ($amount <= 0 || ! \App\Support\PaymentMethods::isActive(\App\Support\PaymentMethods::OPTICAL, $method)) {
             throw ValidationException::withMessages(['paymentAmount' => 'Enter a valid payment amount and method.']);
         }
         return DB::transaction(function () use ($id, $amount, $method, $note) {

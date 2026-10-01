@@ -2,6 +2,7 @@
 
 namespace App\Support\Optical;
 
+use App\Models\Sales;
 use Illuminate\Support\Str;
 
 /**
@@ -45,38 +46,58 @@ class ClinicSpectacleBilling
             ? $consultation->cartItems->filter($isOpticalProduct)
             : collect();
 
-        $sale = $consultation->sale;
-        $saleItems = $sale && $sale->items
-            ? $sale->items->filter($isOpticalProduct)
-            : collect();
+        // A visit's frame and lenses can be paid on more than one bill (e.g. the frame on the
+        // visit bill, the lenses later), so add up every clinical sale for the consultation.
+        $sales = Sales::with('items.product.category')
+            ->where('consultation_id', $consultation->id)
+            ->where('business_line', 'clinic')
+            ->where('is_refunded', false)
+            ->orderBy('id')
+            ->get()
+            ->filter(fn ($sale) => $sale->items->contains($isOpticalProduct));
 
-        if ($sale && $saleItems->isNotEmpty()) {
-            $isPaid          = $sale->payment_status === 'paid';
-            $opticalSubtotal = (float) $saleItems->sum('subtotal');
-            if ($opticalSubtotal <= 0) {
-                $opticalSubtotal = (float) $opticalCarts->sum('total');
+        if ($sales->isNotEmpty()) {
+            $amount = $paid = $insurer = $discount = 0.0;
+            $saleItems = collect();
+
+            foreach ($sales as $sale) {
+                $items           = $sale->items->filter($isOpticalProduct);
+                $opticalSubtotal = (float) $items->sum('subtotal');
+                $allSubtotal     = (float) $sale->items->sum('subtotal');
+                $total           = (float) $sale->total_amount;
+                // Apply the sale-level discount (or write-off) proportionally to the optical items.
+                $share = $allSubtotal > 0 && $total > 0 ? $opticalSubtotal * ($total / $allSubtotal) : $opticalSubtotal;
+                $share = round($share, 2);
+
+                // The insurer's share is recorded on each line; the patient pays the rest, and
+                // their payments are spread over their part of the bill.
+                $lineInsurer  = min($share, round((float) $items->sum('insurer_amount'), 2));
+                $patientPart  = max(0, $share - $lineInsurer);
+                $billPatient  = max(0, $total - (float) $sale->insurer_amount);
+                $paidRatio    = $billPatient > 0 ? min(1, (float) $sale->amount_paid / $billPatient) : 1;
+
+                $amount   += $share;
+                $insurer  += $lineInsurer;
+                $paid     += round($patientPart * $paidRatio, 2);
+                $discount += (float) ($sale->discount_amount ?? 0);
+                $saleItems = $saleItems->merge($items);
             }
-            if ($opticalSubtotal <= 0) {
-                $opticalSubtotal = (float) $sale->total_amount;
-            }
-            $allSubtotal     = (float) ($sale->items ? $sale->items->sum('subtotal') : 0);
-            // Apply the sale-level discount proportionally to optical items
-            $discountRatio   = $allSubtotal > 0 && (float) $sale->total_amount > 0 ? ((float) $sale->total_amount / $allSubtotal) : 1.0;
-            $amount          = round($opticalSubtotal * $discountRatio, 2);
-            $paid            = (float) $sale->total_amount > 0
-                ? min($amount, round(((float) $sale->amount_paid / (float) $sale->total_amount) * $amount, 2))
-                : ($isPaid ? $amount : 0);
-            $balance         = max(0, $amount - $paid);
+
+            $paid    = min($amount, round($paid, 2));
+            $insurer = min(round($amount - $paid, 2), round($insurer, 2));
+            $balance = max(0, round($amount - $paid - $insurer, 2));
+            $isPaid  = $balance <= 0.005;
 
             return [
                 'status' => $isPaid ? 'sold' : 'partial',
                 'label' => $isPaid ? 'Sold at POS' : 'Part-paid at POS',
                 'class' => $isPaid ? 'sold' : 'partial',
-                'amount' => $amount,
+                'amount' => round($amount, 2),
                 'paid' => $paid,
+                'insurer' => $insurer,
                 'balance' => $balance,
-                'discount' => (float) ($sale->discount_amount ?? 0),
-                'transaction' => $sale->transaction_id,
+                'discount' => $discount,
+                'transaction' => $sales->pluck('transaction_id')->implode(', '),
                 'items' => $saleItems,
             ];
         }

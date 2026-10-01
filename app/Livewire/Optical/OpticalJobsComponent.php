@@ -67,11 +67,15 @@ class OpticalJobsComponent extends Component
     public function saveReschedule(): void
     {
         $this->resetValidation();
+        $previousDate = \App\Models\LensOrder::whereKey((int) $this->rescheduleOrderId)->value('pickUpDate');
         $order = app(OpticalJobTrackingService::class)->reschedule((int) $this->rescheduleOrderId, $this->newPickupDate, $this->newLabDate ?: null, $this->rescheduleReason);
         $this->rescheduleOrderId = null;
-        session()->flash('success', "New pickup date for {$order->order_id}: ".\Illuminate\Support\Carbon::parse($order->pickUpDate)->format('d M Y').'.');
-        // Offer to tell the customer straight away, with the new date in the message.
-        session()->flash('toastLink', app(OpticalJobTrackingService::class)->customerDelayLink($order->fresh(['patient', 'partnerClinic'])));
+        $order = $order->fresh(['patient', 'partnerClinic']);
+        // Texted automatically when the shop has "Order Delay" switched on; otherwise offer WhatsApp.
+        $texted = app(\App\Services\Messaging\FollowUpSms::class)->orderDateChanged($order, $previousDate);
+        session()->flash('success', "New pickup date for {$order->order_id}: ".\Illuminate\Support\Carbon::parse($order->pickUpDate)->format('d M Y').'.'
+            .($texted ? ' The customer was texted the new date.' : ''));
+        if (! $texted) session()->flash('toastLink', app(OpticalJobTrackingService::class)->customerDelayLink($order));
     }
 
     public function openAbandon(int $orderId): void

@@ -129,7 +129,7 @@
   {{-- Create / Edit Modal --}}
   @if($showModal)
   <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background:rgba(0,0,0,.5);">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <div class="modal-header bg-info text-white">
           <h5 class="modal-title">
@@ -139,73 +139,74 @@
           <button wire:click="$set('showModal', false)" type="button" class="close text-white"><span>&times;</span></button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label>Insurer Name <span class="text-danger">*</span></label>
-            <input wire:model="state.name" type="text" class="form-control @error('state.name') is-invalid @enderror" placeholder="e.g. National Health Insurance Scheme">
-            @error('state.name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-          </div>
           <div class="row">
+            {{-- Insurer details --}}
             <div class="col-md-6">
+              <h6 class="font-weight-bold text-muted text-uppercase small mb-3">Details</h6>
               <div class="form-group">
-                <label>Code</label>
-                <input wire:model="state.code" type="text" class="form-control" placeholder="e.g. NHIS">
+                <label>Insurer Name <span class="text-danger">*</span></label>
+                <input wire:model="state.name" type="text" class="form-control @error('state.name') is-invalid @enderror" placeholder="e.g. National Health Insurance Scheme">
+                @error('state.name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+              </div>
+              <div class="form-row">
+                <div class="form-group col-6">
+                  <label>Code</label>
+                  <input wire:model="state.code" type="text" class="form-control" placeholder="e.g. NHIS">
+                </div>
+                <div class="form-group col-6">
+                  <label>Scheme Type <span class="text-danger">*</span></label>
+                  <select wire:model="state.scheme_type" class="form-control @error('state.scheme_type') is-invalid @enderror">
+                    <option value="NHIS">NHIS</option>
+                    <option value="Private">Private</option>
+                    <option value="Corporate">Corporate</option>
+                  </select>
+                  @error('state.scheme_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group col-6">
+                  <label>Contact Person</label>
+                  <input wire:model="state.contact_person" type="text" class="form-control" placeholder="Name">
+                </div>
+                <div class="form-group col-6">
+                  <label>Contact Phone</label>
+                  <input wire:model="state.contact_phone" type="text" class="form-control" placeholder="Phone number">
+                </div>
+              </div>
+              <div class="form-group mb-md-0">
+                <label>Notes</label>
+                <textarea wire:model="state.notes" class="form-control" rows="2" placeholder="Any additional notes…"></textarea>
               </div>
             </div>
-            <div class="col-md-6">
+
+            {{-- Billing --}}
+            <div class="col-md-6 border-left">
+              <h6 class="font-weight-bold text-muted text-uppercase small mb-3">Billing</h6>
               <div class="form-group">
-                <label>Scheme Type <span class="text-danger">*</span></label>
-                <select wire:model="state.scheme_type" class="form-control @error('state.scheme_type') is-invalid @enderror">
-                  <option value="NHIS">NHIS</option>
-                  <option value="Private">Private</option>
-                  <option value="Corporate">Corporate</option>
+                <div class="custom-control custom-switch">
+                  <input wire:model="state.patient_pays_difference" type="checkbox" class="custom-control-input" id="insurerPaysDifference">
+                  <label class="custom-control-label" for="insurerPaysDifference">Patient may pay the difference</label>
+                </div>
+                <small class="form-text text-muted">
+                  When a service has an insurer tariff below your price: on, the patient pays the gap;
+                  off, you bill at the insurer's tariff and absorb the gap.
+                </small>
+              </div>
+              <div class="form-group">
+                <label>When the insurer pays less than claimed</label>
+                <select wire:model="state.shortfall_action" class="form-control @error('state.shortfall_action') is-invalid @enderror">
+                  @foreach(\App\Models\Insurer::SHORTFALL_ACTIONS as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                  @endforeach
                 </select>
-                @error('state.scheme_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                @error('state.shortfall_action')<div class="invalid-feedback">{{ $message }}</div>@enderror
               </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Contact Person</label>
-                <input wire:model="state.contact_person" type="text" class="form-control" placeholder="Name">
+              <div class="form-group mb-0">
+                <div class="custom-control custom-switch">
+                  <input wire:model="state.active" type="checkbox" class="custom-control-input" id="insurerActive">
+                  <label class="custom-control-label" for="insurerActive">Active</label>
+                </div>
               </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Contact Phone</label>
-                <input wire:model="state.contact_phone" type="text" class="form-control" placeholder="Phone number">
-              </div>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Notes</label>
-            <textarea wire:model="state.notes" class="form-control" rows="2" placeholder="Any additional notes…"></textarea>
-          </div>
-          <hr>
-          <h6 class="font-weight-bold mb-2">Billing</h6>
-          <div class="form-group">
-            <div class="custom-control custom-switch">
-              <input wire:model="state.patient_pays_difference" type="checkbox" class="custom-control-input" id="insurerPaysDifference">
-              <label class="custom-control-label" for="insurerPaysDifference">Patient may pay the difference</label>
-            </div>
-            <small class="form-text text-muted">
-              When a service has an insurer tariff below your price: on, the patient pays the gap;
-              off, you bill at the insurer's tariff and absorb the gap.
-            </small>
-          </div>
-          <div class="form-group">
-            <label>When the insurer pays less than claimed</label>
-            <select wire:model="state.shortfall_action" class="form-control @error('state.shortfall_action') is-invalid @enderror">
-              @foreach(\App\Models\Insurer::SHORTFALL_ACTIONS as $value => $label)
-                <option value="{{ $value }}">{{ $label }}</option>
-              @endforeach
-            </select>
-            @error('state.shortfall_action')<div class="invalid-feedback">{{ $message }}</div>@enderror
-          </div>
-          <div class="form-group mb-0">
-            <div class="custom-control custom-switch">
-              <input wire:model="state.active" type="checkbox" class="custom-control-input" id="insurerActive">
-              <label class="custom-control-label" for="insurerActive">Active</label>
             </div>
           </div>
         </div>

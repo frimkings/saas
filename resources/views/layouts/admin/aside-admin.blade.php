@@ -214,25 +214,25 @@
           </li>
 
           @endif
-          {{-- Communications --}}
-          <li class="nav-item">
-            <a href="#" class="nav-link {{ request()->is('admin/sms-logs', 'admin/patient-recall') ? 'active' : '' }}">
+          {{-- Communications: each link only for those who can open it (App\Support\CommunicationsNavigation) --}}
+          @php $communicationLinks = \App\Support\CommunicationsNavigation::links(); @endphp
+          @if($communicationLinks)
+          <li class="nav-item {{ \App\Support\CommunicationsNavigation::active() ? 'menu-open' : '' }}">
+            <a href="#" class="nav-link {{ \App\Support\CommunicationsNavigation::active() ? 'active' : '' }}">
               <i class="nav-icon fas fa-comments"></i>
               <p>Communications <i class="right fas fa-angle-left"></i></p>
             </a>
             <ul class="nav nav-treeview">
+              @foreach($communicationLinks as [$route, $label, $icon])
               <li class="nav-item">
-                <a href="{{ route('admin.sms-logs') }}" class="nav-link {{ request()->is('admin/sms-logs') ? 'active' : '' }}">
-                  <i class="far fa-circle nav-icon text-info"></i><p>SMS Logs</p>
+                <a href="{{ route($route) }}" class="nav-link {{ request()->routeIs($route) ? 'active' : '' }}">
+                  <i class="{{ $icon }} nav-icon"></i><p>{{ $label }}</p>
                 </a>
               </li>
-              <li class="nav-item">
-                <a href="{{ route('admin.patient-recall') }}" class="nav-link {{ request()->is('admin/patient-recall') ? 'active' : '' }}">
-                  <i class="far fa-circle nav-icon text-success"></i><p>Patient Recall</p>
-                </a>
-              </li>
+              @endforeach
             </ul>
           </li>
+          @endif
 
           @if($navigationWorkspace === 'administration')
           {{-- Staff & Security --}}

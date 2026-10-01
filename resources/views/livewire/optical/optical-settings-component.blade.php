@@ -39,6 +39,11 @@
         </form>
     </div>
 
+    {{-- What the optical tills accept --}}
+    @if(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']))
+        <livewire:admin.payment-methods-component :optical="true" />
+    @endif
+
     {{-- Where the owner's emails go and what has been sent. Optical-only clinics have no clinic Settings page. --}}
     @if(auth()->user()?->hasRole('Super Admin'))
         <livewire:admin.owner-emails-component :optical="true" />

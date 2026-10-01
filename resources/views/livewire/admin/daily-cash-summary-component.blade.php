@@ -46,11 +46,8 @@
                             </thead>
                             <tbody>
                                 @forelse($payments as $payment)
-                                    @php
-                                        $pLabels = ['cash' => 'Cash', 'card' => 'Card', 'momo' => 'Mobile Money', 'code' => 'Hubtel Wallet'];
-                                    @endphp
                                     <tr>
-                                        <td class="font-weight-bold">{{ $pLabels[$payment->payment_method] ?? strtoupper($payment->payment_method) }}</td>
+                                        <td class="font-weight-bold">{{ \App\Support\PaymentMethods::label($payment->payment_method) }}</td>
                                         <td class="text-center">{{ $payment->count }}</td>
                                         <td class="text-right">{{ currency() }} {{ number_format($payment->total, 2) }}</td>
                                     </tr>

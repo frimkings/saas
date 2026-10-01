@@ -8,8 +8,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Livewire\Component;
 
+/** Communications → WhatsApp. */
 class WhatsAppSettingsComponent extends Component
 {
+    use \App\Livewire\Concerns\RequiresSuperAdmin;
+
     public bool   $whatsappEnabled       = false;
     public string $phoneNumberId         = '';
     public string $accessToken           = '';   // blank = keep existing

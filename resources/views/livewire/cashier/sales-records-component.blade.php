@@ -155,6 +155,11 @@
                 <div class="modal-footer bg-light py-2 border-0">
                     <button type="button" class="btn btn-sm btn-secondary"
                             onclick="$('#viewSaleModal').modal('hide')">Close</button>
+                    @if($businessLine === 'clinic' && \App\Services\Visits\PatientVisits::enabled())
+                        <button onclick="printVisitReceipt()" class="btn btn-sm btn-success px-3 shadow-none">
+                            <i class="fas fa-file-invoice mr-1"></i> Visit Receipt
+                        </button>
+                    @endif
                     <button onclick="printCurrentReceipt()" class="btn btn-sm btn-primary px-4 shadow-none" id="printBtn">
                         <i class="fas fa-print mr-1"></i> Print Receipt
                     </button>
@@ -309,6 +314,17 @@
             $('#viewSaleModal').modal('show');
             
             console.log('✅ Modal opened');
+        }
+
+        /** The whole visit this sale belongs to, on one receipt. */
+        function printVisitReceipt() {
+            if (!currentSaleId) {
+                alert('No sale selected');
+                return;
+            }
+            if (!window.open(`{{ url('/cashier/visit-receipt/sale') }}/${currentSaleId}`, '_blank', 'width=302,height=600')) {
+                alert('Please allow popups for this site to print receipts.');
+            }
         }
 
         function printCurrentReceipt() {

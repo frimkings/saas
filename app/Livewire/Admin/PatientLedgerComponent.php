@@ -97,7 +97,7 @@ class PatientLedgerComponent extends Component
             $entries->push([
                 'date'        => $pt->created_at,
                 'type'        => 'payment',
-                'label'       => 'Payment (' . ucfirst(str_replace('_', ' ', $pt->payment_method)) . ')',
+                'label'       => 'Payment (' . \App\Support\PaymentMethods::label($pt->payment_method) . ')',
                 'reference'   => $pt->sale_id,
                 'debit'       => 0.0,
                 'credit'      => (float) $pt->amount,

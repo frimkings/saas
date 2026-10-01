@@ -3,6 +3,7 @@
 namespace App\Livewire\Optical;
 
 use App\Models\LensOrder;
+use App\Support\PaymentMethods;
 use App\Models\OpticalCategory;
 use App\Models\Refractions;
 use App\Models\Product;
@@ -108,6 +109,7 @@ class OpticalOrderCreateComponent extends Component
 
     public function mount()
     {
+        $this->payment_method = PaymentMethods::first(PaymentMethods::OPTICAL);
         OpticalService::ensureTemplates();
         $this->order_source = \App\Support\OpticalMode::opticalOnly() ? 'walk_in' : 'in_clinic';
         $this->pickUpDate = now()->addDays(5)->format('Y-m-d');
@@ -924,7 +926,7 @@ class OpticalOrderCreateComponent extends Component
             'paid_amount' => 'required|numeric|min:0',
             'pickUpDate' => 'required|date',
             'reference' => $this->order_source === 'partner' && ! trim((string) $this->customer_name) ? 'required|string|max:255' : 'nullable|string|max:255',
-            'payment_method' => ['required', Rule::in(['cash', 'momo', 'card', 'bank_transfer'])],
+            'payment_method' => ['required', Rule::in(PaymentMethods::keys(PaymentMethods::OPTICAL))],
         ]);
 
         $data = [

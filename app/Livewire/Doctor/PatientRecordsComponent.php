@@ -54,6 +54,8 @@ class PatientRecordsComponent extends Component
     // Consultation state
     private const BLANK_STATE = ['odq' => [], 'odq_details' => [], 'examination_assessments' => []];
     public $state = self::BLANK_STATE;
+    /** Next routine eye exam due (Y-m-d), saved on the patient; drives the recall SMS. */
+    public $nextExamDueOn = null;
     public $consultation;
     public $consultationID;
     public $isEditMode = false;
@@ -183,8 +185,40 @@ public $isEditingAppointment = false;
         $this->appointmentRecallCategory = 'Routine Review';
         $this->appointmentReminderChannel = $this->whatsAppReminderAvailable ? 'whatsapp' : ($this->smsReminderAvailable ? 'sms' : 'none');
 
+        $this->nextExamDueOn = $this->patient->next_exam_due_on?->toDateString();
+
         // Initialize appointment booking
         $this->initializeAppointmentBooking();
+    }
+
+    /**
+     * The doctor's "next routine eye exam due" date. When the clinic has the recall text
+     * switched on, the patient is texted ahead of it (FollowUpSms) unless already booked.
+     */
+    public function saveNextExamDue(): void
+    {
+        $this->validate(['nextExamDueOn' => ['nullable', 'date', 'after:today']],
+            ['nextExamDueOn.after' => 'Choose a date after today.', 'nextExamDueOn.date' => 'Choose a valid date.']);
+        app(\App\Services\ClinicAccessService::class)->assertWritable();
+
+        $due = $this->nextExamDueOn ?: null;
+        $this->patient->forceFill(['next_exam_due_on' => $due])->save();
+        $this->dispatch('notify', ...['type' => 'success', 'message' => $due
+            ? 'Next eye exam due '.\Illuminate\Support\Carbon::parse($due)->format('d M Y').'.'
+            : 'Next eye exam date cleared.']);
+    }
+
+    public function setNextExamIn(int $months): void
+    {
+        abort_unless(in_array($months, [3, 6, 12, 24], true), 422);
+        $this->nextExamDueOn = today()->addMonthsNoOverflow($months)->toDateString();
+        $this->saveNextExamDue();
+    }
+
+    public function clearNextExamDue(): void
+    {
+        $this->nextExamDueOn = null;
+        $this->saveNextExamDue();
     }
     
     public function dehydrate(): void

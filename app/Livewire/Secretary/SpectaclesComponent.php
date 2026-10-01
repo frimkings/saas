@@ -235,7 +235,9 @@ class SpectaclesComponent extends Component
         $this->recordOrderAudit('spectacles.field_edited', $order, [$field => $old], [$field => $order->{$field}]);
         $this->editingOrderId = null;
         $this->editField      = [];
-        $this->dispatch('notify', ...['type' => 'success', 'message' => ucfirst($field) . ' updated.']);
+        // A new promised date is texted to the patient when the clinic has "Order Delay" switched on.
+        $texted = $field === 'pickUpDate' && app(\App\Services\Messaging\FollowUpSms::class)->orderDateChanged($order, $old);
+        $this->dispatch('notify', ...['type' => 'success', 'message' => ucfirst($field) . ' updated.' . ($texted ? ' The patient was texted the new date.' : '')]);
     }
 
     public function cancelEdit()

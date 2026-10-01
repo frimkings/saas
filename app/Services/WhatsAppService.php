@@ -143,7 +143,7 @@ class WhatsAppService
         }
 
         if (empty($s->whatsapp_phone_number_id) || empty($s->whatsapp_access_token)) {
-            return 'WhatsApp not configured. Add credentials in Settings → WhatsApp.';
+            return 'WhatsApp not configured. Add credentials in Communications → WhatsApp.';
         }
 
         return null;
@@ -162,7 +162,7 @@ class WhatsAppService
             $accessToken = Crypt::decryptString($s->whatsapp_access_token);
         } catch (\Exception $e) {
             Log::error('WhatsAppService: failed to decrypt access token.', ['error' => $e->getMessage()]);
-            return ['success' => false, 'error' => 'WhatsApp credentials are corrupted. Please re-save them in Settings → WhatsApp.'];
+            return ['success' => false, 'error' => 'WhatsApp credentials are corrupted. Please re-save them in Communications → WhatsApp.'];
         }
 
         try {

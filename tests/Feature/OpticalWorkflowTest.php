@@ -2635,7 +2635,7 @@ class OpticalWorkflowTest extends TestCase
             ->call('addToCart', 'o:'.$spray->id)->call('addToCart', 'o:'.$spray->id)
             ->set('customerName', 'Ama Mensah')->set('customerPhone', '024 123 4567')
             ->set('discount', '15')->call('completeSale')->assertHasErrors('discount');
-        $pos->set('discount', '10')->set('paymentMethod', 'Bank transfer')->call('completeSale')->assertHasNoErrors();
+        $pos->set('discount', '10')->set('paymentMethod', 'bank_transfer')->call('completeSale')->assertHasNoErrors();
 
         $sale = \App\Models\Sales::where('transaction_id', 'like', 'OPOS-%')->sole();
         $this->assertSame('Ama Mensah', $sale->customer_name);

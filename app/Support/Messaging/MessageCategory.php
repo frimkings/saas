@@ -8,7 +8,7 @@ class MessageCategory
     public const MARKETING = 'marketing';
 
     /** Template keys patients receive only while they accept marketing messages. */
-    private const MARKETING_KEYS = ['birthday', 'birthday_wish', 'recall', 'patient_recall', 'spectacle_renewal', 'custom_broadcast', 'campaign'];
+    private const MARKETING_KEYS = ['birthday', 'birthday_wish', 'recall', 'patient_recall', 'spectacle_renewal', 'custom_broadcast', 'campaign', 'feedback_request'];
 
     public static function for(?string $templateKey): string
     {

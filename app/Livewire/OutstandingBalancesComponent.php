@@ -6,6 +6,8 @@ use App\Models\PaymentTransaction;
 use App\Models\AuditTrail;
 use App\Models\Cart;
 use App\Models\Sales;
+use App\Services\Visits\PatientVisits;
+use App\Support\PaymentMethods;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -33,10 +35,13 @@ class OutstandingBalancesComponent extends Component
     public $showHistoryModal = false;
     public $historyForSaleId = null;
 
-    protected $rules = [
-        'collectAmount' => 'required|numeric|min:0.01',
-        'paymentMethod' => 'required|in:cash,momo,card,cheque',
-    ];
+    protected function rules(): array
+    {
+        return [
+            'collectAmount' => 'required|numeric|min:0.01',
+            'paymentMethod' => ['required', \Illuminate\Validation\Rule::in(PaymentMethods::keys(PaymentMethods::CLINIC))],
+        ];
+    }
 
     public function mount()
     {
@@ -107,7 +112,7 @@ class OutstandingBalancesComponent extends Component
 
         $this->selectedSaleId = $sale->id;
         $this->collectAmount = number_format($balance, 2, '.', '');
-        $this->paymentMethod = 'cash';
+        $this->paymentMethod = PaymentMethods::first(PaymentMethods::CLINIC);
         $this->paymentNotes = '';
         $this->rotatePaymentIdempotencyKey();
         $this->resetErrorBag();
@@ -245,8 +250,11 @@ class OutstandingBalancesComponent extends Component
         ]);
 
         if ($result['fully_paid']) {
+            // With one receipt per visit, settling the balance prints the visit's final receipt.
             $this->dispatch('print-released-receipt', ...[
-                'url' => route('cashier.receipt.show', $result['sale_id']),
+                'url' => PatientVisits::enabled()
+                    ? route('cashier.visit-receipt.sale', $result['sale_id'])
+                    : route('cashier.receipt.show', $result['sale_id']),
             ]);
         }
     }

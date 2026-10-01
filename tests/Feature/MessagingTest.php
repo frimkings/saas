@@ -29,7 +29,8 @@ class MessagingTest extends TestCase
         $this->app->instance(SmsDriver::class, $this->driver);
     }
 
-    private function tenant(int $credits = 100, string $name = 'Hosted Clinic'): array
+    /** A hosted clinic with SMS credits. $messagesOn: it has switched every message on (they all start off). */
+    private function tenant(int $credits = 100, string $name = 'Hosted Clinic', bool $messagesOn = true): array
     {
         config(['tenancy.enabled' => true]);
         $user = User::factory()->create();
@@ -46,6 +47,11 @@ class MessagingTest extends TestCase
         Setting::getSettings()->update(['sms_enabled' => true]);
         if ($credits > 0) {
             app(SmsCreditService::class)->add($clinic->id, $credits, 'grant', ['note' => 'Test credits']);
+        }
+
+        if ($messagesOn) {
+            SmsTemplate::ensureDefaults();
+            SmsTemplate::query()->update(['is_enabled' => true]);
         }
 
         return compact('user', 'clinic', 'branch');
@@ -325,12 +331,14 @@ class MessagingTest extends TestCase
 
     public function test_templates_fall_back_to_defaults_and_fill_branch_placeholders(): void
     {
-        $tenant = $this->tenant(name: 'Clear Sight');
+        $tenant = $this->tenant(name: 'Clear Sight', messagesOn: false);
         $tenant['branch']->update(['name' => 'Kumasi', 'contact' => '0320000000']);
 
-        // New SaaS clinics have no template rows yet.
+        // New SaaS clinics have no template rows yet: every message is off until switched on,
+        // but the built-in wording is still there for WhatsApp text staff send themselves.
         $this->assertSame(0, SmsTemplate::count());
-        $this->assertStringContainsString('Hello Ama, your appointment at Clear Sight', SmsTemplate::render('appointment_booking', ['[NAME]' => 'Ama']));
+        $this->assertSame('', SmsTemplate::render('appointment_booking', ['[NAME]' => 'Ama']));
+        $this->assertStringContainsString('Hello Ama, your appointment at Clear Sight', SmsTemplate::render('appointment_booking', ['[NAME]' => 'Ama'], evenIfOff: true));
 
         SmsTemplate::create(['key' => 'appointment_booking', 'label' => 'Booking', 'placeholders' => [], 'message' => '[NAME] booked at [BRANCH] ([BRANCH_PHONE])']);
         $this->assertSame('Ama booked at Kumasi (0320000000)', SmsTemplate::render('appointment_booking', ['[NAME]' => 'Ama']));
@@ -340,6 +348,7 @@ class MessagingTest extends TestCase
 
         SmsTemplate::ensureDefaults();
         $this->assertTrue(SmsTemplate::where('key', 'online_booking_received')->exists());
+        $this->assertFalse((bool) SmsTemplate::where('key', 'online_booking_received')->value('is_enabled'), 'Added switched off.');
         $this->assertSame('[NAME] booked at [BRANCH] ([BRANCH_PHONE])', SmsTemplate::where('key', 'appointment_booking')->value('message'));
     }
 
@@ -478,7 +487,7 @@ class MessagingTest extends TestCase
 
     public function test_appointments_page_renders_template_based_whatsapp_links(): void
     {
-        $tenant = $this->tenant();
+        $tenant = $this->tenant(messagesOn: false);
         foreach (['Secretary', 'Doctor'] as $role) \Spatie\Permission\Models\Role::findOrCreate($role, 'web');
         $tenant['user']->assignRole('Secretary');
         SmsTemplate::create(['key' => 'appointment_reminder', 'label' => 'Reminder', 'placeholders' => [], 'message' => 'Hi [NAME], see you [DATE] at [BRANCH]']);

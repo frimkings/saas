@@ -29,6 +29,8 @@ class Patient extends Model
         'email',
         'civil_status',
         'recall_sms_sent_at',
+        'next_exam_due_on',
+        'clinical_recall_sent_for',
         'sms_opt_out',
         'whatsapp_opt_out',
         'marketing_opt_out',
@@ -84,6 +86,8 @@ class Patient extends Model
 
     protected $casts = [
         'recall_sms_sent_at' => 'datetime',
+        'next_exam_due_on' => 'date',
+        'clinical_recall_sent_for' => 'date',
         'sms_opt_out'        => 'boolean',
         'whatsapp_opt_out'   => 'boolean',
         'marketing_opt_out'  => 'boolean',

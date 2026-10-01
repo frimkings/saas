@@ -79,38 +79,6 @@
                         @endif
 
                         <hr class="my-4">
-                        <h5 class="font-weight-bold">Regional &amp; Clinical Preferences</h5>
-                        {{-- Currency --}}
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">CURRENCY</label>
-                            <select wire:model.live="currency_symbol" class="form-control bg-light border-0 @error('currency_symbol') is-invalid @enderror">
-                                @foreach(\App\Models\Setting::CURRENCIES as $symbol => $label)
-                                    <option value="{{ $symbol }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('currency_symbol') <span class="text-danger small">{{ $message }}</span> @enderror
-                            <small class="form-text text-muted">Applies to all prices, receipts, and financial reports.</small>
-                        </div>
-
-                        {{-- VA Notation --}}
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">VISUAL ACUITY NOTATION</label>
-                            <div class="pt-1">
-                                <div class="custom-control custom-radio custom-control-inline">
-                                    <input type="radio" wire:model.live="va_notation" value="6m"
-                                        id="va6m" class="custom-control-input">
-                                    <label for="va6m" class="custom-control-label">6 metre &nbsp;<span class="text-muted">(6/6, 6/12…)</span></label>
-                                </div>
-                                <div class="custom-control custom-radio custom-control-inline">
-                                    <input type="radio" wire:model.live="va_notation" value="20ft"
-                                        id="va20ft" class="custom-control-input">
-                                    <label for="va20ft" class="custom-control-label">20 foot &nbsp;<span class="text-muted">(20/20, 20/40…)</span></label>
-                                </div>
-                            </div>
-                            <small class="form-text text-muted">Affects all Visual Acuity dropdowns. Previously recorded values are not changed.</small>
-                        </div>
-
-                        <hr class="my-4">
 
                         <button type="submit" class="btn btn-primary btn-block py-2 font-weight-bold shadow-sm mt-4">
                             <i class="fas fa-save mr-2"></i> SAVE SETTINGS
@@ -122,7 +90,7 @@
 
         {{-- Live Preview --}}
         <div class="col-md-6">
-            <div class="card border-0 shadow-sm rounded-lg sticky-top" style="top: 20px;">
+            <div class="card border-0 shadow-sm rounded-lg mb-4">
                 <div class="card-header bg-info text-white py-3 border-0">
                     <h5 class="mb-0 font-weight-bold"><i class="fas fa-eye mr-2"></i> Live Preview</h5>
                 </div>
@@ -134,7 +102,13 @@
                         @if ($newLogo)
                             <img src="{{ $newLogo->temporaryUrl() }}" class="img-fluid rounded shadow-sm" style="max-height: 120px; max-width: 100%; object-fit: contain;" alt="New Logo Preview">
                         @elseif ($currentLogo)
-                            <img src="{{ asset('storage/' . $currentLogo) }}" class="img-fluid rounded shadow-sm" style="max-height: 120px; max-width: 100%; object-fit: contain;" alt="Current Clinic Logo">
+                            <img src="{{ asset('storage/' . $currentLogo) }}" class="img-fluid rounded shadow-sm" style="max-height: 120px; max-width: 100%; object-fit: contain;" alt="Current Clinic Logo"
+                                 onerror="this.style.display='none'; this.nextElementSibling.classList.remove('d-none'); this.nextElementSibling.classList.add('d-flex');">
+                            {{-- Shown if the saved logo's file is gone (e.g. a copied database without its uploads). --}}
+                            <div class="d-none text-muted flex-column align-items-center justify-content-center p-4 border rounded border-warning" style="min-height: 120px;">
+                                <i class="fas fa-image fa-2x mb-2 text-warning"></i>
+                                <span class="small font-weight-bold">Logo file missing — please upload it again</span>
+                            </div>
                         @else
                             <div class="text-muted d-flex flex-column align-items-center justify-content-center p-4 border rounded" style="min-height: 120px;">
                                 <i class="fas fa-clinic-medical fa-3x mb-2 text-primary"></i>
@@ -156,6 +130,43 @@
                     @endif
 
                     <small class="text-secondary mt-3 d-block">Save changes to update clinic details on receipts, prescriptions, letters, and reports.</small>
+                </div>
+            </div>
+
+            {{-- Regional & clinical preferences (saved with SAVE SETTINGS) --}}
+            <div class="card border-0 shadow-sm rounded-lg">
+                <div class="card-body p-4">
+                    <h5 class="font-weight-bold mb-3"><i class="fas fa-globe-africa mr-2 text-primary"></i>Regional &amp; Clinical Preferences</h5>
+    {{-- Currency --}}
+    <div class="form-group">
+        <label class="small font-weight-bold text-muted">CURRENCY</label>
+        <select wire:model.live="currency_symbol" class="form-control bg-light border-0 @error('currency_symbol') is-invalid @enderror">
+            @foreach(\App\Models\Setting::CURRENCIES as $symbol => $label)
+                <option value="{{ $symbol }}">{{ $label }}</option>
+            @endforeach
+        </select>
+        @error('currency_symbol') <span class="text-danger small">{{ $message }}</span> @enderror
+        <small class="form-text text-muted">Applies to all prices, receipts, and financial reports.</small>
+    </div>
+
+    {{-- VA Notation --}}
+    <div class="form-group">
+        <label class="small font-weight-bold text-muted">VISUAL ACUITY NOTATION</label>
+        <div class="pt-1">
+            <div class="custom-control custom-radio custom-control-inline">
+                <input type="radio" wire:model.live="va_notation" value="6m"
+                    id="va6m" class="custom-control-input">
+                <label for="va6m" class="custom-control-label">6 metre &nbsp;<span class="text-muted">(6/6, 6/12…)</span></label>
+            </div>
+            <div class="custom-control custom-radio custom-control-inline">
+                <input type="radio" wire:model.live="va_notation" value="20ft"
+                    id="va20ft" class="custom-control-input">
+                <label for="va20ft" class="custom-control-label">20 foot &nbsp;<span class="text-muted">(20/20, 20/40…)</span></label>
+            </div>
+        </div>
+        <small class="form-text text-muted">Affects all Visual Acuity dropdowns. Previously recorded values are not changed.</small>
+    </div>
+                    <small class="text-muted d-block">Saved with <strong>Save Settings</strong>.</small>
                 </div>
             </div>
         </div>

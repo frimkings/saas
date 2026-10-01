@@ -355,6 +355,20 @@ window.printReceiptFromDom = function(event) {
                 @endif
             </div>
 
+            {{-- One receipt per visit: print it when the patient leaves (or any time) --}}
+            @php
+                $visitUrl = $visitReceiptUrl ?: ($patientVisit ? route('cashier.visit-receipt.show', $patientVisit) : null);
+                $visitNo  = $visitReceiptNumber ?: $patientVisit?->visit_number;
+            @endphp
+            @if($visitUrl)
+                <div class="pos-co-section">
+                    <button type="button" class="pos-btn pos-btn--add w-100"
+                            onclick="window.open('{{ $visitUrl }}','_blank','width=302,height=600')">
+                        <i class="fas fa-file-invoice me-1"></i> Print visit receipt ({{ $visitNo }})
+                    </button>
+                </div>
+            @endif
+
             {{-- Cart --}}
             <div class="pos-co-section pos-cart-section">
                 <div class="pos-co-label">
@@ -623,7 +637,7 @@ window.printReceiptFromDom = function(event) {
                     <div class="pos-co-label"><i class="fas fa-credit-card"></i> Payment</div>
 
                     @php
-                        $methods = ['cash' => 'Cash', 'card' => 'Card', 'momo' => 'MOMO', 'code' => 'CODE'];
+                        $methods = \App\Support\PaymentMethods::active(\App\Support\PaymentMethods::CLINIC);
                     @endphp
 
                     {{-- Method selector + amount --}}
@@ -656,7 +670,7 @@ window.printReceiptFromDom = function(event) {
                         <div class="pos-pay-list">
                             @foreach($payments as $i => $payment)
                                 <div class="pos-pay-entry">
-                                    <span class="pos-pay-entry__method">{{ strtoupper($payment['method']) }}</span>
+                                    <span class="pos-pay-entry__method">{{ strtoupper(\App\Support\PaymentMethods::label($payment['method'], \App\Support\PaymentMethods::CLINIC)) }}</span>
                                     <span class="pos-pay-entry__amount">{{ currency() }} {{ number_format($payment['amount'], 2) }}</span>
                                     <button class="pos-icon-btn pos-icon-btn--ghost"
                                             wire:click="removePayment({{ $i }})">
@@ -2348,6 +2362,14 @@ window.printReceiptFromDom = function(event) {
 .pos-shell--light .pos-pay-method:hover {
     background: #e2e8f0;
     color: #0f172a;
+}
+
+/* The chosen method stays white-on-blue in the light theme too. */
+.pos-shell--light .pos-pay-method--active,
+.pos-shell--light .pos-pay-method--active:hover {
+    background: #1d4ed8;
+    border-color: #2563eb;
+    color: #fff;
 }
 
 .pos-shell--light .pos-qty input {
