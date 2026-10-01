@@ -146,8 +146,8 @@ class DiscountApprovalsComponent extends Component
                           ->orWhereHas('patient', fn ($p) => $p->where('name', 'like', '%' . $this->search . '%'));
                 });
             })
-            ->when($this->dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $this->dateFrom))
-            ->when($this->dateTo,   fn ($q) => $q->whereDate('created_at', '<=', $this->dateTo))
+            ->when($this->dateFrom, fn ($q) => $q->whereDateIndexed('created_at', '>=', $this->dateFrom))
+            ->when($this->dateTo,   fn ($q) => $q->whereDateIndexed('created_at', '<=', $this->dateTo))
             ->when($this->filterType, fn ($q) => $q->where('discount_type', $this->filterType))
             ->when($this->filterApprover, fn ($q) => $q->where('discount_approved_by', $this->filterApprover));
     }

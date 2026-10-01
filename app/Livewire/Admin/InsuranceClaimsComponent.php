@@ -430,8 +430,8 @@ class InsuranceClaimsComponent extends Component
             ))
             ->when($this->insurerFilter, fn ($q) => $q->where('insurer_id', $this->insurerFilter))
             ->when($this->preAuthFilter, fn ($q) => $q->where('pre_auth_status', $this->preAuthFilter))
-            ->when($this->fromDate, fn ($q) => $q->whereDate('created_at', '>=', $this->fromDate))
-            ->when($this->toDate,   fn ($q) => $q->whereDate('created_at', '<=', $this->toDate))
+            ->when($this->fromDate, fn ($q) => $q->whereDateIndexed('created_at', '>=', $this->fromDate))
+            ->when($this->toDate,   fn ($q) => $q->whereDateIndexed('created_at', '<=', $this->toDate))
             ->latest();
     }
 

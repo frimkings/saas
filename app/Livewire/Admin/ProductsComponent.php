@@ -654,13 +654,13 @@ class ProductsComponent extends Component
                 $today = Carbon::today();
                 $fourMonthsFromNow = Carbon::today()->addMonths(4);
                 // Products that expire from today up to 4 months from now
-                $query->stocked()->whereDate('expiry_date', '>=', $today)
-                      ->whereDate('expiry_date', '<=', $fourMonthsFromNow);
+                $query->stocked()->whereDateIndexed('expiry_date', '>=', $today)
+                      ->whereDateIndexed('expiry_date', '<=', $fourMonthsFromNow);
                 break;
 
             case 'expired':
                 // Products that expired before today
-                $query->stocked()->whereDate('expiry_date', '<', Carbon::today());
+                $query->stocked()->whereDateIndexed('expiry_date', '<', Carbon::today());
                 break;
         }
 

@@ -808,8 +808,8 @@ class SpectaclesComponent extends Component
         if ($this->fromDate || $this->toDate) {
             $query->where(function ($q) {
                 $q->whereHas('lensOrder', function ($l) {
-                    if ($this->fromDate) $l->whereDate('created_at', '>=', $this->fromDate);
-                    if ($this->toDate)   $l->whereDate('created_at', '<=', $this->toDate);
+                    if ($this->fromDate) $l->whereDateIndexed('created_at', '>=', $this->fromDate);
+                    if ($this->toDate)   $l->whereDateIndexed('created_at', '<=', $this->toDate);
                 })
                 ->orDoesntHave('lensOrder');
             });
@@ -829,14 +829,14 @@ class SpectaclesComponent extends Component
     private function applyQuickFilter($query)
     {
         return match ($this->quickFilter) {
-            'today'          => $query->whereHas('lensOrder', fn($q) => $q->whereDate('created_at', today())),
+            'today'          => $query->whereHas('lensOrder', fn($q) => $q->whereDateIndexed('created_at', today())),
             'week'           => $query->whereHas('lensOrder', fn($q) => $q->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])),
-            'overdue'        => $query->whereHas('lensOrder', fn($q) => $q->where('status', 'Ready')->whereDate('updated_at', '<=', now()->subDays(7))),
+            'overdue'        => $query->whereHas('lensOrder', fn($q) => $q->where('status', 'Ready')->whereDateIndexed('updated_at', '<=', now()->subDays(7))),
             'ready'          => $query->whereHas('lensOrder', fn($q) => $q->where('status', 'Ready')),
             'renewal_due'    => $query->whereHas('lensOrder', fn($q) =>
                                     $q->where('status', 'Collected')
                                       ->whereNotNull('renewal_date')
-                                      ->whereDate('renewal_date', '<=', now()->addDays(30))
+                                      ->whereDateIndexed('renewal_date', '<=', now()->addDays(30))
                                       ->whereNull('renewal_reminder_sent_at')
                                  ),
             default          => $query,
@@ -949,7 +949,7 @@ class SpectaclesComponent extends Component
             'overdue'     => LensOrder::where('status', 'Ready')->where('updated_at', '<=', now()->subDays(7))->count(),
             'renewal_due' => LensOrder::where('status', 'Collected')
                                 ->whereNotNull('renewal_date')
-                                ->whereDate('renewal_date', '<=', now()->addDays(30))
+                                ->whereDateIndexed('renewal_date', '<=', now()->addDays(30))
                                 ->whereNull('renewal_reminder_sent_at')
                                 ->count(),
         ];

@@ -59,11 +59,11 @@ class ClinicalTaskCenterComponent extends Component
         // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
         $lowStockQuery = Product::with('category')->lowStock();
         $outOfStockQuery = Product::with('category')->outOfStock();
-        $expiredQuery = Product::with('category')->stocked()->whereNotNull('expiry_date')->whereDate('expiry_date', '<', $today);
+        $expiredQuery = Product::with('category')->stocked()->whereNotNull('expiry_date')->whereDateIndexed('expiry_date', '<', $today);
         $expiringQuery = Product::with('category')->stocked()
             ->whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '>=', $today)
-            ->whereDate('expiry_date', '<=', $today->copy()->addDays(30));
+            ->whereDateIndexed('expiry_date', '>=', $today)
+            ->whereDateIndexed('expiry_date', '<=', $today->copy()->addDays(30));
 
         $reportDeliveryQuery = ReportDelivery::whereIn('status', [
             ReportDelivery::STATUS_PENDING,

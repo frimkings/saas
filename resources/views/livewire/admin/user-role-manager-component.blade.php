@@ -352,7 +352,7 @@
                                 Full Name <span class="text-danger">*</span>
                             </label>
                             <input type="text" 
-                                wire:model.live="name"
+                                wire:model.live.debounce.400ms="name"
                                 class="form-control @error('name') is-invalid @enderror"
                                 placeholder="Enter full name">
                             @error('name') 
@@ -366,7 +366,7 @@
                                 Email Address <span class="text-danger">*</span>
                             </label>
                             <input type="email" 
-                                wire:model.live="email"
+                                wire:model.live.debounce.400ms="email"
                                 class="form-control @error('email') is-invalid @enderror"
                                 placeholder="email@example.com">
                             @error('email') 
@@ -382,7 +382,7 @@
                             <div class="input-group">
                                 <input type="password"
                                     id="staff-password"
-                                    wire:model.live="password"
+                                    wire:model.live.debounce.400ms="password"
                                     class="form-control @error('password') is-invalid @enderror"
                                     placeholder="{{ $isEdit ? 'Leave blank to keep current password' : 'Enter secure password' }}">
                                 <div class="input-group-append">
@@ -411,7 +411,7 @@
                             <div class="input-group">
                                 <input type="password"
                                     id="staff-password-confirmation"
-                                    wire:model.live="password_confirmation"
+                                    wire:model.live.debounce.400ms="password_confirmation"
                                     class="form-control @error('password_confirmation') is-invalid @enderror"
                                     placeholder="{{ $isEdit ? 'Repeat new password when changing it' : 'Repeat secure password' }}">
                                 <div class="input-group-append">
@@ -463,7 +463,7 @@
 
                             @if($roleAssignmentMode === 'shared')
                             <input type="text"
-                                wire:model.live="roleSearch"
+                                wire:model.live.debounce.300ms="roleSearch"
                                 placeholder="Search roles..."
                                 class="form-control form-control-sm mb-2">
 
@@ -689,7 +689,7 @@
                             <div class="input-group">
                                 <input type="password"
                                     id="reset-password"
-                                    wire:model.live="newPassword"
+                                    wire:model.live.debounce.400ms="newPassword"
                                     class="form-control @error('newPassword') is-invalid @enderror"
                                     placeholder="Min. 6 characters">
                                 <div class="input-group-append">
@@ -713,7 +713,7 @@
                             <div class="input-group">
                                 <input type="password"
                                     id="reset-password-confirmation"
-                                    wire:model.live="newPasswordConfirmation"
+                                    wire:model.live.debounce.400ms="newPasswordConfirmation"
                                     class="form-control @error('newPasswordConfirmation') is-invalid @enderror"
                                     placeholder="Repeat new password">
                                 <div class="input-group-append">

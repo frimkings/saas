@@ -20,7 +20,7 @@
                 <!-- Quantity -->
                 <div class="col-md-2">
                     <label class="small font-weight-bold">Quantity <span class="text-danger">*</span></label>
-                    <input type="number" wire:model.live="productQuantity" min="1" class="form-control form-control-sm">
+                    <input type="number" wire:model.live.debounce.400ms="productQuantity" min="1" class="form-control form-control-sm">
                     @error('productQuantity') <small class="text-danger">{{ $message }}</small> @enderror
                 </div>
 

@@ -124,7 +124,7 @@
                             <input type="text"
                                    class="form-control border-left-0"
                                    placeholder="Search diagnoses…"
-                                   wire:model.live="search"
+                                   wire:model.live.debounce.300ms="search"
                                    style="width:220px;">
                             @if($search)
                                 <div class="input-group-append">

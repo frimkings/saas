@@ -226,7 +226,7 @@ class ClinicAddonService
         $from = $subscription->current_period_ends_at ?? now();
 
         return PlatformInvoice::where('clinic_subscription_id', $subscription->id)->where('source', 'renewal')
-            ->whereNotIn('status', ['void', 'credited'])->whereDate('period_start', '>=', $from->copy()->subDay()->toDateString())
+            ->whereNotIn('status', ['void', 'credited'])->whereDateIndexed('period_start', '>=', $from->copy()->subDay()->toDateString())
             ->orderBy('period_start')->first();
     }
 

@@ -16,8 +16,8 @@ class PeriodLockService
     public function find(string $line, CarbonInterface $from, CarbonInterface $to): ?IncomeStatementPeriodLock
     {
         return IncomeStatementPeriodLock::with('lockedBy')->businessLine($line)
-            ->whereDate('from_date', $from->toDateString())
-            ->whereDate('to_date', $to->toDateString())
+            ->whereDateIndexed('from_date', $from->toDateString())
+            ->whereDateIndexed('to_date', $to->toDateString())
             ->first();
     }
 
@@ -27,8 +27,8 @@ class PeriodLockService
         $day = is_string($date) ? $date : $date->toDateString();
 
         return IncomeStatementPeriodLock::businessLine($line)
-            ->whereDate('from_date', '<=', $day)
-            ->whereDate('to_date', '>=', $day)
+            ->whereDateIndexed('from_date', '<=', $day)
+            ->whereDateIndexed('to_date', '>=', $day)
             ->orderBy('from_date')
             ->first();
     }

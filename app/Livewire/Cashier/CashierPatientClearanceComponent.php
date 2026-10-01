@@ -544,8 +544,8 @@ class CashierPatientClearanceComponent extends Component
         })->orderBy('name')->get();
 
         $clearances = CashierPatientClearance::with(['patient.insurer', 'patient.latestInsuranceClaim', 'user', 'service', 'sale', 'pendingRevokeLog'])
-            ->whereDate('clearance_date', '>=', $from)
-            ->whereDate('clearance_date', '<=', $to)
+            ->whereDateIndexed('clearance_date', '>=', $from)
+            ->whereDateIndexed('clearance_date', '<=', $to)
             ->when($this->statusFilter, fn($q) => $q->where('payment_status', $this->statusFilter))
             ->when($this->genderFilter, fn($q) => $q->whereHas('patient', fn($p) => $p->where('gender', $this->genderFilter)))
             ->when($this->clearedSearch, fn($q) => $q->whereHas('patient', fn($p) =>
@@ -557,7 +557,7 @@ class CashierPatientClearanceComponent extends Component
 
         $reconciliation = PaymentTransaction::query()
             ->selectRaw('payment_method, COUNT(*) AS transaction_count, SUM(amount) AS total_amount')
-            ->whereDate('created_at', $today)
+            ->whereDateIndexed('created_at', $today)
             ->whereHas('sale', fn ($query) => $query->where('is_refunded', false))
             ->groupBy('payment_method')
             ->orderBy('payment_method')

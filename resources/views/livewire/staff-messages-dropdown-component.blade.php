@@ -50,25 +50,19 @@
 @push('scripts')
 <script>
 (function () {
-    function refreshMsgBadge() {
-        fetch('/messages/unread-count', {
-            credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            var badge = document.getElementById('msg-badge');
-            if (!badge) return;
-            if (data.count > 0) {
-                badge.textContent = data.count;
-                badge.style.display = '';
-            } else {
-                badge.style.display = 'none';
-            }
-        })
-        .catch(function () {});
-    }
-    setInterval(refreshMsgBadge, 15000);
+    if (!window.appPulse) return;
+
+    // The badge count arrives with the page's shared poll (layouts/scripts).
+    window.appPulse.on('messages', function (count) {
+        var badge = document.getElementById('msg-badge');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+    });
 })();
 </script>
 @endpush

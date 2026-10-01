@@ -160,12 +160,12 @@ class PlatformDashboardComponent extends Component
     {
         return PlatformInvoice::with('clinic')
             ->when($this->invoiceSearch,fn($q)=>$q->where(fn($x)=>$x->where('number','like','%'.$this->invoiceSearch.'%')->orWhereHas('clinic',fn($c)=>$c->where('name','like','%'.$this->invoiceSearch.'%'))))
-            ->when($this->invoiceStatus==='overdue',fn($q)=>$q->whereIn('status',['unpaid','partial'])->whereDate('due_date','<',today()))
+            ->when($this->invoiceStatus==='overdue',fn($q)=>$q->whereIn('status',['unpaid','partial'])->whereDateIndexed('due_date','<',today()))
             ->when($this->invoiceStatus&&$this->invoiceStatus!=='overdue',fn($q)=>$q->where('status',$this->invoiceStatus))
             ->when($this->invoiceSource==='manual',fn($q)=>$q->where(fn($x)=>$x->whereNull('source')->orWhere('source','manual')))
             ->when($this->invoiceSource&&$this->invoiceSource!=='manual',fn($q)=>$q->where('source',$this->invoiceSource))
-            ->when($this->invoiceFrom,fn($q)=>$q->whereDate('created_at','>=',$this->invoiceFrom))
-            ->when($this->invoiceTo,fn($q)=>$q->whereDate('created_at','<=',$this->invoiceTo))
+            ->when($this->invoiceFrom,fn($q)=>$q->whereDateIndexed('created_at','>=',$this->invoiceFrom))
+            ->when($this->invoiceTo,fn($q)=>$q->whereDateIndexed('created_at','<=',$this->invoiceTo))
             ->latest();
     }
 

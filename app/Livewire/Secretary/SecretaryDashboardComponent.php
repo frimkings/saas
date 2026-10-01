@@ -40,15 +40,15 @@ class SecretaryDashboardComponent extends Component
         $monthEnd   = Carbon::now()->endOfMonth();
 
         // ── Row 1 ────────────────────────────────────────────────────────
-        $this->patientsRegisteredToday = Patient::whereDate('created_at', $today)->count();
+        $this->patientsRegisteredToday = Patient::whereDateIndexed('created_at', $today)->count();
 
-        $this->appointmentsToday = Appointments::whereDate('scheduled_at', $today)
+        $this->appointmentsToday = Appointments::whereDateIndexed('scheduled_at', $today)
             ->whereNotIn('status', ['cancelled'])
             ->count();
 
-        $this->clearancesToday = CashierPatientClearance::whereDate('clearance_date', $today)->count();
+        $this->clearancesToday = CashierPatientClearance::whereDateIndexed('clearance_date', $today)->count();
 
-        $this->todaySales = Sales::whereDate('created_at', $today)
+        $this->todaySales = Sales::whereDateIndexed('created_at', $today)
             ->where('is_refunded', false)
             ->sum('total_amount');
 
@@ -60,12 +60,12 @@ class SecretaryDashboardComponent extends Component
             ->count();
 
         $this->awaitingDoctor = CashierPatientClearance::where('doctor_status', 0)
-            ->whereDate('clearance_date', $today)
+            ->whereDateIndexed('clearance_date', $today)
             ->count();
 
         $this->renewalsDue = LensOrder::where('status', 'Collected')
             ->whereNotNull('renewal_date')
-            ->whereDate('renewal_date', '<=', Carbon::now()->addDays(30)->toDateString())
+            ->whereDateIndexed('renewal_date', '<=', Carbon::now()->addDays(30)->toDateString())
             ->whereNull('renewal_reminder_sent_at')
             ->count();
 
@@ -90,13 +90,13 @@ class SecretaryDashboardComponent extends Component
         $this->chartData   = $counts;
 
         // ── Tables ───────────────────────────────────────────────────────
-        $this->todayQueue = CashierPatientClearance::whereDate('clearance_date', $today)
+        $this->todayQueue = CashierPatientClearance::whereDateIndexed('clearance_date', $today)
             ->with('patient:id,name,pxnumber,contact')
             ->latest()
             ->limit(8)
             ->get();
 
-        $this->upcomingAppointments = Appointments::whereDate('scheduled_at', $today)
+        $this->upcomingAppointments = Appointments::whereDateIndexed('scheduled_at', $today)
             ->whereNotIn('status', ['cancelled'])
             ->with('patient:id,name,pxnumber')
             ->orderBy('scheduled_at')

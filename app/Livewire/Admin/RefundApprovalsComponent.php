@@ -383,8 +383,8 @@ class RefundApprovalsComponent extends Component
                 $q->whereHas('sale', fn ($s) => $s->where('transaction_id', 'like', '%' . $this->search . '%'))
                   ->orWhere('reason', 'like', '%' . $this->search . '%')
             )
-            ->when($this->fromDate, fn ($q) => $q->whereDate('created_at', '>=', $this->fromDate))
-            ->when($this->toDate,   fn ($q) => $q->whereDate('created_at', '<=', $this->toDate))
+            ->when($this->fromDate, fn ($q) => $q->whereDateIndexed('created_at', '>=', $this->fromDate))
+            ->when($this->toDate,   fn ($q) => $q->whereDateIndexed('created_at', '<=', $this->toDate))
             ->orderBy('created_at', 'desc');
     }
 

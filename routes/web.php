@@ -48,7 +48,6 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Doctor\PatientMedicalRecordController;
 use App\Http\Controllers\DiscountApprovalNoticeController;
 use App\Http\Controllers\Doctor\ReferralController;
-use App\Http\Controllers\Doctor\ClearanceNoticeController;
 use App\Http\Controllers\IncomeStatementExportController;
 use App\Livewire\Doctor\ReferralComponent;
 use App\Livewire\StaffMessagingComponent;
@@ -113,19 +112,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/patient-documents/{document}', [PatientDocumentController::class, 'show'])->name('patient-documents.show');
     Route::get('/profile', 'App\Livewire\UserProfileComponent')->name('user.profile');
 
-    Route::get('/notifications/unread-count', function () {
-        return response()->json([
-            'count' => \App\Models\AppNotification::forUser(auth()->id())->unread()->count(),
-        ]);
-    })->name('notifications.unread-count');
+    // The one endpoint open pages poll: badge counts and approval/clearance notices.
+    Route::get('/pulse', \App\Http\Controllers\PulseController::class)->name('pulse');
 
     Route::get('/messages', StaffMessagingComponent::class)->name('staff.messages');
-
-    Route::get('/messages/unread-count', function () {
-        return response()->json([
-            'count' => \App\Models\StaffMessage::where('recipient_id', auth()->id())->whereNull('read_at')->count(),
-        ]);
-    })->name('messages.unread-count');
 });
 
 
@@ -396,7 +386,6 @@ Route::middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billin
     Route::get('admin/discount-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'discount']))->name('admin.discount-approvals');
     Route::get('admin/refund-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'refund']))->name('admin.refund-approvals');
     Route::get('admin/clearance-revoke-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'revoke']))->name('admin.clearance-revoke-approvals');
-    Route::get('discount-approval-notices/pending', [DiscountApprovalNoticeController::class, 'pending'])->name('discount-approval-notices.pending');
     Route::post('discount-approval-notices/{discountRequest}/approve', [DiscountApprovalNoticeController::class, 'approve'])->name('discount-approval-notices.approve');
     Route::post('discount-approval-notices/{discountRequest}/reject', [DiscountApprovalNoticeController::class, 'reject'])->name('discount-approval-notices.reject');
 });
@@ -407,7 +396,6 @@ Route::middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billin
 Route::middleware(['auth', 'role:Doctor|Super Admin'])->group(function () {
  //doctor
 Route::get('doctor/dashboard', DoctorDashboardController::class)->name('doctor.dashboard');
-Route::get('doctor/clearance-notices/latest', [ClearanceNoticeController::class, 'latest'])->name('doctor.clearance-notices.latest');
 
 Route::get('doctor/patient-awaiting', PatientAwaitingComponent::class)->name('doctor.patient-awaiting');
 Route::get('doctor/patientrecords-{clearance}', PatientRecordsComponent::class)->name('doctor.patient-records');

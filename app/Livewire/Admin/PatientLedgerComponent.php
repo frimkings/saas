@@ -60,8 +60,8 @@ class PatientLedgerComponent extends Component
 
         // 1. Sales (charges)
         $salesQuery = Sales::where('patient_id', $this->patientId)->with('items');
-        if ($this->fromDate) $salesQuery->whereDate('created_at', '>=', $this->fromDate);
-        if ($this->toDate)   $salesQuery->whereDate('created_at', '<=', $this->toDate);
+        if ($this->fromDate) $salesQuery->whereDateIndexed('created_at', '>=', $this->fromDate);
+        if ($this->toDate)   $salesQuery->whereDateIndexed('created_at', '<=', $this->toDate);
 
         foreach ($salesQuery->get() as $sale) {
             $entries->push([
@@ -77,8 +77,8 @@ class PatientLedgerComponent extends Component
 
         // 2. Payments (credits)
         $payQuery = PaymentTransaction::whereHas('sale', fn ($q) => $q->where('patient_id', $this->patientId));
-        if ($this->fromDate) $payQuery->whereDate('created_at', '>=', $this->fromDate);
-        if ($this->toDate)   $payQuery->whereDate('created_at', '<=', $this->toDate);
+        if ($this->fromDate) $payQuery->whereDateIndexed('created_at', '>=', $this->fromDate);
+        if ($this->toDate)   $payQuery->whereDateIndexed('created_at', '<=', $this->toDate);
 
         foreach ($payQuery->get() as $pt) {
             $entries->push([
@@ -95,8 +95,8 @@ class PatientLedgerComponent extends Component
         // 3. Approved refunds (credits — money returned to patient)
         $refundQuery = RefundLog::where('status', RefundLog::STATUS_APPROVED)
             ->whereHas('sale', fn ($q) => $q->where('patient_id', $this->patientId));
-        if ($this->fromDate) $refundQuery->whereDate('approved_at', '>=', $this->fromDate);
-        if ($this->toDate)   $refundQuery->whereDate('approved_at', '<=', $this->toDate);
+        if ($this->fromDate) $refundQuery->whereDateIndexed('approved_at', '>=', $this->fromDate);
+        if ($this->toDate)   $refundQuery->whereDateIndexed('approved_at', '<=', $this->toDate);
 
         foreach ($refundQuery->with('sale')->get() as $refund) {
             $entries->push([

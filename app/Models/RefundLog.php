@@ -64,6 +64,9 @@ class RefundLog extends Model
 
     protected static function booted(): void
     {
+        static::saved(fn () => \App\Support\ApprovalCounts::forget());
+        static::deleted(fn () => \App\Support\ApprovalCounts::forget());
+
         static::updating(function (self $refund): void {
             if ($refund->getOriginal('status') === self::STATUS_PROCESSED) {
                 throw new \LogicException('Processed refund records are immutable.');

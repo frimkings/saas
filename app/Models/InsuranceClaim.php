@@ -69,8 +69,8 @@ class InsuranceClaim extends Model
 
     public function scopeDateRange(Builder $q, ?string $from, ?string $to): Builder
     {
-        return $q->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
-                 ->when($to,   fn ($q) => $q->whereDate('created_at', '<=', $to));
+        return $q->when($from, fn ($q) => $q->whereDateIndexed('created_at', '>=', $from))
+                 ->when($to,   fn ($q) => $q->whereDateIndexed('created_at', '<=', $to));
     }
 
     public function scopeForPatient(Builder $q, int $patientId): Builder

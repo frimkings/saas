@@ -272,7 +272,7 @@ public $recallCategories = [
         $unfinishedStatuses = ['Pending', 'Called', 'Couldnt Answer', 'Rescheduled'];
 
         $count = \DB::transaction(function () use ($unfinishedStatuses) {
-            $todayAppointments = Appointments::whereDate('scheduled_at', Carbon::today())
+            $todayAppointments = Appointments::whereDateIndexed('scheduled_at', Carbon::today())
                 ->whereIn('status', $unfinishedStatuses)
                 ->get();
 
@@ -381,7 +381,7 @@ public $recallCategories = [
         if ($this->activeFilter === 'history') {
             $query->whereIn('status', ['Seen', 'Cancelled']);
         } elseif ($this->activeFilter === 'queue') {
-            $query->whereDate('scheduled_at', Carbon::today())
+            $query->whereDateIndexed('scheduled_at', Carbon::today())
                 ->whereNotIn('status', ['Seen', 'Missed', 'Cancelled']);
         } elseif ($this->activeFilter === 'missed') {
             $query->where('status', 'Missed');
@@ -405,9 +405,9 @@ public $recallCategories = [
                     $query->where('scheduled_at', '>=', Carbon::today()->startOfDay());
                     // Quick filter chips
                     if ($this->quickFilter === 'today') {
-                        $query->whereDate('scheduled_at', Carbon::today());
+                        $query->whereDateIndexed('scheduled_at', Carbon::today());
                     } elseif ($this->quickFilter === 'tomorrow') {
-                        $query->whereDate('scheduled_at', Carbon::tomorrow());
+                        $query->whereDateIndexed('scheduled_at', Carbon::tomorrow());
                     } elseif ($this->quickFilter === 'this_week') {
                         $query->whereBetween('scheduled_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
                     } elseif ($this->quickFilter === 'next_30') {
@@ -628,7 +628,7 @@ public $recallCategories = [
 
     private function markPastAppointmentsAsMissed(): void
     {
-        Appointments::whereDate('scheduled_at', '<', Carbon::today())
+        Appointments::whereDateIndexed('scheduled_at', '<', Carbon::today())
             ->whereIn('status', ['Pending', 'Called', 'Couldnt Answer'])
             ->update([
                 'status' => 'Missed',
@@ -641,7 +641,7 @@ public $recallCategories = [
         return [
             'schedule' => Appointments::where('scheduled_at', '>=', Carbon::today()->startOfDay())->whereNotIn('status', ['Seen', 'Missed', 'Cancelled'])->count(),
             'online'   => OnlineBooking::where('status', 'pending')->count(),
-            'queue'    => Appointments::whereDate('scheduled_at', Carbon::today())->whereNotIn('status', ['Seen', 'Missed', 'Cancelled'])->count(),
+            'queue'    => Appointments::whereDateIndexed('scheduled_at', Carbon::today())->whereNotIn('status', ['Seen', 'Missed', 'Cancelled'])->count(),
             'history'  => Appointments::whereIn('status', ['Seen', 'Cancelled'])->count(),
             'missed'   => Appointments::where('status', 'Missed')->count(),
             'trash'    => Appointments::onlyTrashed()->count(),
@@ -720,7 +720,7 @@ public $recallCategories = [
     public function getDayAppointmentsProperty()
     {
         return Appointments::with('patient')
-            ->whereDate('scheduled_at', Carbon::parse($this->selectedScheduleDate))
+            ->whereDateIndexed('scheduled_at', Carbon::parse($this->selectedScheduleDate))
             ->whereNotIn('status', ['Seen', 'Missed'])
             ->orderBy('scheduled_at')
             ->get()
@@ -730,11 +730,11 @@ public $recallCategories = [
     public function getStatusSummaryProperty()
     {
         return [
-            'Booked' => Appointments::whereDate('scheduled_at', Carbon::today())->whereNotIn('status', ['Seen', 'Missed'])->count(),
-            'Arrived' => Appointments::whereDate('scheduled_at', Carbon::today())->where('status', 'Arrived')->count(),
-            'With Doctor' => Appointments::whereDate('scheduled_at', Carbon::today())->where('status', 'With Doctor')->count(),
-            'Seen' => Appointments::whereDate('scheduled_at', Carbon::today())->where('status', 'Seen')->count(),
-            'Missed' => Appointments::whereDate('scheduled_at', Carbon::today())->where('status', 'Missed')->count(),
+            'Booked' => Appointments::whereDateIndexed('scheduled_at', Carbon::today())->whereNotIn('status', ['Seen', 'Missed'])->count(),
+            'Arrived' => Appointments::whereDateIndexed('scheduled_at', Carbon::today())->where('status', 'Arrived')->count(),
+            'With Doctor' => Appointments::whereDateIndexed('scheduled_at', Carbon::today())->where('status', 'With Doctor')->count(),
+            'Seen' => Appointments::whereDateIndexed('scheduled_at', Carbon::today())->where('status', 'Seen')->count(),
+            'Missed' => Appointments::whereDateIndexed('scheduled_at', Carbon::today())->where('status', 'Missed')->count(),
         ];
     }
 
@@ -832,7 +832,7 @@ public $recallCategories = [
     private function hasSchedulingConflict(Carbon $scheduledAt): bool
     {
         $endAt = $scheduledAt->copy()->addMinutes((int) $this->duration_minutes);
-        $appointments = Appointments::whereDate('scheduled_at', $scheduledAt->toDateString())
+        $appointments = Appointments::whereDateIndexed('scheduled_at', $scheduledAt->toDateString())
             ->whereNotIn('status', ['Cancelled', 'Missed'])
             ->when($this->editingAppointmentId, fn ($query) => $query->where('id', '!=', $this->editingAppointmentId))
             ->get(['id', 'patient_id', 'doctor_id', 'scheduled_at', 'duration_minutes']);
@@ -864,7 +864,7 @@ public $recallCategories = [
     private function flashDailyLimitWarning(Carbon $scheduledAt): void
     {
         $limit = max(1, (int) $this->dailyAppointmentLimit);
-        $bookedCount = Appointments::whereDate('scheduled_at', $scheduledAt->toDateString())->count();
+        $bookedCount = Appointments::whereDateIndexed('scheduled_at', $scheduledAt->toDateString())->count();
 
         if ($bookedCount >= $limit) {
             $message = "Daily appointment limit reached for {$scheduledAt->format('M d, Y')} ({$bookedCount}/{$limit}).";
@@ -1024,10 +1024,7 @@ public $recallCategories = [
             'statusSummary' => $this->statusSummary,
             'noShowStats' => !in_array($this->activeFilter, ['settings'], true) && !$showsCalendar ? $this->noShowStatsFor($appointments->getCollection()) : [],
             'searchablePatients' => (strlen($this->patientSearch) >= 2)
-                ? Patient::where('name', 'like', '%' . $this->patientSearch . '%')
-                    ->orWhere('contact', 'like', '%' . $this->patientSearch . '%')
-                    ->orWhere('pxnumber', 'like', '%' . $this->patientSearch . '%')
-                    ->take(7)->get()
+                ? Patient::quickSearch($this->patientSearch)->take(7)->get()
                 : [],
             'doctors' => User::role('Doctor')->orderBy('name')->get(['id', 'name']),
         ])->layout('layouts.secretary.secretary-layout');

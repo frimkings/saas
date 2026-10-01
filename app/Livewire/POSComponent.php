@@ -3,7 +3,7 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use Livewire\WithPagination;
+use Livewire\Attributes\On;
 use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\Sales;
@@ -26,7 +26,6 @@ use Livewire\Attributes\Locked;
 
 class POSComponent extends Component
 {
-    use WithPagination;
 
     protected $listeners = [
         'confirmCheckout' => 'checkout',
@@ -46,8 +45,6 @@ class POSComponent extends Component
     public $directCustomerName = '';
     public $addToOpenVisitBill = true;
 
-    public $productSearchTerm = '';
-    public $selectedCategoryId = '';
 
     // Frame editing on prescription carts
     public $hasPrescriptionCart        = false;
@@ -142,9 +139,7 @@ class POSComponent extends Component
     public function updatedPatientSearchTerm()
     {
         if (strlen($this->patientSearchTerm) >= 2) {
-            $this->searchResults = Patient::where('name', 'like', '%' . $this->patientSearchTerm . '%')
-                ->orWhere('contact', 'like', '%' . $this->patientSearchTerm . '%')
-                ->orWhere('pxnumber', 'like', '%' . $this->patientSearchTerm . '%')
+            $this->searchResults = Patient::quickSearch($this->patientSearchTerm)
                 ->limit(10)
                 ->get()
                 ->map(fn ($p) => [
@@ -497,6 +492,8 @@ class POSComponent extends Component
 
     /* ===================== CART ===================== */
 
+    /** Also called when a product is clicked in the grid (PosProductGrid). */
+    #[On('pos-add-product')]
     public function addToCart($productId)
     {
         $product = Product::with('category')->find($productId);
@@ -656,10 +653,7 @@ class POSComponent extends Component
 
         $this->frameSearchResults = Product::with('category')
             ->whereIn('category_id', $frameCategoryIds)
-            ->where(fn ($q) =>
-                $q->where('name', 'like', '%' . $this->frameSearchTerm . '%')
-                  ->orWhere('batch_number', 'like', '%' . $this->frameSearchTerm . '%')
-            )
+            ->searchNameOrBatch($this->frameSearchTerm)
             ->inStock()
             ->orderBy('name')
             ->limit(8)
@@ -2224,6 +2218,7 @@ class POSComponent extends Component
 
             $this->showReceipt = true;
 
+            $this->dispatch('pos-stock-changed');
             $this->dispatch('close-processing-modal');
 
             $this->dispatch('notify', ...[
@@ -2424,19 +2419,8 @@ class POSComponent extends Component
 
     public function render()
     {
-        $products = Product::with('category')
-            ->where(function ($q) {
-                $term = $this->productSearchTerm;
-                $q->where('name', 'like', '%' . $term . '%')
-                  ->orWhere('batch_number', 'like', '%' . $term . '%');
-            })
-            ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', now()))
-            ->when($this->selectedCategoryId, fn($q) => $q->where('category_id', $this->selectedCategoryId))
-            ->paginate(12);
-
-        // These are Eloquent objects consumed directly by the view. Laravel 13
-        // intentionally blocks cached object unserialization by default.
-        $categories = Category::orderBy('name')->get();
+        // The product search and grid is its own component (PosProductGrid), so actions
+        // here don't re-run the product queries.
         $clinicSettings = Setting::getSettings();
 
         $cartProducts = $this->fetchCartProducts();
@@ -2459,7 +2443,7 @@ class POSComponent extends Component
         $openVisitSale = $this->findOpenVisitSale();
 
         return view('livewire.pos-component', compact(
-            'products', 'categories', 'clinicSettings',
+            'clinicSettings',
             'cartProducts', 'discountBlocked', 'canCheckout', 'totalPaid',
             'pendingPrescriptionCartCount', 'approvedDiscountCount', 'openVisitSale'
         ))->layout('layouts.secretary.secretary-layout');

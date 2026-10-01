@@ -4,42 +4,58 @@ namespace App\Http\Controllers;
 
 use App\Models\Cart;
 use App\Models\DiscountApprovalRequest;
+use App\Models\User;
+use App\Services\ClinicAccessService;
 use Illuminate\Http\Request;
 
 class DiscountApprovalNoticeController extends Controller
 {
-    public function pending()
+    /**
+     * Whether the page poll (/pulse) may show this user the approval prompt: the same checks
+     * the approvals routes apply (role or permission gate, approver check, plan feature).
+     */
+    public static function mayPoll(?User $user): bool
     {
-        abort_if(!$this->canHandleDiscountApprovals(), 403);
+        if (!$user) {
+            return false;
+        }
 
+        $routeGate = $user->hasAnyRole(['Manager', 'Super Admin'])
+            || $user->can('manage billing') || $user->can('approve clearance revoke');
+
+        return $routeGate && (new static)->canHandleDiscountApprovals()
+            && app(ClinicAccessService::class)->access('approvals')['allowed'];
+    }
+
+    /** The newest pending request still worth approving, or null. Stale ones are removed. */
+    public function pendingNotice(): ?array
+    {
         $request = DiscountApprovalRequest::with(['cashier', 'patient'])
             ->where('status', DiscountApprovalRequest::STATUS_PENDING)
             ->latest()
             ->first();
 
         if (!$request) {
-            return response()->json(['request' => null]);
+            return null;
         }
 
         if (!$this->requestCartIsStillOpen($request)) {
             $request->delete();
 
-            return response()->json(['request' => null]);
+            return null;
         }
 
-        return response()->json([
-            'request' => [
-                'id' => $request->id,
-                'cashier_name' => $request->cashier->name ?? 'Cashier',
-                'patient_name' => $request->patient->name ?? 'Walk-in patient',
-                'discount_type' => $request->discount_type,
-                'discount_value' => number_format((float) $request->discount_value, 2),
-                'discount_amount' => number_format((float) $request->discount_amount, 2),
-                'gross_amount' => number_format((float) $request->gross_amount, 2),
-                'final_amount' => number_format((float) $request->final_amount, 2),
-                'created_at' => optional($request->created_at)->format('d M Y, h:i A'),
-            ],
-        ]);
+        return [
+            'id' => $request->id,
+            'cashier_name' => $request->cashier->name ?? 'Cashier',
+            'patient_name' => $request->patient->name ?? 'Walk-in patient',
+            'discount_type' => $request->discount_type,
+            'discount_value' => number_format((float) $request->discount_value, 2),
+            'discount_amount' => number_format((float) $request->discount_amount, 2),
+            'gross_amount' => number_format((float) $request->gross_amount, 2),
+            'final_amount' => number_format((float) $request->final_amount, 2),
+            'created_at' => optional($request->created_at)->format('d M Y, h:i A'),
+        ];
     }
 
     public function approve(Request $httpRequest, DiscountApprovalRequest $discountRequest)

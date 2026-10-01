@@ -42,6 +42,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        $this->registerIndexedDateFilters();
+
         $attachLicenseGuard = function ($connection): void {
             $connection->beforeExecuting(function ($sql): void {
                 app(\App\Support\Licensing\ClinicWriteGuard::class)->check($sql);
@@ -114,6 +116,45 @@ class AppServiceProvider extends ServiceProvider
         // Super Admin Gate
         Gate::before(function ($user, $ability) {
             return $user->hasRole('Super Admin') ? true : null;
+        });
+    }
+
+    /**
+     * whereDateIndexed() / orWhereDateIndexed(): the same filter as whereDate(), written as a
+     * range on the raw column (`col >= day AND col < next day`) instead of `DATE(col) = day`.
+     * Wrapping the column in DATE() stops MySQL using its index, so "today's sales" would
+     * otherwise scan the branch's whole history. Works for DATE and DATETIME columns.
+     */
+    private function registerIndexedDateFilters(): void
+    {
+        \Illuminate\Database\Query\Builder::macro('whereDateIndexed', function ($column, $operator, $value = null, $boolean = 'and') {
+            /** @var \Illuminate\Database\Query\Builder $this */
+            [$value, $operator] = func_num_args() === 2 ? [$operator, '='] : [$value, $operator];
+            if ($value === null) {
+                return $this->whereDate($column, $operator, $value, $boolean);
+            }
+
+            $day = $value instanceof \DateTimeInterface ? $value->format('Y-m-d') : \Carbon\Carbon::parse($value)->toDateString();
+            $next = \Carbon\Carbon::parse($day)->addDay()->toDateString();
+
+            return $this->where(function ($query) use ($column, $operator, $day, $next) {
+                match ($operator) {
+                    '=' => $query->where($column, '>=', $day)->where($column, '<', $next),
+                    '>=' => $query->where($column, '>=', $day),
+                    '>' => $query->where($column, '>=', $next),
+                    '<' => $query->where($column, '<', $day),
+                    '<=' => $query->where($column, '<', $next),
+                    '!=', '<>' => $query->where($column, '<', $day)->orWhere($column, '>=', $next),
+                    default => throw new \InvalidArgumentException("Unsupported date operator [{$operator}]."),
+                };
+            }, null, null, $boolean);
+        });
+
+        \Illuminate\Database\Query\Builder::macro('orWhereDateIndexed', function ($column, $operator, $value = null) {
+            /** @var \Illuminate\Database\Query\Builder $this */
+            [$value, $operator] = func_num_args() === 2 ? [$operator, '='] : [$value, $operator];
+
+            return $this->whereDateIndexed($column, $operator, $value, 'or');
         });
     }
 }

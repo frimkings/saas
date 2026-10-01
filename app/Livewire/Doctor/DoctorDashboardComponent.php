@@ -40,11 +40,11 @@ class DoctorDashboardComponent extends Component
 
         // ── Row 1 ─────────────────────────────────────────────────────────
         $this->awaitingToday = CashierPatientClearance::where('doctor_status', 0)
-            ->whereDate('clearance_date', $today)
+            ->whereDateIndexed('clearance_date', $today)
             ->count();
 
         $this->consultationsToday = Consultations::where('user_id', $doctorId)
-            ->whereDate('created_at', $today)
+            ->whereDateIndexed('created_at', $today)
             ->count();
 
         $this->consultationsMonth = Consultations::whereBetween('created_at', [$monthStart, $monthEnd])
@@ -54,7 +54,7 @@ class DoctorDashboardComponent extends Component
 
         // ── Row 2 ─────────────────────────────────────────────────────────
         $this->seenToday = CashierPatientClearance::where('doctor_status', 1)
-            ->whereDate('clearance_date', $today)
+            ->whereDateIndexed('clearance_date', $today)
             ->count();
 
         $this->pendingPrescriptions = Consultations::where('user_id', $doctorId)
@@ -73,7 +73,7 @@ class DoctorDashboardComponent extends Component
             $date     = Carbon::today()->subDays($i);
             $labels[] = $date->format('D d');
             $counts[] = Consultations::where('user_id', $doctorId)
-                ->whereDate('created_at', $date)
+                ->whereDateIndexed('created_at', $date)
                 ->count();
         }
         $this->chartLabels = $labels;
@@ -88,7 +88,7 @@ class DoctorDashboardComponent extends Component
 
         // ── Row 4 — Today's queue (awaiting) ──────────────────────────────
         $this->todayQueue = CashierPatientClearance::where('doctor_status', 0)
-            ->whereDate('clearance_date', $today)
+            ->whereDateIndexed('clearance_date', $today)
             ->with('patient:id,name,pxnumber,contact')
             ->select('id', 'patient_id', 'clearance_date', 'created_at')
             ->oldest()

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class PasswordResetRequest extends Model
@@ -9,6 +11,13 @@ class PasswordResetRequest extends Model
     protected $fillable = ['email', 'status', 'approved_by', 'admin_note', 'actioned_at'];
 
     protected $casts = ['actioned_at' => 'datetime'];
+
+    protected static function booted(): void
+    {
+        // The sidebar's pending-approvals badge is cached; refresh it on any change.
+        static::saved(fn () => \App\Support\ApprovalCounts::forget());
+        static::deleted(fn () => \App\Support\ApprovalCounts::forget());
+    }
 
     public function actionedBy()
     {

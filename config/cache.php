@@ -27,7 +27,8 @@ return [
     |
     */
 
-    'default' => env('CACHE_DRIVER', 'file'),
+    // Laravel Cloud sets CACHE_STORE; older installs and .env files use CACHE_DRIVER.
+    'default' => env('CACHE_STORE', env('CACHE_DRIVER', 'file')),
 
     /*
     |--------------------------------------------------------------------------

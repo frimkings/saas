@@ -213,8 +213,8 @@ class StockMovementComponent extends Component
         return view('livewire.admin.stock-movement-component', [
             'products' => $products,
             'movements' => $this->movementsQuery()->paginate(15),
-            'totalReceivedToday' => Stock::whereDate('created_at', today())->sum('quantity'),
-            'receiptsToday' => Stock::whereDate('created_at', today())->count(),
+            'totalReceivedToday' => Stock::whereDateIndexed('created_at', today())->sum('quantity'),
+            'receiptsToday' => Stock::whereDateIndexed('created_at', today())->count(),
             'lastMovement' => Stock::latest()->first(),
         ])->layout('layouts.admin.admin-layout');
     }

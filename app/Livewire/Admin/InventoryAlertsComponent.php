@@ -34,12 +34,12 @@ class InventoryAlertsComponent extends Component
             });
 
         if ($this->activeTab === 'expired') {
-            return $query->whereDate('expiry_date', '<', Carbon::today())->orderBy('expiry_date');
+            return $query->whereDateIndexed('expiry_date', '<', Carbon::today())->orderBy('expiry_date');
         }
 
         if ($this->activeTab === 'expiring') {
-            return $query->whereDate('expiry_date', '>=', Carbon::today())
-                ->whereDate('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))
+            return $query->whereDateIndexed('expiry_date', '>=', Carbon::today())
+                ->whereDateIndexed('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))
                 ->orderBy('expiry_date');
         }
 
@@ -52,9 +52,9 @@ class InventoryAlertsComponent extends Component
         return view('livewire.admin.inventory-alerts-component', [
             'products' => $this->query()->paginate(20),
             'lowCount' => Product::stocked()->where('quantity', '<=', 10)->count(),
-            'expiringCount' => Product::stocked()->whereDate('expiry_date', '>=', Carbon::today())
-                ->whereDate('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))->count(),
-            'expiredCount' => Product::stocked()->whereDate('expiry_date', '<', Carbon::today())->count(),
+            'expiringCount' => Product::stocked()->whereDateIndexed('expiry_date', '>=', Carbon::today())
+                ->whereDateIndexed('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))->count(),
+            'expiredCount' => Product::stocked()->whereDateIndexed('expiry_date', '<', Carbon::today())->count(),
         ])->layout('layouts.admin.admin-layout');
     }
 }

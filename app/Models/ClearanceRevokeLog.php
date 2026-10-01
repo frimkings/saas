@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 class ClearanceRevokeLog extends Model
 {
     use BelongsToBranch;
+
+    protected static function booted(): void
+    {
+        // The sidebar's pending-approvals badge is cached; refresh it on any change.
+        static::saved(fn () => \App\Support\ApprovalCounts::forget());
+        static::deleted(fn () => \App\Support\ApprovalCounts::forget());
+    }
     const STATUS_PENDING  = 'pending';
     const STATUS_APPROVED = 'approved';
     const STATUS_REJECTED = 'rejected';

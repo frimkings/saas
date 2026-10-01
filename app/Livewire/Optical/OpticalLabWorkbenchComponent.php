@@ -41,7 +41,7 @@ class OpticalLabWorkbenchComponent extends Component
     private function stageQuery(string $stage)
     {
         $query = LensOrder::whereIn('status', self::STAGES[$stage][1]);
-        return $stage === 'collected' ? $query->whereDate('collected_at', today()) : $query;
+        return $stage === 'collected' ? $query->whereDateIndexed('collected_at', today()) : $query;
     }
 
     private function applyTypeAndSearch($query)
@@ -113,7 +113,7 @@ class OpticalLabWorkbenchComponent extends Component
     {
         $orders = $this->benchQuery()->paginate(12);
 
-        $lateCount = LensOrder::whereIn('status', self::STAGES['active'][1])->whereDate('pickUpDate', '<', today())->count();
+        $lateCount = LensOrder::whereIn('status', self::STAGES['active'][1])->whereDateIndexed('pickUpDate', '<', today())->count();
 
         return view('livewire.optical.optical-lab-workbench-component', [
             'orders' => $orders,

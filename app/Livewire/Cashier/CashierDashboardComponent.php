@@ -39,18 +39,18 @@ class CashierDashboardComponent extends Component
         $monthEnd   = Carbon::now()->endOfMonth();
 
         // ── Row 1 ────────────────────────────────────────────────────────
-        $this->todaySales = Sales::clinicSales()->whereDate('created_at', $today)
+        $this->todaySales = Sales::clinicSales()->whereDateIndexed('created_at', $today)
             ->where('is_refunded', false)
             ->sum('total_amount');
 
-        $this->transactionsToday = Sales::clinicSales()->whereDate('created_at', $today)->count();
+        $this->transactionsToday = Sales::clinicSales()->whereDateIndexed('created_at', $today)->count();
 
         $this->outstandingCount = Sales::clinicSales()->where('payment_status', 'partial')
             ->where('is_refunded', false)
             ->count();
 
         $this->queueSize = CashierPatientClearance::where('doctor_status', 0)
-            ->whereDate('clearance_date', $today)
+            ->whereDateIndexed('clearance_date', $today)
             ->count();
 
         // ── Row 2 ────────────────────────────────────────────────────────
@@ -58,11 +58,11 @@ class CashierDashboardComponent extends Component
             ->where('is_refunded', false)
             ->sum('total_amount');
 
-        $this->paidToday = Sales::clinicSales()->whereDate('created_at', $today)
+        $this->paidToday = Sales::clinicSales()->whereDateIndexed('created_at', $today)
             ->where('payment_status', 'paid')
             ->count();
 
-        $this->partialToday = Sales::clinicSales()->whereDate('created_at', $today)
+        $this->partialToday = Sales::clinicSales()->whereDateIndexed('created_at', $today)
             ->where('payment_status', '!=', 'paid')
             ->where('is_refunded', false)
             ->count();
@@ -73,7 +73,7 @@ class CashierDashboardComponent extends Component
         for ($i = 6; $i >= 0; $i--) {
             $date     = Carbon::today()->subDays($i);
             $labels[] = $date->format('D d');
-            $totals[] = (float) Sales::clinicSales()->whereDate('created_at', $date)
+            $totals[] = (float) Sales::clinicSales()->whereDateIndexed('created_at', $date)
                 ->where('is_refunded', false)
                 ->sum('total_amount');
         }
@@ -82,7 +82,7 @@ class CashierDashboardComponent extends Component
 
         // ── Table ─────────────────────────────────────────────────────────
         $this->todayQueue = CashierPatientClearance::where('doctor_status', 0)
-            ->whereDate('clearance_date', $today)
+            ->whereDateIndexed('clearance_date', $today)
             ->with('patient:id,name,pxnumber')
             ->latest()
             ->limit(8)

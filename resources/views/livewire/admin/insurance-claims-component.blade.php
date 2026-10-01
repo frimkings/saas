@@ -252,7 +252,7 @@
               <div class="form-group">
                 <label>Patient <span class="text-danger">*</span></label>
                 <div class="position-relative">
-                  <input wire:model.live="state.patient_search" type="text"
+                  <input wire:model.live.debounce.300ms="state.patient_search" type="text"
                          class="form-control @error('state.patient_id') is-invalid @enderror"
                          placeholder="Search name or Px#…" autocomplete="off">
                   @if(count($patientResults))

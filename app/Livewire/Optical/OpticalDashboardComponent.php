@@ -13,7 +13,7 @@ class OpticalDashboardComponent extends Component
     public function render()
     {
         // 1. Today's orders count
-        $todaysOrdersCount = LensOrder::whereDate('created_at', now()->today())->count();
+        $todaysOrdersCount = LensOrder::whereDateIndexed('created_at', now()->today())->count();
 
         // 2. Ready for collection count & list
         $readyOrders = LensOrder::with(['patient', 'refraction.consultation.patient', 'user', 'frameProduct', 'lensProduct', 'serviceLines'])

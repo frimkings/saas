@@ -83,7 +83,7 @@ class FinancialReportDeliveryService
         // The report covers every business the subscriber runs; with both, each is also shown on its own.
         $lines = FinanceStatements::availableLines() ?: BusinessLine::all();
         $inPeriod = fn ($query, string $column) => $period === 'daily'
-            ? $query->whereDate($column, $start->toDateString())
+            ? $query->whereDateIndexed($column, $start->toDateString())
             : $query->whereBetween($column, [$start->toDateTimeString(), $end->toDateTimeString()]);
 
         $sales = $inPeriod(Sales::whereIn('business_line', $lines), 'created_at')->get();

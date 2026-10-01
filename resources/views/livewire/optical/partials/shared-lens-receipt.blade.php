@@ -50,8 +50,8 @@
                     <label class="text-xs">Workbook quantities *<select wire:model.live="excelUnit" class="ui-input w-full"><option value="">Choose pairs or pieces</option><option value="pairs">Pairs (2 lenses each)</option><option value="pieces">Individual pieces</option></select></label>
                     <label class="text-xs">Worksheet<select wire:model.live="excelSheet" class="ui-input w-full">@foreach($excelSheets as $i=>$name)<option value="{{ $i }}">{{ $name }}</option>@endforeach</select></label>
                     @if($excelLayout === 'manual')
-                    <label class="text-xs">Power heading row<input autocomplete="off" type="number" min="1" wire:model.live="excelHeaderRow" class="ui-input w-full"></label>
-                    <label class="text-xs">SPH column (A=1, B=2)<input autocomplete="off" type="number" min="1" wire:model.live="excelSphereColumn" class="ui-input w-full"></label>
+                    <label class="text-xs">Power heading row<input autocomplete="off" type="number" min="1" wire:model.live.debounce.400ms="excelHeaderRow" class="ui-input w-full"></label>
+                    <label class="text-xs">SPH column (A=1, B=2)<input autocomplete="off" type="number" min="1" wire:model.live.debounce.400ms="excelSphereColumn" class="ui-input w-full"></label>
                     @endif
                 </div>
                 <button type="button" wire:click="previewExcel" wire:loading.attr="disabled" class="ui-button">Preview import</button>
@@ -79,7 +79,7 @@
             <label class="block text-xs">Sphere section<select wire:model.live="bulkSection" class="ui-input"><option value="positive">Positive SPH (including plano)</option><option value="negative">Negative SPH</option></select></label>
             <p class="text-xs text-slate-500">Plano (+0.00 / -0.00) is combined in the positive section. Switch sections to review both sets of quantities.</p>
         @else
-        <label class="block text-xs">First sphere to display / paste<input autocomplete="off" type="number" min="-15" max="15" step="0.25" wire:model.live="bulkStart" class="ui-input w-full"></label>
+        <label class="block text-xs">First sphere to display / paste<input autocomplete="off" type="number" min="-15" max="15" step="0.25" wire:model.live.debounce.400ms="bulkStart" class="ui-input w-full"></label>
         <p class="text-xs text-slate-500">Rows increase by +0.25. Paste quantities only from Excel, starting at the first column shown. Changing the first sphere preserves quantities already entered.</p>
         <textarea wire:model="bulkPaste" rows="2" class="ui-input w-full" aria-label="Paste Excel quantities" placeholder="Paste a rectangular block of quantities"></textarea>
         <button type="button" wire:click="pasteGrid" class="ui-button">Apply pasted quantities</button>

@@ -479,10 +479,66 @@
     resetTimers();
 })();
 
+// One poll for the whole page (PulseController). Widgets subscribe to the parts they show with
+// appPulse.on(part, fn). Nothing is fetched while the tab is hidden; showing it polls at once.
+window.appPulse = (function () {
+    var INTERVAL = 20000;
+    var url = '{{ route("pulse") }}';
+    var handlers = {};
+    var timer = null;
+    var stopped = false;
+    var lastPollAt = Date.now(); // the page load itself was the last server contact
+
+    function lastActivityAt() {
+        try { return parseInt(localStorage.getItem('eyeclinic:lastActivityAt') || '0', 10) || 0; } catch (e) { return 0; }
+    }
+
+    function poll() {
+        var parts = Object.keys(handlers);
+        if (stopped || !parts.length || document.hidden) return;
+
+        // Tell the server whether the user has done anything since the last poll, so real
+        // work keeps the session alive but an untouched tab still times out.
+        var active = lastActivityAt() > lastPollAt;
+        lastPollAt = Date.now();
+
+        fetch(url + '?parts=' + parts.join(',') + (active ? '&active=1' : ''), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
+                // Signed out or session expired: stop; the idle-logout script handles the page.
+                if (response.status === 401 || response.status === 419) { stopped = true; return null; }
+                return response.ok ? response.json() : null;
+            })
+            .then(function (data) {
+                if (!data) return;
+                parts.forEach(function (part) {
+                    if (!(part in data)) return;
+                    handlers[part].forEach(function (fn) { try { fn(data[part]); } catch (e) {} });
+                });
+            })
+            .catch(function () {});
+    }
+
+    function schedule(delay) {
+        clearTimeout(timer);
+        timer = setTimeout(function () { poll(); schedule(INTERVAL); }, delay);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && Date.now() - lastPollAt > 5000) schedule(0);
+    });
+    document.addEventListener('DOMContentLoaded', function () { schedule(2000); });
+
+    return {
+        on: function (part, fn) { (handlers[part] = handlers[part] || []).push(fn); },
+        refresh: function () { schedule(1000); }
+    };
+})();
+
 @if(auth()->user()?->hasRole(['Manager', 'Super Admin']))
 (function () {
-    var CHECK_INTERVAL = 15000;
-    var pendingUrl = '{{ route("discount-approval-notices.pending") }}';
     var approveUrl = '{{ route("discount-approval-notices.approve", ["discountRequest" => "__REQUEST_ID__"]) }}';
     var rejectUrl = '{{ route("discount-approval-notices.reject", ["discountRequest" => "__REQUEST_ID__"]) }}';
     var csrfToken = '{{ csrf_token() }}';
@@ -605,7 +661,7 @@
                     .finally(function () {
                         activeRequestId = null;
                         isPromptOpen = false;
-                        setTimeout(checkForDiscountRequest, 1000);
+                        window.appPulse.refresh(); // show the next waiting request, if any
                     });
 
                 return;
@@ -617,35 +673,13 @@
         });
     }
 
-    function checkForDiscountRequest() {
-        if (isPromptOpen) {
+    window.appPulse.on('discount', function (request) {
+        if (isPromptOpen || !request || request.id === activeRequestId || dismissedIds().indexOf(request.id) !== -1) {
             return;
         }
 
-        fetch(pendingUrl, {
-            headers: { 'Accept': 'application/json' }
-        })
-            .then(function (response) {
-                if (!response.ok) {
-                    throw new Error('Unable to check discount approvals.');
-                }
-
-                return response.json();
-            })
-            .then(function (data) {
-                var request = data.request;
-
-                if (!request || request.id === activeRequestId || dismissedIds().indexOf(request.id) !== -1) {
-                    return;
-                }
-
-                showDiscountPrompt(request);
-            })
-            .catch(function () {});
-    }
-
-    setTimeout(checkForDiscountRequest, 2000);
-    setInterval(checkForDiscountRequest, CHECK_INTERVAL);
+        showDiscountPrompt(request);
+    });
 })();
 @endif
 </script>

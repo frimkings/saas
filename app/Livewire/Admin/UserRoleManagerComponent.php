@@ -187,8 +187,8 @@ class UserRoleManagerComponent extends Component
             ->when($this->filterEmailVerified !== '', function ($query) {
                 $this->filterEmailVerified === '1' ? $query->whereNotNull('email_verified_at') : $query->whereNull('email_verified_at');
             })
-            ->when($this->filterDateFrom, fn ($query) => $query->whereDate('created_at', '>=', $this->filterDateFrom))
-            ->when($this->filterDateTo, fn ($query) => $query->whereDate('created_at', '<=', $this->filterDateTo))
+            ->when($this->filterDateFrom, fn ($query) => $query->whereDateIndexed('created_at', '>=', $this->filterDateFrom))
+            ->when($this->filterDateTo, fn ($query) => $query->whereDateIndexed('created_at', '<=', $this->filterDateTo))
             ->orderBy(match ($this->sortField) { 'is_active' => 'membership_status', 'staff_id' => 'clinic_staff_id', default => $this->sortField }, $this->sortDirection);
     }
 

@@ -10,6 +10,13 @@ class DiscountApprovalRequest extends Model
 {
     use HasFactory, BelongsToBranch;
 
+    protected static function booted(): void
+    {
+        // The sidebar's pending-approvals badge is cached; refresh it on any change.
+        static::saved(fn () => \App\Support\ApprovalCounts::forget());
+        static::deleted(fn () => \App\Support\ApprovalCounts::forget());
+    }
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';

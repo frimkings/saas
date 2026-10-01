@@ -89,6 +89,25 @@ class Patient extends Model
         'marketing_opt_out'  => 'boolean',
     ];
 
+    /**
+     * Name, phone or patient number contains $term (the quick patient pickers). On MySQL the
+     * search reads patients_quick_search_index, which holds all three columns, so patients
+     * that don't match are skipped in the index instead of being read row by row.
+     */
+    public function scopeQuickSearch($query, ?string $term)
+    {
+        $like = '%'.$term.'%';
+        $query->where(fn ($q) => $q->where('name', 'like', $like)
+            ->orWhere('contact', 'like', $like)
+            ->orWhere('pxnumber', 'like', $like));
+
+        if ($term !== null && $term !== '' && in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            $query->forceIndex('patients_quick_search_index');
+        }
+
+        return $query;
+    }
+
     // Helpful helper for the Blade file
     public function getAgeAttribute()
     {

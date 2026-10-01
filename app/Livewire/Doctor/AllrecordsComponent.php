@@ -140,8 +140,8 @@ class AllrecordsComponent extends Component
         $query = Consultations::query();
 
         if (!empty($this->startDate) && !empty($this->endDate)) {
-            $query->whereDate('created_at', '>=', $this->startDate)
-                  ->whereDate('created_at', '<=', $this->endDate);
+            $query->whereDateIndexed('created_at', '>=', $this->startDate)
+                  ->whereDateIndexed('created_at', '<=', $this->endDate);
         }
         if (!empty($this->searchTerm)) {
             $term = $this->searchTerm;

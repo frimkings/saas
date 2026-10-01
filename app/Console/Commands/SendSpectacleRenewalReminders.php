@@ -32,7 +32,7 @@ class SendSpectacleRenewalReminders extends Command
 
         // --- Phase 1: queue newly due orders for Super Admin approval ---
         $toQueue = LensOrder::where('status', 'Collected')
-            ->whereDate('renewal_date', $target)
+            ->whereDateIndexed('renewal_date', $target)
             ->whereNull('renewal_reminder_sent_at')
             ->whereNull('renewal_approval_status')
             ->with(['patient', 'refraction.consultation.patient'])

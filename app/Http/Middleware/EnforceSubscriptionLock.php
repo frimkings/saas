@@ -18,7 +18,7 @@ class EnforceSubscriptionLock
     /** Routes a locked clinic's admin may still use to renew. */
     private const ADMIN_ROUTES = [
         'admin.subscription', 'admin.subscription.invoice', 'admin.subscription.receipt', 'admin.license',
-        'notifications.unread-count', 'messages.unread-count',
+        'pulse',
     ];
 
     /** Livewire components on those pages (including the navbar widgets in the admin layout). */

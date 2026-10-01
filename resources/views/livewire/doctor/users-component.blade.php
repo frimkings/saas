@@ -79,13 +79,13 @@
                 <form wire:submit="store">
                     <div class="mb-4">
                         <label class="block text-sm font-bold mb-2">Name</label>
-                        <input type="text" wire:model.live="name" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
+                        <input type="text" wire:model.live.debounce.400ms="name" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
                         @error('name') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="mb-4">
                         <label class="block text-sm font-bold mb-2">Email</label>
-                        <input type="email" wire:model.live="email" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
+                        <input type="email" wire:model.live.debounce.400ms="email" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
                         @error('email') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
 
@@ -105,7 +105,7 @@
 
                     <div class="mb-4">
                         <label class="block text-sm font-bold mb-2">Password {{ $isEdit ? '(Leave blank to keep current)' : '' }}</label>
-                        <input type="password" wire:model.live="password" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
+                        <input type="password" wire:model.live.debounce.400ms="password" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
                         @error('password') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
 

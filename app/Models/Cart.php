@@ -194,7 +194,7 @@ class Cart extends Model
      */
     public function scopeToday($query)
     {
-        return $query->whereDate('created_at', today());
+        return $query->whereDateIndexed('created_at', today());
     }
 
     /**

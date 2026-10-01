@@ -144,7 +144,7 @@ class OfflineHealthDashboardComponent extends Component
             });
         }
 
-        $failedToday = (clone $query)->whereDate('created_at', today())->count();
+        $failedToday = (clone $query)->whereDateIndexed('created_at', today())->count();
         $failedTotal = (clone $query)->count();
         $latest = (clone $query)->latest()->first();
         $state = $failedToday === 0 ? 'healthy' : ($failedToday <= 5 ? 'warning' : 'critical');

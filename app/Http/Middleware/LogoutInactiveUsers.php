@@ -35,7 +35,11 @@ class LogoutInactiveUsers
                 ->with('error', 'You were logged out after 30 minutes of inactivity.');
         }
 
-        $request->session()->put(self::LAST_ACTIVITY_KEY, time());
+        // Background polling isn't activity, so a tab left open still times out. The poll says
+        // when the user has been typing or clicking since the last one (active=1); that counts.
+        if (! $request->routeIs('pulse') || $request->boolean('active')) {
+            $request->session()->put(self::LAST_ACTIVITY_KEY, time());
+        }
 
         return $next($request);
     }

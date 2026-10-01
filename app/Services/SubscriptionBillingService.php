@@ -58,7 +58,7 @@ class SubscriptionBillingService
     {
         return PlatformInvoice::where('clinic_subscription_id', $subscription->id)->where('source', 'renewal')
             ->whereNotIn('status', ['void', 'credited'])
-            ->whereDate('period_start', '>=', $start->copy()->subDay()->toDateString())
+            ->whereDateIndexed('period_start', '>=', $start->copy()->subDay()->toDateString())
             ->orderBy('period_start')->first();
     }
 

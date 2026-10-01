@@ -69,10 +69,10 @@ class SmsLogsComponent extends Component
                 $q->where('template_key', $this->filterTemplate)
             )
             ->when($this->dateFrom, fn ($q) =>
-                $q->whereDate('created_at', '>=', $this->dateFrom)
+                $q->whereDateIndexed('created_at', '>=', $this->dateFrom)
             )
             ->when($this->dateTo, fn ($q) =>
-                $q->whereDate('created_at', '<=', $this->dateTo)
+                $q->whereDateIndexed('created_at', '<=', $this->dateTo)
             )
             ->latest('created_at');
 

@@ -582,7 +582,7 @@ class OpticalStockManagementComponent extends Component
             'importDetail' => $this->viewImportId ? \App\Models\OpticalLensImport::with(['user', 'movements.product', 'movements.reversedBy'])->findOrFail($this->viewImportId) : null,
             'movements' => $movements,
             'totalStock' => $products->sum(fn ($p) => $p->stocks->first()?->quantity ?? 0),
-            'receivedToday' => OpticalProductStockMovement::where('movement_type', 'receipt')->whereDoesntHave('reversedBy')->whereDate('created_at', today())->sum('quantity_change'),
+            'receivedToday' => OpticalProductStockMovement::where('movement_type', 'receipt')->whereDoesntHave('reversedBy')->whereDateIndexed('created_at', today())->sum('quantity_change'),
             'recentReceipt' => $recentReceipt,
             'lowStockCount' => $products->filter(fn ($p) => ($p->stocks->first()?->quantity ?? 0) <= ($p->lens_specs ? ($p->stocks->first()?->lens_reorder_pairs ?? 5) * 2 : ($p->stocks->first()?->reorder_level ?? 5)))->count(),
         ])->layout('layouts.optical');

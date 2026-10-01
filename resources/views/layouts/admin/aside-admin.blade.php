@@ -168,10 +168,7 @@
                   <p>
                     Approvals
                     @php
-                      $totalPending = \App\Models\DiscountApprovalRequest::where('status', 'pending')->count()
-                                    + \App\Models\RefundLog::pendingCount()
-                                    + \App\Models\ClearanceRevokeLog::pendingCount()
-                                    + \App\Models\PasswordResetRequest::pendingCount();
+                      $totalPending = \App\Support\ApprovalCounts::total();
                     @endphp
                     @if($totalPending > 0)
                       <span class="badge badge-warning right">{{ $totalPending }}</span>

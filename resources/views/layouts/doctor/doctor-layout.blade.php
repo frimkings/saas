@@ -50,7 +50,6 @@
     @auth
         <script>
             (function () {
-                var latestUrl = '{{ route("doctor.clearance-notices.latest") }}';
                 var storageKey = 'doctorLatestClearanceNoticeId';
                 var initialized = false;
 
@@ -78,46 +77,30 @@
                     }
                 }
 
-                function checkClearanceNotices() {
-                    fetch(latestUrl, {
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    })
-                        .then(function (response) {
-                            if (!response.ok) {
-                                throw new Error('Unable to check clearance notices.');
-                            }
+                if (!window.appPulse) return;
 
-                            return response.json();
-                        })
-                        .then(function (data) {
-                            var latestId = Number(data.latest_id || 0);
-                            var rememberedId = Number(sessionStorage.getItem(storageKey) || 0);
+                window.appPulse.on('clearance', function (data) {
+                    var latestId = Number(data.latest_id || 0);
+                    var rememberedId = Number(sessionStorage.getItem(storageKey) || 0);
 
-                            if (!latestId) {
-                                initialized = true;
-                                return;
-                            }
+                    if (!latestId) {
+                        initialized = true;
+                        return;
+                    }
 
-                            if (!initialized && !rememberedId) {
-                                rememberLatest(latestId);
-                                initialized = true;
-                                return;
-                            }
+                    if (!initialized && !rememberedId) {
+                        rememberLatest(latestId);
+                        initialized = true;
+                        return;
+                    }
 
-                            if (latestId > rememberedId) {
-                                showNewClearanceToast(data);
-                                rememberLatest(latestId);
-                            }
+                    if (latestId > rememberedId) {
+                        showNewClearanceToast(data);
+                        rememberLatest(latestId);
+                    }
 
-                            initialized = true;
-                        })
-                        .catch(function () {});
-                }
-
-                checkClearanceNotices();
-                setInterval(checkClearanceNotices, 15000);
+                    initialized = true;
+                });
             })();
         </script>
     @endauth

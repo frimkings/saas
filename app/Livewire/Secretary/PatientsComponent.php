@@ -763,7 +763,7 @@ class PatientsComponent extends Component
         }
         $query->where(function ($match) use ($dob, $contact) {
             if ($dob) {
-                $match->whereDate('dob', $dob);
+                $match->whereDateIndexed('dob', $dob);
             }
             if ($contact !== '') {
                 $match->orWhere('contact', $contact);

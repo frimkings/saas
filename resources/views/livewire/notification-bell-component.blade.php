@@ -1,5 +1,5 @@
 <li class="nav-item dropdown" id="notif-bell-wrapper">
-    {{-- Badge count is refreshed every 15 s via the JS block below --}}
+    {{-- Badge count is refreshed by the shared page poll via the JS block below --}}
     <a class="nav-link" data-toggle="dropdown" href="#" role="button" aria-label="Notifications">
         <i class="far fa-bell"></i>
         <span id="notif-badge"
@@ -70,34 +70,22 @@
 
     </div>
 
-{{-- Lightweight JS poller — updates only the badge number every 15 s without disturbing the Livewire component or the Bootstrap dropdown state --}}
+{{-- Updates only the badge number from the page's shared poll (layouts/scripts), without disturbing the Livewire component or the Bootstrap dropdown state --}}
 <script>
 (function () {
-    function refreshBadge() {
-        fetch('/notifications/unread-count', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-            credentials: 'same-origin',
-        })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (data) {
-            if (!data) return;
-            var badge  = document.getElementById('notif-badge');
-            var header = document.getElementById('notif-header-count');
-            if (!badge) return;
-            if (data.count > 0) {
-                badge.textContent  = data.count > 99 ? '99+' : data.count;
-                badge.style.display = '';
-                if (header) header.textContent = data.count > 99 ? '99+' : data.count;
-            } else {
-                badge.style.display = 'none';
-            }
-        })
-        .catch(function () { /* silently ignore network errors */ });
-    }
+    if (!window.appPulse) return;
 
-    // Poll every 15 seconds after the page has loaded
-    document.addEventListener('DOMContentLoaded', function () {
-        setInterval(refreshBadge, 15000);
+    window.appPulse.on('notifications', function (count) {
+        var badge  = document.getElementById('notif-badge');
+        var header = document.getElementById('notif-header-count');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent  = count > 99 ? '99+' : count;
+            badge.style.display = '';
+            if (header) header.textContent = count > 99 ? '99+' : count;
+        } else {
+            badge.style.display = 'none';
+        }
     });
 })();
 </script>

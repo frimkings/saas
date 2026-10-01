@@ -95,11 +95,11 @@ class AdminDashboardComponent extends Component
         $this->totalPatients = Patient::count();
 
         // total_amount = invoice value of sales (matches Reports page "Net Revenue")
-        $this->todayRevenue = $this->lineSales()->whereDate('created_at', $today)
+        $this->todayRevenue = $this->lineSales()->whereDateIndexed('created_at', $today)
             ->where('is_refunded', false)
             ->sum('total_amount');
 
-        $this->todayAppointments = Appointments::whereDate('scheduled_at', $today)
+        $this->todayAppointments = Appointments::whereDateIndexed('scheduled_at', $today)
             ->whereNotIn('status', ['cancelled'])
             ->count();
 
@@ -114,13 +114,10 @@ class AdminDashboardComponent extends Component
             ->where('is_refunded', false)
             ->count();
 
-        $this->pendingDiscounts = DiscountApprovalRequest::where(
-            'status', DiscountApprovalRequest::STATUS_PENDING
-        )->count();
-
-        $this->pendingApprovals = $this->pendingDiscounts
-            + RefundLog::pendingCount()
-            + ClearanceRevokeLog::pendingCount();
+        // Shared with the sidebar badge, so the page counts them once (cached a minute).
+        $pending = \App\Support\ApprovalCounts::pending();
+        $this->pendingDiscounts = $pending['discount'];
+        $this->pendingApprovals = $pending['discount'] + $pending['refund'] + $pending['revoke'];
 
         $this->monthExpenses = $this->lineExpenses()->whereBetween('expense_date', [
             $monthStart->toDateString(),
@@ -148,7 +145,7 @@ class AdminDashboardComponent extends Component
         $this->newPatientsMonth = Patient::whereBetween('created_at', [$monthStart, $monthEnd])
             ->count();
 
-        $this->consultationsToday = Consultations::whereDate('created_at', $today)->count();
+        $this->consultationsToday = Consultations::whereDateIndexed('created_at', $today)->count();
 
         // scopePendingDispensing references a non-existent 'products' column via scopeWithPrescriptions,
         // so query directly on the column that actually exists in the table.
@@ -170,11 +167,11 @@ class AdminDashboardComponent extends Component
                 Product::lowStock()->count(),
                 Product::outOfStock()->count(),
                 Product::stocked()->whereNotNull('expiry_date')
-                    ->whereDate('expiry_date', '>=', $today)
-                    ->whereDate('expiry_date', '<=', Carbon::today()->addDays(90))
+                    ->whereDateIndexed('expiry_date', '>=', $today)
+                    ->whereDateIndexed('expiry_date', '<=', Carbon::today()->addDays(90))
                     ->count(),
                 Product::stocked()->whereNotNull('expiry_date')
-                    ->whereDate('expiry_date', '<', $today)
+                    ->whereDateIndexed('expiry_date', '<', $today)
                     ->count(),
             ];
         });

@@ -145,7 +145,7 @@
                         <div style="position:relative;">
                             <div class="search-box">
                                 <i class="fas fa-search search-box__icon"></i>
-                                <input type="text" wire:model.live="searchTerm" class="search-box__input" placeholder="Search records..." @focus="historyView='records'">
+                                <input type="text" wire:model.live.debounce.300ms="searchTerm" class="search-box__input" placeholder="Search records..." @focus="historyView='records'">
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,6 @@
 
 <div class="d-flex justify-content-center align-items-center border bg-white pr-2">
-    <input wire:model.live="searchTerm" type="text" class="form-control border-0" placeholder="Search" autocomplete="off">
+    <input wire:model.live.debounce.300ms="searchTerm" type="text" class="form-control border-0" placeholder="Search" autocomplete="off">
     <div wire:loading.delay wire:target="searchTerm">
         <div class="la-ball-clip-rotate la-dark la-sm">
             <div></div>

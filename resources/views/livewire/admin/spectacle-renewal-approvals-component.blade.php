@@ -183,7 +183,7 @@
                         @endif
                         <div class="form-group mb-0">
                             <label class="small font-weight-bold">Note <span class="text-muted font-weight-normal">(optional)</span></label>
-                            <textarea wire:model.live="noteInput" class="form-control form-control-sm"
+                            <textarea wire:model.live.debounce.400ms="noteInput" class="form-control form-control-sm"
                                       rows="2" placeholder="Reason or remark…"></textarea>
                         </div>
                     </div>

@@ -88,8 +88,8 @@ class OpticalOrdersComponent extends Component
                         ->orWhereHas('refraction.consultation.patient', fn ($p) => $p->where('name', 'like', $term));
                 });
             })
-            ->when($this->validDate($this->dateFrom), fn ($q) => $q->whereDate($column, '>=', $this->dateFrom))
-            ->when($this->validDate($this->dateTo), fn ($q) => $q->whereDate($column, '<=', $this->dateTo))
+            ->when($this->validDate($this->dateFrom), fn ($q) => $q->whereDateIndexed($column, '>=', $this->dateFrom))
+            ->when($this->validDate($this->dateTo), fn ($q) => $q->whereDateIndexed($column, '<=', $this->dateTo))
             ->when(array_key_exists($this->sourceFilter, self::SOURCES), fn ($q) => $q->where('order_source', $this->sourceFilter))
             ->when($this->sourceFilter === 'partner' && $this->partnerFilter !== '', fn ($q) => $q->where('partner_clinic_id', (int) $this->partnerFilter));
     }

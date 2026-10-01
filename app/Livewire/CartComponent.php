@@ -14,7 +14,6 @@ class CartComponent extends Component
     public $productQuantity = 1;
     public $productPrice = 0;
     public $cartItems = [];
-    public $products = [];
 
     public function mount($patient_id)
     {
@@ -103,10 +102,10 @@ class CartComponent extends Component
 
     public function render()
     {
-        $this->products = Product::all();
-
+        // Passed to the view only: kept as component state, the whole catalogue travelled
+        // with every request. Just the columns the product picker shows.
         return view('livewire.cart-component', [
-            'productsList' => $this->products,
+            'productsList' => Product::orderBy('name')->get(['id', 'name', 'quantity', 'made_to_order']),
             'cartItems' => $this->cartItems,
         ]) ->layout('layouts.secretary.secretary-layout');
     }

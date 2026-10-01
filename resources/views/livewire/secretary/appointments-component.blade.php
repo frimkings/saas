@@ -121,7 +121,7 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="appt-label">Daily Appointment Limit</label>
-                        <input type="number" min="1" wire:model.live="dailyAppointmentLimit" class="form-control">
+                        <input type="number" min="1" wire:model.live.debounce.400ms="dailyAppointmentLimit" class="form-control">
                     </div>
                 </div>
                 <button wire:click="saveSettings" class="btn btn-primary font-weight-bold px-4">Save Settings</button>
@@ -758,7 +758,7 @@
                         </div>
                         <div class="form-group">
                             <label class="appt-label">Notes</label>
-                            <textarea wire:model.live="notes" rows="2" class="form-control"></textarea>
+                            <textarea wire:model.live.debounce.400ms="notes" rows="2" class="form-control"></textarea>
                         </div>
 
                         {{-- SECTION: Reminder --}}
@@ -827,7 +827,7 @@
                 <div class="modal-body px-4 py-3">
                     <div class="form-group mb-0">
                         <label class="appt-label">Reason <span class="text-muted font-weight-normal">(optional)</span></label>
-                        <textarea wire:model.live="cancelReason" rows="3" class="form-control" placeholder="e.g. Patient requested cancellation…"></textarea>
+                        <textarea wire:model.live.debounce.400ms="cancelReason" rows="3" class="form-control" placeholder="e.g. Patient requested cancellation…"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer bg-light px-4 py-3">

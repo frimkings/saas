@@ -167,6 +167,22 @@ class Product extends Model
     /**
      * Scope to get only in-stock products.
      */
+    /**
+     * Name or batch number contains $term. On MySQL the search reads products_search_index,
+     * which holds every searched column, so non-matching products are skipped in the index.
+     */
+    public function scopeSearchNameOrBatch($query, ?string $term)
+    {
+        $like = '%'.$term.'%';
+        $query->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('batch_number', 'like', $like));
+
+        if ($term !== null && $term !== '' && in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            $query->forceIndex('products_search_index');
+        }
+
+        return $query;
+    }
+
     public function scopeInStock($query)
     {
         return $query->where(fn ($q) => $q->where('made_to_order', true)->orWhere('quantity', '>', 0));
