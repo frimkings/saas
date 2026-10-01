@@ -103,7 +103,7 @@ class OutstandingBalancesComponent extends Component
     public function openCollect($saleId): void
     {
         $sale = Sales::where('payment_status', 'partial')->findOrFail($saleId);
-        $balance = max(0, (float) $sale->total_amount - (float) $sale->amount_paid);
+        $balance = $sale->remaining_balance;
 
         $this->selectedSaleId = $sale->id;
         $this->collectAmount = number_format($balance, 2, '.', '');
@@ -159,7 +159,7 @@ class OutstandingBalancesComponent extends Component
 
             $oldAmountPaid = (float) $sale->amount_paid;
             $oldPaymentStatus = $sale->payment_status;
-            $balance = max(0, round((float) $sale->total_amount - $oldAmountPaid, 2));
+            $balance = $sale->remaining_balance; // the patient's part only; the insurer pays the rest
 
             if ($amount > $balance || $balance <= 0) {
                 throw ValidationException::withMessages([
@@ -178,7 +178,7 @@ class OutstandingBalancesComponent extends Component
             ]);
 
             $newAmountPaid = round($oldAmountPaid + $amount, 2);
-            $fullyPaid = $newAmountPaid >= round((float) $sale->total_amount, 2);
+            $fullyPaid = $newAmountPaid >= $sale->patient_share;
 
             $sale->update([
                 'amount_paid' => $newAmountPaid,
@@ -294,7 +294,7 @@ class OutstandingBalancesComponent extends Component
     {
         $summary = Sales::where('payment_status', 'partial')
             ->selectRaw('COUNT(*) as held_orders')
-            ->selectRaw('COALESCE(SUM(total_amount - amount_paid), 0) as total_balance')
+            ->selectRaw('COALESCE(SUM(' . Sales::PATIENT_BALANCE_SQL . '), 0) as total_balance')
             ->selectRaw('COALESCE(SUM(amount_paid), 0) as deposits_collected')
             ->first();
 

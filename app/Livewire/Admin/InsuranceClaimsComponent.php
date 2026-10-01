@@ -6,7 +6,10 @@ use App\Models\AuditTrail;
 use App\Models\InsuranceClaim;
 use App\Models\Insurer;
 use App\Models\Patient;
+use App\Models\InsurerPayment;
 use App\Models\Sales;
+use App\Services\Insurance\ClaimSettlement;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\Response;
@@ -209,7 +212,8 @@ class InsuranceClaimsComponent extends Component
             }
 
             if (empty($this->state['claim_amount'])) {
-                $this->state['claim_amount'] = $sale->total_amount;
+                // An insured bill already knows the insurer's share; otherwise claim the whole bill.
+                $this->state['claim_amount'] = (float) $sale->insurer_amount > 0 ? $sale->insurer_amount : $sale->total_amount;
             }
         }
     }
@@ -348,12 +352,24 @@ class InsuranceClaimsComponent extends Component
 
         $update = $this->normalizeStatusData($update);
         $old = $claim->only(array_keys($update));
-        $claim->update($update);
-        AuditTrail::record(
-            "insurance_claim.{$this->pendingStatus}",
-            "Claim #{$claim->id} marked as {$this->pendingStatus}",
-            $claim, $old, $update, $claim->patient_id
-        );
+        $status = $this->pendingStatus;
+
+        DB::transaction(function () use ($claim, $update, $old, $status) {
+            $claim->update($update);
+            AuditTrail::record(
+                "insurance_claim.{$status}",
+                "Claim #{$claim->id} marked as {$status}",
+                $claim, $old, $update, $claim->patient_id
+            );
+
+            // What the insurer will not pay goes to the patient or is written off (insurer setting).
+            $settlement = app(ClaimSettlement::class);
+            if ($status === 'rejected') {
+                $settlement->limitInsurerShare($claim, 0, "claim #{$claim->id} rejected: {$claim->rejection_reason}");
+            } elseif (in_array($status, ['approved', 'partially_approved'], true)) {
+                $settlement->limitInsurerShare($claim, (float) $claim->approved_amount, "claim #{$claim->id} approved at " . number_format((float) $claim->approved_amount, 2));
+            }
+        });
 
         $this->showStatusModal = false;
         $this->statusClaimId   = null;
@@ -411,11 +427,14 @@ class InsuranceClaimsComponent extends Component
         $approvedSum     = InsuranceClaim::whereIn('status', ['approved', 'partially_approved', 'paid'])
                              ->sum('approved_amount');
         $outstandingSum  = InsuranceClaim::whereIn('status', ['approved', 'partially_approved'])
-                             ->sum('approved_amount');
+                             ->sum(DB::raw('GREATEST(COALESCE(approved_amount, claim_amount) - amount_received, 0)'));
+        $statusClaim     = $this->statusClaimId ? InsuranceClaim::with('insurer')->find($this->statusClaimId) : null;
+        $canRecordPayments = auth()->user()?->hasRole('Super Admin') || auth()->user()?->can(InsurerPayment::PERMISSION);
         $pendingPreAuth  = InsuranceClaim::where('pre_auth_status', 'pending')->count();
 
         return view('livewire.admin.insurance-claims-component', compact(
-            'claims', 'insurers', 'draftCount', 'submittedCount', 'approvedSum', 'outstandingSum', 'pendingPreAuth'
+            'claims', 'insurers', 'draftCount', 'submittedCount', 'approvedSum', 'outstandingSum', 'pendingPreAuth',
+            'statusClaim', 'canRecordPayments'
         ))->layout('layouts.admin.admin-layout');
     }
 
@@ -544,8 +563,8 @@ class InsuranceClaimsComponent extends Component
         $transitions = [
             'draft'              => ['submitted'],
             'submitted'          => ['approved', 'partially_approved', 'rejected'],
-            'approved'           => ['paid'],
-            'partially_approved' => ['paid'],
+            'approved'           => [],
+            'partially_approved' => [],
             'rejected'           => [],
             'paid'               => [],
         ];

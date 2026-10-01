@@ -130,6 +130,40 @@ class OwnerEmailsTest extends TestCase
         Mail::assertSent(OwnerSummaryMail::class, fn (OwnerSummaryMail $mail) => $mail->summary['period'] === 'daily' && ! $mail->summary['longView']);
     }
 
+    public function test_weekly_summary_reports_what_insurers_paid_still_owe_and_wrote_off(): void
+    {
+        Mail::fake();
+        [$clinic, $main, , $admin] = $this->clinic();
+        $patient = DB::table('patients')->insertGetId(['clinic_id' => $clinic->id, 'uuid' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $admin->id,
+            'pxnumber' => 'PX-2', 'name' => 'Kofi Mensah', 'gender' => 'Male', 'contact' => '0240000001', 'created_at' => now(), 'updated_at' => now()]);
+        $insurer = DB::table('insurers')->insertGetId(['clinic_id' => $clinic->id, 'name' => 'NHIS', 'created_at' => now(), 'updated_at' => now()]);
+        $ids = ['clinic_id' => $clinic->id, 'branch_id' => $main->id];
+        // An insured bill from June: the insurer's share is 400, of which 100 has come in.
+        $sale = DB::table('sales')->insertGetId($ids + ['transaction_id' => 'INS-1', 'patient_id' => $patient, 'insurer_id' => $insurer,
+            'total_amount' => 500, 'insurer_amount' => 400, 'amount_paid' => 100, 'payment_status' => 'paid', 'business_line' => 'clinic',
+            'is_refunded' => false, 'created_at' => '2026-06-10 10:00:00', 'updated_at' => '2026-06-10 10:00:00']);
+        DB::table('insurance_claims')->insert($ids + ['patient_id' => $patient, 'insurer_id' => $insurer, 'sale_id' => $sale, 'created_by' => $admin->id,
+            'claim_amount' => 400, 'amount_received' => 100, 'status' => 'submitted', 'submission_date' => '2026-06-12', 'created_at' => '2026-06-12', 'updated_at' => '2026-09-24']);
+        DB::table('insurer_payments')->insert($ids + ['insurer_id' => $insurer, 'receipt_number' => 'IP-TEST-1', 'amount' => 100, 'payment_method' => 'bank_transfer',
+            'paid_on' => '2026-09-24', 'received_by' => $admin->id, 'created_at' => '2026-09-24 09:00:00', 'updated_at' => '2026-09-24 09:00:00']);
+        DB::table('sale_adjustments')->insert($ids + ['sale_id' => $sale, 'type' => 'insurance_write_off', 'amount' => 30, 'method' => 'fixed',
+            'created_by' => $admin->id, 'reason' => 'Short payment', 'created_at' => '2026-09-23 10:00:00', 'updated_at' => '2026-09-23 10:00:00']);
+
+        $this->travelTo(Carbon::parse('2026-09-28 10:00:00', 'Africa/Accra'));
+        app(OwnerSummaryService::class)->sendDue($clinic);
+
+        Mail::assertSent(OwnerSummaryMail::class, function (OwnerSummaryMail $mail) {
+            if ($mail->summary['period'] !== 'weekly') return false;
+            $t = $mail->summary['total'];
+            $html = $mail->render();
+            return $t['insurerOwed'] == 300 && $t['insurerOwed90'] == 300 && $t['insurerReceived'] == 100
+                && $t['received'] == 100 && ($t['byMethod']['Insurer payments'] ?? 0) == 100 && $t['insurerWrittenOff'] == 30
+                && $t['owed'] == 0
+                && str_contains($html, 'Insurers still owe') && str_contains($html, 'Owed by insurers for more than 90 days')
+                && str_contains($html, 'Insurer shortfalls written off');
+        });
+    }
+
     public function test_weekly_goes_on_monday_and_monthly_on_the_first_only_when_the_plan_includes_them(): void
     {
         Mail::fake();

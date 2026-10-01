@@ -29,6 +29,11 @@
                     <div class="col-md-3"><div class="info-box"><span class="info-box-icon bg-success"><i class="fas fa-cash-register"></i></span><div class="info-box-content"><span class="info-box-text">Gross Sales</span><span class="info-box-number">{{ currency() }} {{ number_format($grossSales, 2) }}</span></div></div></div>
                     <div class="col-md-3"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-money-bill"></i></span><div class="info-box-content"><span class="info-box-text">Collected</span><span class="info-box-number">{{ currency() }} {{ number_format($amountPaid, 2) }}</span></div></div></div>
                     <div class="col-md-3"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-balance-scale"></i></span><div class="info-box-content"><span class="info-box-text">Outstanding</span><span class="info-box-number">{{ currency() }} {{ number_format($outstandingCreated, 2) }}</span></div></div></div>
+                    @if($insurance)
+                    <div class="col-md-4"><div class="info-box"><span class="info-box-icon bg-light"><i class="fas fa-shield-alt text-info"></i></span><div class="info-box-content"><span class="info-box-text">Billed to insurers</span><span class="info-box-number">{{ currency() }} {{ number_format($insurance['billed'], 2) }}</span><small class="text-muted">Part of gross sales; paid later by the insurer</small></div></div></div>
+                    <div class="col-md-4"><div class="info-box"><span class="info-box-icon bg-light"><i class="fas fa-money-check-alt text-success"></i></span><div class="info-box-content"><span class="info-box-text">Received from insurers</span><span class="info-box-number">{{ currency() }} {{ number_format($insurance['received'], 2) }}</span><small class="text-muted">Recorded under Insurer Payments, not in the drawer</small></div></div></div>
+                    <div class="col-md-4"><div class="info-box"><span class="info-box-icon bg-light"><i class="fas fa-eraser text-danger"></i></span><div class="info-box-content"><span class="info-box-text">Insurer shortfalls written off</span><span class="info-box-number">{{ currency() }} {{ number_format($insurance['writtenOff'], 2) }}</span></div></div></div>
+                    @endif
                 </div>
 
                 <div class="row mt-2">

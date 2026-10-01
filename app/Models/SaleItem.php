@@ -25,6 +25,7 @@ class SaleItem extends Model
         'selling_price',
         'unit_cost',
         'subtotal',
+        'insurer_amount',
         'notes',
         'frequency',
         'duration_value',
@@ -40,6 +41,7 @@ class SaleItem extends Model
         'selling_price' => 'decimal:2',
         'unit_cost' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'insurer_amount' => 'decimal:2',
         'frequency' => ProductFrequency::class,
         'duration_value' => 'integer',
     ];

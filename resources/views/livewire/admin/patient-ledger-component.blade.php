@@ -124,6 +124,8 @@
                                             <i class="fas fa-receipt text-danger mr-1"></i>
                                         @elseif($entry['type'] === 'payment')
                                             <i class="fas fa-money-bill-wave text-success mr-1"></i>
+                                        @elseif($entry['type'] === 'insurance')
+                                            <i class="fas fa-shield-alt text-info mr-1"></i>
                                         @else
                                             <i class="fas fa-undo text-info mr-1"></i>
                                         @endif

@@ -44,6 +44,7 @@ class RolePermissionManagerComponent extends Component
             'process refunds',
             'view sales records',
             'view outstanding balances',
+            'record insurer payments',
         ],
         'Approvals' => [
             'approve discounts',
@@ -73,9 +74,9 @@ class RolePermissionManagerComponent extends Component
         'Doctor' => ['view consultations', 'perform refraction', 'view medical records', 'manage referrals'],
         'Cashier' => ['manage billing', 'view sales records', 'view outstanding balances'],
         'Secretary' => ['view consultations', 'view sales records'],
-        'Manager' => ['manage billing', 'view reports', 'view income statement', 'approve discounts', 'approve refunds', 'approve clearance revoke'],
+        'Manager' => ['manage billing', 'record insurer payments', 'view reports', 'view income statement', 'approve discounts', 'approve refunds', 'approve clearance revoke'],
         'Inventory Staff' => ['manage inventory', 'receive stock', 'manage suppliers', 'manage purchase orders'],
-        'Accountant' => ['manage billing', 'view reports', 'view income statement', 'export reports', 'view sales records'],
+        'Accountant' => ['manage billing', 'record insurer payments', 'view reports', 'view income statement', 'export reports', 'view sales records'],
     ];
 
     public function mount(): void

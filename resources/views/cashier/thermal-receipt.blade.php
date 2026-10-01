@@ -190,7 +190,8 @@
     $discountAmount = (float) ($sale->discount_amount ?? 0);
     $amountPaid = (float) ($sale->amount_paid ?? 0);
     $changeAmount = (float) ($change ?? 0);
-    $balanceAmount = max(0, (float) $sale->total_amount - $amountPaid);
+    $insurerAmount = (float) ($sale->insurer_amount ?? 0);
+    $balanceAmount = max(0, (float) $sale->total_amount - $insurerAmount - $amountPaid);
 @endphp
 
 @if($sale->is_refunded)
@@ -298,6 +299,17 @@
         <span class="left">TOTAL</span>
         <span class="right">{{ $currency }}{{ number_format($sale->total_amount, 2) }}</span>
     </div>
+
+    @if($insurerAmount > 0)
+        <div class="money-row">
+            <span class="left">BILLED TO {{ strtoupper($sale->insurer?->name ?? 'INSURER') }}</span>
+            <span class="right">{{ $currency }}{{ number_format($insurerAmount, 2) }}</span>
+        </div>
+        <div class="money-row">
+            <span class="left">PATIENT PAYS</span>
+            <span class="right">{{ $currency }}{{ number_format(max(0, (float) $sale->total_amount - $insurerAmount), 2) }}</span>
+        </div>
+    @endif
 
     @if($sale->paymentTransactions->isNotEmpty())
         @foreach($sale->paymentTransactions as $payment)

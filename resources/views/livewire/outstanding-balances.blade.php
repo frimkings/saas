@@ -62,9 +62,9 @@
                         <tbody>
                             @forelse($balances as $sale)
                                 @php
-                                    $balance = max(0, (float) $sale->total_amount - (float) $sale->amount_paid);
-                                    $pct = $sale->total_amount > 0
-                                        ? round(((float) $sale->amount_paid / (float) $sale->total_amount) * 100)
+                                    $balance = $sale->remaining_balance;
+                                    $pct = $sale->patient_share > 0
+                                        ? round(((float) $sale->amount_paid / $sale->patient_share) * 100)
                                         : 0;
                                 @endphp
                                 <tr>
@@ -92,7 +92,12 @@
                                             <small class="text-muted">+{{ $sale->items->count() - 2 }} more</small>
                                         @endif
                                     </td>
-                                    <td class="text-right font-weight-bold">{{ currency() }} {{ number_format($sale->total_amount, 2) }}</td>
+                                    <td class="text-right font-weight-bold">
+                                        {{ currency() }} {{ number_format($sale->total_amount, 2) }}
+                                        @if((float) $sale->insurer_amount > 0)
+                                            <br><small class="text-info font-weight-normal">Insurer pays {{ currency() }} {{ number_format($sale->insurer_amount, 2) }}</small>
+                                        @endif
+                                    </td>
                                     <td class="text-right text-success font-weight-bold">{{ currency() }} {{ number_format($sale->amount_paid, 2) }}</td>
                                     <td class="text-right text-danger font-weight-bold">{{ currency() }} {{ number_format($balance, 2) }}</td>
                                     <td style="min-width:110px;">
@@ -168,7 +173,7 @@
                         </div>
                         <div class="col-md-4">
                             <div class="border text-center p-3" style="background:#fdecee;">
-                                <div class="h5 font-weight-bold text-danger mb-0">{{ currency() }} {{ number_format(max(0, $historyForSale->total_amount - $historyForSale->amount_paid), 2) }}</div>
+                                <div class="h5 font-weight-bold text-danger mb-0">{{ currency() }} {{ number_format($historyForSale->remaining_balance, 2) }}</div>
                                 <small class="text-muted">Remaining</small>
                             </div>
                         </div>
@@ -269,7 +274,7 @@
                         </div>
                         <div class="col-md-4">
                             <div class="border text-center p-3" style="background:#fdecee;">
-                                <div class="h4 font-weight-bold text-danger mb-0">{{ currency() }} {{ number_format(max(0, (float) $selectedSale->total_amount - (float) $selectedSale->amount_paid), 2) }}</div>
+                                <div class="h4 font-weight-bold text-danger mb-0">{{ currency() }} {{ number_format($selectedSale->remaining_balance, 2) }}</div>
                                 <small class="text-muted">Balance Due</small>
                             </div>
                         </div>
@@ -351,7 +356,7 @@
                                        wire:model.live.debounce.300ms="collectAmount"
                                        step="0.01"
                                        min="0.01"
-                                       max="{{ max(0, (float) $selectedSale->total_amount - (float) $selectedSale->amount_paid) }}"
+                                       max="{{ $selectedSale->remaining_balance }}"
                                        placeholder="0.00">
                             </div>
                             @error('collectAmount')
@@ -374,7 +379,7 @@
                     </div>
 
                     @php
-                        $newBalance = max(0, (float) $selectedSale->total_amount - (float) $selectedSale->amount_paid - (float) $collectAmount);
+                        $newBalance = max(0, $selectedSale->remaining_balance - (float) $collectAmount);
                         $willFullyPay = (float) $collectAmount > 0 && $newBalance <= 0.001;
                     @endphp
                     @if((float) $collectAmount > 0)

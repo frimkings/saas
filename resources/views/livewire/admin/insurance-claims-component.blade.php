@@ -194,10 +194,11 @@
                       <button wire:click="openStatusModal({{ $claim->id }}, 'rejected')" class="btn btn-xs btn-danger" title="Reject">
                         <i class="fas fa-times"></i>
                       </button>
-                    @elseif(in_array($claim->status, ['approved', 'partially_approved']))
-                      <button wire:click="openStatusModal({{ $claim->id }}, 'paid')" class="btn btn-xs btn-dark" title="Mark Paid">
+                    @endif
+                    @if($canRecordPayments && in_array($claim->status, \App\Models\InsuranceClaim::PAYABLE_STATUSES))
+                      <a href="{{ route('admin.insurance.payments', ['insurer' => $claim->insurer_id]) }}" class="btn btn-xs btn-dark" title="Record insurer payment">
                         <i class="fas fa-money-bill-wave"></i>
-                      </button>
+                      </a>
                     @endif
                     {{-- Delete (draft/rejected only) --}}
                     @if(in_array($claim->status, ['draft', 'rejected']))
@@ -463,6 +464,13 @@
                 <small class="text-muted">Enter the partial amount approved by the insurer.</small>
               @endif
             </div>
+            @if($statusClaim?->sale_id)
+              <div class="alert alert-light border small mb-0">
+                Claimed {{ currency() }} {{ number_format((float) $statusClaim->claim_amount, 2) }}.
+                Anything not approved is {{ $statusClaim->insurer?->shortfall_action === 'write_off' ? 'written off by the clinic' : "added to the patient's balance" }}
+                ({{ $statusClaim->insurer?->name }} setting).
+              </div>
+            @endif
           @elseif($pendingStatus === 'rejected')
             <div class="form-group">
               <label>Rejection Reason <span class="text-danger">*</span></label>
@@ -471,6 +479,13 @@
                         rows="3" placeholder="Reason given by the insurer…"></textarea>
               @error('statusState.rejection_reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
+            @if($statusClaim?->sale_id)
+              <div class="alert alert-light border small mb-0">
+                The claimed {{ currency() }} {{ number_format((float) $statusClaim->claim_amount, 2) }} will be
+                {{ $statusClaim->insurer?->shortfall_action === 'write_off' ? 'written off by the clinic' : "added to the patient's balance" }}
+                ({{ $statusClaim->insurer?->name }} setting).
+              </div>
+            @endif
           @elseif($pendingStatus === 'paid')
             <div class="form-group">
               <label>Payment Date <span class="text-danger">*</span></label>

@@ -59,7 +59,7 @@ class PatientLedgerComponent extends Component
         $entries = collect();
 
         // 1. Sales (charges)
-        $salesQuery = Sales::where('patient_id', $this->patientId)->with('items');
+        $salesQuery = Sales::where('patient_id', $this->patientId)->with(['items', 'insurer']);
         if ($this->fromDate) $salesQuery->whereDateIndexed('created_at', '>=', $this->fromDate);
         if ($this->toDate)   $salesQuery->whereDateIndexed('created_at', '<=', $this->toDate);
 
@@ -73,6 +73,19 @@ class PatientLedgerComponent extends Component
                 'credit'      => 0.0,
                 'sale_id'     => $sale->id,
             ]);
+
+            // The insurer's share is billed to the insurer, not owed by the patient.
+            if ((float) $sale->insurer_amount > 0) {
+                $entries->push([
+                    'date'        => $sale->created_at,
+                    'type'        => 'insurance',
+                    'label'       => 'Billed to ' . ($sale->insurer?->name ?? 'insurer'),
+                    'reference'   => $sale->transaction_id,
+                    'debit'       => 0.0,
+                    'credit'      => (float) $sale->insurer_amount,
+                    'sale_id'     => $sale->id,
+                ]);
+            }
         }
 
         // 2. Payments (credits)

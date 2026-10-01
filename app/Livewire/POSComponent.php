@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\SmsService;
+use App\Services\Insurance\InsuranceBilling;
+use App\Models\Insurer;
 use App\Models\SmsTemplate;
 use Livewire\Attributes\Locked;
 
@@ -93,6 +95,16 @@ class POSComponent extends Component
     public $isPartPayment     = false;
     public $hasFramesOrLenses = false;
 
+    // Insurance co-pay: for an insured patient the insurer's share is billed to the
+    // insurer and the patient pays amountDue now. Recomputed from the database on checkout.
+    public $insurerName           = null;
+    public $billInsurer           = true;
+    public $computedInsurerAmount = 0; // from the coverage rules
+    public $insurerOverride       = ''; // cashier's adjusted insurer share ('' = use the rules)
+    public $insuranceReason       = '';
+    public $insurerAmount         = 0;
+    public $amountDue             = 0;
+
     protected $casts = [
         'amountPaid'     => 'float',
         'totalAmount'    => 'float',
@@ -100,10 +112,16 @@ class POSComponent extends Component
         'discountValue'  => 'float',
         'discountAmount' => 'float',
         'finalAmount'    => 'float',
+        'insurerAmount'  => 'float',
+        'amountDue'      => 'float',
     ];
 
     // Within-request cache — reset on each Livewire hydration cycle (private, not persisted)
     private $cachedCartProducts = null;
+    private ?InsuranceBilling $insuranceBilling = null;
+    private $cartInsurer = false; // false = not resolved yet this request
+    // cartKey => ['unit_price' => float, 'insurer' => float] for the current cart
+    private array $lineSplits = [];
 
     public function mount()
     {
@@ -165,6 +183,7 @@ class POSComponent extends Component
         $this->directCustomerName  = '';
         $this->patientSearchTerm   = $patient->name;
         $this->showPatientDropdown = false;
+        $this->resetInsuranceChoices();
 
         // This loads items if a Doctor already prescribed them
         $this->loadPatientCart();
@@ -192,6 +211,7 @@ class POSComponent extends Component
         $this->frameSearchResults         = [];
         $this->isPartPayment              = false;
         $this->addToOpenVisitBill         = true;
+        $this->resetInsuranceChoices();
         $this->resetDiscountApproval();
         $this->calculateTotal();
 
@@ -376,6 +396,7 @@ class POSComponent extends Component
             $this->directCustomerName = '';
             $this->patientSearchTerm = $request->patient->name ?? '';
             $this->showPatientDropdown = false;
+            $this->resetInsuranceChoices();
             $this->loadPatientCart(null, $this->discountRequestCartIds($request)->toArray());
         }
 
@@ -409,13 +430,14 @@ class POSComponent extends Component
 
         $this->discountAmount = min((float) $request->discount_amount, (float) $discountEligibleSubtotal);
         $this->finalAmount = max(0, (float) $this->totalAmount - (float) $this->discountAmount);
+        $this->applyInsuranceSplit();
         $this->discountApproved = true;
         $this->discountApprovedBy = $request->approver->name ?? 'Manager';
         $this->discountApprovedById = $request->approved_by;
         $this->pendingDiscountApprovalId = $request->id;
         $this->pendingDiscountApprovalStatus = $request->status;
         $this->updateChange();
-        $this->newPaymentAmount = $this->finalAmount > 0 ? $this->finalAmount : '';
+        $this->newPaymentAmount = $this->amountDue > 0 ? $this->amountDue : '';
 
         $this->dispatch('close-approved-discounts-modal');
         $this->dispatch('pos-cart-loaded');
@@ -441,8 +463,9 @@ class POSComponent extends Component
         $this->directCustomerName = '';
         $this->patientSearchTerm = $patient->name;
         $this->showPatientDropdown = false;
+        $this->resetInsuranceChoices();
         $this->loadPatientCart($consultationId);
-        $this->newPaymentAmount = $this->finalAmount > 0 ? $this->finalAmount : '';
+        $this->newPaymentAmount = $this->amountDue > 0 ? $this->amountDue : '';
 
         $this->dispatch('close-pending-carts-modal');
         $this->dispatch('pos-cart-loaded');
@@ -840,25 +863,37 @@ class POSComponent extends Component
     {
         $this->totalAmount = 0;
 
+        $this->lineSplits = [];
+        $insurer = $this->cartInsurer();
+        $this->insurerName = $insurer?->name;
+
         if (empty($this->cart)) {
             $this->hasFramesOrLenses = false;
             $this->isPartPayment     = false;
             $this->discountAmount    = 0;
             $this->finalAmount       = 0;
+            $this->computedInsurerAmount = 0;
+            $this->applyInsuranceSplit();
             $this->updateChange();
             return;
         }
 
         $this->cachedCartProducts = null; // invalidate so we get fresh data after cart changes
         $products = $this->fetchCartProducts();
+        $billInsurer = $insurer && $this->billInsurer;
         foreach ($this->cart as $cartKey => $cartItem) {
             $productId = $this->getCartItemProductId($cartKey, $cartItem);
 
             if (isset($products[$productId])) {
-                $qty               = is_array($cartItem) ? $cartItem['quantity'] : $cartItem;
-                $this->totalAmount += $qty * $products[$productId]->selling_price;
+                $qty   = is_array($cartItem) ? $cartItem['quantity'] : $cartItem;
+                $split = $billInsurer
+                    ? $this->insuranceBilling()->splitLine($insurer, $products[$productId], (int) $qty)
+                    : ['unit_price' => (float) $products[$productId]->selling_price, 'insurer' => 0.0];
+                $this->lineSplits[$cartKey] = ['unit_price' => $split['unit_price'], 'insurer' => $split['insurer']];
+                $this->totalAmount += $qty * $split['unit_price'];
             }
         }
+        $this->computedInsurerAmount = round(collect($this->lineSplits)->sum('insurer'), 2);
 
         $this->totalAmount = (float) $this->totalAmount;
 
@@ -879,13 +914,120 @@ class POSComponent extends Component
         }
         $this->finalAmount = max(0, $this->totalAmount - $this->discountAmount);
 
-        // Auto-disable part payment if cart no longer has frames/lenses
-        if (!$this->hasFramesOrLenses) {
+        $this->applyInsuranceSplit();
+
+        // Auto-disable part payment if cart no longer has frames/lenses or nothing is due
+        if (!$this->hasFramesOrLenses || $this->amountDue <= 0) {
             $this->isPartPayment = false;
         }
 
         $this->amountPaid = $this->getTotalPaid();
         $this->updateChange();
+    }
+
+    /* ===================== INSURANCE ===================== */
+
+    private function insuranceBilling(): InsuranceBilling
+    {
+        return $this->insuranceBilling ??= app(InsuranceBilling::class);
+    }
+
+    /** The patient's active insurer, when this sale can be billed to one. */
+    private function cartInsurer(): ?Insurer
+    {
+        if ($this->cartInsurer === false) {
+            $this->cartInsurer = $this->patientId && $this->purchaseMode !== 'direct'
+                ? $this->insuranceBilling()->insurerFor(Patient::find($this->patientId))
+                : null;
+        }
+
+        return $this->cartInsurer;
+    }
+
+    /** Set insurerAmount and amountDue from finalAmount and the coverage rules (or the cashier's override). */
+    private function applyInsuranceSplit(): void
+    {
+        $final = round((float) $this->finalAmount, 2);
+        $insurerAmount = 0.0;
+
+        if ($this->cartInsurer() && $this->billInsurer) {
+            $insurerAmount = (float) $this->computedInsurerAmount;
+            if ($this->insurerOverride !== '' && $this->insurerOverride !== null && is_numeric($this->insurerOverride)) {
+                $insurerAmount = round((float) $this->insurerOverride, 2);
+            }
+            $insurerAmount = min(max(0, $insurerAmount), $final);
+        }
+
+        $this->insurerAmount = round($insurerAmount, 2);
+        $this->amountDue     = round(max(0, $final - $this->insurerAmount), 2);
+    }
+
+    /** True when the cashier changed what the rules say the insurer pays. */
+    private function insuranceSplitChanged(): bool
+    {
+        return $this->cartInsurer() !== null
+            && (!$this->billInsurer || abs((float) $this->insurerAmount - min((float) $this->computedInsurerAmount, (float) $this->finalAmount)) > 0.005);
+    }
+
+    private function resetInsuranceChoices(): void
+    {
+        $this->billInsurer     = true;
+        $this->insurerOverride = '';
+        $this->insuranceReason = '';
+        $this->cartInsurer     = false;
+    }
+
+    public function updatedBillInsurer(): void
+    {
+        $this->insurerOverride = '';
+        $this->payments = [];
+        $this->calculateTotal();
+        $this->newPaymentAmount = $this->amountDue > 0 ? $this->amountDue : '';
+    }
+
+    public function updatedInsurerOverride(): void
+    {
+        $this->payments = [];
+        $this->calculateTotal();
+        $this->newPaymentAmount = $this->amountDue > 0 ? $this->amountDue : '';
+    }
+
+    /**
+     * Spread the sale's insurer share over its lines, in proportion to what the rules
+     * gave each line (or to the line totals when the rules gave nothing), so each line
+     * records its share for refunds and later claim adjustments.
+     *
+     * @return array<string, float> cartKey => insurer share
+     */
+    private function allocateInsurerToLines(array $lineTotals): array
+    {
+        $target = round((float) $this->insurerAmount, 2);
+        $allocation = array_fill_keys(array_keys($lineTotals), 0.0);
+        if ($target <= 0 || !$lineTotals) {
+            return $allocation;
+        }
+
+        $weights = collect($this->lineSplits)->map(fn ($split) => (float) $split['insurer'])->only(array_keys($lineTotals))->all();
+        if (array_sum($weights) <= 0) {
+            $weights = $lineTotals;
+        }
+        $totalWeight = array_sum($weights);
+        if ($totalWeight <= 0) {
+            return $allocation;
+        }
+
+        $allocated = 0.0;
+        $keys = array_keys($weights);
+        foreach ($keys as $i => $key) {
+            $share = $i === count($keys) - 1
+                ? round($target - $allocated, 2)
+                : round($target * $weights[$key] / $totalWeight, 2);
+            $share = min($share, (float) $lineTotals[$key]);
+            $allocation[$key] = $share;
+            $allocated += $share;
+        }
+
+        return $allocation;
     }
 
     /* ===================== SPLIT PAYMENT ===================== */
@@ -919,7 +1061,7 @@ class POSComponent extends Component
         ];
 
         // Pre-fill next entry with remaining balance
-        $remaining = max(0, round($this->finalAmount - $this->getTotalPaid(), 2));
+        $remaining = max(0, round($this->amountDue - $this->getTotalPaid(), 2));
         $this->newPaymentAmount = $remaining > 0 ? $remaining : '';
 
         $this->amountPaid = $this->getTotalPaid();
@@ -932,7 +1074,7 @@ class POSComponent extends Component
         $this->amountPaid = $this->getTotalPaid();
 
         // Pre-fill remaining after removal
-        $remaining = max(0, round($this->finalAmount - $this->getTotalPaid(), 2));
+        $remaining = max(0, round($this->amountDue - $this->getTotalPaid(), 2));
         $this->newPaymentAmount = $remaining > 0 ? $remaining : '';
 
         $this->updateChange();
@@ -942,7 +1084,7 @@ class POSComponent extends Component
     {
         $this->newPaymentMethod = $method;
         // Pre-fill with remaining when switching method
-        $remaining = max(0, round($this->finalAmount - $this->getTotalPaid(), 2));
+        $remaining = max(0, round($this->amountDue - $this->getTotalPaid(), 2));
         if ($remaining > 0 && (float) ($this->newPaymentAmount ?? 0) == 0) {
             $this->newPaymentAmount = $remaining;
         }
@@ -986,8 +1128,9 @@ class POSComponent extends Component
         $this->discountValue = 0;
         $this->discountAmount = 0;
         $this->finalAmount = (float) $this->totalAmount;
+        $this->applyInsuranceSplit();
         $this->resetDiscountApproval();
-        $this->newPaymentAmount = max(0, round($this->finalAmount - $this->getTotalPaid(), 2));
+        $this->newPaymentAmount = max(0, round($this->amountDue - $this->getTotalPaid(), 2));
         $this->updateChange();
 
         $this->dispatch('notify', ...[
@@ -1261,8 +1404,7 @@ class POSComponent extends Component
     private function updateChange()
     {
         $totalPaid    = $this->getTotalPaid();
-        $finalAmount  = (float) ($this->finalAmount ?? 0);
-        $this->change = max(0, $totalPaid - $finalAmount);
+        $this->change = max(0, $totalPaid - (float) ($this->amountDue ?? 0));
     }
 
     private function discountApprovalCartSnapshot(): array
@@ -1693,8 +1835,12 @@ class POSComponent extends Component
             return;
         }
 
+        if (!$this->insuranceChoicesAreValid()) {
+            return;
+        }
+
         $amountPaid  = $this->getTotalPaid();
-        $finalAmount = (float) ($this->finalAmount ?? 0);
+        $finalAmount = (float) ($this->amountDue ?? 0);
 
         if ($amountPaid <= 0 && $finalAmount > 0) {
             $this->dispatch('notify', ...[
@@ -1721,6 +1867,9 @@ class POSComponent extends Component
 
         $this->dispatch('show-checkout-confirmation', ...[
             'totalAmount'    => number_format($finalAmount, 2),
+            'billTotal'      => number_format((float) $this->finalAmount, 2),
+            'insurerName'    => $this->insurerAmount > 0 ? $this->insurerName : null,
+            'insurerAmount'  => number_format((float) $this->insurerAmount, 2),
             'amountPaid'     => number_format($amountPaid, 2),
             'change'         => number_format($this->change, 2),
             'balance'        => number_format($balance, 2),
@@ -1813,11 +1962,19 @@ class POSComponent extends Component
             }
         }
 
+        if (!$this->insuranceChoicesAreValid()) {
+            $this->checkoutProcessing = false;
+            return;
+        }
+
         $amountPaid    = (float) ($this->amountPaid ?? 0);
         $isPartPayment = $this->isPartPayment;
-        $finalAmount   = (float) ($this->finalAmount ?? 0);
+        $finalAmount   = (float) ($this->finalAmount ?? 0); // the bill
+        $amountDue     = (float) ($this->amountDue ?? 0);   // the patient's part of it
+        $insurerAmount = (float) ($this->insurerAmount ?? 0);
+        $insurer       = $insurerAmount > 0 ? $this->cartInsurer() : null;
 
-        if (!$isPartPayment && $amountPaid < $finalAmount) {
+        if (!$isPartPayment && $amountPaid < $amountDue) {
             $this->checkoutProcessing = false;
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Insufficient payment']);
             return;
@@ -1873,6 +2030,15 @@ class POSComponent extends Component
             $availableOpenVisitSale = $this->findOpenVisitSale(true);
             $openVisitSale = $this->addToOpenVisitBill ? $availableOpenVisitSale : null;
 
+            if ($openVisitSale && $insurer) {
+                if ($openVisitSale->insurer_id && (int) $openVisitSale->insurer_id !== (int) $insurer->id) {
+                    throw new \Exception('This visit bill is billed to a different insurer. Sell these items as a separate bill.');
+                }
+                if ($this->insuranceBilling()->claimIsLocked($openVisitSale)) {
+                    throw new \Exception("The insurance claim for this visit bill was already submitted. Switch off 'Bill insurer' or sell these items as a separate bill.");
+                }
+            }
+
             if ($availableOpenVisitSale && !$this->addToOpenVisitBill) {
                 $oldBill = $availableOpenVisitSale->only(['bill_status', 'bill_version', 'finalized_at']);
                 $availableOpenVisitSale->update([
@@ -1890,23 +2056,28 @@ class POSComponent extends Component
 
             // Calculate profit
             $total_profit = 0;
+            $lineTotals = [];
             foreach ($this->cart as $cartKey => $cartItem) {
                 $productId = $this->getCartItemProductId($cartKey, $cartItem);
 
                 if (isset($products[$productId])) {
                     $qty           = is_array($cartItem) ? $cartItem['quantity'] : $cartItem;
-                    $total_profit += ($products[$productId]->selling_price - $products[$productId]->cost_price) * $qty;
+                    $unitPrice     = $this->lineUnitPrice($cartKey, $products[$productId]);
+                    $total_profit += ($unitPrice - $products[$productId]->cost_price) * $qty;
+                    $lineTotals[$cartKey] = round($qty * $unitPrice, 2);
                 }
             }
+            $lineInsurer = $this->allocateInsurerToLines($lineTotals);
 
-            // For full payments cap amount_paid at the total (excess is change, not revenue)
-            $recordedAmountPaid = $isPartPayment ? $amountPaid : min($amountPaid, $finalAmount);
+            // For full payments cap amount_paid at the patient's part (excess is change, not revenue)
+            $recordedAmountPaid = $isPartPayment ? $amountPaid : min($amountPaid, $amountDue);
 
             if ($openVisitSale) {
                 $oldBill = $openVisitSale->only(['total_amount', 'amount_paid', 'payment_status', 'bill_status', 'bill_version', 'discount_amount', 'profit']);
                 $combinedTotal = (float) $openVisitSale->total_amount + $finalAmount;
                 $combinedPaid = (float) $openVisitSale->amount_paid + $recordedAmountPaid;
-                $paymentStatus = $combinedPaid >= $combinedTotal
+                $combinedInsurer = round((float) $openVisitSale->insurer_amount + $insurerAmount, 2);
+                $paymentStatus = $combinedPaid >= round($combinedTotal - $combinedInsurer, 2)
                     ? 'paid'
                     : ($combinedPaid > 0 ? 'partial' : 'unpaid');
                 $combinedDiscount = (float) $openVisitSale->discount_amount + $this->discountAmount;
@@ -1915,6 +2086,8 @@ class POSComponent extends Component
                     'consultation_id'      => $openVisitSale->consultation_id ?: $this->prescriptionConsultationId,
                     'total_amount'         => $combinedTotal,
                     'amount_paid'          => $combinedPaid,
+                    'insurer_id'           => $openVisitSale->insurer_id ?: $insurer?->id,
+                    'insurer_amount'       => $combinedInsurer,
                     'payment_status'       => $paymentStatus,
                     'bill_status'          => $isPartPayment ? 'open' : 'finalized',
                     'finalized_at'         => $isPartPayment ? null : now(),
@@ -1939,8 +2112,10 @@ class POSComponent extends Component
                     ? ($this->directCustomerName !== '' ? $this->directCustomerName : null)
                     : null,
                 'consultation_id' => $this->prescriptionConsultationId,
+                'insurer_id'      => $insurer?->id,
                 'total_amount'    => $finalAmount,
                 'amount_paid'     => $recordedAmountPaid,
+                'insurer_amount'  => $insurerAmount,
                 'payment_status'  => $paymentStatus,
                 'bill_status'     => $isPartPayment ? 'open' : 'finalized',
                 'finalized_at'    => $isPartPayment ? null : now(),
@@ -1973,7 +2148,7 @@ class POSComponent extends Component
             // Cap each amount at the remaining balance so the total never exceeds
             // the sale amount — the excess the cashier entered is change returned
             // to the customer and must not be recorded as collected revenue.
-            $remaining = $finalAmount;
+            $remaining = $amountDue;
             foreach ($this->payments as $payment) {
                 if ($remaining <= 0) break;
                 $recordAmount = $isPartPayment
@@ -2012,8 +2187,9 @@ class POSComponent extends Component
                     'product_id'          => $productId,
                     'prescribed_quantity' => $isPartPayment ? $qty : 0,
                     'dispensed_quantity'  => $isPartPayment ? 0    : $qty,
-                    'selling_price'       => $product->selling_price,
-                    'subtotal'            => $qty * $product->selling_price,
+                    'selling_price'       => $this->lineUnitPrice($cartKey, $product),
+                    'subtotal'            => $lineTotals[$cartKey] ?? $qty * $this->lineUnitPrice($cartKey, $product),
+                    'insurer_amount'      => $lineInsurer[$cartKey] ?? 0,
                     'frequency'           => $frequency,
                     'duration_value'      => $durationValue,
                     'duration_unit'       => $durationUnit,
@@ -2098,6 +2274,25 @@ class POSComponent extends Component
                 ],
                 $this->patientId
             );
+
+            if ($sale->insurer_id) {
+                $this->insuranceBilling()->syncDraftClaim($sale);
+            }
+
+            if ($this->insuranceSplitChanged()) {
+                $insurerLabel = $this->cartInsurer()?->name ?? 'Insurer';
+                AuditTrail::record(
+                    'insurance.split_adjusted',
+                    ($this->billInsurer
+                        ? 'Insurer share changed to ' . currency() . ' ' . number_format($insurerAmount, 2) . ' (rules: ' . currency() . ' ' . number_format((float) $this->computedInsurerAmount, 2) . ')'
+                        : "{$insurerLabel} not billed")
+                        . ' for sale ' . $sale->transaction_id . ': ' . trim((string) $this->insuranceReason),
+                    $sale,
+                    [],
+                    ['bill_insurer' => (bool) $this->billInsurer, 'insurer_amount' => $insurerAmount, 'rules_amount' => (float) $this->computedInsurerAmount, 'reason' => trim((string) $this->insuranceReason)],
+                    $this->patientId
+                );
+            }
 
             if ($openVisitSale) {
                 AuditTrail::record(
@@ -2185,7 +2380,9 @@ class POSComponent extends Component
                 'discount_amount' => $saleData->discount_amount,
                 'total_amount'    => $saleData->total_amount,
                 'amount_paid'     => $cumulativePaid,
-                'balance'         => max(0, (float) $saleData->total_amount - $cumulativePaid),
+                'insurer_name'    => (float) $saleData->insurer_amount > 0 ? $saleData->insurer?->name : null,
+                'insurer_amount'  => (float) $saleData->insurer_amount,
+                'balance'         => max(0.0, round((float) $saleData->total_amount - (float) $saleData->insurer_amount - $cumulativePaid, 2)),
                 'payments'        => $receiptPayments,
                 'payment_status'  => $saleData->payment_status,
                 'change'         => $isPartPayment ? 0 : $changeAmount,
@@ -2238,6 +2435,10 @@ class POSComponent extends Component
             $this->discountValue    = 0;
             $this->discountAmount   = 0;
             $this->finalAmount      = 0;
+            $this->insurerAmount    = 0;
+            $this->amountDue        = 0;
+            $this->computedInsurerAmount = 0;
+            $this->resetInsuranceChoices();
             $this->discountApproved     = false;
             $this->discountApprovedBy   = null;
             $this->discountApprovedById = null;
@@ -2282,6 +2483,40 @@ class POSComponent extends Component
                 'message' => 'Transaction failed: ' . $e->getMessage(),
             ]);
         }
+    }
+
+    /** The price charged per item on this line: the clinic's price, or the insurer's tariff. */
+    private function lineUnitPrice($cartKey, Product $product): float
+    {
+        return (float) ($this->lineSplits[$cartKey]['unit_price'] ?? $product->selling_price);
+    }
+
+    private function insuranceChoicesAreValid(): bool
+    {
+        if (!$this->cartInsurer()) {
+            return true;
+        }
+
+        if ($this->billInsurer && $this->insurerOverride !== '' && $this->insurerOverride !== null) {
+            $override = is_numeric($this->insurerOverride) ? round((float) $this->insurerOverride, 2) : -1;
+            if ($override < 0 || $override > round((float) $this->finalAmount, 2)) {
+                $this->dispatch('notify', ...[
+                    'type'    => 'error',
+                    'message' => "The insurer's share must be between 0 and " . currency() . ' ' . number_format((float) $this->finalAmount, 2) . '.',
+                ]);
+                return false;
+            }
+        }
+
+        if ($this->insuranceSplitChanged() && mb_strlen(trim((string) $this->insuranceReason)) < 5) {
+            $this->dispatch('notify', ...[
+                'type'    => 'error',
+                'message' => 'Give a reason for changing what the insurer pays.',
+            ]);
+            return false;
+        }
+
+        return true;
     }
 
     private function checkoutReferencesAreValid(): bool
@@ -2428,9 +2663,9 @@ class POSComponent extends Component
         $totalPaid       = $this->getTotalPaid();
         $discountBlocked = $this->discountAmount > 0 && !$this->discountApproved;
         $canCheckout     = $discountBlocked || ($totalPaid > 0 && (
-            ($this->isPartPayment && $totalPaid < $this->finalAmount) ||
-            $totalPaid >= $this->finalAmount
-        ));
+            ($this->isPartPayment && $totalPaid < $this->amountDue) ||
+            $totalPaid >= $this->amountDue
+        )) || (!$discountBlocked && !empty($this->cart) && $this->amountDue <= 0);
         $pendingPrescriptionCartCount = Cart::where('purchased', false)
             ->where('status', 'pending')
             ->whereNotNull('consultation_id')

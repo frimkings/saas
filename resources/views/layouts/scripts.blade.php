@@ -245,8 +245,17 @@
                                 <th>Items:</th>
                                 <td>${details.itemCount}</td>
                             </tr>
+                            ${details.insurerName ? `
                             <tr>
-                                <th>Total Amount:</th>
+                                <th>Bill Total:</th>
+                                <td>{{ currency() }} ${details.billTotal}</td>
+                            </tr>
+                            <tr>
+                                <th>Billed to ${details.insurerName}:</th>
+                                <td>{{ currency() }} ${details.insurerAmount}</td>
+                            </tr>` : ''}
+                            <tr>
+                                <th>${details.insurerName ? 'Patient Pays:' : 'Total Amount:'}</th>
                                 <td>{{ currency() }} ${details.totalAmount}</td>
                             </tr>
                             <tr>

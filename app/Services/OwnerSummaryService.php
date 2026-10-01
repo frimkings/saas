@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Mail\OwnerSummaryMail;
 use App\Models\Branch;
 use App\Models\InsuranceClaim;
+use App\Models\SaleAdjustment;
+use App\Models\InsurerPayment;
 use App\Models\Clinic;
 use App\Models\Expense;
 use App\Models\PaymentTransaction;
@@ -161,22 +163,36 @@ class OwnerSummaryService
             'claimsWaitingAmount' => 0.0,
             'claimsRejected' => 0,
             'claimsRejectedAmount' => 0.0,
+            'insurerReceived' => 0.0,
+            'insurerOwed' => 0.0,
+            'insurerOwed90' => 0.0,
+            'insurerWrittenOff' => 0.0,
         ];
         $figures['sales'] = round($figures['clinicSales'] + $figures['opticalSales'], 2);
+
+        if ($clinical) {
+            // Insurer remittances are money in too, shown as their own line.
+            $figures['insurerReceived'] = round((float) InsurerPayment::whereBetween('paid_on', [$from->toDateString(), $to->toDateString()])->sum('amount'), 2);
+            if ($figures['insurerReceived'] > 0) {
+                $figures['received'] = round($figures['received'] + $figures['insurerReceived'], 2);
+                $figures['byMethod']['Insurer payments'] = $figures['insurerReceived'];
+            }
+        }
 
         if ($withBalances) {
             // Still owed today, whenever the sale was made.
             $clinicOwed = $clinical
-                ? (float) Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereColumn('total_amount', '>', 'amount_paid')->sum(DB::raw('total_amount - amount_paid'))
+                ? (float) Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereRaw(Sales::PATIENT_BALANCE_SQL . ' > 0')->sum(DB::raw(Sales::PATIENT_BALANCE_SQL))
                 : 0.0;
             $opticalOwed = $optical ? $this->optical->owed() : null;
             $figures['owed'] = round($clinicOwed + (float) ($opticalOwed['total'] ?? 0), 2);
+            $figures['insurerOwed'] = $clinical ? round((float) Sales::awaitingInsurer()->sum(DB::raw(Sales::INSURER_OWED_SQL)), 2) : 0.0;
 
             if ($longView) {
                 // Owed for more than 90 days: the debts least likely to be paid.
                 $clinicOld = $clinical
-                    ? (float) Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereColumn('total_amount', '>', 'amount_paid')
-                        ->where('created_at', '<', today()->subDays(90))->sum(DB::raw('total_amount - amount_paid'))
+                    ? (float) Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereRaw(Sales::PATIENT_BALANCE_SQL . ' > 0')
+                        ->where('created_at', '<', today()->subDays(90))->sum(DB::raw(Sales::PATIENT_BALANCE_SQL))
                     : 0.0;
                 $figures['owed90'] = round($clinicOld + (float) ($opticalOwed['ages']['90+']['amount'] ?? 0), 2);
                 $figures['discounts'] = round((float) ($clinical ? Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereBetween('created_at', $range)->sum('discount_amount') : 0)
@@ -189,6 +205,8 @@ class OwnerSummaryService
                     $figures['claimsWaitingAmount'] = round((float) $waiting->sum('claim_amount'), 2);
                     $figures['claimsRejected'] = (clone $rejected)->count();
                     $figures['claimsRejectedAmount'] = round((float) $rejected->sum('claim_amount'), 2);
+                    $figures['insurerOwed90'] = round((float) Sales::awaitingInsurer()->where('created_at', '<', today()->subDays(90))->sum(DB::raw(Sales::INSURER_OWED_SQL)), 2);
+                    $figures['insurerWrittenOff'] = round((float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', $range)->sum('amount'), 2);
                 }
             }
         }
@@ -203,7 +221,8 @@ class OwnerSummaryService
             $total['hasClinic'] = $total['hasClinic'] || $row['hasClinic'];
             $total['hasOptical'] = $total['hasOptical'] || $row['hasOptical'];
             foreach (['sales', 'clinicSales', 'opticalSales', 'transactions', 'received', 'refunds', 'expenses', 'owed', 'owed90', 'discounts',
-                'claimsWaiting', 'claimsWaitingAmount', 'claimsRejected', 'claimsRejectedAmount'] as $field) {
+                'claimsWaiting', 'claimsWaitingAmount', 'claimsRejected', 'claimsRejectedAmount',
+                'insurerReceived', 'insurerOwed', 'insurerOwed90', 'insurerWrittenOff'] as $field) {
                 $total[$field] = round(($total[$field] ?? 0) + $row[$field], 2);
             }
             foreach ($row['byMethod'] as $method => $amount) {

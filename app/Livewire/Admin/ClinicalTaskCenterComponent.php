@@ -53,7 +53,7 @@ class ClinicalTaskCenterComponent extends Component
             ->where('is_refunded', false)
             ->where(function ($query) {
                 $query->whereIn('payment_status', ['partial', 'pending'])
-                    ->orWhereColumn('amount_paid', '<', 'total_amount');
+                    ->orWhereRaw('amount_paid < total_amount - insurer_amount');
             });
 
         // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
@@ -127,7 +127,7 @@ class ClinicalTaskCenterComponent extends Component
                 'tone' => 'secondary',
                 'icon' => 'fa-file-invoice-dollar',
                 'route' => route('cashier.outstanding-balances'),
-                'hint' => currency() . number_format((float) $outstandingQuery->sum(DB::raw('GREATEST(total_amount - amount_paid, 0)')), 2) . ' uncollected',
+                'hint' => currency() . number_format((float) $outstandingQuery->sum(DB::raw(\App\Models\Sales::PATIENT_BALANCE_SQL)), 2) . ' uncollected',
             ],
             [
                 'label' => 'Report Outbox',

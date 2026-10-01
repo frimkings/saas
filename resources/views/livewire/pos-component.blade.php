@@ -177,6 +177,7 @@ window.buildAndPrint = function(d) {
         paidRow = '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>PAID</span><span>{{ currency() }} ' + parseFloat(d.amount_paid).toFixed(2) + '</span></div>';
     }
     var changeRow  = parseFloat(d.change) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:2px;font-weight:bold;"><span>CHANGE</span><span>{{ currency() }} ' + parseFloat(d.change).toFixed(2) + '</span></div>' : '';
+    var insurerRow = d.insurer_name && parseFloat(d.insurer_amount) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>BILLED TO ' + String(d.insurer_name).toUpperCase() + '</span><span>{{ currency() }} ' + parseFloat(d.insurer_amount).toFixed(2) + '</span></div>' : '';
     var balanceRow = d.balance && parseFloat(d.balance) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;font-weight:bold;color:#c0392b;border-top:1px dashed #999;padding-top:4px;"><span>BALANCE DUE</span><span>{{ currency() }} ' + parseFloat(d.balance).toFixed(2) + '</span></div>' : '';
     var contactLines = '';
     if (d.clinic_contact) contactLines += '<div>Tel: ' + d.clinic_contact + '</div>';
@@ -191,7 +192,7 @@ window.buildAndPrint = function(d) {
         + '<div style="border-top:1px dashed #000;margin:6px 0;"></div>'
         + patientBlock
         + '<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #000;"><th style="padding:4px 2px;font-size:11px;text-align:left;width:48%;">ITEM</th><th style="padding:4px 2px;font-size:11px;text-align:center;width:10%;">QTY</th><th style="padding:4px 2px;font-size:11px;text-align:right;width:21%;">PRICE</th><th style="padding:4px 2px;font-size:11px;text-align:right;width:21%;">TOTAL</th></tr></thead><tbody>' + itemRows + '</tbody></table>'
-        + '<div style="border-top:2px solid #000;padding-top:6px;margin-top:4px;">' + subtotalRow + discountRow + '<div style="display:flex;justify-content:space-between;margin:3px 0;font-size:14px;font-weight:bold;"><span>TOTAL</span><span>{{ currency() }} ' + parseFloat(d.total_amount).toFixed(2) + '</span></div>' + paidRow + changeRow + balanceRow + '</div>'
+        + '<div style="border-top:2px solid #000;padding-top:6px;margin-top:4px;">' + subtotalRow + discountRow + '<div style="display:flex;justify-content:space-between;margin:3px 0;font-size:14px;font-weight:bold;"><span>TOTAL</span><span>{{ currency() }} ' + parseFloat(d.total_amount).toFixed(2) + '</span></div>' + insurerRow + paidRow + changeRow + balanceRow + '</div>'
         + '<div style="text-align:center;font-size:11px;border-top:1px dashed #000;padding-top:6px;margin-top:10px;"><p>Thank you for your business!</p><p>Please keep this receipt for your records.</p><br><p>Served by: <strong>' + d.served_by + '</strong></p><p>' + printedAt + '</p></div>';
 
     ['__pos_receipt_print__', '__pos_receipt_print_style__'].forEach(function(id) {
@@ -581,6 +582,40 @@ window.printReceiptFromDom = function(event) {
                         <span>{{ currency() }} {{ number_format($finalAmount, 2) }}</span>
                     </div>
 
+                    {{-- Insurance co-pay --}}
+                    @if($insurerName)
+                        <div class="pos-insurance border rounded p-2 mt-2" style="font-size:.85rem;">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span><i class="fas fa-shield-alt text-info me-1"></i>Bill <strong>{{ $insurerName }}</strong></span>
+                                <label class="pos-switch mb-0">
+                                    <input type="checkbox" wire:model.live="billInsurer">
+                                    <span class="pos-switch__track"></span>
+                                </label>
+                            </div>
+                            @if($billInsurer)
+                                <div class="d-flex align-items-center justify-content-between mt-2" style="gap:6px;">
+                                    <span class="text-muted">Insurer pays</span>
+                                    <input type="number" class="pos-co-input" style="max-width:120px;" min="0" step="0.01"
+                                           wire:model.live.debounce.500ms="insurerOverride"
+                                           placeholder="{{ number_format(min($computedInsurerAmount, $finalAmount), 2, '.', '') }}">
+                                </div>
+                            @endif
+                            @if(!$billInsurer || abs($insurerAmount - min($computedInsurerAmount, $finalAmount)) > 0.005)
+                                <input type="text" class="pos-co-input mt-2" maxlength="200"
+                                       wire:model.blur="insuranceReason"
+                                       placeholder="Reason for changing what the insurer pays (required)">
+                            @endif
+                        </div>
+                        <div class="pos-sum-row text-info">
+                            <span>Insurer Pays</span>
+                            <span>{{ currency() }} {{ number_format($insurerAmount, 2) }}</span>
+                        </div>
+                        <div class="pos-sum-row pos-sum-row--total">
+                            <span>Patient Pays</span>
+                            <span>{{ currency() }} {{ number_format($amountDue, 2) }}</span>
+                        </div>
+                    @endif
+
                 </div>
 
                 {{-- Payment --}}
@@ -631,7 +666,7 @@ window.printReceiptFromDom = function(event) {
                             @endforeach
                             <div class="pos-pay-subtotal">
                                 <span>Total Paid</span>
-                                <span class="{{ $totalPaid >= $finalAmount ? 'pos-paid--ok' : 'pos-paid--short' }}">
+                                <span class="{{ $totalPaid >= $amountDue ? 'pos-paid--ok' : 'pos-paid--short' }}">
                                     {{ currency() }} {{ number_format($totalPaid, 2) }}
                                 </span>
                             </div>
@@ -643,8 +678,8 @@ window.printReceiptFromDom = function(event) {
                                 <span>Change</span>
                                 <span class="ms-auto">{{ currency() }} {{ number_format($change, 2) }}</span>
                             </div>
-                        @elseif($totalPaid > 0 && $totalPaid < $finalAmount)
-                            @php $remaining = round($finalAmount - $totalPaid, 2); @endphp
+                        @elseif($totalPaid > 0 && $totalPaid < $amountDue)
+                            @php $remaining = round($amountDue - $totalPaid, 2); @endphp
                             <div class="pos-change-pill pos-change-pill--balance">
                                 <i class="fas fa-exclamation-circle"></i>
                                 <span>{{ $isPartPayment ? 'Balance (Held)' : 'Still Needed' }}</span>
@@ -652,12 +687,14 @@ window.printReceiptFromDom = function(event) {
                             </div>
                         @endif
 
-                        @if($isPartPayment && count($payments) > 0 && $totalPaid < $finalAmount)
+                        @if($isPartPayment && count($payments) > 0 && $totalPaid < $amountDue)
                             <p class="pos-part-note">
                                 <i class="fas fa-info-circle me-1"></i>
-                                Deposit {{ currency() }} {{ number_format($totalPaid, 2) }} recorded. Balance {{ currency() }} {{ number_format($finalAmount - $totalPaid, 2) }} due on pickup.
+                                Deposit {{ currency() }} {{ number_format($totalPaid, 2) }} recorded. Balance {{ currency() }} {{ number_format($amountDue - $totalPaid, 2) }} due on pickup.
                             </p>
                         @endif
+                    @elseif($insurerName && $amountDue <= 0)
+                        <p class="pos-pay-hint">Fully covered by {{ $insurerName }} — nothing to collect.</p>
                     @else
                         <p class="pos-pay-hint">Select a method above and enter an amount.</p>
                     @endif

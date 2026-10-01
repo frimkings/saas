@@ -6,6 +6,7 @@ use App\Models\RefundLog;
 use App\Models\Sales;
 use App\Models\AuditTrail;
 use App\Models\Product;
+use App\Services\Insurance\InsuranceBilling;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use DB;
@@ -233,6 +234,13 @@ class RefundApprovalsComponent extends Component
                     throw new \RuntimeException('One or more selected items are invalid or were already refunded.');
                 }
 
+                // The insurer's share of these items was never paid by the patient, so it is
+                // not refunded to them; it comes off the insurer's draft claim instead.
+                $selectedInsurer = round((float) $refundableItems->sum('insurer_amount'), 2);
+                if ($selectedInsurer > 0 && app(InsuranceBilling::class)->claimIsLocked($lockedSale)) {
+                    throw new \RuntimeException('These items were billed to the insurer and the claim has already been submitted. Adjust the claim with the insurer before refunding.');
+                }
+
                 $stockRestoration = [];
                 $productIds = $refundableItems
                     ->where('dispensed_quantity', '>', 0)
@@ -278,7 +286,7 @@ class RefundApprovalsComponent extends Component
                 $selectedGross = (float) $refundableItems->sum('subtotal');
                 $saleGross = max(0.01, (float) $lockedSale->items->sum('subtotal'));
                 $allocatedDiscount = (float) $lockedSale->discount_amount * ($selectedGross / $saleGross);
-                $refundedAmount = min((float) $lockedSale->amount_paid, max(0, $selectedGross - $allocatedDiscount));
+                $refundedAmount = min((float) $lockedSale->amount_paid, max(0, $selectedGross - $allocatedDiscount - $selectedInsurer));
                 $allItemsRefunded = $lockedSale->items->every(fn ($item) =>
                     $item->refunded_quantity >= $item->dispensed_quantity
                 );
@@ -289,6 +297,11 @@ class RefundApprovalsComponent extends Component
                     'refunded_at'   => $allItemsRefunded ? now() : $lockedSale->refunded_at,
                     'refunded_by'   => $allItemsRefunded ? auth()->id() : $lockedSale->refunded_by,
                 ]);
+
+                if ($selectedInsurer > 0) {
+                    $lockedSale->update(['insurer_amount' => max(0, round((float) $lockedSale->insurer_amount - $selectedInsurer, 2))]);
+                    app(InsuranceBilling::class)->syncDraftClaim($lockedSale);
+                }
 
                 $cartIds = $lockedSale->items->pluck('cart_id')->filter()->unique();
                 if ($cartIds->isNotEmpty()) {

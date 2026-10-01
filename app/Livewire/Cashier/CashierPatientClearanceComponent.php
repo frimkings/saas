@@ -7,11 +7,11 @@ use App\Models\CashierPatientClearance;
 use App\Models\Category;
 use App\Models\ClearanceRevokeLog;
 use App\Models\Patient;
-use App\Models\InsuranceClaim;
 use App\Models\PaymentTransaction;
 use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\Sales;
+use App\Services\Insurance\InsuranceBilling;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +46,8 @@ class CashierPatientClearanceComponent extends Component
     public array $clearancePayments = [];
     public float $outstandingBalance = 0.0;
     public array $insuranceSummary = [];
+    // service id => ['price', 'insurer', 'patient'] for an insured patient
+    public array $insuranceSplits = [];
 
     // --- Inline status update ---
     public ?int   $editingClearanceId     = null;
@@ -126,27 +128,34 @@ class CashierPatientClearanceComponent extends Component
         $this->outstandingBalance = (float) Sales::where('patient_id', $patientId)
             ->where('created_at', '<', now()->startOfDay())
             ->where('is_refunded', false)
-            ->selectRaw('COALESCE(SUM(GREATEST(total_amount - amount_paid, 0)), 0) AS balance')
+            ->selectRaw('COALESCE(SUM(' . Sales::PATIENT_BALANCE_SQL . '), 0) AS balance')
             ->value('balance');
 
-        $claim = InsuranceClaim::with('insurer')->where('patient_id', $patientId)->latest()->first();
-        $approvedCoverage = (float) ($claim?->approved_amount ?? $claim?->pre_auth_amount ?? 0);
-        $claimAmount = (float) ($claim?->claim_amount ?? 0);
+        $billing = app(InsuranceBilling::class);
+        $insurer = $billing->insurerFor($patient);
         $this->insuranceSummary = $patient->insurer_id ? [
-            'insurer' => $claim?->insurer?->name ?? $patient->insurer?->name ?? 'Insurance',
-            'member_id' => $claim?->member_id ?? $patient->insurance_member_id,
-            'member_name' => $claim?->member_name ?? $patient->insurance_member_name,
-            'policy_number' => $claim?->policy_number ?? $patient->insurance_policy_number,
-            'status' => $claim?->statusLabel() ?? 'No claim submitted',
-            'pre_auth_status' => $claim?->preAuthLabel() ?? 'No Pre-Auth',
-            'coverage' => $approvedCoverage,
-            'patient_contribution' => max(0, $claimAmount - $approvedCoverage),
+            'insurer' => $insurer?->name ?? $patient->insurer?->name ?? 'Insurance',
+            'active' => (bool) $insurer,
+            'member_id' => $patient->insurance_member_id,
+            'member_name' => $patient->insurance_member_name,
+            'policy_number' => $patient->insurance_policy_number,
         ] : [];
+        $this->insuranceSplits = $insurer
+            ? $this->clearanceServices()->mapWithKeys(function (Product $service) use ($billing, $insurer) {
+                $split = $billing->splitLine($insurer, $service);
+
+                return [$service->id => [
+                    'price'   => $split['unit_price'],
+                    'insurer' => $split['insurer'],
+                    'patient' => round($split['unit_price'] - $split['insurer'], 2),
+                ]];
+            })->all()
+            : [];
 
         $this->dispatch('show-addClearanceModal-form');
     }
 
-    public function createClearance(string $serviceValue = '', string $paymentsJson = '[]'): void
+    public function createClearance(string $serviceValue = '', string $paymentsJson = '[]', string $insuranceJson = '{}'): void
     {
         if ($serviceValue !== '') {
             $this->selectedServiceId = $serviceValue;
@@ -193,14 +202,47 @@ class CashierPatientClearanceComponent extends Component
                 : null;
         })->filter()->values()->all();
 
+        // Insurance split: the insurer's share is billed to the insurer, the patient pays the rest now.
+        $insurer = $isUnpaid ? null : app(InsuranceBilling::class)->insurerFor($patient);
+        $insuranceInput = json_decode($insuranceJson, true);
+        $insuranceInput = is_array($insuranceInput) ? $insuranceInput : [];
+        $billInsurer = $insurer && ($insuranceInput['bill'] ?? true);
+        $insuranceReason = trim((string) ($insuranceInput['reason'] ?? ''));
+        $insurerAmount = 0.0;
+        $splitAdjusted = false;
+
         if (!$isUnpaid) {
             $totalAmount = round((float) $service->selling_price, 2);
+
+            if ($billInsurer) {
+                $split = app(InsuranceBilling::class)->splitLine($insurer, $service);
+                $totalAmount = $split['unit_price'];
+                $insurerAmount = $split['insurer'];
+                $override = $insuranceInput['amount'] ?? null;
+
+                if ($override !== null && $override !== '' && abs(round((float) $override, 2) - $insurerAmount) > 0.005) {
+                    $override = round((float) $override, 2);
+                    if ($override < 0 || $override > $totalAmount) {
+                        $this->addError('selectedServiceId', "The insurer's share must be between 0 and " . currency() . ' ' . number_format($totalAmount, 2) . '.');
+                        return;
+                    }
+                    $insurerAmount = $override;
+                    $splitAdjusted = true;
+                }
+            }
+
+            if ($insurer && (!$billInsurer || $splitAdjusted) && mb_strlen($insuranceReason) < 5) {
+                $this->addError('selectedServiceId', 'Give a reason for changing what the insurer pays.');
+                return;
+            }
+
+            $patientDue = round($totalAmount - $insurerAmount, 2);
             $amountPaid = round((float) collect($payments)->sum('amount'), 2);
 
-            if (abs($amountPaid - $totalAmount) > 0.005) {
+            if (abs($amountPaid - $patientDue) > 0.005) {
                 $this->addError(
                     'selectedServiceId',
-                    'Payments must equal the service total of ' . currency() . ' ' . number_format($totalAmount, 2) . '.'
+                    "Payments must equal the patient's amount of " . currency() . ' ' . number_format($patientDue, 2) . '.'
                 );
                 return;
             }
@@ -259,7 +301,6 @@ class CashierPatientClearanceComponent extends Component
             $receiptUrl = route('cashier.clearance-receipt', $clearance->id);
             if (!$isUnpaid && $serviceId) {
                 $transactionId = now()->format('dmY') . '-' . strtoupper(Str::random(8));
-                $totalAmount   = (float) $service->selling_price;
                 $amountPaid    = collect($payments)->sum('amount');
                 $paymentStatus = 'paid';
                 $profit        = max(0, $totalAmount - (float) ($service->cost_price ?? 0));
@@ -268,9 +309,11 @@ class CashierPatientClearanceComponent extends Component
                     'business_line' => 'clinic',
                     'user_id'        => Auth::id(),
                     'patient_id'     => $this->patientClearanceId,
+                    'insurer_id'     => $insurerAmount > 0 ? $insurer->id : null,
                     'transaction_id' => $transactionId,
                     'total_amount'   => $totalAmount,
                     'amount_paid'    => $amountPaid,
+                    'insurer_amount' => $insurerAmount,
                     'payment_status' => $paymentStatus,
                     'bill_status'    => 'open',
                     'expires_at'     => now()->endOfDay(),
@@ -284,6 +327,7 @@ class CashierPatientClearanceComponent extends Component
                     'dispensed_quantity'  => 1,
                     'selling_price'       => $totalAmount,
                     'subtotal'            => $totalAmount,
+                    'insurer_amount'      => $insurerAmount,
                     'notes'               => 'Clearance Service',
                 ]);
 
@@ -303,9 +347,23 @@ class CashierPatientClearanceComponent extends Component
 
                 AuditTrail::record(
                     'sale.created',
-                    "Clearance sale: {$this->patientName} — {$service->name} (" . currency() . " {$totalAmount}) | " . implode(', ', $methodNames),
+                    "Clearance sale: {$this->patientName} — {$service->name} (" . currency() . " {$totalAmount}) | " . implode(', ', $methodNames)
+                        . ($insurerAmount > 0 ? " | {$insurer->name} pays " . currency() . ' ' . number_format($insurerAmount, 2) : ''),
                     $sale, [], [], $this->patientClearanceId
                 );
+
+                if ($insurer && (!$billInsurer || $splitAdjusted)) {
+                    AuditTrail::record(
+                        'insurance.split_adjusted',
+                        ($billInsurer
+                            ? 'Insurer share changed to ' . currency() . ' ' . number_format($insurerAmount, 2)
+                            : "{$insurer->name} not billed") . " for sale {$transactionId}: {$insuranceReason}",
+                        $sale, [], ['bill_insurer' => (bool) $billInsurer, 'insurer_amount' => $insurerAmount, 'reason' => $insuranceReason],
+                        $this->patientClearanceId
+                    );
+                }
+
+                app(InsuranceBilling::class)->syncDraftClaim($sale);
 
                 $receiptUrl = route('cashier.receipt.show', $sale->id);
             }
@@ -334,13 +392,15 @@ class CashierPatientClearanceComponent extends Component
                 'txn'      => $clearance->sale?->transaction_id
                                 ?? 'CLR-' . str_pad($clearance->id, 6, '0', STR_PAD_LEFT),
                 'service'  => $clearance->service?->name ?? 'No specific service',
-                'amount'   => number_format((float) ($clearance->service?->selling_price ?? 0), 2),
+                'amount'   => number_format((float) ($clearance->sale?->total_amount ?? $clearance->service?->selling_price ?? 0), 2),
+                'insurer'  => $insurerAmount > 0 ? $insurer->name : null,
+                'insurerAmount' => number_format($insurerAmount, 2),
                 'status'   => $clearance->payment_status,
                 'payments' => $paymentLines,
                 'printUrl' => $receiptUrl,
             ]);
 
-            $this->reset(['patientClearanceId', 'selectedServiceId', 'patientName', 'clearancePayments']);
+            $this->reset(['patientClearanceId', 'selectedServiceId', 'patientName', 'clearancePayments', 'insuranceSummary', 'insuranceSplits']);
             $this->resetPage();
 
             Log::info('Patient clearance created', [
@@ -367,7 +427,7 @@ class CashierPatientClearanceComponent extends Component
 
     public function closeModal(): void
     {
-        $this->reset(['patientClearanceId', 'selectedServiceId', 'patientName', 'clearancePayments', 'outstandingBalance', 'insuranceSummary']);
+        $this->reset(['patientClearanceId', 'selectedServiceId', 'patientName', 'clearancePayments', 'outstandingBalance', 'insuranceSummary', 'insuranceSplits']);
         $this->resetValidation();
         $this->dispatch('hide-addClearanceModal-modal');
     }
@@ -501,6 +561,14 @@ class CashierPatientClearanceComponent extends Component
         $this->dispatch('hide-revokeRequestModal');
     }
 
+    private function clearanceServices()
+    {
+        return Product::whereHas('category', function ($q) {
+            $q->where('name', 'like', '%service%')
+              ->orWhere('type', 'service');
+        })->orderBy('name')->get();
+    }
+
     // ---------------------------------------------------------------
     // Render
     // ---------------------------------------------------------------
@@ -538,10 +606,7 @@ class CashierPatientClearanceComponent extends Component
         $to   = $this->dateTo   ?: $today;
         if ($from > $to) $to = $from; // guard against inverted range
 
-        $services = Product::whereHas('category', function ($q) {
-            $q->where('name', 'like', '%service%')
-              ->orWhere('type', 'service');
-        })->orderBy('name')->get();
+        $services = $this->clearanceServices();
 
         $clearances = CashierPatientClearance::with(['patient.insurer', 'patient.latestInsuranceClaim', 'user', 'service', 'sale', 'pendingRevokeLog'])
             ->whereDateIndexed('clearance_date', '>=', $from)

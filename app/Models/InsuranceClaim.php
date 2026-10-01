@@ -15,7 +15,8 @@ class InsuranceClaim extends Model
     protected $fillable = [
         'patient_id', 'insurer_id', 'sale_id',
         'member_id', 'member_name', 'policy_number',
-        'claim_amount', 'approved_amount',
+        'claim_amount', 'approved_amount', 'amount_received',
+        'shortfall_amount', 'shortfall_action',
         'status',
         'submission_date', 'approval_date', 'payment_date',
         'rejection_reason', 'notes',
@@ -27,6 +28,8 @@ class InsuranceClaim extends Model
     protected $casts = [
         'claim_amount'        => 'decimal:2',
         'approved_amount'     => 'decimal:2',
+        'amount_received'     => 'decimal:2',
+        'shortfall_amount'    => 'decimal:2',
         'pre_auth_amount'     => 'decimal:2',
         'submission_date'     => 'date',
         'approval_date'       => 'date',
@@ -106,12 +109,27 @@ class InsuranceClaim extends Model
         };
     }
 
+    /** Statuses an insurer payment can be recorded against. */
+    public const PAYABLE_STATUSES = ['submitted', 'approved', 'partially_approved'];
+
+    /** What the insurer is expected to pay: the approved amount once known, else the claim. */
+    public function expectedAmount(): float
+    {
+        return round((float) ($this->approved_amount ?? $this->claim_amount), 2);
+    }
+
+    /** What the insurer still owes on this claim. */
     public function outstandingAmount(): float
     {
-        if (in_array($this->status, ['approved', 'partially_approved'])) {
-            return (float) ($this->approved_amount ?? $this->claim_amount);
+        if (in_array($this->status, self::PAYABLE_STATUSES, true)) {
+            return max(0, round($this->expectedAmount() - (float) $this->amount_received, 2));
         }
         return 0.0;
+    }
+
+    public function allocations()
+    {
+        return $this->hasMany(InsurerPaymentAllocation::class);
     }
 
     public function preAuthBadgeClass(): string

@@ -337,11 +337,15 @@ Route::get('admin/branches', \App\Livewire\Admin\BranchManagementComponent::clas
 // Insurance module
 Route::get('/admin/insurance/claims', \App\Livewire\Admin\InsuranceClaimsComponent::class)->name('admin.insurance.claims');
 Route::get('/admin/insurance/insurers', \App\Livewire\Admin\InsurersComponent::class)->name('admin.insurance.insurers');
+Route::get('/admin/insurance/receivables', \App\Livewire\Admin\InsurerReceivablesComponent::class)->name('admin.insurance.receivables');
 
 // Patient Recall dashboard
 Route::get('/admin/patient-recall', \App\Livewire\Admin\PatientRecallComponent::class)->name('admin.patient-recall')->middleware('feature:sms_campaigns');
 
 });
+
+// Insurer remittances: Super Admin, or any role given the "record insurer payments" permission.
+Route::get('admin/insurance/payments', \App\Livewire\Admin\InsurerPaymentsComponent::class)->middleware(['auth', 'role_or_permission:Super Admin|record insurer payments'])->name('admin.insurance.payments');
 
 Route::get('admin/users', UserRoleManagerComponent::class)->middleware(['auth', 'role_or_permission:Super Admin|manage users'])->name('admin.users');
 Route::get('admin/roles-permissions', RolePermissionManagerComponent::class)->middleware(['auth', 'role:Super Admin'])->name('admin.roles-permissions');

@@ -16,6 +16,7 @@ protected $fillable = [
     'business_line',
     'user_id',
     'patient_id',
+    'insurer_id',
     'customer_name',
     'customer_phone',
     'consultation_id',
@@ -23,6 +24,7 @@ protected $fillable = [
     'idempotency_key',
     'total_amount',
     'amount_paid',
+    'insurer_amount',
     'payment_status',
     'bill_status',
     'bill_version',
@@ -45,6 +47,7 @@ protected $casts = [
     'refunded_at'     => 'datetime',
     'total_amount'    => 'decimal:2',
     'amount_paid'     => 'decimal:2',
+    'insurer_amount'  => 'decimal:2',
     'discount_value'  => 'decimal:2',
     'discount_amount' => 'decimal:2',
     'finalized_at'     => 'datetime',
@@ -52,9 +55,42 @@ protected $casts = [
     'bill_version'     => 'integer',
 ];
 
+/**
+ * What the patient still owes, in SQL. The insurer's share is not the patient's debt:
+ * it is collected from the insurer (see insurer receivables).
+ */
+public const PATIENT_BALANCE_SQL = 'GREATEST(total_amount - insurer_amount - amount_paid, 0)';
+
 public function getRemainingBalanceAttribute(): float
 {
-    return max(0, (float) $this->total_amount - (float) $this->amount_paid);
+    return max(0, round((float) $this->total_amount - (float) $this->insurer_amount - (float) $this->amount_paid, 2));
+}
+
+/** The part of the bill the patient pays (the whole bill when no insurer is billed). */
+public function getPatientShareAttribute(): float
+{
+    return max(0, round((float) $this->total_amount - (float) $this->insurer_amount, 2));
+}
+
+/** What the insurer still owes on a bill: its share less anything received on the claim, in SQL. */
+public const INSURER_OWED_SQL = '(insurer_amount - COALESCE((SELECT ic.amount_received FROM insurance_claims ic WHERE ic.sale_id = sales.id AND ic.deleted_at IS NULL LIMIT 1), 0))';
+
+/** Insured bills the insurer has neither paid nor rejected yet. */
+public function scopeAwaitingInsurer($query)
+{
+    return $query->where('insurer_amount', '>', 0)
+        ->where('is_refunded', false)
+        ->whereDoesntHave('insuranceClaim', fn ($claim) => $claim->whereIn('status', ['paid', 'rejected']));
+}
+
+public function insurer()
+{
+    return $this->belongsTo(Insurer::class);
+}
+
+public function insuranceClaim(): HasOne
+{
+    return $this->hasOne(InsuranceClaim::class, 'sale_id');
 }
 
 public function getCustomerDisplayNameAttribute(): string

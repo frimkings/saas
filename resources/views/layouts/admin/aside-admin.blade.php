@@ -198,6 +198,18 @@
                   <i class="far fa-circle nav-icon text-info"></i><p>Insurers</p>
                 </a>
               </li>
+              <li class="nav-item">
+                <a href="{{ route('admin.insurance.receivables') }}" class="nav-link {{ request()->is('admin/insurance/receivables*') ? 'active' : '' }}">
+                  <i class="far fa-circle nav-icon text-success"></i><p>Receivables</p>
+                </a>
+              </li>
+              @if(auth()->user()?->hasRole('Super Admin') || auth()->user()?->can(\App\Models\InsurerPayment::PERMISSION))
+              <li class="nav-item">
+                <a href="{{ route('admin.insurance.payments') }}" class="nav-link {{ request()->is('admin/insurance/payments*') ? 'active' : '' }}">
+                  <i class="far fa-circle nav-icon text-warning"></i><p>Insurer Payments</p>
+                </a>
+              </li>
+              @endif
             </ul>
           </li>
 

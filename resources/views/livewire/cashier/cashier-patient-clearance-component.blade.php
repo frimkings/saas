@@ -427,12 +427,12 @@
                             <div class="font-weight-bold text-primary mb-2"><i class="fas fa-shield-alt mr-1"></i>Insurance Details</div>
                             <div class="row small">
                                 <div class="col-6 mb-2"><span class="text-muted">Insurer</span><br><strong>{{ $insuranceSummary['insurer'] }}</strong></div>
-                                <div class="col-6 mb-2"><span class="text-muted">Approval</span><br><strong>{{ $insuranceSummary['status'] }} / {{ $insuranceSummary['pre_auth_status'] }}</strong></div>
-                                <div class="col-6 mb-2"><span class="text-muted">Member</span><br><strong>{{ $insuranceSummary['member_name'] ?: 'N/A' }} ({{ $insuranceSummary['member_id'] ?: 'No ID' }})</strong></div>
                                 <div class="col-6 mb-2"><span class="text-muted">Policy</span><br><strong>{{ $insuranceSummary['policy_number'] ?: 'N/A' }}</strong></div>
-                                <div class="col-6"><span class="text-muted">Approved coverage</span><br><strong class="text-success">{{ currency() }} {{ number_format($insuranceSummary['coverage'], 2) }}</strong></div>
-                                <div class="col-6"><span class="text-muted">Patient contribution</span><br><strong class="text-danger">{{ currency() }} {{ number_format($insuranceSummary['patient_contribution'], 2) }}</strong></div>
+                                <div class="col-12"><span class="text-muted">Member</span><br><strong>{{ $insuranceSummary['member_name'] ?: 'N/A' }} ({{ $insuranceSummary['member_id'] ?: 'No ID' }})</strong></div>
                             </div>
+                            @unless($insuranceSummary['active'])
+                                <div class="small text-danger mt-2">This insurer is inactive, so the patient pays the full amount.</div>
+                            @endunless
                         </div>
                     @endif
                     <div class="form-group">
@@ -467,11 +467,42 @@
                             </button>
                         </div>
 
+                        {{-- Insurance split (insured patients only); read by the script below --}}
+                        <div id="clr-insurance-data" class="d-none"
+                             data-insurer="{{ $insuranceSummary['insurer'] ?? '' }}"
+                             data-splits='@json((object) $insuranceSplits)'></div>
+                        <div id="clr-insurance-box" wire:ignore class="border rounded p-2 mb-2" style="display:none;font-size:.85rem;">
+                            <div class="custom-control custom-switch mb-2">
+                                <input type="checkbox" class="custom-control-input" id="clr-bill-insurer" checked
+                                       onchange="window.recalcClearanceInsurance()">
+                                <label class="custom-control-label font-weight-bold" for="clr-bill-insurer">
+                                    Bill <span id="clr-insurer-name">insurer</span>
+                                </label>
+                            </div>
+                            <div class="d-flex align-items-center" style="gap:6px;">
+                                <label for="clr-insurer-amount" class="mb-0 text-muted">Insurer pays</label>
+                                <input type="number" id="clr-insurer-amount" class="form-control form-control-sm" min="0" step="0.01"
+                                       style="width:110px;" oninput="window.recalcClearanceInsurance()">
+                            </div>
+                            <div id="clr-insurance-reason-row" class="mt-2" style="display:none;">
+                                <input type="text" id="clr-insurance-reason" class="form-control form-control-sm" maxlength="200"
+                                       placeholder="Reason for changing what the insurer pays (required)">
+                            </div>
+                        </div>
+
                         <div id="clearancePaymentRows"></div>
 
-                        <div class="mt-2 p-2 rounded" style="background:#f8f9fa;font-size:.85rem;">
+                        <div class="mt-2 p-2 rounded" wire:ignore style="background:#f8f9fa;font-size:.85rem;">
+                            <div class="clr-insured-row d-flex justify-content-between" style="display:none !important;">
+                                <span>Bill Total</span>
+                                <strong id="clr-bill-total">0.00</strong>
+                            </div>
+                            <div class="clr-insured-row d-flex justify-content-between text-info" style="display:none !important;">
+                                <span>Insurer Pays</span>
+                                <strong id="clr-insurer-total">0.00</strong>
+                            </div>
                             <div class="d-flex justify-content-between">
-                                <span>Service Total</span>
+                                <span id="clr-svc-total-label">Service Total</span>
                                 <strong id="clr-svc-total">0.00</strong>
                             </div>
                             <div class="d-flex justify-content-between text-success">
@@ -604,10 +635,17 @@
                         '</div>';
                 });
                 if (d.payments.length > 1) {
+                    var totalPaid = d.payments.reduce(function (sum, p) { return sum + (parseFloat(String(p.amount).replace(/,/g, '')) || 0); }, 0);
                     paymentHtml +=
                         '<div class="d-flex justify-content-between font-weight-bold" style="font-size:.85rem;">' +
-                        '<span>TOTAL PAID</span><span>' + currency + ' ' + d.amount + '</span></div>';
+                        '<span>TOTAL PAID</span><span>' + currency + ' ' + totalPaid.toFixed(2) + '</span></div>';
                 }
+            }
+            if (d.insurer) {
+                paymentHtml +=
+                    '<div class="d-flex justify-content-between text-info" style="font-size:.85rem;">' +
+                    '<span>BILLED TO ' + String(d.insurer).toUpperCase() + '</span>' +
+                    '<span>' + currency + ' ' + d.insurerAmount + '</span></div>';
             }
 
             var statusClass = d.status === 'Paid' ? 'text-success' : 'text-danger';
@@ -657,20 +695,86 @@
             {{ $svc->id }}: {{ (float) $svc->selling_price }},
             @endforeach
         };
-        var _clrServiceTotal = 0;
+        var _clrServiceTotal = 0; // what the patient pays now
+        var _clrSplit = null;     // insurer split for the selected service, if insured
+
+        function clearanceSplits() {
+            var el = document.getElementById('clr-insurance-data');
+            if (!el) return null;
+            try {
+                var splits = JSON.parse(el.dataset.splits || '{}');
+                return Object.keys(splits).length ? splits : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setInsuredRowsVisible(visible) {
+            document.querySelectorAll('.clr-insured-row').forEach(function (row) {
+                row.style.setProperty('display', visible ? 'flex' : 'none', 'important');
+            });
+        }
+
+        function resetClearanceRows() {
+            document.getElementById('clearancePaymentRows').innerHTML = '';
+            window.addClearancePaymentRow();
+            window.updateClearanceTotals();
+        }
+
+        window.recalcClearanceInsurance = function () {
+            var svc = document.getElementById('selectedServiceId').value;
+            var box = document.getElementById('clr-insurance-box');
+            if (!_clrSplit) {
+                box.style.display = 'none';
+                setInsuredRowsVisible(false);
+                _clrServiceTotal = _clrPrices[svc] || 0;
+                document.getElementById('clr-svc-total-label').textContent = 'Service Total';
+                document.getElementById('clr-svc-total').textContent = _clrServiceTotal.toFixed(2);
+                return;
+            }
+
+            var bill = document.getElementById('clr-bill-insurer').checked;
+            var input = document.getElementById('clr-insurer-amount');
+            var billTotal = bill ? _clrSplit.price : (_clrPrices[svc] || 0);
+            var insurer = 0;
+            if (bill) {
+                insurer = parseFloat(input.value);
+                if (isNaN(insurer)) insurer = _clrSplit.insurer;
+                insurer = Math.min(Math.max(insurer, 0), billTotal);
+            }
+            input.disabled = !bill;
+
+            var changed = !bill || Math.abs(insurer - _clrSplit.insurer) > 0.005;
+            document.getElementById('clr-insurance-reason-row').style.display = changed ? 'block' : 'none';
+
+            _clrServiceTotal = Math.round((billTotal - insurer) * 100) / 100;
+            setInsuredRowsVisible(true);
+            document.getElementById('clr-bill-total').textContent = billTotal.toFixed(2);
+            document.getElementById('clr-insurer-total').textContent = insurer.toFixed(2);
+            document.getElementById('clr-svc-total-label').textContent = 'Patient Pays';
+            document.getElementById('clr-svc-total').textContent = _clrServiceTotal.toFixed(2);
+            resetClearanceRows();
+        };
 
         window.toggleClearancePaymentMethod = function (val) {
             var section = document.getElementById('clearancePaymentSection');
             if (!section) return;
             if (val && val !== '' && val !== 'unpaid') {
-                _clrServiceTotal = _clrPrices[val] || 0;
-                document.getElementById('clr-svc-total').textContent = _clrServiceTotal.toFixed(2);
+                var splits = clearanceSplits();
+                _clrSplit = splits && splits[val] ? splits[val] : null;
+                if (_clrSplit) {
+                    var data = document.getElementById('clr-insurance-data');
+                    document.getElementById('clr-insurer-name').textContent = data.dataset.insurer || 'insurer';
+                    document.getElementById('clr-bill-insurer').checked = true;
+                    document.getElementById('clr-insurer-amount').value = _clrSplit.insurer.toFixed(2);
+                    document.getElementById('clr-insurance-reason').value = '';
+                    document.getElementById('clr-insurance-box').style.display = 'block';
+                }
                 section.style.display = 'block';
-                // Reset rows and add one default row
-                document.getElementById('clearancePaymentRows').innerHTML = '';
-                window.addClearancePaymentRow();
-                window.updateClearanceTotals();
+                window.recalcClearanceInsurance();
+                resetClearanceRows();
             } else {
+                _clrSplit = null;
                 section.style.display = 'none';
                 document.getElementById('clearancePaymentRows').innerHTML = '';
             }
@@ -746,12 +850,12 @@
                 var remaining = _clrServiceTotal - entered;
 
                 if (remaining > 0.005) {
-                    error.textContent = 'Total payments (' + entered.toFixed(2) + ') are less than the service amount (' + _clrServiceTotal.toFixed(2) + ').';
+                    error.textContent = 'Total payments (' + entered.toFixed(2) + ') are less than the amount due (' + _clrServiceTotal.toFixed(2) + ').';
                     error.style.display = 'block';
                     return;
                 }
                 if (remaining < -0.005) {
-                    error.textContent = 'Total payments cannot exceed the service amount of ' + _clrServiceTotal.toFixed(2) + '.';
+                    error.textContent = 'Total payments cannot exceed the amount due of ' + _clrServiceTotal.toFixed(2) + '.';
                     error.style.display = 'block';
                     return;
                 }
@@ -766,8 +870,17 @@
 
             }
 
+            var insurance = {};
+            if (_clrSplit && svc !== 'unpaid') {
+                insurance = {
+                    bill: document.getElementById('clr-bill-insurer').checked,
+                    amount: document.getElementById('clr-insurer-amount').value,
+                    reason: document.getElementById('clr-insurance-reason').value
+                };
+            }
+
             if (button) button.disabled = true;
-            Promise.resolve($wire.createClearance(svc, JSON.stringify(payments)))
+            Promise.resolve($wire.createClearance(svc, JSON.stringify(payments), JSON.stringify(insurance)))
                 .finally(function () {
                     var currentButton = document.getElementById('clearanceConfirmBtn');
                     if (currentButton) currentButton.disabled = false;
@@ -780,6 +893,9 @@
             if (document.getElementById('clearancePaymentRows')) document.getElementById('clearancePaymentRows').innerHTML = '';
             if (document.getElementById('selectedServiceId')) document.getElementById('selectedServiceId').value = '';
             if (document.getElementById('clr-payment-error')) document.getElementById('clr-payment-error').style.display = 'none';
+            if (document.getElementById('clr-insurance-box')) document.getElementById('clr-insurance-box').style.display = 'none';
+            setInsuredRowsVisible(false);
+            _clrSplit = null;
             _clrRowIdx = 0;
         });
     </script>

@@ -2,7 +2,10 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\Insurer;
+use App\Models\InsurerPayment;
 use App\Models\PaymentTransaction;
+use App\Models\SaleAdjustment;
 use App\Models\Sales;
 use App\Support\BusinessLine;
 use App\Support\FinanceStatements;
@@ -115,7 +118,7 @@ class DailyCashSummaryComponent extends Component
                 COUNT(*) as sales_count,
                 COALESCE(SUM(total_amount), 0) as gross_sales,
                 COALESCE(SUM(amount_paid), 0) as amount_paid,
-                COALESCE(SUM(GREATEST(0, total_amount - amount_paid)), 0) as outstanding,
+                COALESCE(SUM(GREATEST(0, total_amount - insurer_amount - amount_paid)), 0) as outstanding,
                 COUNT(CASE WHEN is_refunded = 1 THEN 1 END) as refunds_count,
                 COALESCE(SUM(CASE WHEN is_refunded = 1 THEN total_amount ELSE 0 END), 0) as refunds_total
             ')
@@ -129,7 +132,18 @@ class DailyCashSummaryComponent extends Component
                 ->groupBy('sales.business_line')->get()->keyBy('line')
             : collect();
 
+        // Insurance (clinic only): billed to insurers today, paid by insurers today, shortfalls written off today.
+        $insurance = null;
+        if ($this->line !== BusinessLine::OPTICAL && Insurer::exists()) {
+            $insurance = [
+                'billed'     => (float) Sales::where('business_line', BusinessLine::CLINIC)->whereBetween('created_at', [$start, $end])->sum('insurer_amount'),
+                'received'   => (float) InsurerPayment::whereDate('paid_on', $start->toDateString())->sum('amount'),
+                'writtenOff' => (float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', [$start, $end])->sum('amount'),
+            ];
+        }
+
         return view('livewire.admin.daily-cash-summary-component', [
+            'insurance'         => $insurance,
             'chartPayload'      => $this->buildChartPayload(),
             'payments'          => $payments,
             'salesCount'        => (int) $agg->sales_count,

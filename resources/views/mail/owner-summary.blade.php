@@ -91,11 +91,16 @@
   </tr>
   @endif
 
-  @if($t['owed'] > 0)
+  @if($t['owed'] > 0 || ($t['insurerOwed'] ?? 0) > 0)
   <tr>
     <td style="padding:8px 28px 4px">
       <p style="margin:0;padding:12px 14px;background:#fffaeb;border:1px solid #fedf89;border-radius:6px;font-size:14px">
-        Customers still owe <b>{{ $money($t['owed']) }}</b> in total, as of this morning.
+        @if($t['owed'] > 0)
+          Customers still owe <b>{{ $money($t['owed']) }}</b> in total, as of this morning.
+        @endif
+        @if(($t['insurerOwed'] ?? 0) > 0)
+          {{ $t['owed'] > 0 ? 'Insurers' : 'Insurers still' }} owe <b>{{ $money($t['insurerOwed']) }}</b> on insured bills.
+        @endif
       </p>
     </td>
   </tr>
@@ -109,6 +114,8 @@
           if ($t['refunds'] > 0) $watch[] = ['Refunds paid out', $money($t['refunds']), null];
           if ($t['claimsWaiting'] > 0) $watch[] = ['Insurance claims waiting over 30 days', $t['claimsWaiting'] . ' · ' . $money($t['claimsWaitingAmount']), null];
           if ($t['claimsRejected'] > 0) $watch[] = ['Insurance claims rejected', $t['claimsRejected'] . ' · ' . $money($t['claimsRejectedAmount']), null];
+          if (($t['insurerOwed90'] ?? 0) > 0) $watch[] = ['Owed by insurers for more than 90 days', $money($t['insurerOwed90']), 'Chase these claims with the insurer.'];
+          if (($t['insurerWrittenOff'] ?? 0) > 0) $watch[] = ['Insurer shortfalls written off', $money($t['insurerWrittenOff']), 'What insurers did not pay and the clinic absorbed.'];
       }
   @endphp
   @if($watch)

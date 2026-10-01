@@ -123,7 +123,7 @@ class FinancialReportDeliveryService
             'total_discounts' => $nonRefunded->sum('discount_amount'),
             'refund_count' => $refundsInPeriod->count(),
             'refund_total' => $refundTotal,
-            'outstanding' => $nonRefunded->sum(fn ($s) => max(0, $s->total_amount - $s->amount_paid)),
+            'outstanding' => $nonRefunded->sum(fn ($s) => $s->remaining_balance),
         ];
     }
 
