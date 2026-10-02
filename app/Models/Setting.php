@@ -98,6 +98,8 @@ class Setting extends Model
         'reminder_due_days',
         'reminder_uncollected_days',
         'reminder_owner_uncollected_days',
+        'reminder_stale_days',
+        'reminder_expiry_days',
         'whatsapp_link',
         'website_link',
         'booking_link',

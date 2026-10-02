@@ -79,6 +79,9 @@
 
     </div>
 
+    {{-- What staff need to act on today, including expiring stock --}}
+    @livewire('attention-panel-component', ['line' => 'clinic', 'compact' => true], key('attention-clinic'))
+
     {{-- ══════════════════════════════════════════════════════════════════ --}}
     {{-- ROW 2: Financial Cards                                             --}}
     {{-- ══════════════════════════════════════════════════════════════════ --}}

@@ -16,6 +16,9 @@
         </a>
     </div>
 
+    {{-- What to act on today, including expiring stock --}}
+    @livewire('attention-panel-component', ['line' => 'clinic', 'compact' => true], key('attention-clinic'))
+
     {{-- ══════════════════════════════════════════════════════════════════ --}}
     {{-- ROW 1: Top KPI Cards                                              --}}
     {{-- ══════════════════════════════════════════════════════════════════ --}}

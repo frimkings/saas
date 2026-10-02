@@ -512,8 +512,12 @@ public $isEditingAppointment = false;
             'notes' => $this->appointmentNotes,
             'reminder_channel' => $this->appointmentReminderChannel ?: 'whatsapp',
             'reminder_status' => 'not_sent',
-            'status' => 'Pending',
+            // Agreed with the patient in the room, so reception need not call to confirm it.
+            'status' => 'Confirmed',
         ]);
+
+        // The same booking confirmation reception sends ("WhatsApp" bookings skip the SMS).
+        app(\App\Services\Messaging\AppointmentNotifier::class)->confirmed($appointment, sendSms: $appointment->reminder_channel !== 'whatsapp');
 
         // SUCCESS - Show notification
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Appointment scheduled for ' . Carbon::parse($this->appointmentScheduledAt)->format('M d, Y \a\t h:i A')]);

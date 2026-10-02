@@ -16,6 +16,9 @@
         .att-actions a,.att-actions button{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid #d6dee8;background:#fff;color:#334155;text-decoration:none;cursor:pointer;white-space:nowrap}
         .att-actions a:hover,.att-actions button:hover{background:#f1f5f9}
         .att-actions .att-done{border-color:#86efac;color:#166534}
+        .att-actions .att-remove{border-color:#fca5a5;color:#b91c1c}
+        .att-stale{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;border-top:1px solid #eef1f5;background:#f8fafc;border-radius:0 0 10px 10px;font-size:13px;color:#475569}
+        .att-stale a{font-weight:600}
         .att-note{display:flex;gap:6px;margin:4px 0 8px}
         .att-note input{flex:1;min-width:0;font-size:13px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px}
         .att-note button{font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer}
@@ -43,23 +46,41 @@
                 <div class="att-hint">{{ $group['hint'] }}</div>
 
                 @foreach($perGroup ? $group['items']->take($perGroup) : $group['items'] as $item)
-                    @php $key = $item['rule'].'|'.$item['id']; @endphp
+                    @php
+                        $key = $item['rule'].'|'.$item['type'].'|'.$item['id'];
+                        $stock = str_starts_with($rule, 'stock_');
+                        $args = "'{$item['rule']}', '{$item['type']}', {$item['id']}";
+                    @endphp
                     <div class="att-item" wire:key="att-{{ $key }}">
                         <div style="min-width:0">
                             <div class="att-title">{{ $item['title'] }}</div>
-                            <div class="att-detail {{ $rule === 'order_late' || $rule === 'appt_missed' ? 'rot-red' : '' }}">{{ $item['detail'] }}</div>
+                            <div class="att-detail {{ in_array($rule, ['order_late', 'appt_missed', 'stock_expired'], true) ? 'rot-red' : '' }}">{{ $item['detail'] }}</div>
                         </div>
                         <div class="att-actions">
                             @if($item['phone'])<a href="tel:{{ preg_replace('/[^\d+]/', '', $item['phone']) }}" title="Call {{ $item['phone'] }}"><i class="fas fa-phone"></i> Call</a>@endif
-                            <a href="{{ $item['url'] }}">Open</a>
-                            <button type="button" class="att-done" wire:click="start('{{ $item['rule'] }}', {{ $item['id'] }}, 'done')">Done</button>
-                            <button type="button" wire:click="start('{{ $item['rule'] }}', {{ $item['id'] }}, 'snoozed')" title="Hide until tomorrow">Snooze</button>
+                            @if($item['url'])<a href="{{ $item['url'] }}">Open</a>@endif
+                            @if($rule !== 'stock_expired')
+                                <button type="button" class="att-done" wire:click="start({{ $args }}, 'done')" @if($stock) title="Noted: hide it until it gets closer to expiry" @endif>{{ $stock ? 'Noted' : 'Done' }}</button>
+                            @endif
+                            <button type="button" wire:click="start({{ $args }}, 'snoozed')" title="Hide until tomorrow">Snooze</button>
+                            @if($stock && $canWriteOff)
+                                <button type="button" class="att-remove" wire:click="start({{ $args }}, 'writeoff')" title="Take what is left of this batch out of stock">Remove from stock</button>
+                            @endif
                         </div>
                     </div>
                     @if($acting && str_starts_with($acting, $key.'|'))
+                        @php $mode = \Illuminate\Support\Str::afterLast($acting, '|'); @endphp
                         <form class="att-note" wire:submit.prevent="confirm">
-                            <input type="text" wire:model="note" maxlength="500" placeholder="{{ str_ends_with($acting, '|done') ? 'What happened? e.g. Called, coming Friday (optional)' : 'Why snooze? (optional)' }}" autofocus>
-                            <button type="submit">{{ str_ends_with($acting, '|done') ? 'Mark done' : 'Snooze till tomorrow' }}</button>
+                            <input type="text" wire:model="note" maxlength="500" autofocus placeholder="{{ match ($mode) {
+                                'done' => $stock ? 'e.g. Moved to the front, selling first (optional)' : 'What happened? e.g. Called, coming Friday (optional)',
+                                'writeoff' => 'e.g. Disposed of, returned to supplier (optional)',
+                                default => 'Why snooze? (optional)',
+                            } }}">
+                            <button type="submit" @if($mode === 'writeoff') style="background:#b91c1c;border-color:#b91c1c" @endif>{{ match ($mode) {
+                                'done' => $stock ? 'Mark noted' : 'Mark done',
+                                'writeoff' => 'Remove ' . ($item['quantity'] ?? '') . ' from stock',
+                                default => 'Snooze till tomorrow',
+                            } }}</button>
                             <button type="button" class="att-cancel" wire:click="cancel">Cancel</button>
                         </form>
                     @endif
@@ -72,5 +93,12 @@
         @empty
             <div class="att-empty"><i class="fas fa-check-circle text-success mr-1"></i> Nothing needs attention right now.</div>
         @endforelse
+
+        @if($stale)
+            <div class="att-stale">
+                <span><i class="fas fa-broom mr-1"></i> <strong>{{ $stale }}</strong> older open {{ \Illuminate\Support\Str::plural('order', $stale) }}, more than {{ $staleDays }} days late or not collected, no longer chased here.</span>
+                <a href="{{ $tidyUrl }}">Tidy up &rarr;</a>
+            </div>
+        @endif
     </div>
 </div>

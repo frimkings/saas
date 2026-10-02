@@ -438,6 +438,8 @@ class OpticalStockManagementComponent extends Component
     public string $unitPrice = '';
     public string $supplier = '';
     public string $batchNumber = '';
+    /** For stock that expires (contact lenses, solutions): feeds the expiry reminders. */
+    public string $expiryDate = '';
     public string $reference = '';
     public string $notes = '';
     public string $adjustmentDirection = 'add';
@@ -459,7 +461,7 @@ class OpticalStockManagementComponent extends Component
     private function openForm(string $type): void
     {
         $this->assertManager();
-        $this->reset(['productSearch', 'productId', 'quantity', 'unitCost', 'unitPrice', 'supplier', 'batchNumber', 'reference', 'notes', 'adjustmentReason']);
+        $this->reset(['productSearch', 'productId', 'quantity', 'unitCost', 'unitPrice', 'supplier', 'batchNumber', 'expiryDate', 'reference', 'notes', 'adjustmentReason']);
         $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs', 'excelUnit', 'excelWarningsAccepted', 'importedSummary', 'stockType', 'entryMode', 'bulkQuantities', 'bulkCosts', 'bulkPrices', 'bulkPaste', 'updateSellingPrice']);
         $this->reset(['importSource', 'repeatDeliveryReason']);
         $this->formType = $type;
@@ -506,9 +508,11 @@ class OpticalStockManagementComponent extends Component
                 'unitPrice' => 'required|numeric|min:0|max:9999999999|gte:unitCost',
                 'supplier' => 'nullable|string|max:180',
                 'batchNumber' => 'nullable|string|max:100',
+                'expiryDate' => 'nullable|date|after:2000-01-01',
                 'reference' => 'nullable|string|max:100',
             ]);
             app(OpticalStockLedgerService::class)->receive($product, (int) $this->quantity, [
+                'expiry_date' => $this->expiryDate ?: null,
                 'unit_cost' => round((float) $this->unitCost, 2),
                 'unit_price' => round((float) $this->unitPrice, 2),
                 'supplier' => trim($this->supplier) ?: null,

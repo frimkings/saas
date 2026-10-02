@@ -13,6 +13,8 @@
                     ['due_days', 'Spectacles due soon', 'days ahead', 'Flag spectacles promised for today or within this many days that are not ready yet (0 = today only).', 0, 14],
                     ['uncollected_days', 'Ready, not collected', 'days waiting', 'Flag glasses ready for at least this many days and not collected.', 1, 90],
                     ['owner_uncollected_days', "Owner's morning email", 'days waiting', "List glasses not collected after this many days in the owner's morning alerts email, with spectacles past their promised date.", 1, 365],
+                    ['stale_days', 'Stop chasing old orders', 'days', 'Orders more than this many days late, or ready this long and not collected, leave the daily list and wait on "Tidy up old orders" to be marked collected.', 7, 365],
+                    ['expiry_days', 'Expiring stock', 'days before expiry', 'Flag stock batches this many days before they expire (90 = about 3 months). Expired stock stays on the list until a Super Admin removes it from stock.', 30, 365],
                 ] as [$field, $label, $unit, $help, $min, $max])
                     <div class="{{ $optical ? 'ui-field' : 'form-group' }}">
                         <label class="{{ $optical ? '' : 'small font-weight-bold text-muted text-uppercase' }}" for="rem-{{ $field }}">{{ $label }}</label>

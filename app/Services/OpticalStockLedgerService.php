@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\OpticalProduct;
 use App\Models\OpticalProductStock;
 use App\Models\OpticalProductStockMovement;
+use App\Models\OpticalStockLot;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +17,33 @@ class OpticalStockLedgerService
         if ($quantity <= 0) {
             throw ValidationException::withMessages(['quantity' => 'Quantity received must be greater than zero.']);
         }
-        return $this->record($product, $quantity, 'receipt', 'Stock received', $details);
+        // Stock with an expiry date (contact lenses, solutions) is kept as a batch for the expiry reminders.
+        $expiry = $details['expiry_date'] ?? null;
+        unset($details['expiry_date']);
+
+        return DB::transaction(function () use ($product, $quantity, $details, $expiry) {
+            $movement = $this->record($product, $quantity, 'receipt', 'Stock received', $details);
+            if ($expiry) {
+                OpticalStockLot::create([
+                    'clinic_id' => $product->clinic_id,
+                    'optical_product_id' => $product->id,
+                    'optical_product_stock_movement_id' => $movement->id,
+                    'batch_number' => $details['batch_number'] ?? null,
+                    'expiry_date' => $expiry,
+                    'opening_quantity' => $quantity,
+                    'quantity' => $quantity,
+                ]);
+            }
+
+            return $movement;
+        });
+    }
+
+    /** Expired (or soon-to-expire) stock taken off the shelf. */
+    public function writeOffExpired(OpticalProduct $product, int $quantity, string $notes): OpticalProductStockMovement
+    {
+        if ($quantity <= 0) throw ValidationException::withMessages(['quantity' => 'Nothing left to remove.']);
+        return $this->record($product, -$quantity, 'adjustment', 'Expired stock removed', ['notes' => $notes]);
     }
 
     public function adjust(OpticalProduct $product, int $quantityChange, string $reason, ?string $notes = null): OpticalProductStockMovement

@@ -35,6 +35,8 @@
                 @if($attentionSummary['order_late'])<li><strong style="color:#b91c1c">{{ $attentionSummary['order_late'] }}</strong> {{ \Illuminate\Support\Str::plural('spectacle order', $attentionSummary['order_late']) }} past the promised date</li>@endif
                 @if($attentionSummary['order_due'])<li><strong>{{ $attentionSummary['order_due'] }}</strong> due soon</li>@endif
                 @if($attentionSummary['uncollected'])<li><strong>{{ $attentionSummary['uncollected'] }}</strong> ready but not collected</li>@endif
+                @if($attentionSummary['stock_expired'] ?? 0)<li><strong style="color:#b91c1c">{{ $attentionSummary['stock_expired'] }}</strong> expired stock {{ \Illuminate\Support\Str::plural('batch', $attentionSummary['stock_expired']) }} still on the shelf</li>@endif
+                @if($attentionSummary['stock_expiring'] ?? 0)<li><strong>{{ $attentionSummary['stock_expiring'] }}</strong> stock {{ \Illuminate\Support\Str::plural('batch', $attentionSummary['stock_expiring']) }} expiring soon</li>@endif
             </ul>
             <div style="padding:12px 20px;border-top:1px solid #eef1f5;display:flex;justify-content:flex-end;gap:8px">
                 <button type="button" x-on:click="open = false" style="border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;padding:6px 14px;cursor:pointer">Later</button>

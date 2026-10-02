@@ -233,6 +233,27 @@ class FollowUpSmsTest extends TestCase
         $this->assertSame(1, $plan['leftOver']);
     }
 
+    public function test_follow_up_booked_by_the_doctor_is_confirmed_and_the_patient_told(): void
+    {
+        $this->switchOn('appointment_booking');
+        $patient = $this->patient('Ama');
+        $clearance = \App\Models\CashierPatientClearance::create(['user_id' => $this->user->id, 'patient_id' => $patient->id,
+            'payment_status' => 'Paid', 'doctor_status' => false, 'clearance_date' => now()->toDateString()]);
+
+        Livewire::test(\App\Livewire\Doctor\PatientRecordsComponent::class, ['clearance' => $clearance])
+            ->set('appointmentTitle', 'Follow-up Visit')
+            ->set('appointmentScheduledAt', '2026-10-08 09:00')
+            ->set('appointmentReminderChannel', 'sms')
+            ->call('bookAppointmentFromConsultation')
+            ->assertHasNoErrors();
+
+        // Agreed with the patient in the room: reception sees it as confirmed, not pending.
+        $appointment = Appointments::where('patient_id', $patient->id)->sole();
+        $this->assertSame('Confirmed', $appointment->status);
+        $this->assertSame($this->user->id, $appointment->doctor_id);
+        $this->assertSame(1, $this->texts('appointment_booking'));
+    }
+
     public function test_doctor_sets_the_next_exam_due_date_on_the_patient_record(): void
     {
         $patient = $this->patient('Ama');

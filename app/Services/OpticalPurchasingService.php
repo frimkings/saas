@@ -86,11 +86,12 @@ class OpticalPurchasingService
 
     /**
      * @param  array<int, int|string|null>  $quantities  line id => quantity received now
+     * @param  array<int, string|null>  $expiries  line id => expiry date of what arrived (contact lenses, solutions)
      */
-    public function receive(int $orderId, array $quantities, ?string $invoiceReference = null, ?string $batchNumber = null): OpticalPurchaseOrder
+    public function receive(int $orderId, array $quantities, ?string $invoiceReference = null, ?string $batchNumber = null, array $expiries = []): OpticalPurchaseOrder
     {
         $this->assertManager();
-        return DB::transaction(function () use ($orderId, $quantities, $invoiceReference, $batchNumber) {
+        return DB::transaction(function () use ($orderId, $quantities, $invoiceReference, $batchNumber, $expiries) {
             $order = OpticalPurchaseOrder::with(['supplier', 'lines.product'])->lockForUpdate()->findOrFail($orderId);
             if (! $order->isOpen()) throw ValidationException::withMessages(['receive' => 'Only placed orders can be received.']);
             $received = 0;
@@ -109,6 +110,7 @@ class OpticalPurchasingService
                         'reference' => trim($order->po_number.' '.($invoiceReference ? '· inv '.trim($invoiceReference) : '')),
                         'batch_number' => $batchNumber ? trim($batchNumber) : null,
                         'optical_purchase_order_line_id' => $line->id,
+                        'expiry_date' => ($expiries[$line->id] ?? null) ?: null,
                     ]);
                 }
                 $line->update(['quantity_received' => $line->quantity_received + $quantity]);

@@ -107,6 +107,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/context/navigation-workspace', \App\Http\Controllers\NavigationWorkspaceController::class)->name('navigation.workspace');
     // "Needs attention": today's reminders for clinic staff (everyone sees everything).
     Route::get('/attention', \App\Livewire\AttentionPanelComponent::class)->name('attention');
+    Route::get('/attention/old-orders', \App\Livewire\OldOrdersComponent::class)->name('attention.old-orders');
     // A platform announcement banner the signed-in Super Admin has read.
     Route::post('/announcements/{announcement}/dismiss', function (\App\Models\PlatformAnnouncement $announcement) {
         app(\App\Services\Platform\Announcements::class)->dismiss($announcement, auth()->user());
@@ -245,6 +246,7 @@ Route::get('/optical/lab-workbench', \App\Livewire\Optical\OpticalLabWorkbenchCo
 Route::get('/optical/lab-workbench/print', fn (\Illuminate\Http\Request $request) => \App\Livewire\Optical\OpticalLabWorkbenchComponent::printSheet($request))->name('optical.lab-workbench.print');
 Route::get('/optical/collections', \App\Livewire\Optical\OpticalCollectionsComponent::class)->name('optical.collections');
 Route::get('/optical/attention', \App\Livewire\AttentionPanelComponent::class)->name('optical.attention');
+Route::get('/optical/attention/old-orders', \App\Livewire\OldOrdersComponent::class)->name('optical.attention.old-orders');
 Route::get('/optical/jobs', \App\Livewire\Optical\OpticalJobsComponent::class)->name('optical.jobs');
 Route::get('/optical/stock-counts', \App\Livewire\Optical\OpticalStockCountsComponent::class)->name('optical.stock-counts');
 Route::middleware('role:Manager|Super Admin')->group(function () {

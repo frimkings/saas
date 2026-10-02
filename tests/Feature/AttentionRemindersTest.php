@@ -98,7 +98,7 @@ class AttentionRemindersTest extends TestCase
         Livewire::test(AttentionPanelComponent::class, ['line' => 'clinic', 'compact' => true])
             ->assertSee('Ready, not collected')
             ->assertSee($uncollected->order_id)
-            ->call('start', 'order_uncollected', $uncollected->id, 'done')
+            ->call('start', 'order_uncollected', 'lens_order', $uncollected->id, 'done')
             ->set('note', 'Called, coming Saturday')
             ->call('confirm')
             ->assertSee('Nothing needs attention right now.');

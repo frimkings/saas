@@ -31,6 +31,8 @@ class OpticalPurchasingComponent extends Component
     #[Locked]
     public ?int $viewOrderId = null;
     public array $receiveQty = [];
+    /** line id => expiry date of what arrived, for stock that expires */
+    public array $receiveExpiry = [];
     public string $invoiceReference = '';
     public string $batchNumber = '';
 
@@ -169,7 +171,7 @@ class OpticalPurchasingComponent extends Component
         $this->viewOrderId = $order->id;
         $this->showOrderForm = false;
         $this->receiveQty = $order->lines->mapWithKeys(fn ($line) => [$line->id => (string) $line->outstanding()])->all();
-        $this->reset(['invoiceReference', 'batchNumber']);
+        $this->reset(['invoiceReference', 'batchNumber', 'receiveExpiry']);
         $this->resetValidation();
     }
 
@@ -190,8 +192,9 @@ class OpticalPurchasingComponent extends Component
 
     public function receiveOrder(): void
     {
-        $this->validate(['invoiceReference' => 'nullable|string|max:100', 'batchNumber' => 'nullable|string|max:100', 'receiveQty.*' => 'nullable|integer|min:0|max:100000']);
-        $order = app(OpticalPurchasingService::class)->receive((int) $this->viewOrderId, $this->receiveQty, $this->invoiceReference, $this->batchNumber);
+        $this->validate(['invoiceReference' => 'nullable|string|max:100', 'batchNumber' => 'nullable|string|max:100', 'receiveQty.*' => 'nullable|integer|min:0|max:100000',
+            'receiveExpiry.*' => 'nullable|date|after:2000-01-01'], ['receiveExpiry.*.date' => 'Enter a valid expiry date.']);
+        $order = app(OpticalPurchasingService::class)->receive((int) $this->viewOrderId, $this->receiveQty, $this->invoiceReference, $this->batchNumber, $this->receiveExpiry);
         $this->viewOrder($order->id);
         session()->flash('success', $order->status === 'received' ? "{$order->po_number} fully received." : "Delivery recorded against {$order->po_number}. Some items are still to come.");
     }

@@ -211,7 +211,7 @@
                                     <td class="oo-num">{{ $line->quantityLabel() }}</td>
                                     <td class="oo-num" style="color:{{ $line->outstanding() ? '#92400e' : '#047857' }};font-weight:700">{{ $line->quantityLabel($line->quantity_received) }}</td>
                                     <td class="oo-num">{{ number_format((float) $line->unit_cost, 2) }}</td>
-                                    @if($viewOrder->isOpen())<td>@if($line->outstanding())<input autocomplete="off" type="number" min="0" max="{{ $line->outstanding() }}" wire:model="receiveQty.{{ $line->id }}" aria-label="Receive now for {{ $line->description }}">@if($line->product?->lens_specs)<small class="pu-hint">lenses</small>@endif @else<span class="ui-muted">Done</span>@endif</td>@endif
+                                    @if($viewOrder->isOpen())<td>@if($line->outstanding())<input autocomplete="off" type="number" min="0" max="{{ $line->outstanding() }}" wire:model="receiveQty.{{ $line->id }}" aria-label="Receive now for {{ $line->description }}">@if($line->product?->lens_specs)<small class="pu-hint">lenses</small>@elseif(! $line->isSpecialOrder())<input autocomplete="off" type="date" wire:model="receiveExpiry.{{ $line->id }}" title="Expiry date, if this item expires (contact lenses, solutions)" aria-label="Expiry date for {{ $line->description }}" style="margin-top:4px;font-size:11px"><small class="pu-hint">expires (optional)</small>@endif @error('receiveExpiry.'.$line->id)<small class="text-xs text-red-600">{{ $message }}</small>@enderror @else<span class="ui-muted">Done</span>@endif</td>@endif
                                 </tr>
                             @endforeach
                         </tbody>

@@ -16,6 +16,15 @@
           </a>
         </li>
 
+        {{-- Needs attention: today's reminders, including expiring stock --}}
+        @php $attentionCounts = app(\App\Services\Reminders\AttentionItems::class)->counts('clinic'); @endphp
+        <li class="nav-item">
+          <a href="{{ route('attention') }}" class="nav-link {{ request()->routeIs('attention*') ? 'active' : '' }}">
+            <i class="nav-icon fas fa-bell"></i>
+            <p>Needs Attention @if($attentionCounts['total'])<span class="badge badge-danger right">{{ $attentionCounts['total'] }}</span>@endif</p>
+          </a>
+        </li>
+
         {{-- Clinical --}}
         <li class="nav-item">
           <a href="#" class="nav-link">

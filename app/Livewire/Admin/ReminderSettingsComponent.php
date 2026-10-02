@@ -17,6 +17,8 @@ class ReminderSettingsComponent extends Component
     public int $due_days = 1;
     public int $uncollected_days = 3;
     public int $owner_uncollected_days = 14;
+    public int $stale_days = 30;
+    public int $expiry_days = 90;
 
     public function mount(bool $optical = false): void
     {
@@ -33,9 +35,12 @@ class ReminderSettingsComponent extends Component
             'due_days'               => 'required|integer|min:0|max:14',
             'uncollected_days'       => 'required|integer|min:1|max:90',
             'owner_uncollected_days' => 'required|integer|min:1|max:365',
-        ], [], [
+            'stale_days'             => 'required|integer|min:7|max:365|gt:uncollected_days',
+            'expiry_days'            => 'required|integer|min:30|max:365',
+        ], ['stale_days.gt' => 'Stop chasing must be more than the days waiting for "Ready, not collected".'], [
             'appointment_hours' => 'hours ahead', 'due_days' => 'days ahead',
             'uncollected_days' => 'days waiting', 'owner_uncollected_days' => 'days for the owner',
+            'stale_days' => 'stop chasing days', 'expiry_days' => 'days before expiry',
         ]);
 
         Setting::getSettings()->update([
@@ -43,6 +48,8 @@ class ReminderSettingsComponent extends Component
             'reminder_due_days'               => $data['due_days'],
             'reminder_uncollected_days'       => $data['uncollected_days'],
             'reminder_owner_uncollected_days' => $data['owner_uncollected_days'],
+            'reminder_stale_days'             => $data['stale_days'],
+            'reminder_expiry_days'            => $data['expiry_days'],
         ]);
         $items->forgetCounts();
         $this->load();
@@ -57,6 +64,8 @@ class ReminderSettingsComponent extends Component
         $this->due_days = $t['due_days'];
         $this->uncollected_days = $t['uncollected_days'];
         $this->owner_uncollected_days = $t['owner_uncollected_days'];
+        $this->stale_days = $t['stale_days'];
+        $this->expiry_days = $t['expiry_days'];
     }
 
     private function authorizeAccess(): void
