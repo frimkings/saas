@@ -22,6 +22,8 @@ class Branch extends Model
         'timezone',
         'receipt_prefix',
         'public_booking_key',
+        'map_link',
+        'whatsapp_link',
         'is_default',
         'is_active',
     ];

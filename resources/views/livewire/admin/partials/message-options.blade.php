@@ -42,17 +42,9 @@
         @break
 
     @case('feedback_request')
-        <div class="mt-3 pt-3 border-top">
-            <label class="small font-weight-bold text-muted mb-1" for="review-link">Review link <span class="font-weight-normal">— fills [REVIEW_LINK], e.g. your Google review page</span></label>
-            <div class="d-flex flex-wrap" style="gap:.4rem">
-                <input type="url" id="review-link" wire:model="reviewLink" placeholder="https://g.page/r/..." maxlength="500"
-                       class="form-control form-control-sm bg-white @error('reviewLink') is-invalid @enderror" style="max-width:420px">
-                <button type="button" wire:click="saveReviewLink" class="btn btn-sm btn-outline-primary">Save link</button>
-            </div>
-            @error('reviewLink') <span class="text-danger small d-block mt-1">{{ $message }}</span> @enderror
-            @if(trim($reviewLink) === '' && str_contains($templates[$key]['message'] ?? '', '[REVIEW_LINK]'))
-                <small class="text-warning d-block mt-1"><i class="fas fa-exclamation-triangle"></i> Not sent until a review link is saved.</small>
-            @endif
+        <div class="mt-3 pt-3 border-top small text-muted">
+            <i class="fas fa-link mr-1"></i> The review link ([REVIEW_LINK]) is set with the clinic's other links in
+            <a href="{{ route('admin.settings', ['tab' => 'links']) }}">Settings &rarr; Clinic Links</a>.
         </div>
         @break
 

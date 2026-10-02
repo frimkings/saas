@@ -50,7 +50,6 @@ class SmsTemplatesComponent extends Component
     public int $balanceFirstDays = 3;
     public int $balanceEveryDays = 7;
     public int $balanceMax = 3;
-    public string $reviewLink = '';
 
     // Spectacle renewal (persisted to settings)
     public int $renewalReminderDays = 30;
@@ -68,7 +67,6 @@ class SmsTemplatesComponent extends Component
         $this->balanceFirstDays      = (int)  ($s->balance_reminder_first_days ?? 3);
         $this->balanceEveryDays      = (int)  ($s->balance_reminder_every_days ?? 7);
         $this->balanceMax            = (int)  ($s->balance_reminder_max ?? 3);
-        $this->reviewLink            = (string) ($s->review_link ?? '');
         $this->renewalReminderDays   = (int)  ($s->spectacle_renewal_reminder_days ?? 30);
         $this->testPhone             = (string) (auth()->user()?->phone ?? '');
     }
@@ -201,8 +199,7 @@ class SmsTemplatesComponent extends Component
             '[REASON]' => 'Eye examination', '[ORDER_ID]' => 'OPT-7KQ2', '[AMOUNT]' => currency() . ' 250.00',
             '[TXN_ID]' => 'TXN-10482', '[PARTNER]' => 'Partner Clinic', '[WEARER]' => 'Kofi Boateng', '[REFERENCE]' => 'REF-21',
             '[COUNT]' => '2', '[JOBS]' => 'OPT-7KQ2, OPT-9LM1', '[OCCASION]' => 'Christmas',
-            '[REVIEW_LINK]' => trim($this->reviewLink) ?: 'https://your-review-link',
-        ];
+        ] + array_map(fn ($link) => $link !== '' ? $link : 'https://your-link', \App\Support\Messaging\ClinicLinks::replacements());
     }
 
     public function saveRecallSettings(): void
@@ -261,18 +258,6 @@ class SmsTemplatesComponent extends Component
         ]);
 
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Balance reminder schedule saved.']);
-    }
-
-    /** The link patients are sent for reviews, e.g. the clinic's Google review page. */
-    public function saveReviewLink(): void
-    {
-        $this->requireCampaigns();
-        $this->reviewLink = trim($this->reviewLink);
-        $this->validate(['reviewLink' => 'nullable|url:http,https|max:500'], ['reviewLink.url' => 'Enter a full web address starting with https://']);
-
-        Setting::getSettings()->update(['review_link' => $this->reviewLink ?: null]);
-
-        $this->dispatch('notify', ...['type' => 'success', 'message' => $this->reviewLink ? 'Review link saved.' : 'Review link removed.']);
     }
 
     /** How many days ahead of the renewal date the spectacle renewal reminder goes. */

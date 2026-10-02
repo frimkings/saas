@@ -20,7 +20,9 @@
           @else
           <li class="nav-item"><a href="{{ route('admin.clinical-task-center') }}" class="nav-link {{ request()->routeIs('admin.clinical-task-center') ? 'active' : '' }}"><i class="nav-icon fas fa-clipboard-check"></i><p>Clinical Task Center</p></a></li>
           <li class="nav-item"><a href="{{ route('secretary.patients') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>Patients</p></a></li>
-          <li class="nav-item"><a href="{{ route('secretary.appointments') }}" class="nav-link"><i class="nav-icon fas fa-calendar-alt"></i><p>Appointments</p></a></li>
+          @php $attentionCounts = app(\App\Services\Reminders\AttentionItems::class)->counts('clinic'); @endphp
+          <li class="nav-item"><a href="{{ route('attention') }}" class="nav-link {{ request()->routeIs('attention') ? 'active' : '' }}"><i class="nav-icon fas fa-bell"></i><p>Needs Attention @if($attentionCounts['total'])<span class="badge badge-danger right">{{ $attentionCounts['total'] }}</span>@endif</p></a></li>
+          <li class="nav-item"><a href="{{ route('secretary.appointments') }}" class="nav-link"><i class="nav-icon fas fa-calendar-alt"></i><p>Appointments @if($attentionCounts['appointments'])<span class="badge badge-danger right">{{ $attentionCounts['appointments'] }}</span>@endif</p></a></li>
           @endif
 
           @if($navigationWorkspace === 'clinical')

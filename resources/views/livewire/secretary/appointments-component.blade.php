@@ -153,8 +153,15 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="appt-label">Location Link</label>
-                        <input type="url" wire:model="clinic_link" class="form-control" placeholder="https://maps.google.com/...">
-                        @error('clinic_link') <span class="text-danger small">{{ $message }}</span> @enderror
+                        <div class="small text-muted">
+                            Set with the clinic's other links in
+                            @if(auth()->user()?->hasRole('Super Admin'))
+                                <a href="{{ route('admin.settings', ['tab' => 'links']) }}">Settings &rarr; Clinic Links</a>;
+                            @else
+                                Settings &rarr; Clinic Links;
+                            @endif
+                            messages insert it with <code>[MAP_LINK]</code>.
+                        </div>
                     </div>
                     <div class="col-12 mb-3">
                         <small class="text-muted">
@@ -164,7 +171,7 @@
                             @else
                                 SMS Templates in Settings.
                             @endrole
-                            The location link fills the <code>[LINK]</code> placeholder.
+                            Links (location, WhatsApp, review, social) come from Settings &rarr; Clinic Links.
                         </small>
                     </div>
                     <div class="col-md-4 mb-3">
@@ -172,7 +179,6 @@
                         <input type="number" min="1" wire:model.live.debounce.400ms="dailyAppointmentLimit" class="form-control">
                     </div>
                 </div>
-                <button wire:click="saveSettings" class="btn btn-primary font-weight-bold px-4">Save Settings</button>
             </div>
 
             {{-- ============================= SCHEDULE ============================= --}}

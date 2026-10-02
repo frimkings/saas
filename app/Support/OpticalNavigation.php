@@ -8,6 +8,7 @@ class OpticalNavigation
     {
         return [
             ['optical.dashboard', 'Dashboard', 'fa-th-large'],
+            ['optical.attention', 'Needs Attention', 'fa-bell'],
             ['optical.orders', 'Orders', 'fa-clipboard-list'],
             ['optical.lab-workbench', 'Lab Workbench', 'fa-tools'],
             ['optical.collections', 'Awaiting Collection', 'fa-bell'],

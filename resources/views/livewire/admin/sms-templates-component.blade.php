@@ -113,6 +113,13 @@
                                                 <code class="badge badge-light border mr-1 mb-1 small msg-chip" role="button" @click="insert('{{ $ph }}')">{{ $ph }}</code>
                                             @endforeach
                                         </div>
+                                        @php $unsetLinks = \App\Support\Messaging\ClinicLinks::missingIn($msg['message'] ?? ''); @endphp
+                                        @if($unsetLinks)
+                                            <small class="text-warning d-block mt-1">
+                                                <i class="fas fa-exclamation-triangle"></i> Not sent until {{ implode(', ', $unsetLinks) }} {{ count($unsetLinks) === 1 ? 'is' : 'are' }} set in
+                                                <a href="{{ route('admin.settings', ['tab' => 'links']) }}">Settings &rarr; Clinic Links</a>.
+                                            </small>
+                                        @endif
                                     </div>
                                     <div class="col-md-5">
                                         <label class="small font-weight-bold text-muted mb-1">Preview <span class="font-weight-normal">(sample patient)</span></label>

@@ -14,7 +14,7 @@ class AdminSettingsComponent extends Component
         return ! config('tenancy.enabled') || app()->environment('local');
     }
 
-    private const TABS = ['system', 'receipts', 'backup', 'report', 'license'];
+    private const TABS = ['system', 'links', 'receipts', 'reminders', 'backup', 'report', 'license'];
 
     /** SMS, templates and WhatsApp moved to Communications; old links still land on them. */
     private const MOVED = ['sms' => 'admin.sms-settings', 'templates' => 'admin.messages', 'whatsapp' => 'admin.whatsapp-settings'];

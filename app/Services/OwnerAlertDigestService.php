@@ -28,7 +28,6 @@ class OwnerAlertDigestService
     public const SEND_HOUR = 10;
     public const EXPIRY_DAYS = 90;
     public const BILL_DAYS = 7;
-    public const UNCOLLECTED_DAYS = 30;
     private const SHOWN_PER_SECTION = 20;
 
     /** Section => [heading, what the owner should do, link route]. In email order. */
@@ -37,6 +36,7 @@ class OwnerAlertDigestService
         'expiry' => ['Expiring stock', 'Sell or return these before they expire; take expired stock off the shelf.'],
         'bills' => ['Supplier bills', 'Pay these to keep suppliers happy.'],
         'recurring' => ['Regular expenses due', 'Pay and record these.'],
+        'late_pickup' => ['Spectacles past their promised date', 'Chase the lab, and tell the patients the new date.'],
         'lab' => ['Late from the lab', 'Chase the lab, and let the customers know.'],
         'uncollected' => ['Glasses not collected', 'Call these customers to come in.'],
     ];
@@ -144,11 +144,32 @@ class OwnerAlertDigestService
                     ->each(fn ($order) => $add('lab', 'lab' . $order->id, 'late', "{$order->order_id} · {$order->display_customer_name}",
                         'Expected back ' . $order->expected_back_at->format('j M') . ' (' . (int) $order->expected_back_at->diffInDays($today) . ' days late)'));
 
-                LensOrder::whereIn('status', ['Ready', 'Ready for Collection'])->whereNotNull('ready_at')->where('ready_at', '<=', $today->copy()->subDays(self::UNCOLLECTED_DAYS))->get()
-                    ->each(function ($order) use ($add, $today, $money) {
-                        $days = (int) $order->ready_at->copy()->startOfDay()->diffInDays($today);
-                        $balance = round($order->total - (float) $order->paid_amount, 2);
-                        $add('uncollected', 'ready' . $order->id, $days >= 90 ? '90' : ($days >= 60 ? '60' : '30'), "{$order->order_id} · {$order->display_customer_name}",
+            }
+
+            // Spectacles, for clinic orders and optical jobs alike: past the promised date, and
+            // not collected after the clinic's chosen number of days (Settings → Reminders).
+            if ($clinical || $optical) {
+                $ownerDays = \App\Services\Reminders\AttentionItems::thresholds()['owner_uncollected_days'];
+                $orders = fn () => LensOrder::query()->whereNull('cancelled_at')
+                    ->when(! $optical, fn ($q) => $q->whereNotNull('refraction_id'));
+                // Clinic orders get their own keys; optical jobs keep the ones they always had.
+                $key = fn ($order, string $kind) => ($order->refraction_id ? 'c' : '') . $kind . $order->id;
+
+                $orders()->whereNotIn('status', [...LensOrder::READY, 'Collected', 'Cancelled', 'Quotation'])
+                    ->whereNotNull('pickUpDate')->whereDateIndexed('pickUpDate', '<', $today->toDateString())->get()
+                    ->each(function ($order) use ($add, $today, $key) {
+                        $promised = Carbon::parse($order->pickUpDate);
+                        $add('late_pickup', $key($order, 'late'), 'late', "{$order->order_id} · {$order->display_customer_name}",
+                            'Promised ' . $promised->format('j M') . ' (' . (int) $promised->copy()->startOfDay()->diffInDays($today) . ' days late) · ' . $order->status);
+                    });
+
+                $orders()->whereIn('status', LensOrder::READY)
+                    ->whereRaw('COALESCE(ready_at, updated_at) <= ?', [$today->copy()->subDays($ownerDays)])->get()
+                    ->each(function ($order) use ($add, $today, $money, $key, $ownerDays) {
+                        $days = (int) ($order->ready_at ?? $order->updated_at)->copy()->startOfDay()->diffInDays($today);
+                        $balance = $order->refraction_id ? 0 : round($order->total - (float) $order->paid_amount, 2);
+                        $stage = $days >= 90 ? '90' : ($days >= 60 ? '60' : ($days >= 30 ? '30' : (string) $ownerDays));
+                        $add('uncollected', $key($order, 'ready'), $stage, "{$order->order_id} · {$order->display_customer_name}",
                             "Ready for {$days} days" . ($balance > 0 ? ' · ' . $money($balance) . ' still to pay' : ''));
                     });
             }
@@ -168,8 +189,9 @@ class OwnerAlertDigestService
             'expiry' => route('admin.inventory-alerts'),
             'bills' => route('admin.purchase-orders'),
             'recurring' => route('admin.expenses'),
+            'late_pickup' => $new->where('section', 'late_pickup')->every(fn ($row) => str_starts_with($row->item_key, 'clate')) ? route('secretary.spectacles') : route('optical.orders'),
             'lab' => route('optical.jobs'),
-            'uncollected' => route('optical.collections'),
+            'uncollected' => $new->where('section', 'uncollected')->every(fn ($row) => str_starts_with($row->item_key, 'cready')) ? route('secretary.spectacles') : route('optical.collections'),
         ];
 
         $sections = [];

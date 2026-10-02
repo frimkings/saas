@@ -13,9 +13,21 @@
             </a>
         </li>
         <li class="nav-item">
+            <a class="nav-link {{ $activeTab === 'links' ? 'active' : '' }}"
+               wire:click.prevent="setTab('links')" href="#">
+                <i class="fas fa-link mr-1"></i> Clinic Links
+            </a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link {{ $activeTab === 'receipts' ? 'active' : '' }}"
                wire:click.prevent="setTab('receipts')" href="#">
                 <i class="fas fa-receipt mr-1"></i> Receipts &amp; Payments
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {{ $activeTab === 'reminders' ? 'active' : '' }}"
+               wire:click.prevent="setTab('reminders')" href="#">
+                <i class="fas fa-bell mr-1"></i> Reminders
             </a>
         </li>
         @if($this->canManageFullBackups())<li class="nav-item">
@@ -42,8 +54,12 @@
     <div class="tab-content bg-white border border-top-0 rounded-bottom shadow-sm">
         @if($activeTab === 'system')
             @livewire('admin.settings-component', [], key('tab-system'))
+        @elseif($activeTab === 'links')
+            @livewire('admin.clinic-links-component', [], key('tab-links'))
         @elseif($activeTab === 'receipts')
             @livewire('admin.receipt-settings-component', [], key('tab-receipts'))
+        @elseif($activeTab === 'reminders')
+            @livewire('admin.reminder-settings-component', [], key('tab-reminders'))
         @elseif($activeTab === 'backup')
             @livewire('admin.backup-manager-component', [], key('tab-backup'))
         @elseif($activeTab === 'report')

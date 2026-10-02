@@ -15,6 +15,9 @@
         </div>
     </div>
 
+    {{-- What to act on today: jobs due or late, glasses not collected --}}
+    @livewire('attention-panel-component', ['line' => 'optical', 'compact' => true], key('attention-optical'))
+
     @if($overdueCount || $stuckCount)
         <a href="{{ route('optical.jobs') }}" class="ui-panel p-3 flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 text-amber-900 no-underline" role="status">
             <span class="text-sm"><strong>Jobs need attention:</strong>

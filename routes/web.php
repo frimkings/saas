@@ -89,6 +89,7 @@ Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform/deployment-readiness', \App\Livewire\Platform\DeploymentReadinessComponent::class)->name('platform.deployment-readiness');
     Route::get('/platform/sms', \App\Livewire\Platform\SmsMessagingComponent::class)->name('platform.sms');
     Route::get('/platform/support', \App\Livewire\Platform\SupportSettingsComponent::class)->name('platform.support');
+    Route::get('/platform/announcements', \App\Livewire\Platform\AnnouncementsComponent::class)->name('platform.announcements');
     Route::get('/platform/subscription-analytics', \App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');
     Route::get('/platform/subscription-analytics.csv', [\App\Http\Controllers\Platform\SubscriptionAnalyticsExportController::class,'csv'])->name('platform.subscription-analytics.csv');
     Route::get('/platform/billing-report.csv', [\App\Http\Controllers\Platform\BillingReportController::class,'csv'])->name('platform.billing-report.csv');
@@ -104,6 +105,13 @@ Route::middleware(['auth', 'platform.admin'])->group(function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/subscription/locked', \App\Http\Controllers\SubscriptionLockedController::class)->name('subscription.locked');
     Route::post('/context/navigation-workspace', \App\Http\Controllers\NavigationWorkspaceController::class)->name('navigation.workspace');
+    // "Needs attention": today's reminders for clinic staff (everyone sees everything).
+    Route::get('/attention', \App\Livewire\AttentionPanelComponent::class)->name('attention');
+    // A platform announcement banner the signed-in Super Admin has read.
+    Route::post('/announcements/{announcement}/dismiss', function (\App\Models\PlatformAnnouncement $announcement) {
+        app(\App\Services\Platform\Announcements::class)->dismiss($announcement, auth()->user());
+        return response()->noContent();
+    })->name('announcements.dismiss');
     Route::get('/context/mode', [WorkspaceModeController::class, 'select'])->name('tenant.mode.select');
     Route::post('/context/mode', [WorkspaceModeController::class, 'switch'])->name('tenant.mode.switch');
     Route::get('/context/clinic', [ClinicContextController::class, 'select'])->name('tenant.clinic.select');
@@ -236,6 +244,7 @@ Route::get('/optical/orders', \App\Livewire\Optical\OpticalOrdersComponent::clas
 Route::get('/optical/lab-workbench', \App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->name('optical.lab-workbench');
 Route::get('/optical/lab-workbench/print', fn (\Illuminate\Http\Request $request) => \App\Livewire\Optical\OpticalLabWorkbenchComponent::printSheet($request))->name('optical.lab-workbench.print');
 Route::get('/optical/collections', \App\Livewire\Optical\OpticalCollectionsComponent::class)->name('optical.collections');
+Route::get('/optical/attention', \App\Livewire\AttentionPanelComponent::class)->name('optical.attention');
 Route::get('/optical/jobs', \App\Livewire\Optical\OpticalJobsComponent::class)->name('optical.jobs');
 Route::get('/optical/stock-counts', \App\Livewire\Optical\OpticalStockCountsComponent::class)->name('optical.stock-counts');
 Route::middleware('role:Manager|Super Admin')->group(function () {

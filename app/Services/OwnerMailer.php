@@ -40,6 +40,12 @@ class OwnerMailer
         return $this->deliver($clinic->id, $clinic->id . ':' . $key, self::ownerEmail($clinic), 'The clinic has no owner email.', $kind, $subject, $mail, self::supportEmail());
     }
 
+    /** Email one address at a clinic (e.g. a Super Admin), with the same once-only key and retries. */
+    public function sendToAddress(Clinic $clinic, ?string $email, string $kind, string $key, string $subject, callable $mail): string
+    {
+        return $this->deliver($clinic->id, $clinic->id . ':' . $key, self::valid($email), 'Not a valid email address.', $kind, $subject, $mail, self::supportEmail());
+    }
+
     /** Email the platform's requests inbox, optionally about one clinic. */
     public function sendToPlatform(?Clinic $clinic, ?string $inbox, string $kind, string $key, string $subject, callable $mail): string
     {

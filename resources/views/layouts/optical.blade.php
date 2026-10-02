@@ -51,6 +51,9 @@
 @php
     $tenant = app(\App\Support\Tenancy\TenantContext::class);
     $links = \App\Support\OpticalNavigation::links();
+    // Menu badges: everything needing attention, and late or uncollected jobs on Orders.
+    $attentionCounts = auth()->check() && ! auth()->user()->is_platform_admin ? app(\App\Services\Reminders\AttentionItems::class)->counts('optical') : [];
+    $navBadges = ['optical.attention' => $attentionCounts['total'] ?? 0, 'optical.orders' => $attentionCounts['orders'] ?? 0];
 @endphp
 <div class="min-h-screen flex flex-col">
     {{-- One row: brand on the left, workspace / branch / sign out on the right, all the same height.
@@ -80,7 +83,7 @@
                         <div class="px-3 text-[11px] font-bold text-teal-400 uppercase tracking-wider flex justify-between"><span>Optical Suite</span><span>●</span></div>
                         @foreach($links as [$route, $label, $icon])
                             @if($route === 'optical.settings' || ! \App\Support\OpticalNavigation::allowed($route)) @continue @endif
-                            <a href="{{ route($route) }}" class="block px-3 py-2 rounded-lg text-sm {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">{{ $label }}</a>
+                            <a href="{{ route($route) }}" class="block px-3 py-2 rounded-lg text-sm {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">{{ $label }}@if($navBadges[$route] ?? 0)<span style="margin-left:8px;display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;text-align:center">{{ $navBadges[$route] }}</span>@endif</a>
                         @endforeach
                     </div>
                     @hasanyrole('Manager|Super Admin')

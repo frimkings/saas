@@ -78,7 +78,6 @@ public $recallCategories = [
 ];
 
 
-    public $clinic_link = '';
     // WhatsApp link for the booking just made, shown until staff open or dismiss it.
     public ?string $confirmationWhatsAppUrl = null;
     public ?string $confirmationPatientName = null;
@@ -135,7 +134,6 @@ public $recallCategories = [
         }
 
         $settings = \App\Models\Setting::getSettings();
-        $this->clinic_link = $settings->clinic_link ?? '';
 
         $this->startDate = Carbon::now()->startOfWeek(Carbon::MONDAY)->format('Y-m-d');
         $this->endDate = Carbon::now()->endOfWeek(Carbon::SUNDAY)->format('Y-m-d');
@@ -268,18 +266,6 @@ public $recallCategories = [
     {
         $this->selectedAppointments = [];
         $this->selectAll = false;
-    }
-
-    /**
-     * Settings Management
-     */
-    public function saveSettings()
-    {
-        $this->validate(['clinic_link' => 'nullable|url|max:500']);
-        \App\Models\Setting::getSettings()->update(['clinic_link' => trim((string) $this->clinic_link) ?: null]);
-
-        $this->dispatch('notify', ...['type' => 'success', 'message' => 'Clinic settings updated successfully.']);
-        $this->activeFilter = 'schedule';
     }
 
   

@@ -94,6 +94,16 @@ class Setting extends Model
         'review_link',
         'visit_receipts_enabled',
         'closing_time',
+        'reminder_appointment_hours',
+        'reminder_due_days',
+        'reminder_uncollected_days',
+        'reminder_owner_uncollected_days',
+        'whatsapp_link',
+        'website_link',
+        'booking_link',
+        'facebook_link',
+        'instagram_link',
+        'tiktok_link',
     ];
 
     protected $casts = [

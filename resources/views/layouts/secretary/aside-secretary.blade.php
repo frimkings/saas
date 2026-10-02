@@ -17,6 +17,15 @@
         </a>
       </li>
 
+      {{-- Needs attention: today's reminders (counts cached briefly per branch) --}}
+      @php $attentionCounts = app(\App\Services\Reminders\AttentionItems::class)->counts('clinic'); @endphp
+      <li class="nav-item">
+        <a href="{{ route('attention') }}" class="nav-link {{ request()->routeIs('attention') ? 'active' : '' }}">
+          <i class="nav-icon fas fa-bell"></i>
+          <p>Needs Attention @if($attentionCounts['total'])<span class="badge badge-danger right">{{ $attentionCounts['total'] }}</span>@endif</p>
+        </a>
+      </li>
+
       {{-- Patients --}}
       <li class="nav-item">
         <a href="#" class="nav-link">
@@ -33,7 +42,7 @@
           <li class="nav-item">
             <a href="{{ route('secretary.appointments') }}"
               class="nav-link {{ request()->routeIs('secretary.appointments') ? 'active' : '' }}">
-              <i class="far fa-circle nav-icon text-info"></i><p>Appointments</p>
+              <i class="far fa-circle nav-icon text-info"></i><p>Appointments @if($attentionCounts['appointments'] ?? 0)<span class="badge badge-danger right">{{ $attentionCounts['appointments'] }}</span>@endif</p>
             </a>
           </li>
         </ul>
@@ -55,7 +64,7 @@
           <li class="nav-item">
             <a href="{{ route('secretary.spectacles') }}"
               class="nav-link {{ request()->is('secretary/spectacles') ? 'active' : '' }}">
-              <i class="far fa-circle nav-icon text-info"></i><p>Spectacles</p>
+              <i class="far fa-circle nav-icon text-info"></i><p>Spectacles @if($attentionCounts['orders'] ?? 0)<span class="badge badge-danger right">{{ $attentionCounts['orders'] }}</span>@endif</p>
             </a>
           </li>
         </ul>
