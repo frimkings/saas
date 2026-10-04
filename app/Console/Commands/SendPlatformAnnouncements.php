@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Services\Platform\Announcements;
 use Illuminate\Console\Command;
 
-/** Every minute: send the next batch of queued announcement emails (Platform → Announcements). */
+/** Every minute offline, every half hour by day hosted (Kernel): send the next batch of queued announcement emails (Platform → Announcements). */
 class SendPlatformAnnouncements extends Command
 {
     protected $signature = 'platform:send-announcements';

@@ -17,7 +17,7 @@
     @if($screen === 'list')
         <div class="pp-card">
             <div class="pp-card-head">
-                <div><h2>Sent and draft announcements</h2><p>Emails go out in small batches (a few right away, the rest within minutes).</p></div>
+                <div><h2>Sent and draft announcements</h2><p>Emails go out in small batches (a few right away, the rest every half hour during the day).</p></div>
                 <button type="button" class="pp-btn" wire:click="create">＋ New announcement</button>
             </div>
             <div class="pp-table-wrap">

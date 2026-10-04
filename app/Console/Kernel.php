@@ -4,6 +4,7 @@ namespace App\Console;
 
 use App\Services\LicenseService;
 use App\Support\Feature;
+use App\Support\HostedSchedule;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -17,14 +18,22 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('system:health-heartbeat')->everyMinute()->withoutOverlapping();
+        // Hosted: Laravel Cloud wakes the sleeping app (and so the database) for every task, so
+        // frequent and hourly tasks only run during the day (HostedSchedule) and the night-time
+        // dailies move to the morning. Offline installs keep their every-minute timings.
+        $hosted = (bool) config('tenancy.enabled');
+        $often = fn ($event) => $hosted ? $event->cron(HostedSchedule::daytime('*/30')) : $event->everyMinute();
+        $hourly = fn ($event) => $hosted ? $event->cron(HostedSchedule::daytime('0')) : $event->hourly();
+        $night = fn ($event, string $offlineAt, string $hostedAt) => $event->dailyAt($hosted ? $hostedAt : $offlineAt);
+
+        $often($schedule->command('system:health-heartbeat'))->withoutOverlapping();
         $schedule->command('platform:deployment-readiness')->dailyAt('07:45')->withoutOverlapping();
-        $schedule->command('subscriptions:evaluate-lifecycle')->hourly()->withoutOverlapping();
-        $schedule->command('subscriptions:process-billing')->dailyAt('00:15')->withoutOverlapping();
+        $hourly($schedule->command('subscriptions:evaluate-lifecycle'))->withoutOverlapping();
+        $night($schedule->command('subscriptions:process-billing'), '00:15', '06:05')->withoutOverlapping();
         $schedule->command('subscriptions:send-notifications')->dailyAt('08:15')->withoutOverlapping();
         $schedule->command('subscriptions:sync-collections')->dailyAt('08:30')->withoutOverlapping();
         $schedule->command('subscriptions:reconcile')->dailyAt('09:00')->withoutOverlapping();
-        $schedule->command('subscriptions:process-offboarding')->hourly()->withoutOverlapping();
+        $hourly($schedule->command('subscriptions:process-offboarding'))->withoutOverlapping();
 
         // Hosted installs (tenancy on) schedule no app backups: their server disk is temporary
         // (wiped on every deploy, not shared between servers), so archives written there would
@@ -47,15 +56,15 @@ class Kernel extends ConsoleKernel
             $schedule->command('tenancy:run-scheduled sms:birthday-wishes --clinic-only')->dailyAt('08:00')->withoutOverlapping();
 
             // Appointment reminders — fires every hour, catches appointments ~24h out
-            $schedule->command('tenancy:run-scheduled sms:appointment-reminders')->hourly()->withoutOverlapping();
+            $hourly($schedule->command('tenancy:run-scheduled sms:appointment-reminders'))->withoutOverlapping();
 
             // Automatic follow-ups, each off until the clinic switches it on (FollowUpSms). Hourly so
             // they catch up after the server sleeps; they only send 9:00–19:00 clinic time.
-            $schedule->command('tenancy:run-scheduled sms:missed-appointment-followups')->hourly()->withoutOverlapping();
-            $schedule->command('tenancy:run-scheduled sms:aftercare-followups')->hourly()->withoutOverlapping();
-            $schedule->command('tenancy:run-scheduled sms:clinical-recalls --clinic-only')->hourly()->withoutOverlapping();
-            $schedule->command('tenancy:run-scheduled sms:balance-reminders')->hourly()->withoutOverlapping();
-            $schedule->command('tenancy:run-scheduled sms:feedback-requests')->hourly()->withoutOverlapping();
+            $hourly($schedule->command('tenancy:run-scheduled sms:missed-appointment-followups'))->withoutOverlapping();
+            $hourly($schedule->command('tenancy:run-scheduled sms:aftercare-followups'))->withoutOverlapping();
+            $hourly($schedule->command('tenancy:run-scheduled sms:clinical-recalls --clinic-only'))->withoutOverlapping();
+            $hourly($schedule->command('tenancy:run-scheduled sms:balance-reminders'))->withoutOverlapping();
+            $hourly($schedule->command('tenancy:run-scheduled sms:feedback-requests'))->withoutOverlapping();
         }
 
         if (config('tenancy.enabled') || LicenseService::has(Feature::SPECTACLES_PRO)) {
@@ -72,11 +81,13 @@ class Kernel extends ConsoleKernel
         $schedule->command('sms:check-platform-balance')->dailyAt('07:00')->withoutOverlapping();
 
         // Prune unbounded log tables to keep working set small
-        $schedule->command('logs:prune')->dailyAt('03:00')->withoutOverlapping();
-        $schedule->command('tenancy:run-scheduled visit-bills:finalize-expired')->everyFiveMinutes()->withoutOverlapping();
+        $night($schedule->command('logs:prune'), '03:00', '06:10')->withoutOverlapping();
+        $hosted
+            ? $schedule->command('tenancy:run-scheduled visit-bills:finalize-expired')->cron(HostedSchedule::daytime('*/30'))->withoutOverlapping()
+            : $schedule->command('tenancy:run-scheduled visit-bills:finalize-expired')->everyFiveMinutes()->withoutOverlapping();
 
         // Clean up abandoned carts (stale prescription items with no purchase)
-        $schedule->command('tenancy:run-scheduled carts:cleanup-abandoned')->dailyAt('03:30')->withoutOverlapping();
+        $night($schedule->command('tenancy:run-scheduled carts:cleanup-abandoned'), '03:30', '06:15')->withoutOverlapping();
 
         // Patient recall — daily, applies admin-configured inactivity threshold
         try {
@@ -85,13 +96,13 @@ class Kernel extends ConsoleKernel
 
         // One receipt per visit: each visit's SMS at the clinic's closing time (default 5 PM), only
         // for clinics that switched it on. Hourly so it catches up after the server sleeps.
-        $schedule->command('tenancy:run-scheduled sms:visit-receipts')->hourly()->withoutOverlapping();
+        $hourly($schedule->command('tenancy:run-scheduled sms:visit-receipts'))->withoutOverlapping();
 
         // Daily, weekly and monthly sales emails to each clinic owner, from 10 AM clinic time;
         // the platform ticks which ones each plan includes. Replaces the old report delivery.
-        $schedule->command('owner:send-summaries')->hourly()->withoutOverlapping();
-        // Platform → Announcements: queued emails to clinic owners and Super Admins, a batch a minute.
-        $schedule->command('platform:send-announcements')->everyMinute()->withoutOverlapping();
+        $hourly($schedule->command('owner:send-summaries'))->withoutOverlapping();
+        // Platform → Announcements: queued emails to clinic owners and Super Admins, a batch a run.
+        $often($schedule->command('platform:send-announcements'))->withoutOverlapping();
         // Clinic requests (plan changes, SMS orders, sender IDs) still waiting after a day.
         $schedule->command('platform:remind-requests')->dailyAt('08:00')->withoutOverlapping();
     }
