@@ -33,7 +33,7 @@
     {{-- One row: brand on the left, workspace / branch / sign out on the right, all the same height.
          The brand is not a heading: each page's own title is the page's single h1. --}}
     <header class="bg-slate-900 text-white px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-slate-700 shadow-md">
-        <a href="{{ route('optical.dashboard') }}" class="flex items-center gap-3 min-w-0 text-white no-underline hover:text-white">
+        <a href="{{ route('optical.dashboard') }}" wire:navigate class="flex items-center gap-3 min-w-0 text-white no-underline hover:text-white">
             <span class="w-9 h-9 shrink-0 rounded-lg bg-teal-600 flex items-center justify-center text-sm font-bold" aria-hidden="true">OP</span>
             <span class="min-w-0 leading-tight">
                 <span class="block text-[15px] font-semibold truncate">{{ $tenant->clinic()?->name ?? config('app.name') }}</span>
@@ -57,16 +57,16 @@
                         <div class="px-3 text-[11px] font-bold text-teal-400 uppercase tracking-wider flex justify-between"><span>Optical Suite</span><span>●</span></div>
                         @foreach($links as [$route, $label, $icon])
                             @if($route === 'optical.settings' || ! \App\Support\OpticalNavigation::allowed($route)) @continue @endif
-                            <a href="{{ route($route) }}" class="block px-3 py-2 rounded-lg text-sm {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">{{ $label }}@if($navBadges[$route] ?? 0)<span style="margin-left:8px;display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;text-align:center">{{ $navBadges[$route] }}</span>@endif</a>
+                            <a href="{{ route($route) }}" @if(\App\Support\OpticalNavigation::navigable($route)) wire:navigate @endif class="block px-3 py-2 rounded-lg text-sm {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">{{ $label }}@if($navBadges[$route] ?? 0)<span style="margin-left:8px;display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;text-align:center">{{ $navBadges[$route] }}</span>@endif</a>
                         @endforeach
                     </div>
                     @hasanyrole('Manager|Super Admin')
                         <div class="space-y-1"><div class="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Management</div>
-                            <a href="{{ route('optical.categories') }}" class="block px-3 py-2 text-sm {{ request()->routeIs('optical.categories') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Optical Categories</a>
-                            <a href="{{ route('optical.products') }}" class="block px-3 py-2 text-sm {{ request()->routeIs('optical.products') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Optical Products</a>
-                            <a href="{{ route('optical.stock') }}" class="block px-3 py-2 text-sm {{ request()->routeIs('optical.stock') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Stock Restocking &amp; Batches</a>
+                            <a href="{{ route('optical.categories') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.categories') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Optical Categories</a>
+                            <a href="{{ route('optical.products') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.products') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Optical Products</a>
+                            <a href="{{ route('optical.stock') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.stock') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Stock Restocking &amp; Batches</a>
                         </div>
-                        <a href="{{ route('optical.settings') }}" class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.settings') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Settings</a>
+                        <a href="{{ route('optical.settings') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.settings') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Settings</a>
                     @endhasanyrole
                     @if(\App\Support\OpticalNavigation::canManageStaff())
                         {{-- Staff are managed on the shared staff screen; it links back here. --}}
@@ -78,8 +78,8 @@
         </aside>
         <main class="flex-1 bg-slate-50 min-w-0 overflow-y-auto">
             <nav class="md:hidden flex gap-2 overflow-x-auto p-2 bg-slate-900 text-white text-xs" aria-label="Optical navigation">
-                @foreach($links as [$route, $label])@if(! \App\Support\OpticalNavigation::allowed($route)) @continue @endif<a href="{{ route($route) }}" class="whitespace-nowrap px-2 py-1 rounded {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600' : '' }}">{{ $label }}</a>@endforeach
-                @hasanyrole('Manager|Super Admin')<a href="{{ route('optical.categories') }}" class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.categories') ? 'bg-teal-600' : '' }}">Optical Categories</a><a href="{{ route('optical.products') }}" class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.products') ? 'bg-teal-600' : '' }}">Optical Products</a><a href="{{ route('optical.stock') }}" class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.stock') ? 'bg-teal-600' : '' }}">Stock Restocking &amp; Batches</a>@endhasanyrole
+                @foreach($links as [$route, $label])@if(! \App\Support\OpticalNavigation::allowed($route)) @continue @endif<a href="{{ route($route) }}" @if(\App\Support\OpticalNavigation::navigable($route)) wire:navigate @endif class="whitespace-nowrap px-2 py-1 rounded {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600' : '' }}">{{ $label }}</a>@endforeach
+                @hasanyrole('Manager|Super Admin')<a href="{{ route('optical.categories') }}" wire:navigate class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.categories') ? 'bg-teal-600' : '' }}">Optical Categories</a><a href="{{ route('optical.products') }}" wire:navigate class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.products') ? 'bg-teal-600' : '' }}">Optical Products</a><a href="{{ route('optical.stock') }}" wire:navigate class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.stock') ? 'bg-teal-600' : '' }}">Stock Restocking &amp; Batches</a>@endhasanyrole
                 @if(\App\Support\OpticalNavigation::canManageStaff())<a href="{{ route('admin.users', ['from' => 'optical']) }}" class="whitespace-nowrap px-2 py-1 rounded">Staff &amp; roles</a>@endif
             </nav>
             {{-- Notices line up with the page content below and sit close to it. --}}

@@ -49,7 +49,7 @@
 .app-confirm__btn--danger:hover { background: #991b1b; }
 .app-confirm__btn:focus-visible { outline: 3px solid #5eead4; outline-offset: 2px; }
 </style>
-<script>
+<script data-navigate-once>
     (() => {
         const DANGER = /\b(delete|remove|reverse|void|refund|archive|trash|discard|clear|reset|deactivate|suspend|revoke|cancel|reject|release|write off)\b/i;
         const VERBS = /^(delete|remove|reverse|void|refund|archive|discard|clear|reset|deactivate|suspend|revoke|reject|release|approve|process|send|re-send|resend|move|restore|collect|complete|mark|convert|apply|activate|close|submit|confirm)\b/i;

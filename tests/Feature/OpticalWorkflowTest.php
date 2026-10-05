@@ -1222,6 +1222,18 @@ class OpticalWorkflowTest extends TestCase
         return $user;
     }
 
+    public function test_optical_menu_opens_pages_without_a_full_reload(): void
+    {
+        $this->opticalStaff('optical-assistant', 'Optical Assistant');
+        $html = $this->get(route('optical.dashboard'))->assertOk()->getContent();
+
+        // Menu pages use wire:navigate; Sales Records (shared script, not navigate-safe yet) loads normally.
+        $this->assertMatchesRegularExpression('#<a href="' . preg_quote(route('optical.orders'), '#') . '"\s+wire:navigate#', $html);
+        $this->assertDoesNotMatchRegularExpression('#<a href="' . preg_quote(route('optical.sales'), '#') . '"\s+wire:navigate#', $html);
+        // The confirm helpers are defined once, not again on every page change.
+        $this->assertStringContainsString('<script data-navigate-once>', $html);
+    }
+
     public function test_optical_roles_open_only_their_screens(): void
     {
         // The sales desk: orders, POS and collection, but not the lab, reports or management.

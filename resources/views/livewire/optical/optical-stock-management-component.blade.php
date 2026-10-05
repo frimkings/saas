@@ -1,7 +1,7 @@
 <div class="clinic-ui ui-page space-y-6">
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div><h1 class="text-xl font-bold text-slate-900">Stock Management &amp; Restocking Ledger <span class="ml-2 rounded-full bg-teal-50 border border-teal-200 px-2 py-1 text-xs text-teal-800">Inventory Movement &amp; GRN</span></h1><p class="ui-muted text-xs">Receive supplier stock, record adjustments, and review branch stock movements.</p></div>
-        @hasanyrole('Manager|Super Admin')<div class="flex flex-wrap gap-2"><button type="button" wire:click="openAdjustment" class="ui-button">Adjust Stock</button><a href="{{ route('optical.stock.receive-lenses') }}" class="ui-button">Receive lens order (grid / Excel)</a><button type="button" wire:click="openReceipt" class="ui-button ui-button-primary">+ Receive / Restock Inventory</button></div>@endhasanyrole
+        @hasanyrole('Manager|Super Admin')<div class="flex flex-wrap gap-2"><button type="button" wire:click="openAdjustment" class="ui-button">Adjust Stock</button><a wire:navigate href="{{ route('optical.stock.receive-lenses') }}" class="ui-button">Receive lens order (grid / Excel)</a><button type="button" wire:click="openReceipt" class="ui-button ui-button-primary">+ Receive / Restock Inventory</button></div>@endhasanyrole
     </div>
 
     <x-ui.flash link-label="View received lenses in power matrix" :link="session('lensMatrixUrl') ?? ($stockType === 'lens' ? route('optical.catalogue', ['activeTab' => 'lens-matrix', 'matrixRange' => $lensRange, 'matrixDesign' => $lensDesign, 'matrixIndex' => $lensIndex, 'matrixCoating' => $lensCoating, 'matrixDiameter' => $lensDiameter]) : null)" />

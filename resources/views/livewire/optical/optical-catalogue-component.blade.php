@@ -21,9 +21,9 @@
         </div>
         <div class="flex flex-wrap gap-2">
             @if($isManager)
-                <a href="{{ route('optical.categories') }}" class="oo-btn">Categories</a>
-                <a href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
-                @if(in_array($activeTab, ['frames', 'lenses']))<a href="{{ route('optical.products') }}" class="oo-btn primary">+ Add item</a>@endif
+                <a wire:navigate href="{{ route('optical.categories') }}" class="oo-btn">Categories</a>
+                <a wire:navigate href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
+                @if(in_array($activeTab, ['frames', 'lenses']))<a wire:navigate href="{{ route('optical.products') }}" class="oo-btn primary">+ Add item</a>@endif
             @endif
         </div>
     </div>
@@ -195,8 +195,8 @@
                 </div>
                 @if($isManager)
                     <footer class="oo-drawer-foot">
-                        <a href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
-                        <a href="{{ route('optical.products', ['edit' => $viewProduct->id]) }}" class="oo-btn primary">Edit item</a>
+                        <a wire:navigate href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
+                        <a wire:navigate href="{{ route('optical.products', ['edit' => $viewProduct->id]) }}" class="oo-btn primary">Edit item</a>
                     </footer>
                 @endif
             </aside>

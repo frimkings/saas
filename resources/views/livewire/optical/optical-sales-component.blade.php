@@ -136,7 +136,7 @@
                             @php [$bl, $bc] = \App\Support\Optical\OrderPresenter::badge($order->status); @endphp
                             <div class="flex items-center justify-between gap-2" style="padding:6px 0;border-bottom:1px solid var(--clinic-line)">
                                 <span class="oo-id">{{ $order->order_id }}</span>
-                                <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
+                                <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
                             </div>
                         @endforeach
                     </section>

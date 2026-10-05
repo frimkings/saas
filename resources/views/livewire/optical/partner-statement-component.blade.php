@@ -1,7 +1,7 @@
 <div class="clinic-ui ui-page space-y-5">
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
-            <a href="{{ route('optical.partners') }}" class="text-xs text-teal-700 underline">← Partner clinics</a>
+            <a wire:navigate href="{{ route('optical.partners') }}" class="text-xs text-teal-700 underline">← Partner clinics</a>
             <h1 class="text-xl font-bold text-slate-900">{{ $partner->name }} · account</h1>
             <p class="ui-muted text-xs">{{ $partner->billing_terms === 'on_account' ? 'On account' : 'Pay on order' }}@if($partner->contact_person) · {{ $partner->contact_person }}@endif @if($partner->messagingPhone()) · {{ $partner->messagingPhone() }}@endif</p>
         </div>

@@ -102,7 +102,7 @@
                         <option value="partner" @selected($order_source === 'partner')>Partner clinic</option>
                         <option value="walk_in" @selected($order_source === 'walk_in')>Walk-in work order</option>
                     </select>
-                    <p class="text-xs text-slate-500 mt-1">Immediate walk-in retail purchases are handled in <a href="{{ route('optical.pos') }}" class="text-teal-700 underline">Optical POS</a>.</p>
+                    <p class="text-xs text-slate-500 mt-1">Immediate walk-in retail purchases are handled in <a wire:navigate href="{{ route('optical.pos') }}" class="text-teal-700 underline">Optical POS</a>.</p>
                 </div>
                 <div class="md:col-span-6">
                     <label class="block text-xs font-bold text-slate-700 mb-1">Work type *</label>
@@ -141,7 +141,7 @@
                                 <p class="p-3 text-xs text-slate-500">No active partner clinics are registered for this optical workspace.</p>
                             @endforelse
                         </div>
-                        <a href="{{ route('optical.partners') }}" class="text-xs text-teal-700 underline">Manage partner clinics</a>
+                        <a wire:navigate href="{{ route('optical.partners') }}" class="text-xs text-teal-700 underline">Manage partner clinics</a>
                     </div>
                     @error('partner_id') <p class="mt-1 text-xs text-red-600">Select a partner clinic from the search results.</p> @enderror
                 </div>
@@ -187,7 +187,7 @@
             @if($work_type === 'service')
                 <div class="max-w-4xl space-y-3">
                     <div><h3 class="text-sm font-bold text-slate-900">Services on this job</h3><p class="text-xs text-slate-500">Select one or more services. Prices come from the optical service catalogue.</p></div>
-                    @if($serviceCatalogue->isEmpty())<p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">No active services. A manager can set prices and activate services in <a href="{{ route('optical.catalogue', ['activeTab' => 'services']) }}" class="underline font-semibold">Optical Services & Prices</a>.</p>@endif
+                    @if($serviceCatalogue->isEmpty())<p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">No active services. A manager can set prices and activate services in <a wire:navigate href="{{ route('optical.catalogue', ['activeTab' => 'services']) }}" class="underline font-semibold">Optical Services & Prices</a>.</p>@endif
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Select optical services">
                         @foreach($serviceCatalogue as $service)
                             @php $selected = collect($service_lines)->contains(fn ($line) => (int) ($line['service_id'] ?? 0) === $service->id); @endphp

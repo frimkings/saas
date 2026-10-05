@@ -123,7 +123,7 @@
     <section class="pl-kpis" aria-label="Headline figures">
         <div class="pl-kpi"><span>Revenue</span><b>{{ currency() }} {{ $money($pl['totalRevenue']) }}</b>{!! $change($pl['totalRevenue'], $baseline['totalRevenue'] ?? null) !!}<small>{{ $pl['jobs'] }} {{ Str::plural('job', $pl['jobs']) }} · {{ $pl['retailCount'] }} retail {{ Str::plural('sale', $pl['retailCount']) }}</small></div>
         <div class="pl-kpi"><span>Gross profit</span><b>{{ currency() }} {{ $money($pl['grossProfit']) }}</b>{!! $change($pl['grossProfit'], $baseline['grossProfit'] ?? null) !!}<small>{{ $pl['grossMargin'] === null ? 'No revenue' : $pl['grossMargin'].'% margin' }}</small></div>
-        <div class="pl-kpi"><span>Expenses</span><b class="{{ $pl['totalRevenue'] > 0 && $expenseTotal($pl) == 0 ? 'text-amber-700' : '' }}">{{ currency() }} {{ $money($expenseTotal($pl)) }}</b>{!! $change($expenseTotal($pl), $baseline ? $expenseTotal($baseline) : null, true) !!}<small>@if($expenseTotal($pl) == 0)<a href="{{ route('optical.expenses', ['fromDate' => $linkFrom, 'toDate' => $linkTo]) }}" class="font-semibold text-amber-800 underline">None recorded, add them →</a>@else<a href="{{ route('optical.expenses', ['fromDate' => $linkFrom, 'toDate' => $linkTo]) }}" class="hover:underline">Operating and other expenses →</a>@endif</small></div>
+        <div class="pl-kpi"><span>Expenses</span><b class="{{ $pl['totalRevenue'] > 0 && $expenseTotal($pl) == 0 ? 'text-amber-700' : '' }}">{{ currency() }} {{ $money($expenseTotal($pl)) }}</b>{!! $change($expenseTotal($pl), $baseline ? $expenseTotal($baseline) : null, true) !!}<small>@if($expenseTotal($pl) == 0)<a wire:navigate href="{{ route('optical.expenses', ['fromDate' => $linkFrom, 'toDate' => $linkTo]) }}" class="font-semibold text-amber-800 underline">None recorded, add them →</a>@else<a wire:navigate href="{{ route('optical.expenses', ['fromDate' => $linkFrom, 'toDate' => $linkTo]) }}" class="hover:underline">Operating and other expenses →</a>@endif</small></div>
         <div class="pl-kpi"><span>Net profit</span><b class="{{ $pl['netProfit'] < 0 ? 'text-red-700' : 'text-emerald-700' }}">{{ currency() }} {{ $money($pl['netProfit']) }}</b>{!! $change($pl['netProfit'], $baseline['netProfit'] ?? null) !!}<small>{{ $pl['totalRevenue'] > 0 ? number_format($pl['netProfit'] / $pl['totalRevenue'] * 100, 1).'% net margin' : '—' }}@if($baselineLabel) · vs {{ $baselineLabel }}@endif</small></div>
     </section>
 
@@ -171,7 +171,7 @@
                             $empty = $labels->isEmpty();
                         @endphp
                         @continue($section['key'] === 'nonOperating' && $empty)
-                        <tr class="sec"><td colspan="{{ count($columns) + ($showChange ? 3 : 2) }}">{{ $section['title'] }}@if(in_array($section['key'], ['operating', 'nonOperating'], true))<a href="{{ route('optical.expenses', ['fromDate' => $linkFrom, 'toDate' => $linkTo]) }}" class="no-print ml-2 font-semibold normal-case tracking-normal text-teal-700 hover:underline">Expenses →</a>@endif</td></tr>
+                        <tr class="sec"><td colspan="{{ count($columns) + ($showChange ? 3 : 2) }}">{{ $section['title'] }}@if(in_array($section['key'], ['operating', 'nonOperating'], true))<a wire:navigate href="{{ route('optical.expenses', ['fromDate' => $linkFrom, 'toDate' => $linkTo]) }}" class="no-print ml-2 font-semibold normal-case tracking-normal text-teal-700 hover:underline">Expenses →</a>@endif</td></tr>
                         @forelse($labels as $label)
                             @php $url = $link($section['key'], $label); @endphp
                             <tr class="line"><td>@if($url)<a href="{{ $url }}" title="Open the records behind this line">{{ $label }}</a>@else{{ $label }}@endif</td>{!! $cells(fn ($s) => $s[$section['key']][$label] ?? 0, $section['cost']) !!}</tr>
@@ -193,7 +193,7 @@
     <section class="ui-panel p-4 text-sm" aria-label="Cash">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="text-sm font-semibold text-slate-900">Cash in the period</h2>
-            <a href="{{ route('optical.reports') }}#money" class="no-print text-xs font-semibold text-teal-700 hover:underline">By method and staff in Reports →</a>
+            <a wire:navigate href="{{ route('optical.reports') }}#money" class="no-print text-xs font-semibold text-teal-700 hover:underline">By method and staff in Reports →</a>
         </div>
         <div class="mt-2 grid grid-cols-3 gap-3 text-xs">
             <div><p class="text-slate-500">Received</p><p class="font-semibold tabular-nums">{{ currency() }} {{ $money($pl['cash']['received']) }}</p></div>

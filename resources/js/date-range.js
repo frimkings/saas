@@ -69,6 +69,11 @@ function dateRange(config) {
         readFromWire() {
             this.from = parse(this.$wire.get(this.fromProp));
             this.to = parse(this.$wire.get(this.toProp));
+            // The closed panel's template still reads the month and weeks, so always have a month.
+            if (!this.open) {
+                const base = this.from || this.today;
+                this.view = new Date(base.getFullYear(), base.getMonth(), 1);
+            }
         },
 
         toggle() { this.open ? this.close() : this.show(); },

@@ -161,7 +161,8 @@
 </div>
 
 <script>
-    let selectedCells = [];
+    // var, not let: with wire:navigate this script runs again on each visit, and a second `let` would throw.
+    var selectedCells = [];
 
     function toggleCellSelection(cell, sph, cyl, pairs) {
         if (cell.classList.contains('ring-2')) {
