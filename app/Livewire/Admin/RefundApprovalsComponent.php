@@ -18,7 +18,7 @@ class RefundApprovalsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $activeTab   = 'pending'; // pending | approved | history
     public string $search      = '';

@@ -20,7 +20,7 @@ class PatientsComponent extends Component
 {
     use WithPagination, WithFileUploads;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $state = [];
     public $nameSearch = '';
@@ -89,6 +89,28 @@ class PatientsComponent extends Component
     public function updatedToDateDisplay(): void
     {
         $this->toDate = $this->parseDisplayDate($this->toDateDisplay, false);
+        $this->validateDateRange();
+        $this->resetPage();
+        $this->clearSelection();
+    }
+
+    /** The date-range picker sets these directly (YYYY-MM-DD). */
+    public function updatedFromDate(): void
+    {
+        $this->syncDateRangeDisplay();
+    }
+
+    public function updatedToDate(): void
+    {
+        $this->syncDateRangeDisplay();
+    }
+
+    private function syncDateRangeDisplay(): void
+    {
+        $this->fromDate = $this->fromDate ?: null;
+        $this->toDate = $this->toDate ?: null;
+        $this->fromDateDisplay = $this->fromDate ? Carbon::parse($this->fromDate)->format('d/m/y') : '';
+        $this->toDateDisplay = $this->toDate ? Carbon::parse($this->toDate)->format('d/m/y') : '';
         $this->validateDateRange();
         $this->resetPage();
         $this->clearSelection();
@@ -689,7 +711,7 @@ class PatientsComponent extends Component
         return view('livewire.secretary.patients-component', [
             'patients' => $query->latest()->paginate(10),
             'insurers' => \App\Models\Insurer::where('active', true)->orderBy('name')->get(['id', 'name', 'scheme_type']),
-        ])->layout('layouts.secretary.secretary-layout');
+        ])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 
     public function getRegistryStatsProperty(): array

@@ -81,20 +81,16 @@ class AttentionPanelComponent extends Component
             'canWriteOff' => (bool) auth()->user()?->hasRole('Super Admin'),
         ]);
 
-        return $this->page ? $view->layout(self::layoutFor($this->line)) : $view;
+        return $this->page ? $view->layout(...self::layoutFor($this->line)) : $view;
     }
 
-    /** The page frame that matches the person's own menu. */
-    public static function layoutFor(string $line): string
+    /** The page frame that matches the person's own menu: [layout view, layout data]. */
+    public static function layoutFor(string $line): array
     {
         if ($line === AttentionItems::OPTICAL) {
-            return 'layouts.optical';
-        }
-        $user = auth()->user();
-        if ($user?->hasAnyRole(['Super Admin', 'Manager'])) {
-            return 'layouts.admin.admin-layout';
+            return ['layouts.optical', []];
         }
 
-        return $user?->hasRole('Doctor') && ! $user->hasRole('Secretary') ? 'layouts.doctor.doctor-layout' : 'layouts.secretary.secretary-layout';
+        return \App\Support\ClinicNavigation::sharedLayout();
     }
 }

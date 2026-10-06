@@ -19,7 +19,7 @@ class OutstandingBalancesComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $searchQuery = '';
     public $perPage = 15;
@@ -313,6 +313,6 @@ class OutstandingBalancesComponent extends Component
             'heldOrders' => (int) ($summary->held_orders ?? 0),
             'totalBalance' => (float) ($summary->total_balance ?? 0),
             'depositsCollected' => (float) ($summary->deposits_collected ?? 0),
-        ])->layout('layouts.secretary.secretary-layout');
+        ])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

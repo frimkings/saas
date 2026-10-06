@@ -21,7 +21,7 @@ class SpectaclesComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // Filters
     public $searchTerm   = '';
@@ -1014,6 +1014,6 @@ class SpectaclesComponent extends Component
             'labs'               => LensOrder::whereNotNull('notes')->get()->map(fn($o) => $this->extractNoteValue($o, 'Lab'))->filter()->unique()->values(),
             'availableFrames'    => Product::whereHas('category', fn($q) => $q->where('name', 'like', '%frame%'))->inStock()->orderBy('name')->get(['id','name','quantity','made_to_order','selling_price']),
             'availableLenses'    => Product::whereHas('category', fn($q) => $q->where('name', 'like', '%lens%'))->inStock()->orderBy('name')->get(['id','name','quantity','made_to_order','selling_price']),
-        ])->layout('layouts.secretary.secretary-layout');
+        ])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

@@ -80,9 +80,8 @@ class NavigationWorkspaceTest extends TestCase
 
     public function test_workspace_templates_compile_to_valid_php(): void
     {
-        foreach (['layouts.admin.aside-admin', 'layouts.optical', 'components.navigation-workspace',
-            'layouts.partials.optical-navigation', 'layouts.doctor.aside-doctor',
-            'layouts.secretary.aside-secretary', 'components.navbar'] as $view) {
+        foreach (['layouts.clinic', 'layouts.admin.admin-layout', 'layouts.optical', 'components.navigation-workspace',
+            'layouts.partials.clinic-nav-link'] as $view) {
             $compiled = app('blade.compiler')->compileString(file_get_contents(view()->getFinder()->find($view)));
             $this->assertNotEmpty(token_get_all($compiled, TOKEN_PARSE), $view);
         }

@@ -28,19 +28,19 @@
     <div class="quick-followup__grid">
         <div class="quick-followup__field quick-followup__field--reason">
             <label>Reason</label>
-            <select wire:model="appointmentTitle" class="form-control form-control-sm @error('appointmentTitle') is-invalid @enderror">
+            <select wire:model="appointmentTitle" class="form-control ui-input ui-input-sm @error('appointmentTitle') is-invalid @enderror">
                 <option value="">Select a reason</option>
                 @foreach($this->appointmentReasons as $reason)<option value="{{ $reason }}">{{ $reason }}</option>@endforeach
             </select>
-            @error('appointmentTitle')<small class="text-danger">{{ $message }}</small>@enderror
+            @error('appointmentTitle')<small class="text-red-700">{{ $message }}</small>@enderror
         </div>
         <div class="quick-followup__field">
             <label>Date</label>
-            <input type="date" x-model="date" @change="syncDate()" min="{{ now()->format('Y-m-d') }}" class="form-control form-control-sm">
+            <input type="date" x-model="date" @change="syncDate()" min="{{ now()->format('Y-m-d') }}" class="form-control ui-input ui-input-sm">
         </div>
         <div class="quick-followup__field">
             <label>Time</label>
-            <input type="time" x-model="time" @change="syncDate()" class="form-control form-control-sm">
+            <input type="time" x-model="time" @change="syncDate()" class="form-control ui-input ui-input-sm">
         </div>
         <div class="quick-followup__field">
             <label>Clinician</label>

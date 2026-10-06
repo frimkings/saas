@@ -1,4 +1,4 @@
-<div class="p-3">
+<div class="clinic-ui ui-page">
     <style>
         .oo-card{background:#fff;border:1px solid #e3e8ef;border-radius:10px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
         .oo-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #eef1f5}
@@ -18,9 +18,9 @@
         @media(max-width:640px){.oo-table .oo-hide{display:none}}
     </style>
 
-    <a href="{{ $backUrl }}" class="small">&larr; Needs attention</a>
-    <h4 class="mt-1 mb-1 font-weight-bold">Tidy up old orders</h4>
-    <p class="text-muted small mb-3" style="max-width:820px">
+    <a href="{{ $backUrl }}" class="text-sm">&larr; Needs attention</a>
+    <h4 class="mt-1 mb-1 font-semibold">Tidy up old orders</h4>
+    <p class="text-slate-500 text-sm mb-4" style="max-width:820px">
         Orders more than {{ $staleDays }} days past their promised date, or ready for more than {{ $staleDays }} days, are no longer chased
         on Needs attention. Most were collected before anyone recorded it: tick those and mark them collected. Each one goes on the order's
         history with your name. An order that really was cancelled: open it and cancel it there. ({{ $staleDays }} days is set in Settings &rarr; Reminders.)
@@ -28,7 +28,7 @@
 
     <div class="oo-card">
         @if($orders->isEmpty())
-            <div class="oo-empty"><i class="fas fa-check-circle text-success mr-1"></i> No old open orders. All tidy.</div>
+            <div class="oo-empty"><i class="fas fa-check-circle text-green-700 mr-1"></i> No old open orders. All tidy.</div>
         @else
             <form class="oo-bar" wire:submit.prevent="markCollected">
                 <button type="button" wire:click="selectAll">Tick all {{ $orders->count() }}</button>
@@ -39,9 +39,9 @@
                     <i class="fas fa-check"></i> Mark {{ count($selected) ?: '' }} collected
                 </button>
             </form>
-            @error('selected')<div class="text-danger small px-3 pt-2">{{ $message }}</div>@enderror
+            @error('selected')<div class="text-red-700 text-sm px-4 pt-2">{{ $message }}</div>@enderror
 
-            <div class="table-responsive">
+            <div class="ui-table-wrap">
                 <table class="oo-table">
                     <thead><tr><th style="width:36px"></th><th>Patient · order</th><th>Status</th><th class="oo-hide">Promised</th><th class="oo-hide">Placed</th></tr></thead>
                     <tbody>

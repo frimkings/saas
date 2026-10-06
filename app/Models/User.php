@@ -116,4 +116,18 @@ public function branches()
         ->withTimestamps();
 }
 
+/**
+ * Staff of the clinic being worked in. Users are shared across clinics (clinic_user), so any
+ * user list shown to a clinic must go through this; otherwise it shows other clinics' staff.
+ */
+public function scopeInCurrentClinic($query, array $statuses = ['active', 'inactive'])
+{
+    $clinicId = app(\App\Support\Tenancy\TenantContext::class)->clinicId();
+    if ($clinicId === null) {
+        return config('tenancy.enabled') ? $query->whereRaw('1 = 0') : $query;
+    }
+
+    return $query->whereHas('clinics', fn ($clinics) => $clinics->whereKey($clinicId)->whereIn('clinic_user.status', $statuses));
+}
+
 }

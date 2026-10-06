@@ -1,587 +1,413 @@
+@php
+    $label = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500';
+    $input = 'ui-input';
+    $invalid = fn ($field) => $errors->has($field) ? 'true' : 'false';
+    $alertTone = ['success' => 'border-green-200 bg-green-50 text-green-800', 'warning' => 'border-amber-200 bg-amber-50 text-amber-900', 'danger' => 'border-red-200 bg-red-50 text-red-800'];
+    $tabs = [
+        'today' => ['Patient list', null],
+        'birthdays' => ['Birthdays', $birthdaysTodayCount > 0 ? $birthdaysTodayCount : null],
+        'archived' => ['Archived', null],
+    ];
+    $iconButton = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-sm no-underline shadow-sm hover:bg-slate-50 disabled:opacity-50';
+@endphp
 <div data-livewire-root>
-<div class="p-4 bg-light min-vh-100">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="clinic-ui ui-page space-y-6">
+    <div class="ui-heading">
         <div>
-            <h2 class="text-primary font-weight-bold mb-0">Registry Hub</h2>
-            <p class="text-muted small text-uppercase font-weight-bold mb-0">Clinic Administration Dashboard</p>
+            <h1>Registry Hub</h1>
+            <p class="ui-muted">Register patients, update their details and find records.</p>
         </div>
-        <div class="btn-group shadow-sm">
-            <button wire:click="exportRegistry" class="btn btn-info font-weight-bold px-3">
-                <i class="fas fa-file-export mr-1"></i> EXPORT CSV
-            </button>
-            <button wire:click="$toggle('showImportPanel')" class="btn btn-primary font-weight-bold px-3">
-                <i class="fas fa-file-import mr-1"></i> IMPORT CSV
-            </button>
-            <button wire:click="downloadTemplate" class="btn btn-light border font-weight-bold px-3">
-                <i class="fas fa-file-download mr-1"></i> TEMPLATE
-            </button>
+        <div class="ui-actions">
+            <button type="button" wire:click="exportRegistry" class="ui-button ui-button-secondary"><i class="fas fa-file-export" aria-hidden="true"></i>Export CSV</button>
+            <button type="button" wire:click="$toggle('showImportPanel')" class="ui-button ui-button-secondary" aria-expanded="{{ $showImportPanel ? 'true' : 'false' }}"><i class="fas fa-file-import" aria-hidden="true"></i>Import CSV</button>
+            <button type="button" wire:click="downloadTemplate" class="ui-button ui-button-secondary"><i class="fas fa-file-download" aria-hidden="true"></i>Template</button>
         </div>
     </div>
 
     @if($showImportPanel)
-        <div class="card border-0 shadow-sm rounded-lg mb-4">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 font-weight-bold text-primary">
-                    <i class="fas fa-file-import mr-2"></i>Import Patients from CSV
-                </h5>
-                <button type="button" class="btn btn-sm btn-light border" wire:click="clearImport">
-                    <i class="fas fa-times"></i>
-                </button>
+        <section class="ui-panel">
+            <div class="ui-panel-heading">
+                <h2>Import patients from CSV</h2>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="clearImport" aria-label="Close import">Close</button>
             </div>
-            <div class="card-body">
+            <div class="p-4">
                 @if($importResults)
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="alert alert-success mb-2">
-                                <strong class="d-block h4 mb-0">{{ $importResults['imported'] }}</strong>
-                                Imported
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="alert alert-secondary mb-2">
-                                <strong class="d-block h4 mb-0">{{ $importResults['skipped'] }}</strong>
-                                Skipped
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="alert alert-warning mb-2">
-                                <strong class="d-block h4 mb-0">{{ count($importResults['errors']) }}</strong>
-                                Errors
-                            </div>
-                        </div>
+                    <div class="grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800"><p class="text-2xl font-semibold">{{ $importResults['imported'] }}</p>Imported</div>
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700"><p class="text-2xl font-semibold">{{ $importResults['skipped'] }}</p>Skipped</div>
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900"><p class="text-2xl font-semibold">{{ count($importResults['errors']) }}</p>Errors</div>
                     </div>
                     @if(count($importResults['errors']) > 0)
-                        <div class="alert alert-warning">
+                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                             <strong>Rows needing attention:</strong>
-                            <ul class="mb-0 mt-2">
-                                @foreach($importResults['errors'] as $error)
-                                    <li>{{ $error }}</li>
-                                @endforeach
+                            <ul class="mt-2 list-disc pl-5">
+                                @foreach($importResults['errors'] as $error)<li>{{ $error }}</li>@endforeach
                             </ul>
                         </div>
                     @endif
-                    <button type="button" class="btn btn-primary btn-sm" wire:click="clearImport">
-                        <i class="fas fa-check mr-1"></i>Done
-                    </button>
+                    <button type="button" class="ui-button ui-button-primary mt-3" wire:click="clearImport">Done</button>
                 @else
-                    <div class="row align-items-start">
-                        <div class="col-md-7">
-                            <p class="text-muted mb-2">
-                                Required columns: <code>name</code>, <code>contact</code>, <code>dob</code>,
-                                <code>gender</code>, and <code>address</code>.
-                            </p>
-                            <p class="text-muted mb-0">
-                                Optional columns: <code>email</code>, <code>civil_status</code>, and <code>occupation</code>.
-                                Dates should be <code>YYYY-MM-DD</code>. Gender accepts Male/Female/Other or M/F/O.
-                            </p>
+                    <div class="grid gap-4 md:grid-cols-[7fr_5fr]">
+                        <div class="space-y-2 text-sm text-slate-600">
+                            <p>Required columns: <code>name</code>, <code>contact</code>, <code>dob</code>, <code>gender</code>, and <code>address</code>.</p>
+                            <p>Optional columns: <code>email</code>, <code>civil_status</code>, and <code>occupation</code>.
+                                Dates should be <code>YYYY-MM-DD</code>. Gender accepts Male/Female/Other or M/F/O.</p>
                         </div>
-                        <div class="col-md-5">
-                            <div class="custom-file">
-                                <input type="file"
-                                       class="custom-file-input @error('importFile') is-invalid @enderror"
-                                       id="patientImportFile"
-                                       accept=".csv,text/csv,text/plain"
-                                       wire:model.live="importFile">
-                                <label class="custom-file-label" for="patientImportFile">
-                                    {{ $importFile ? $importFile->getClientOriginalName() : 'Choose CSV file' }}
-                                </label>
-                                @error('importFile') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                            </div>
-                            <div class="mt-3">
-                                <button class="btn btn-primary"
-                                        wire:click="importCsv"
-                                        wire:loading.attr="disabled"
-                                        wire:target="importCsv,importFile"
-                                        {{ !$importFile ? 'disabled' : '' }}>
-                                    <span wire:loading.remove wire:target="importCsv">
-                                        <i class="fas fa-upload mr-1"></i>Run Import
-                                    </span>
-                                    <span wire:loading wire:target="importCsv">
-                                        <i class="fas fa-spinner fa-spin mr-1"></i>Importing...
-                                    </span>
+                        <div>
+                            <label for="patientImportFile" class="{{ $label }}">CSV file</label>
+                            <input type="file" id="patientImportFile" accept=".csv,text/csv,text/plain" wire:model.live="importFile"
+                                   aria-invalid="{{ $invalid('importFile') }}"
+                                   class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200">
+                            @error('importFile')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <button type="button" class="ui-button ui-button-primary" wire:click="importCsv" wire:loading.attr="disabled" wire:target="importCsv,importFile" @disabled(! $importFile)>
+                                    <span wire:loading.remove wire:target="importCsv"><i class="fas fa-upload mr-1" aria-hidden="true"></i>Run import</span>
+                                    <span wire:loading wire:target="importCsv"><i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Importing…</span>
                                 </button>
-                                <button class="btn btn-light border" wire:click="downloadTemplate">
-                                    <i class="fas fa-file-download mr-1"></i>Template
-                                </button>
+                                <button type="button" class="ui-button ui-button-secondary" wire:click="downloadTemplate">Template</button>
                             </div>
                         </div>
                     </div>
                 @endif
             </div>
-        </div>
+        </section>
     @endif
 
-    <div class="row">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm rounded-lg mb-4 sticky-top" style="top: 20px;">
-                <div class="card-header {{ $isEditing ? 'bg-info' : 'bg-primary' }} text-white py-3 border-0">
-                    <h5 class="mb-0 font-weight-bold"><i class="fas {{ $isEditing ? 'fa-user-edit' : 'fa-user-plus' }} mr-2"></i> {{ $isEditing ? 'Update Profile' : 'Registration' }}</h5>
-                </div>
-                <div class="card-body">
-                    @if($formMessage)
-                        <div class="alert alert-{{ $formMessageType }} py-2 mb-3 small font-weight-bold">
-                            <i class="fas {{ $formMessageType === 'success' ? 'fa-check-circle' : ($formMessageType === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle') }} mr-1"></i>
-                            {{ $formMessage }}
-                        </div>
-                    @endif
-
-                    <form wire:submit="saveEntry">
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">PX NUMBER</label>
-                            <input type="text" wire:model="state.pxnumber" class="form-control bg-light border-0" placeholder="Auto-generated" disabled>
-                        </div>
-
-                        <div class="form-group position-relative">
-                            <label class="small font-weight-bold text-muted">FULL NAME</label>
-                            <input type="text" wire:model.live.debounce.300ms="nameSearch" class="form-control bg-light border-0 @error('name') is-invalid @enderror" placeholder="Enter patient name...">
-                            @error('name') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                            @if(!empty($suggestions))
-                                <div class="list-group position-absolute w-100 shadow-lg mt-1" style="z-index: 1050;">
-                                    @foreach($suggestions as $s)
-                                        <button type="button" wire:click="selectPatient({{ $s['id'] }})" class="list-group-item list-group-item-action font-weight-bold">{{ $s['name'] }}</button>
-                                    @endforeach
-                                </div>
-                            @endif
-                            @if(!empty($duplicatePatients) && !$isEditing)
-                                <div class="alert alert-warning py-2 mt-2 mb-0 small">
-                                    <strong><i class="fas fa-exclamation-triangle mr-1"></i>Possible duplicate:</strong>
-                                    @foreach($duplicatePatients as $duplicate)
-                                        <button type="button" wire:click="selectPatient({{ $duplicate['id'] }})" class="btn btn-link btn-sm p-0 ml-1">{{ $duplicate['name'] }} ({{ $duplicate['pxnumber'] }})</button>
-                                    @endforeach
-                                </div>
-                            @endif
-                        </div>
-
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">EMAIL ADDRESS</label>
-                            <input type="email" wire:model="state.email" class="form-control bg-light border-0 @error('email') is-invalid @enderror">
-                            @error('email') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted d-block">MESSAGE PREFERENCES</label>
-                            <div class="custom-control custom-checkbox custom-control-inline">
-                                <input type="checkbox" class="custom-control-input" id="smsOptOut" wire:model="state.sms_opt_out">
-                                <label class="custom-control-label small" for="smsOptOut">No SMS</label>
-                            </div>
-                            <div class="custom-control custom-checkbox custom-control-inline">
-                                <input type="checkbox" class="custom-control-input" id="whatsappOptOut" wire:model="state.whatsapp_opt_out">
-                                <label class="custom-control-label small" for="whatsappOptOut">No WhatsApp</label>
-                            </div>
-                            <div class="custom-control custom-checkbox custom-control-inline">
-                                <input type="checkbox" class="custom-control-input" id="marketingOptOut" wire:model="state.marketing_opt_out">
-                                <label class="custom-control-label small" for="marketingOptOut">No birthday, recall or promotional messages</label>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-6 form-group">
-                                <label class="small font-weight-bold text-muted">CONTACT</label>
-                                <input type="text" wire:model="state.contact" class="form-control bg-light border-0 @error('contact') is-invalid @enderror">
-                                @error('contact') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                            </div>
-                            <div class="col-6 form-group">
-                                <label class="small font-weight-bold text-muted">CIVIL STATUS</label>
-                                <select wire:model="state.civil_status" class="form-control bg-light border-0 @error('civil_status') is-invalid @enderror">
-                                    <option value="">Select</option>
-                                    <option value="Single">Single</option>
-                                    <option value="Married">Married</option>
-                                    <option value="Widowed">Widowed</option>
-                                    <option value="Divorced">Divorced</option>
-                                </select>
-                                @error('civil_status') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-6 form-group">
-                                <label class="small font-weight-bold text-muted">BIRTHDAY</label>
-                                <div class="input-group">
-                                    <input id="registry-dob" type="text" wire:model.change="dobDisplay"
-                                           class="form-control bg-light border-0 registry-date-picker @error('dob') is-invalid @enderror"
-                                           data-trigger="registry-dob-trigger" placeholder="dd/mm/yy" inputmode="numeric" maxlength="8" autocomplete="off">
-                                    <div class="input-group-append">
-                                        <button id="registry-dob-trigger" type="button" class="btn btn-light border-0" title="Choose birthday">
-                                            <i class="far fa-calendar-alt"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                @error('dob') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                                @if($dobAge !== null)<small class="text-muted font-weight-bold">Age: {{ $dobAge }} years</small>@endif
-                            </div>
-                            <div class="col-6 form-group">
-                                <label class="small font-weight-bold text-muted">GENDER</label>
-                                <select wire:model="state.gender" class="form-control bg-light border-0 @error('gender') is-invalid @enderror">
-                                    <option value="">Select</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                                @error('gender') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">OCCUPATION</label>
-                            <input type="text" wire:model="state.occupation" class="form-control bg-light border-0 @error('occupation') is-invalid @enderror">
-                            @error('occupation') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="form-group">
-                            <label class="small font-weight-bold text-muted">ADDRESS</label>
-                            <textarea wire:model="state.address" class="form-control bg-light border-0 @error('address') is-invalid @enderror" rows="3"></textarea>
-                            @error('address') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="border rounded p-2 mb-3" style="background:#f8f9fa;">
-                            <div class="small font-weight-bold text-muted mb-2">
-                                <i class="fas fa-wallet mr-1 text-primary"></i>PAYMENT TYPE
-                            </div>
-                            <div class="btn-group btn-group-sm w-100 shadow-sm" role="group">
-                                <button type="button"
-                                        wire:click="choosePaymentType('cash')"
-                                        class="btn {{ $paymentType === 'cash' ? 'btn-success' : 'btn-light border' }} font-weight-bold">
-                                    <i class="fas fa-money-bill-wave mr-1"></i>Cash
-                                </button>
-                                <button type="button"
-                                        wire:click="openInsuranceModal"
-                                        class="btn {{ $paymentType === 'insurance' ? 'btn-primary' : 'btn-light border' }} font-weight-bold">
-                                    <i class="fas fa-shield-alt mr-1"></i>Insurance
-                                </button>
-                            </div>
-
-                            @if($paymentType === 'insurance')
-                                <div class="mt-2 p-2 rounded bg-white border small">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <div class="font-weight-bold text-dark">
-                                                {{ optional($insurers->firstWhere('id', (int) ($state['insurer_id'] ?? 0)))->name ?? 'Insurance details pending' }}
-                                            </div>
-                                            <div class="text-muted">
-                                                {{ $state['insurance_member_id'] ?: 'No member ID' }}
-                                                @if($state['insurance_policy_number'])
-                                                    &middot; {{ $state['insurance_policy_number'] }}
-                                                @endif
-                                            </div>
-                                        </div>
-                                        <button type="button" wire:click="openInsuranceModal" class="btn btn-xs btn-outline-primary">
-                                            Edit
-                                        </button>
-                                    </div>
-                                    @error('insurer_id') <span class="text-danger d-block mt-1">{{ $message }}</span> @enderror
-                                    @error('insurance_member_id') <span class="text-danger d-block mt-1">{{ $message }}</span> @enderror
-                                </div>
-                            @endif
-                        </div>
-
-                        @if($showInsuranceModal)
-                        <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background:rgba(0,0,0,.45);">
-                            <div class="modal-dialog modal-dialog-centered" role="document">
-                                <div class="modal-content border-0 shadow">
-                                    <div class="modal-header bg-primary text-white py-2">
-                                        <h6 class="modal-title mb-0 font-weight-bold">
-                                            <i class="fas fa-shield-alt mr-1"></i>Insurance Details
-                                        </h6>
-                                        <button type="button" wire:click="closeInsuranceModal" class="close text-white"><span>&times;</span></button>
-                                    </div>
-                                    <div class="modal-body">
-                        {{-- Insurance Details --}}
-                        <div class="border rounded p-2 mb-3" style="background:#f8f9fa;">
-                            <div class="small font-weight-bold text-muted mb-2">
-                                <i class="fas fa-shield-alt mr-1 text-primary"></i>INSURANCE DETAILS
-                                <span class="font-weight-normal text-muted">(optional)</span>
-                            </div>
-                            {{-- Insurer: type to search the clinic's active insurers --}}
-                            <div class="form-group mb-2 position-relative"
-                                 x-data="{
-                                     open: false,
-                                     q: '',
-                                     options: @js($insurers->map(fn ($ins) => ['id' => $ins->id, 'name' => $ins->name, 'scheme' => $ins->scheme_type])->values()),
-                                     selected: $wire.entangle('state.insurer_id'),
-                                     get current() { return this.options.find(o => String(o.id) === String(this.selected)) },
-                                     get matches() {
-                                         const term = this.q.trim().toLowerCase();
-                                         return this.options.filter(o => !term || o.name.toLowerCase().includes(term) || (o.scheme || '').toLowerCase().includes(term)).slice(0, 8);
-                                     },
-                                     pick(id) { this.selected = id; this.q = ''; this.open = false; },
-                                 }"
-                                 @click.outside="open = false">
-                                <label class="small text-muted">Insurer</label>
-                                <input type="text" x-model="q" @focus="open = true" @input="open = true"
-                                       @keydown.escape="open = false"
-                                       @keydown.enter.prevent="matches.length && pick(matches[0].id)"
-                                       :placeholder="current ? 'Search to change insurer…' : 'Type to search insurers…'"
-                                       class="form-control form-control-sm bg-light border-0 @error('insurer_id') is-invalid @enderror"
-                                       autocomplete="off">
-                                <div x-show="open" class="list-group position-absolute w-100 shadow-sm" style="display:none;z-index:1060;max-height:220px;overflow-y:auto;">
-                                    <button type="button" class="list-group-item list-group-item-action py-1 small text-muted" @click="pick('')">
-                                        — None / Cash Patient —
-                                    </button>
-                                    <template x-for="o in matches" :key="o.id">
-                                        <button type="button" class="list-group-item list-group-item-action py-1 small d-flex justify-content-between"
-                                                :class="{ 'active': String(o.id) === String(selected) }" @click="pick(o.id)">
-                                            <span x-text="o.name"></span>
-                                            <span class="text-muted" x-text="o.scheme"></span>
-                                        </button>
-                                    </template>
-                                    <div x-show="!matches.length" class="list-group-item py-1 small text-muted">No insurer matches "<span x-text="q"></span>"</div>
-                                </div>
-                                <div class="small mt-1" x-show="current" style="display:none;">
-                                    <i class="fas fa-check-circle text-success mr-1"></i>
-                                    <strong x-text="current?.name"></strong>
-                                    <span class="text-muted" x-text="current?.scheme"></span>
-                                    <a href="#" class="ml-2 text-danger" @click.prevent="pick('')">Clear</a>
-                                </div>
-                                @error('insurer_id') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                            </div>
-                            <div class="row">
-                                <div class="col-4 form-group mb-0">
-                                    <label class="small text-muted">Member ID</label>
-                                    <input type="text" wire:model="state.insurance_member_id"
-                                           class="form-control form-control-sm bg-light border-0 @error('insurance_member_id') is-invalid @enderror"
-                                           placeholder="e.g. NHIS-123456">
-                                    @error('insurance_member_id') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                                </div>
-                                <div class="col-4 form-group mb-0">
-                                    <label class="small text-muted">Member Name</label>
-                                    <input type="text" wire:model="state.insurance_member_name"
-                                           class="form-control form-control-sm bg-light border-0 @error('insurance_member_name') is-invalid @enderror"
-                                           placeholder="As on card">
-                                    @error('insurance_member_name') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                                </div>
-                                <div class="col-4 form-group mb-0">
-                                    <label class="small text-muted">Policy Number</label>
-                                    <input type="text" wire:model="state.insurance_policy_number"
-                                           class="form-control form-control-sm bg-light border-0 @error('insurance_policy_number') is-invalid @enderror"
-                                           placeholder="Policy #">
-                                    @error('insurance_policy_number') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
-                                </div>
-                            </div>
-                        </div>
-                                    </div>
-                                    <div class="modal-footer py-2">
-                                        <button type="button" wire:click="choosePaymentType('cash')" class="btn btn-light border">
-                                            Use Cash
-                                        </button>
-                                        <button type="button" wire:click="closeInsuranceModal" class="btn btn-primary">
-                                            Done
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        @endif
-
-                        <button type="submit" class="btn {{ $isEditing ? 'btn-info' : 'btn-primary' }} btn-block py-2 font-weight-bold shadow-sm mt-3">
-                            {{ $isEditing ? 'UPDATE RECORD' : 'SAVE PATIENT' }}
-                        </button>
-                        @if($isEditing)
-                            <button type="button" wire:click="resetForm" class="btn btn-light btn-block mt-2 border">CANCEL</button>
-                        @endif
-                    </form>
-                </div>
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        {{-- Registration / edit form --}}
+        <section class="ui-panel lg:sticky lg:top-16">
+            <div @class(['ui-panel-heading', 'bg-sky-50' => $isEditing])>
+                <h2><i class="fas {{ $isEditing ? 'fa-user-edit' : 'fa-user-plus' }} mr-2 text-teal-700" aria-hidden="true"></i>{{ $isEditing ? 'Update profile' : 'Registration' }}</h2>
             </div>
-        </div>
+            <div class="p-4">
+                @if($formMessage)
+                    <div class="mb-3 rounded-lg border px-3 py-2 text-sm font-semibold {{ $alertTone[$formMessageType] ?? 'border-sky-200 bg-sky-50 text-sky-900' }}" role="status">
+                        <i class="fas {{ $formMessageType === 'success' ? 'fa-check-circle' : ($formMessageType === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle') }} mr-1" aria-hidden="true"></i>{{ $formMessage }}
+                    </div>
+                @endif
 
-        <div class="col-md-8">
-            @if(count($selectedPatients) > 0)
-            <div class="alert alert-dark shadow-lg border-0 d-flex justify-content-between align-items-center py-2 mb-3" style="background: #2d3436;">
-                <span class="text-white font-weight-bold ml-2">
-                    <i class="fas fa-check-double mr-2 text-success"></i> {{ count($selectedPatients) }} Records Selected
-                </span>
-                <div>
-                    <button wire:click="exportSelected" class="btn btn-sm btn-info font-weight-bold mr-2"><i class="fas fa-file-csv mr-1"></i> EXPORT</button>
-                    <button wire:click="clearSelection" class="btn btn-sm btn-light font-weight-bold mr-2"><i class="fas fa-times mr-1"></i> CLEAR</button>
-                    @if($activeTab === 'archived')
-                        <button wire:click="restoreSelected" class="btn btn-sm btn-success font-weight-bold"><i class="fas fa-undo mr-1"></i> RESTORE</button>
-                    @else
-                        <button wire:click="archiveSelected" wire:confirm="Archive selected patients?" class="btn btn-sm btn-danger font-weight-bold"><i class="fas fa-trash-alt mr-1"></i> ARCHIVE</button>
-                    @endif
-                </div>
-            </div>
-            @endif
+                <form wire:submit="saveEntry" class="space-y-4">
+                    <div>
+                        <label for="reg-pxnumber" class="{{ $label }}">PX number</label>
+                        <input id="reg-pxnumber" type="text" wire:model="state.pxnumber" class="{{ $input }} !bg-slate-50" placeholder="Auto-generated" disabled>
+                    </div>
 
-            <div class="card border-0 shadow-sm rounded-lg overflow-hidden">
-                <div class="card-header bg-white p-0 border-0">
-                  <ul class="nav nav-tabs nav-fill border-0">
-    <li class="nav-item">
-        <a class="nav-link py-3 {{ $activeTab == 'today' ? 'active font-weight-bold border-bottom-primary text-primary' : 'text-muted' }}" href="#" wire:click.prevent="$set('activeTab', 'today')">
-            PATIENT LIST 
-            <span class="ml-2">
-                <small class="badge badge-light border text-dark">M: {{ $this->genderStats['male'] }}</small>
-                <small class="badge badge-light border text-dark">F: {{ $this->genderStats['female'] }}</small>
-            </span>
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link py-3 {{ $activeTab == 'birthdays' ? 'active font-weight-bold border-bottom-warning text-warning' : 'text-muted' }}" href="#" wire:click.prevent="$set('activeTab', 'birthdays')">
-            BIRTHDAYS 
-            @if($birthdaysTodayCount > 0) 
-                <span class="badge badge-warning ml-1">{{ $birthdaysTodayCount }}</span> 
-            @endif
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link py-3 {{ $activeTab == 'archived' ? 'active font-weight-bold border-bottom-secondary text-secondary' : 'text-muted' }}" href="#" wire:click.prevent="$set('activeTab', 'archived')">
-            <i class="fas fa-archive mr-1"></i> ARCHIVED
-        </a>
-    </li>
-</ul>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-4 align-items-end">
-                        <div class="col-md-3">
-                            <label class="small font-weight-bold text-muted text-uppercase mb-1">Search Profile</label>
-                            <div class="input-group">
-                                <input type="text" wire:model.live.debounce.500ms="pxSearch" class="form-control bg-light border-0" placeholder="Name or PX Number...">
-                                @if($pxSearch)
-                                    <div class="input-group-append">
-                                        <button class="btn btn-light border-0 bg-light text-muted" wire:click="$set('pxSearch', '')">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="small font-weight-bold text-muted text-uppercase mb-1">Date Registered Range</label>
-                            <div class="small text-muted mb-1">From <span class="float-right mr-5">To</span></div>
-                            <div class="d-flex" style="gap:4px;">
-                                <div class="input-group" style="min-width:0;flex:1;">
-                                    <input id="registry-from-date" type="text" wire:model.live.debounce.350ms="fromDateDisplay"
-                                           class="form-control bg-light border-0 registry-date-picker" data-trigger="registry-from-date-trigger"
-                                           placeholder="dd/mm/yy" inputmode="numeric" maxlength="8" autocomplete="off">
-                                    <div class="input-group-append">
-                                        <button id="registry-from-date-trigger" type="button" class="btn btn-light border-0" title="Choose start date">
-                                            <i class="far fa-calendar-alt"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="input-group" style="min-width:0;flex:1;">
-                                    <input id="registry-to-date" type="text" wire:model.live.debounce.350ms="toDateDisplay"
-                                           class="form-control bg-light border-0 registry-date-picker" data-trigger="registry-to-date-trigger"
-                                           placeholder="dd/mm/yy" inputmode="numeric" maxlength="8" autocomplete="off">
-                                    <div class="input-group-append">
-                                        <button id="registry-to-date-trigger" type="button" class="btn btn-light border-0" title="Choose end date">
-                                            <i class="far fa-calendar-alt"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            @if($dateRangeError)<small class="text-danger font-weight-bold d-block">{{ $dateRangeError }}</small>@endif
-                            <div class="btn-group btn-group-sm mt-2 w-100">
-                                <button type="button" wire:click="setDatePreset('today')" class="btn btn-light border">Today</button>
-                                <button type="button" wire:click="setDatePreset('this_month')" class="btn btn-light border">This Month</button>
-                                <button type="button" wire:click="setDatePreset('last_30_days')" class="btn btn-light border">30 Days</button>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="small font-weight-bold text-muted text-uppercase mb-1">
-                                <i class="fas fa-shield-alt mr-1 text-primary"></i>Insurer
-                            </label>
-                            <select wire:model.live="insurerFilter" class="form-control bg-light border-0">
-                                <option value="">All Patients</option>
-                                @foreach($insurers as $ins)
-                                    <option value="{{ $ins->id }}">{{ $ins->name }}</option>
+                    <div class="relative">
+                        <label for="reg-name" class="{{ $label }}">Full name</label>
+                        <input id="reg-name" type="text" wire:model.live.debounce.300ms="nameSearch" class="{{ $input }}" placeholder="Enter patient name…" aria-invalid="{{ $invalid('name') }}" autocomplete="off">
+                        @error('name')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                        @if(!empty($suggestions))
+                            <div class="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                                @foreach($suggestions as $s)
+                                    <button type="button" wire:click="selectPatient({{ $s['id'] }})" class="block w-full border-b border-slate-100 px-3 py-2 text-left font-semibold hover:bg-slate-50">{{ $s['name'] }}</button>
                                 @endforeach
-                            </select>
+                            </div>
+                        @endif
+                        @if(!empty($duplicatePatients) && !$isEditing)
+                            <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+                                <strong><i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i>Possible duplicate:</strong>
+                                @foreach($duplicatePatients as $duplicate)
+                                    <button type="button" wire:click="selectPatient({{ $duplicate['id'] }})" class="ml-1 font-semibold underline">{{ $duplicate['name'] }} ({{ $duplicate['pxnumber'] }})</button>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    <div>
+                        <label for="reg-email" class="{{ $label }}">Email address</label>
+                        <input id="reg-email" type="email" wire:model="state.email" class="{{ $input }}" aria-invalid="{{ $invalid('email') }}">
+                        @error('email')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+
+                    <fieldset>
+                        <legend class="{{ $label }}">Message preferences</legend>
+                        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                            <label class="ui-check"><input type="checkbox" class="rounded border-slate-300 text-teal-700" wire:model="state.sms_opt_out">No SMS</label>
+                            <label class="ui-check"><input type="checkbox" class="rounded border-slate-300 text-teal-700" wire:model="state.whatsapp_opt_out">No WhatsApp</label>
+                            <label class="ui-check"><input type="checkbox" class="rounded border-slate-300 text-teal-700" wire:model="state.marketing_opt_out">No birthday, recall or promotional messages</label>
                         </div>
-                        <div class="col-md-2 text-right">
-                            <button wire:click="resetFilters" class="btn btn-light border shadow-sm font-weight-bold w-100">
-                                <i class="fas fa-undo-alt mr-1"></i> RESET
+                    </fieldset>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="reg-contact" class="{{ $label }}">Contact</label>
+                            <input id="reg-contact" type="text" wire:model="state.contact" class="{{ $input }}" aria-invalid="{{ $invalid('contact') }}">
+                            @error('contact')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label for="reg-civil" class="{{ $label }}">Civil status</label>
+                            <select id="reg-civil" wire:model="state.civil_status" class="{{ $input }}" aria-invalid="{{ $invalid('civil_status') }}">
+                                <option value="">Select</option>
+                                <option value="Single">Single</option>
+                                <option value="Married">Married</option>
+                                <option value="Widowed">Widowed</option>
+                                <option value="Divorced">Divorced</option>
+                            </select>
+                            @error('civil_status')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="registry-dob" class="{{ $label }}">Birthday</label>
+                            <div class="relative">
+                                <input id="registry-dob" type="text" wire:model.change="dobDisplay"
+                                       class="{{ $input }} registry-date-picker !pr-10" aria-invalid="{{ $invalid('dob') }}"
+                                       data-trigger="registry-dob-trigger" placeholder="dd/mm/yy" inputmode="numeric" maxlength="8" autocomplete="off">
+                                <button id="registry-dob-trigger" type="button" class="absolute inset-y-0 right-0 px-3 text-slate-500 hover:text-teal-700" aria-label="Choose birthday">
+                                    <i class="far fa-calendar-alt" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            @error('dob')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                            @if($dobAge !== null)<p class="mt-1 text-xs font-semibold text-slate-500">Age: {{ $dobAge }} years</p>@endif
+                        </div>
+                        <div>
+                            <label for="reg-gender" class="{{ $label }}">Gender</label>
+                            <select id="reg-gender" wire:model="state.gender" class="{{ $input }}" aria-invalid="{{ $invalid('gender') }}">
+                                <option value="">Select</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            @error('gender')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="reg-occupation" class="{{ $label }}">Occupation</label>
+                        <input id="reg-occupation" type="text" wire:model="state.occupation" class="{{ $input }}" aria-invalid="{{ $invalid('occupation') }}">
+                        @error('occupation')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div>
+                        <label for="reg-address" class="{{ $label }}">Address</label>
+                        <textarea id="reg-address" wire:model="state.address" class="{{ $input }}" rows="3" aria-invalid="{{ $invalid('address') }}"></textarea>
+                        @error('address')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p class="{{ $label }}"><i class="fas fa-wallet mr-1 text-teal-700" aria-hidden="true"></i>Payment type</p>
+                        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Payment type">
+                            <button type="button" wire:click="choosePaymentType('cash')" aria-pressed="{{ $paymentType === 'cash' ? 'true' : 'false' }}"
+                                    @class(['ui-button', 'ui-button-primary' => $paymentType === 'cash', 'ui-button-secondary' => $paymentType !== 'cash'])>
+                                <i class="fas fa-money-bill-wave" aria-hidden="true"></i>Cash
+                            </button>
+                            <button type="button" wire:click="openInsuranceModal" aria-pressed="{{ $paymentType === 'insurance' ? 'true' : 'false' }}"
+                                    @class(['ui-button', 'ui-button-primary' => $paymentType === 'insurance', 'ui-button-secondary' => $paymentType !== 'insurance'])>
+                                <i class="fas fa-shield-alt" aria-hidden="true"></i>Insurance
                             </button>
                         </div>
+
+                        @if($paymentType === 'insurance')
+                            <div class="mt-2 flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white p-2 text-sm">
+                                <div>
+                                    <p class="font-semibold">{{ optional($insurers->firstWhere('id', (int) ($state['insurer_id'] ?? 0)))->name ?? 'Insurance details pending' }}</p>
+                                    <p class="text-slate-500">
+                                        {{ $state['insurance_member_id'] ?: 'No member ID' }}
+                                        @if($state['insurance_policy_number']) &middot; {{ $state['insurance_policy_number'] }} @endif
+                                    </p>
+                                </div>
+                                <button type="button" wire:click="openInsuranceModal" class="text-xs font-semibold text-teal-700 hover:underline">Edit</button>
+                            </div>
+                            @error('insurer_id')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                            @error('insurance_member_id')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                        @endif
                     </div>
 
-                    <div class="table-responsive">
-                        <div wire:loading.delay wire:target="pxSearch,fromDateDisplay,toDateDisplay,insurerFilter,setDatePreset,resetFilters" class="small text-primary font-weight-bold mb-2">
-                            <i class="fas fa-spinner fa-spin mr-1"></i> Updating registry results...
-                        </div>
-                        <table class="table table-hover align-middle">
-                            <thead class="bg-light text-muted small text-uppercase font-weight-bold">
-                                <tr>
-                                    <th style="width: 40px;">
-                                        <div class="custom-control custom-checkbox">
-                                            <input type="checkbox" wire:model.live="selectAll" class="custom-control-input" id="selectAll">
-                                            <label class="custom-control-label" for="selectAll"></label>
+                    @if($showInsuranceModal)
+                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" x-data x-on:keydown.escape.window="$wire.closeInsuranceModal()">
+                            <div class="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="insurance-dialog-title">
+                                <div class="ui-panel-heading">
+                                    <h2 id="insurance-dialog-title"><i class="fas fa-shield-alt mr-2 text-teal-700" aria-hidden="true"></i>Insurance details</h2>
+                                    <button type="button" wire:click="closeInsuranceModal" class="ui-button ui-button-secondary" aria-label="Close insurance details">Close</button>
+                                </div>
+                                <div class="space-y-3 p-4">
+                                    {{-- Insurer: type to search the clinic's active insurers --}}
+                                    <div class="relative"
+                                         x-data="{
+                                             open: false,
+                                             q: '',
+                                             options: @js($insurers->map(fn ($ins) => ['id' => $ins->id, 'name' => $ins->name, 'scheme' => $ins->scheme_type])->values()),
+                                             selected: $wire.entangle('state.insurer_id'),
+                                             get current() { return this.options.find(o => String(o.id) === String(this.selected)) },
+                                             get matches() {
+                                                 const term = this.q.trim().toLowerCase();
+                                                 return this.options.filter(o => !term || o.name.toLowerCase().includes(term) || (o.scheme || '').toLowerCase().includes(term)).slice(0, 8);
+                                             },
+                                             pick(id) { this.selected = id; this.q = ''; this.open = false; },
+                                         }"
+                                         @click.outside="open = false">
+                                        <label for="reg-insurer" class="{{ $label }}">Insurer <span class="font-normal normal-case">(optional)</span></label>
+                                        <input id="reg-insurer" type="text" x-model="q" @focus="open = true" @input="open = true"
+                                               @keydown.escape.stop="open = false"
+                                               @keydown.enter.prevent="matches.length && pick(matches[0].id)"
+                                               :placeholder="current ? 'Search to change insurer…' : 'Type to search insurers…'"
+                                               class="{{ $input }}" aria-invalid="{{ $invalid('insurer_id') }}" autocomplete="off">
+                                        <div x-show="open" x-cloak class="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white text-sm shadow-lg">
+                                            <button type="button" class="block w-full border-b border-slate-100 px-3 py-1.5 text-left text-slate-500 hover:bg-slate-50" @click="pick('')">— None / cash patient —</button>
+                                            <template x-for="o in matches" :key="o.id">
+                                                <button type="button" class="flex w-full justify-between border-b border-slate-100 px-3 py-1.5 text-left hover:bg-slate-50"
+                                                        :class="{ 'bg-teal-50 font-semibold': String(o.id) === String(selected) }" @click="pick(o.id)">
+                                                    <span x-text="o.name"></span>
+                                                    <span class="text-slate-500" x-text="o.scheme"></span>
+                                                </button>
+                                            </template>
+                                            <p x-show="!matches.length" class="px-3 py-1.5 text-slate-500">No insurer matches "<span x-text="q"></span>"</p>
                                         </div>
-                                    </th>
-                                    <th>Patient Profile</th>
-                                    <th>Social Info</th>
-                                    <th class="text-right pr-4">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($patients as $px)
-                                    @php $isBday = \Carbon\Carbon::parse($px->dob)->isBirthday(); @endphp
-                                    <tr>
-                                        <td>
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" wire:model.live="selectedPatients" value="{{ $px->id }}" class="custom-control-input" id="px-{{ $px->id }}">
-                                                <label class="custom-control-label" for="px-{{ $px->id }}"></label>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="font-weight-bold text-dark mb-0">{{ $px->name }} @if($isBday) 🎂 @endif</div>
-                                            <small class="text-muted font-weight-bold">{{ $px->pxnumber }} | {{ $px->contact }}</small>
-                                            <div class="small text-muted">DOB: {{ $px->dob ? \Carbon\Carbon::parse($px->dob)->format('d/m/y') : 'N/A' }} | Registered: {{ $px->created_at->format('d/m/y') }}</div>
-                                        </td>
-                                        <td>
-                                            <div class="font-weight-bold text-dark">{{ \Carbon\Carbon::parse($px->dob)->age }} yrs ({{ $px->gender }})</div>
-                                            <small class="text-muted text-uppercase font-weight-bold">{{ $px->civil_status ?? 'N/A' }} | {{ $px->occupation }}</small>
-                                        </td>
-                                        <td class="text-right pr-4">
-                                            <div class="btn-group">
-                                                <a href="{{ $this->generateWhatsAppLink($px->name, $px->contact) }}"
-                                                   target="_blank"
-                                                   rel="noopener"
-                                                   class="btn btn-sm btn-white border shadow-sm"
-                                                   title="WhatsApp patient">
-                                                    <i class="fab fa-whatsapp text-success"></i>
-                                                </a>
-                                                <a href="{{ $this->generateCallLink($px->contact) }}"
-                                                   class="btn btn-sm btn-white border shadow-sm"
-                                                   title="Call patient">
-                                                    <i class="fas fa-phone text-info"></i>
-                                                </a>
-                                                @if($isBday)
-                                                    <a href="{{ $this->generateBirthdayWhatsAppLink($px->name, $px->contact) }}"
-                                                       target="_blank"
-                                                       rel="noopener"
-                                                       class="btn btn-sm btn-white border shadow-sm"
-                                                       title="Send birthday WhatsApp">
-                                                        <i class="fas fa-birthday-cake text-warning"></i>
-                                                    </a>
-                                                @endif
-                                                @if($activeTab === 'archived')
-                                                <button type="button"
-                                                        wire:click="$set('selectedPatients', ['{{ $px->id }}'])"
-                                                        class="btn btn-sm btn-white border shadow-sm"
-                                                        title="Select this patient for restore">
-                                                    <i class="fas fa-undo text-success"></i>
-                                                </button>
-                                                @else
-                                                <button type="button"
-                                                        wire:click="edit({{ $px->id }})"
-                                                        wire:loading.attr="disabled"
-                                                        wire:target="edit({{ $px->id }})"
-                                                        class="btn btn-sm btn-white border shadow-sm"
-                                                        title="Edit patient">
-                                                    <i class="fas fa-edit text-primary"></i>
-                                                </button>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="4" class="text-center py-5 text-muted small font-weight-bold">No records found for the current selection.</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-4">{{ $patients->links() }}</div>
-                </div>
+                                        <p class="mt-1 text-sm" x-show="current" x-cloak>
+                                            <i class="fas fa-check-circle mr-1 text-green-600" aria-hidden="true"></i>
+                                            <strong x-text="current?.name"></strong>
+                                            <span class="text-slate-500" x-text="current?.scheme"></span>
+                                            <button type="button" class="ml-2 text-red-700 hover:underline" @click="pick('')">Clear</button>
+                                        </p>
+                                        @error('insurer_id')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div class="grid gap-3 sm:grid-cols-3">
+                                        <div>
+                                            <label for="reg-member-id" class="{{ $label }}">Member ID</label>
+                                            <input id="reg-member-id" type="text" wire:model="state.insurance_member_id" class="{{ $input }}" placeholder="e.g. NHIS-123456" aria-invalid="{{ $invalid('insurance_member_id') }}">
+                                            @error('insurance_member_id')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                                        </div>
+                                        <div>
+                                            <label for="reg-member-name" class="{{ $label }}">Member name</label>
+                                            <input id="reg-member-name" type="text" wire:model="state.insurance_member_name" class="{{ $input }}" placeholder="As on card" aria-invalid="{{ $invalid('insurance_member_name') }}">
+                                            @error('insurance_member_name')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                                        </div>
+                                        <div>
+                                            <label for="reg-policy" class="{{ $label }}">Policy number</label>
+                                            <input id="reg-policy" type="text" wire:model="state.insurance_policy_number" class="{{ $input }}" placeholder="Policy #" aria-invalid="{{ $invalid('insurance_policy_number') }}">
+                                            @error('insurance_policy_number')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+                                    <button type="button" wire:click="choosePaymentType('cash')" class="ui-button ui-button-secondary">Use cash</button>
+                                    <button type="button" wire:click="closeInsuranceModal" class="ui-button ui-button-primary">Done</button>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
+                    <button type="submit" class="ui-button ui-button-primary w-full">{{ $isEditing ? 'Update record' : 'Save patient' }}</button>
+                    @if($isEditing)
+                        <button type="button" wire:click="resetForm" class="ui-button ui-button-secondary w-full">Cancel</button>
+                    @endif
+                </form>
             </div>
+        </section>
+
+        {{-- Patient list --}}
+        <div class="min-w-0 space-y-3">
+            @if(count($selectedPatients) > 0)
+                <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800 px-4 py-2 text-white shadow" role="region" aria-label="Selected patients">
+                    <span class="font-semibold"><i class="fas fa-check-double mr-2 text-teal-300" aria-hidden="true"></i>{{ count($selectedPatients) }} selected</span>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" wire:click="exportSelected" class="ui-button ui-button-secondary">Export</button>
+                        <button type="button" wire:click="clearSelection" class="ui-button ui-button-secondary">Clear</button>
+                        @if($activeTab === 'archived')
+                            <button type="button" wire:click="restoreSelected" class="ui-button ui-button-primary">Restore</button>
+                        @else
+                            <button type="button" wire:click="archiveSelected" wire:confirm="Archive selected patients?" class="ui-button ui-button-danger">Archive</button>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
+            <section class="ui-panel">
+                <div class="flex overflow-x-auto border-b border-slate-200" role="tablist" aria-label="Patient lists">
+                    @foreach($tabs as $key => [$tabLabel, $count])
+                        <button type="button" role="tab" aria-selected="{{ $activeTab == $key ? 'true' : 'false' }}" wire:click="$set('activeTab', '{{ $key }}')"
+                                @class(['flex flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold',
+                                        'border-teal-700 text-teal-800' => $activeTab == $key,
+                                        'border-transparent text-slate-500 hover:text-slate-800' => $activeTab != $key])>
+                            @if($key === 'archived')<i class="fas fa-archive" aria-hidden="true"></i>@endif
+                            {{ $tabLabel }}
+                            @if($key === 'today')
+                                <span class="rounded bg-slate-100 px-1.5 text-xs font-normal text-slate-600">M {{ $this->genderStats['male'] }}</span>
+                                <span class="rounded bg-slate-100 px-1.5 text-xs font-normal text-slate-600">F {{ $this->genderStats['female'] }}</span>
+                            @endif
+                            @if($count)<span class="rounded-full bg-amber-100 px-2 text-xs text-amber-800">{{ $count }}</span>@endif
+                        </button>
+                    @endforeach
+                </div>
+
+                <div class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2">
+                    <div>
+                        <label for="registry-search" class="{{ $label }}">Search</label>
+                        <div class="relative">
+                            <input id="registry-search" type="search" wire:model.live.debounce.500ms="pxSearch" class="{{ $input }} !pr-9" placeholder="Name or PX number…">
+                            @if($pxSearch)
+                                <button type="button" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-700" wire:click="$set('pxSearch', '')" aria-label="Clear search"><i class="fas fa-times" aria-hidden="true"></i></button>
+                            @endif
+                        </div>
+                    </div>
+                    <div>
+                        <span class="{{ $label }}">Date registered</span>
+                        <x-date-range from="fromDate" to="toDate" presets="activity" class="w-full" />
+                        @if($dateRangeError)<p class="ui-error" role="alert">{{ $dateRangeError }}</p>@endif
+                    </div>
+                    <div>
+                        <label for="registry-insurer" class="{{ $label }}"><i class="fas fa-shield-alt mr-1 text-teal-700" aria-hidden="true"></i>Insurer</label>
+                        <select id="registry-insurer" wire:model.live="insurerFilter" class="{{ $input }}">
+                            <option value="">All patients</option>
+                            @foreach($insurers as $ins)<option value="{{ $ins->id }}">{{ $ins->name }}</option>@endforeach
+                        </select>
+                    </div>
+                    <div class="self-end">
+                        <button type="button" wire:click="resetFilters" class="ui-button ui-button-secondary w-full"><i class="fas fa-undo-alt" aria-hidden="true"></i>Reset</button>
+                    </div>
+                </div>
+
+                <div wire:loading.delay wire:target="pxSearch,fromDate,toDate,insurerFilter,resetFilters" class="px-4 pt-3 text-sm font-semibold text-teal-700">
+                    <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Updating results…
+                </div>
+                <div class="ui-table-wrap">
+                    <table class="ui-table">
+                        <thead>
+                            <tr>
+                                <th class="w-10"><input type="checkbox" wire:model.live="selectAll" class="rounded border-slate-300 text-teal-700" aria-label="Select all patients on this page"></th>
+                                <th>Patient</th>
+                                <th>Details</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($patients as $px)
+                                @php $isBday = \Carbon\Carbon::parse($px->dob)->isBirthday(); @endphp
+                                <tr>
+                                    <td><input type="checkbox" wire:model.live="selectedPatients" value="{{ $px->id }}" id="px-{{ $px->id }}" class="rounded border-slate-300 text-teal-700" aria-label="Select {{ $px->name }}"></td>
+                                    <td>
+                                        <p class="font-semibold text-slate-900">{{ $px->name }} @if($isBday)<span title="Birthday today">🎂</span>@endif</p>
+                                        <p class="text-xs font-semibold text-slate-500">{{ $px->pxnumber }} | {{ $px->contact }}</p>
+                                        <p class="text-xs text-slate-500">DOB: {{ $px->dob ? \Carbon\Carbon::parse($px->dob)->format('d/m/y') : 'N/A' }} | Registered: {{ $px->created_at->format('d/m/y') }}</p>
+                                    </td>
+                                    <td>
+                                        <p class="font-semibold text-slate-900">{{ \Carbon\Carbon::parse($px->dob)->age }} yrs ({{ $px->gender }})</p>
+                                        <p class="text-xs uppercase text-slate-500">{{ $px->civil_status ?? 'N/A' }} | {{ $px->occupation }}</p>
+                                    </td>
+                                    <td>
+                                        <div class="flex justify-end gap-1">
+                                            <a href="{{ $this->generateWhatsAppLink($px->name, $px->contact) }}" target="_blank" rel="noopener" class="{{ $iconButton }} text-green-600" title="WhatsApp patient" aria-label="WhatsApp {{ $px->name }}"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
+                                            <a href="{{ $this->generateCallLink($px->contact) }}" class="{{ $iconButton }} text-sky-600" title="Call patient" aria-label="Call {{ $px->name }}"><i class="fas fa-phone" aria-hidden="true"></i></a>
+                                            @if($isBday)
+                                                <a href="{{ $this->generateBirthdayWhatsAppLink($px->name, $px->contact) }}" target="_blank" rel="noopener" class="{{ $iconButton }} text-amber-500" title="Send birthday WhatsApp" aria-label="Send {{ $px->name }} a birthday WhatsApp"><i class="fas fa-birthday-cake" aria-hidden="true"></i></a>
+                                            @endif
+                                            @if($activeTab === 'archived')
+                                                <button type="button" wire:click="$set('selectedPatients', ['{{ $px->id }}'])" class="{{ $iconButton }} text-green-600" title="Select this patient for restore" aria-label="Select {{ $px->name }} for restore"><i class="fas fa-undo" aria-hidden="true"></i></button>
+                                            @else
+                                                <button type="button" wire:click="edit({{ $px->id }})" wire:loading.attr="disabled" wire:target="edit({{ $px->id }})" class="{{ $iconButton }} text-teal-700" title="Edit patient" aria-label="Edit {{ $px->name }}"><i class="fas fa-edit" aria-hidden="true"></i></button>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="ui-empty text-slate-500">No records found for the current selection.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4">{{ $patients->links() }}</div>
+            </section>
         </div>
     </div>
 </div>

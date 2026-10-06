@@ -14,7 +14,8 @@ class ConfirmDialogTest extends TestCase
         $this->assertStringContainsString('window.appConfirm', $html);
         $this->assertStringContainsString("hook('directive.init'", $html);
         $this->assertStringNotContainsString('Swal', $html, 'Every layout uses the built-in dialog, not SweetAlert.');
-        foreach (['admin/admin-layout', 'doctor/doctor-layout', 'secretary/secretary-layout', 'platform', 'optical'] as $layout) {
+        // admin/admin-layout renders the clinic layout.
+        foreach (['clinic', 'platform', 'optical'] as $layout) {
             $this->assertStringContainsString("@include('layouts.partials.confirm-dialog')", File::get(resource_path("views/layouts/{$layout}.blade.php")), $layout);
         }
     }
@@ -27,7 +28,8 @@ class ConfirmDialogTest extends TestCase
             ->map(fn ($file) => str_replace(DIRECTORY_SEPARATOR, '/', str_replace(resource_path('views').DIRECTORY_SEPARATOR, '', $file->getPathname())))
             ->values()->all();
 
-        $this->assertSame(['layouts/scripts.blade.php'], $users);
+        // The session (idle warning, discount approvals) and till (POS checkout) scripts.
+        $this->assertEqualsCanonicalizing(['layouts/partials/session-scripts.blade.php', 'layouts/partials/till-scripts.blade.php'], $users);
     }
 
     /** `onclick="return confirm()"` does not stop Livewire's own click handler, so Cancel still ran the action. */

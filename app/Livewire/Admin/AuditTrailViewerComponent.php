@@ -3,7 +3,6 @@
 namespace App\Livewire\Admin;
 
 use App\Models\AuditTrail;
-use App\Models\AuditTrailArchive;
 use App\Services\LicenseService;
 use App\Support\Feature;
 use App\Models\User;
@@ -18,9 +17,8 @@ class AuditTrailViewerComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
-    public bool $showArchive = false;
     public $search = '';
     public $event = '';
     public $userId = '';
@@ -42,18 +40,6 @@ class AuditTrailViewerComponent extends Component
     public function updatingUserSearch() { $this->resetPage(); }
     public function updatingFromDate() { $this->resetPage(); }
     public function updatingToDate() { $this->resetPage(); }
-
-    public function toggleArchive(): void
-    {
-        $this->showArchive = !$this->showArchive;
-        $this->search  = '';
-        $this->event   = '';
-        $this->userId  = '';
-        $this->userSearch = '';
-        $this->fromDate = $this->showArchive ? '' : Carbon::today()->subDays(30)->toDateString();
-        $this->toDate   = $this->showArchive ? '' : Carbon::today()->toDateString();
-        $this->resetPage();
-    }
 
     public function resetFilters()
     {
@@ -185,9 +171,8 @@ class AuditTrailViewerComponent extends Component
 
     private function query()
     {
-        $model = $this->showArchive ? new AuditTrailArchive : new AuditTrail;
-
-        return $model::with(['user', 'patient'])
+        // Routine events are kept 30 days and changes a year (logs:prune), so there is no archive to browse.
+        return AuditTrail::with(['user', 'patient'])
             ->when($this->search, function ($query) {
                 $search = '%' . $this->search . '%';
                 $query->where(function ($q) use ($search) {
@@ -207,15 +192,12 @@ class AuditTrailViewerComponent extends Component
 
     public function render()
     {
-        $eventModel = $this->showArchive ? AuditTrailArchive::class : AuditTrail::class;
-
         return view('livewire.admin.audit-trail-viewer-component', [
             'audits'      => $this->query()->paginate(20),
-            'users'       => User::when($this->userSearch, function ($query) {
+            'users'       => User::whereIn('id', AuditTrail::query()->whereNotNull('user_id')->select('user_id'))->when($this->userSearch, function ($query) {
                 $query->where('name', 'like', '%' . $this->userSearch . '%');
             })->orderBy('name')->get(['id', 'name']),
-            'events'      => $eventModel::select('event')->distinct()->orderBy('event')->pluck('event'),
-            'showArchive' => $this->showArchive,
+            'events'      => AuditTrail::select('event')->distinct()->orderBy('event')->pluck('event'),
         ])->layout('layouts.admin.admin-layout');
     }
 }

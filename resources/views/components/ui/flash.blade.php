@@ -1,5 +1,5 @@
-{{-- Turns session flash messages into toasts through the app-wide `notify` event (the optical
-     layout's toast stack, or toastr in the clinic and platform layouts). Layouts include it for
+{{-- Turns session flash messages into toasts through the app-wide `notify` event (the toast stack in
+     layouts/partials/toasts, which every layout includes). Layouts include it for
      messages carried across a redirect; a Livewire view includes it for messages flashed during
      an update. Each message fires once per request even when both render it.
      `map` adds component-specific session keys: ['panel_message' => 'success']. --}}

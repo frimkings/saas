@@ -33,6 +33,15 @@ class OpticalNavigation
         return OpticalAccess::can(auth()->user(), $route);
     }
 
+    /**
+     * Pages opened with wire:navigate (no full reload). Sales Records shares a script with the
+     * clinic side that isn't navigate-safe yet, so it still loads normally.
+     */
+    public static function navigable(string $route): bool
+    {
+        return $route !== 'optical.sales';
+    }
+
     /** Adding staff and giving them roles: managers, Super Admins, or anyone given "manage users". */
     public static function canManageStaff(): bool
     {

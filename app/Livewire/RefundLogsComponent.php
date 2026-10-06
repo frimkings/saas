@@ -12,7 +12,7 @@ class RefundLogsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $fromDate  = '';
     public string $toDate    = '';
@@ -137,9 +137,9 @@ class RefundLogsComponent extends Component
     public function render()
     {
         $logs  = $this->buildQuery()->paginate($this->perPage);
-        $staff = User::orderBy('name')->get(['id', 'name']);
+        $staff = User::inCurrentClinic()->orderBy('name')->get(['id', 'name']);
 
         return view('livewire.refund-logs-component', compact('logs', 'staff'))
-            ->layout('layouts.secretary.secretary-layout');
+            ->layout(...\App\Support\ClinicNavigation::sharedLayout());
     }
 }

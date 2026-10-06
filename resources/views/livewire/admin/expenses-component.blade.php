@@ -292,7 +292,7 @@
                 <x-ui.field label="Receipt / photo (JPG, PNG, PDF · maximum 5 MB)" name="receiptFile" type="file" wire:model="receiptFile" x-ref="file" x-on:change="hasFile = $event.target.files.length > 0" accept=".jpg,.jpeg,.png,.pdf" />
                 <p class="ui-muted" wire:loading wire:target="receiptFile" role="status">Uploading receipt…</p>
                 <x-ui.field label="Notes" name="state.notes" x-model="form.notes" maxlength="1000" />
-                <div class="rounded-lg border border-slate-200 p-3" x-show="! id && ! recurringId">
+                <div class="rounded-lg border border-slate-200 p-4" x-show="! id && ! recurringId">
                     <label class="ui-check"><input type="checkbox" x-model="form.repeat"> Repeat this expense (rent, salaries, utilities)</label>
                     <div x-show="form.repeat" x-cloak class="mt-2">
                         <x-ui.field label="How often" name="state.frequency" :options="\App\Models\RecurringExpense::FREQUENCIES" x-model="form.frequency" />

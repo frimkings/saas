@@ -1,491 +1,174 @@
-<div class="content p-3" style="background:#f0f2f5; min-height:100vh;">
-<div class="container-fluid">
-
-    {{-- Page Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@php
+    $tiles = [
+        ['New patients today', number_format($patientsRegisteredToday), 'Registered today', 'fa-user-plus', 'text-blue-600', route('secretary.patients'), 'All patients'],
+        ['Appointments today', number_format($appointmentsToday), 'Scheduled and active', 'fa-calendar-check', 'text-orange-500', route('secretary.appointments'), 'View schedule'],
+        ['Clearances today', number_format($clearancesToday), 'Patients processed today', 'fa-clipboard-check', 'text-green-600', route('secretary.patient-clearance'), 'Clearance desk'],
+        ["Today's sales", currency().' '.number_format($todaySales, 2), now()->format('D, d M Y'), 'fa-cash-register', 'text-teal-600', route('cashier.sales-records'), 'Sales records'],
+        ['Registered patients', number_format($totalPatients), 'All time', 'fa-users', 'text-blue-600', route('secretary.patients'), 'Patient registry'],
+        ['Outstanding balances', number_format($outstandingBalances), 'Part-paid sales', 'fa-balance-scale', 'text-amber-500', route('cashier.outstanding-balances'), 'View balances'],
+        ['Awaiting doctor', number_format($awaitingDoctor), 'Not yet seen today', 'fa-user-clock', 'text-orange-500', route('secretary.patient-clearance'), 'Clearance desk'],
+        ['Spectacle renewals due', number_format($renewalsDue), number_format($spectaclesReady).' ready for pickup', 'fa-glasses', 'text-teal-600', route('secretary.spectacles'), 'Spectacles'],
+    ];
+    $apptBadge = fn ($status) => match ($status ?? 'scheduled') {
+        'completed' => 'bg-green-50 text-green-700',
+        'cancelled' => 'bg-red-50 text-red-700',
+        default => 'bg-blue-50 text-blue-700',
+    };
+@endphp
+<div class="clinic-ui ui-page space-y-6">
+    <div class="ui-heading">
         <div>
-            <h3 class="mb-0 font-weight-bold" style="color:#2c3e50;">
-                <i class="fas fa-concierge-bell mr-2 text-primary"></i>Secretary / Cashier Dashboard
-            </h3>
-            <small class="text-muted text-uppercase font-weight-bold" style="letter-spacing:.05em;">
-                Welcome, {{ auth()->user()->name }} &mdash; {{ now()->format('l, F d Y') }}
-            </small>
+            <h1>Reception</h1>
+            <p class="ui-muted">Welcome, {{ auth()->user()->name }} &middot; {{ now()->format('l, j F Y') }}</p>
         </div>
-        <a href="{{ route('cashier.seller-desk') }}" class="btn btn-sm btn-outline-primary">
-            <i class="fas fa-cash-register mr-1"></i>Open POS
-        </a>
+        <div class="ui-actions">
+            <a href="{{ route('secretary.appointments') }}" class="ui-button ui-button-secondary"><i class="fas fa-calendar-alt" aria-hidden="true"></i>Appointments</a>
+            <a href="{{ route('cashier.seller-desk') }}" class="ui-button ui-button-primary"><i class="fas fa-cash-register" aria-hidden="true"></i>Open POS</a>
+        </div>
     </div>
 
     {{-- What to act on today: appointments, spectacles due or late, glasses not collected --}}
     @livewire('attention-panel-component', ['line' => 'clinic', 'compact' => true], key('attention-clinic'))
 
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    {{-- ROW 1: Top KPI Cards                                              --}}
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    <div class="row mb-3">
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--blue h-100">
-                <div class="kpi-card__icon"><i class="fas fa-user-plus fa-lg"></i></div>
-                <div class="kpi-card__label">New Patients Today</div>
-                <div class="kpi-card__value">{{ number_format($patientsRegisteredToday) }}</div>
-                <small class="text-muted mt-1 d-block">Registered today</small>
-                <a href="{{ route('secretary.patients') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#007bff;">
-                    All Patients <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        @foreach($tiles as [$label, $value, $note, $icon, $colour, $url, $linkLabel])
+            <div class="ui-panel flex flex-col p-4">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $label }}</p>
+                    <i class="fas {{ $icon }} {{ $colour }}" aria-hidden="true"></i>
+                </div>
+                <p class="ui-value">{{ $value }}</p>
+                <p class="ui-muted">{{ $note }}</p>
+                <a href="{{ $url }}" class="mt-2 text-xs font-semibold text-teal-700 no-underline hover:underline">{{ $linkLabel }} &rarr;</a>
             </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--orange h-100">
-                <div class="kpi-card__icon"><i class="fas fa-calendar-check fa-lg"></i></div>
-                <div class="kpi-card__label">Appointments Today</div>
-                <div class="kpi-card__value kpi-card__value--orange">{{ number_format($appointmentsToday) }}</div>
-                <small class="text-muted mt-1 d-block">Scheduled &amp; active</small>
-                <a href="{{ route('secretary.appointments') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#fd7e14;">
-                    View Schedule <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--green h-100">
-                <div class="kpi-card__icon"><i class="fas fa-clipboard-check fa-lg"></i></div>
-                <div class="kpi-card__label">Clearances Today</div>
-                <div class="kpi-card__value kpi-card__value--green">{{ number_format($clearancesToday) }}</div>
-                <small class="text-muted mt-1 d-block">Patients processed today</small>
-                <a href="{{ route('secretary.patient-clearance') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#28a745;">
-                    Clearance Desk <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--teal h-100">
-                <div class="kpi-card__icon"><i class="fas fa-cash-register fa-lg"></i></div>
-                <div class="kpi-card__label">Today's Sales</div>
-                <div class="kpi-card__value kpi-card__value--teal">{{ currency() }} {{ number_format($todaySales, 2) }}</div>
-                <small class="text-muted mt-1 d-block">{{ now()->format('D, d M Y') }}</small>
-                <a href="{{ route('cashier.sales-records') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#20c997;">
-                    Sales Records <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
-            </div>
-        </div>
-
+        @endforeach
     </div>
 
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    {{-- ROW 2: Secondary Stat Cards                                        --}}
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    <div class="row mb-3">
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--blue h-100">
-                <div class="kpi-card__icon"><i class="fas fa-users fa-lg"></i></div>
-                <div class="kpi-card__label">Total Registered Patients</div>
-                <div class="kpi-card__value">{{ number_format($totalPatients) }}</div>
-                <a href="{{ route('secretary.patients') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#007bff;">
-                    Patient Registry <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
+    <section class="ui-panel">
+        <div class="ui-panel-heading">
+            <div>
+                <h2>New patient registrations, last 7 days</h2>
+                <p class="ui-muted">Patients registered each day</p>
+            </div>
+            <a href="{{ route('secretary.patients') }}" class="ui-button ui-button-secondary">All patients</a>
+        </div>
+        <div class="p-4">
+            <div wire:ignore class="relative h-60">
+                <canvas id="secretaryPatientsChart" aria-label="New patients per day for the last 7 days" role="img"></canvas>
             </div>
         </div>
+    </section>
 
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--yellow h-100">
-                <div class="kpi-card__icon"><i class="fas fa-balance-scale fa-lg"></i></div>
-                <div class="kpi-card__label">Outstanding Balances</div>
-                <div class="kpi-card__value kpi-card__value--yellow">
-                    {{ number_format($outstandingBalances) }}
-                    <small class="text-muted" style="font-size:.65rem; font-weight:500;">partial payments</small>
-                </div>
-                @if($outstandingBalances > 0)
-                    <span class="badge badge-warning mt-1">Needs Attention</span>
-                @endif
-                <a href="{{ route('cashier.outstanding-balances') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#e0a800;">
-                    View Balances <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
+    <div class="grid gap-6 lg:grid-cols-2">
+        <section class="ui-panel flex flex-col">
+            <div class="ui-panel-heading">
+                <h2>Today's clearance queue</h2>
+                @if($awaitingDoctor > 0)<span class="ui-badge ui-badge-waiting">{{ $awaitingDoctor }} awaiting</span>@endif
             </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--orange h-100">
-                <div class="kpi-card__icon"><i class="fas fa-user-clock fa-lg"></i></div>
-                <div class="kpi-card__label">Awaiting Doctor</div>
-                <div class="kpi-card__value kpi-card__value--orange">
-                    {{ number_format($awaitingDoctor) }}
-                    @if($awaitingDoctor > 0)
-                        <span class="badge badge-warning ml-1" style="font-size:.55rem; vertical-align:middle;">In Queue</span>
-                    @endif
-                </div>
-                <small class="text-muted mt-1 d-block">Patients not yet seen by doctor</small>
-                <a href="{{ route('secretary.patient-clearance') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#fd7e14;">
-                    Clearance Desk <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
+            <div class="ui-table-wrap flex-1">
+                <table class="ui-table">
+                    <thead><tr><th>Patient</th><th>Folder no.</th><th>Contact</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @forelse($todayQueue as $clearance)
+                            <tr>
+                                <td class="font-semibold">{{ $clearance->patient->name ?? '—' }}</td>
+                                <td class="font-mono text-xs">{{ $clearance->patient->pxnumber ?? '—' }}</td>
+                                <td class="text-slate-500">{{ $clearance->patient->contact ?? '—' }}</td>
+                                <td>
+                                    @if($clearance->doctor_status)
+                                        <span class="ui-badge">Seen</span>
+                                    @else
+                                        <span class="ui-badge ui-badge-waiting">Waiting</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="ui-empty text-slate-500">No clearances recorded today.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--teal h-100">
-                <div class="kpi-card__icon"><i class="fas fa-glasses fa-lg"></i></div>
-                <div class="kpi-card__label">Spectacle Renewals Due</div>
-                <div class="kpi-card__value kpi-card__value--teal">
-                    {{ number_format($renewalsDue) }}
-                    @if($renewalsDue > 0)
-                        <span class="badge badge-info ml-1" style="font-size:.55rem; vertical-align:middle;">Within 30 days</span>
-                    @endif
-                </div>
-                <div class="kpi-card__value mt-1" style="font-size:.85rem; font-weight:600;">
-                    <span class="text-success">{{ number_format($spectaclesReady) }}</span>
-                    <small class="text-muted" style="font-size:.65rem; font-weight:500;">ready for pickup</small>
-                </div>
-                <a href="{{ route('secretary.spectacles') }}"
-                   class="small font-weight-bold mt-2 d-block" style="color:#20c997;">
-                    Spectacles <i class="fas fa-arrow-circle-right ml-1"></i>
-                </a>
+            <div class="border-t border-slate-200 p-3 text-right">
+                <a href="{{ route('secretary.patient-clearance') }}" class="ui-button ui-button-secondary">Open clearance desk</a>
             </div>
-        </div>
+        </section>
 
+        <section class="ui-panel flex flex-col">
+            <div class="ui-panel-heading">
+                <h2>Today's appointments</h2>
+                @if($appointmentsToday > 0)<span class="ui-badge">{{ $appointmentsToday }}</span>@endif
+            </div>
+            <div class="ui-table-wrap flex-1">
+                <table class="ui-table">
+                    <thead><tr><th>Patient</th><th>Folder no.</th><th>Time</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @forelse($upcomingAppointments as $appt)
+                            <tr>
+                                <td class="font-semibold">{{ $appt->patient->name ?? $appt->title ?? '—' }}</td>
+                                <td class="font-mono text-xs">{{ $appt->patient->pxnumber ?? '—' }}</td>
+                                <td class="whitespace-nowrap text-slate-500">{{ optional($appt->scheduled_at)->format('h:i A') ?? '—' }}</td>
+                                <td><span class="inline-flex rounded-md px-2 py-0.5 text-xs font-semibold {{ $apptBadge($appt->status) }}">{{ ucfirst($appt->status ?? 'Scheduled') }}</span></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="ui-empty text-slate-500">No appointments scheduled for today.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="border-t border-slate-200 p-3 text-right">
+                <a href="{{ route('secretary.appointments') }}" class="ui-button ui-button-secondary">Manage appointments</a>
+            </div>
+        </section>
     </div>
 
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    {{-- ROW 3: New Patients Chart (past 7 days)                           --}}
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="mb-0 font-weight-bold text-dark">
-                            <i class="fas fa-chart-bar text-primary mr-2"></i>New Patient Registrations &mdash; Last 7 Days
-                        </h6>
-                        <small class="text-muted">Daily count of newly registered patients</small>
-                    </div>
-                    <a href="{{ route('secretary.patients') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-external-link-alt mr-1"></i>All Patients
-                    </a>
-                </div>
-                <div class="card-body">
-                    <div wire:ignore style="position:relative; height:240px;">
-                        <canvas id="secretaryPatientsChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    {{-- ROW 4: Today's Clearance Queue + Today's Appointments             --}}
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    <div class="row mb-3">
-
-        {{-- Today's Clearance Queue --}}
-        <div class="col-xl-6 col-lg-6 mb-3">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 font-weight-bold text-dark">
-                        <i class="fas fa-clipboard-list text-success mr-2"></i>Today's Clearance Queue
-                        @if($awaitingDoctor > 0)
-                            <span class="badge badge-warning ml-1">{{ $awaitingDoctor }} awaiting</span>
-                        @endif
-                    </h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>Patient</th>
-                                    <th>Folder No.</th>
-                                    <th>Contact</th>
-                                    <th class="text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($todayQueue as $clearance)
-                                    <tr>
-                                        <td class="font-weight-bold" style="font-size:.85rem;">
-                                            {{ $clearance->patient->name ?? '—' }}
-                                        </td>
-                                        <td>
-                                            <code style="font-size:.78rem;">{{ $clearance->patient->pxnumber ?? '—' }}</code>
-                                        </td>
-                                        <td class="small text-muted">
-                                            {{ $clearance->patient->contact ?? '—' }}
-                                        </td>
-                                        <td class="text-center">
-                                            @if($clearance->doctor_status)
-                                                <span class="badge badge-success">Seen</span>
-                                            @else
-                                                <span class="badge badge-warning">Waiting</span>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="4" class="text-center text-muted py-4">
-                                            <i class="fas fa-check-circle fa-2x d-block mb-2" style="color:#28a745; opacity:.4;"></i>
-                                            No clearances recorded today.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white border-top text-right">
-                    <a href="{{ route('secretary.patient-clearance') }}" class="btn btn-sm btn-outline-success">
-                        <i class="fas fa-clipboard-check mr-1"></i>Open Clearance Desk
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        {{-- Today's Appointments --}}
-        <div class="col-xl-6 col-lg-6 mb-3">
-            <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 font-weight-bold text-dark">
-                        <i class="fas fa-calendar-alt text-primary mr-2"></i>Today's Appointments
-                        @if($appointmentsToday > 0)
-                            <span class="badge badge-primary ml-1">{{ $appointmentsToday }}</span>
-                        @endif
-                    </h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>Patient</th>
-                                    <th>Folder No.</th>
-                                    <th>Time</th>
-                                    <th class="text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($upcomingAppointments as $appt)
-                                    @php
-                                        $statusBadge = match($appt->status ?? 'scheduled') {
-                                            'completed'  => 'success',
-                                            'cancelled'  => 'danger',
-                                            default      => 'primary',
-                                        };
-                                    @endphp
-                                    <tr>
-                                        <td class="font-weight-bold" style="font-size:.85rem;">
-                                            {{ $appt->patient->name ?? $appt->title ?? '—' }}
-                                        </td>
-                                        <td>
-                                            <code style="font-size:.78rem;">{{ $appt->patient->pxnumber ?? '—' }}</code>
-                                        </td>
-                                        <td class="small text-muted">
-                                            {{ optional($appt->scheduled_at)->format('h:i A') ?? '—' }}
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge badge-{{ $statusBadge }}">
-                                                {{ ucfirst($appt->status ?? 'Scheduled') }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="4" class="text-center text-muted py-4">
-                                            <i class="fas fa-calendar-times fa-2x d-block mb-2" style="color:#dee2e6;"></i>
-                                            No appointments scheduled for today.
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white border-top text-right">
-                    <a href="{{ route('secretary.appointments') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-calendar-alt mr-1"></i>Manage Appointments
-                    </a>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    {{-- ROW 5: Quick Access Links                                          --}}
-    {{-- ══════════════════════════════════════════════════════════════════ --}}
-    <div class="row mb-4">
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--blue h-100 d-flex flex-column justify-content-between">
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        @foreach([
+            ['Patient registry', 'Register new patients and manage records.', route('secretary.patients'), 'Open patients', 'fa-user-plus'],
+            ['Appointments', 'Schedule and track patient appointments.', route('secretary.appointments'), 'Open schedule', 'fa-calendar-check'],
+            ['Point of sale', 'Process drug and product sales.', route('cashier.seller-desk'), 'Open POS', 'fa-shopping-cart'],
+            ['Drugs & spectacles', 'Manage spectacle orders and drug dispensing.', route('secretary.spectacles'), 'Open dispensary', 'fa-capsules'],
+        ] as [$title, $text, $url, $action, $icon])
+            <div class="ui-panel flex flex-col justify-between gap-3 p-4">
                 <div>
-                    <div class="kpi-card__icon"><i class="fas fa-user-plus fa-lg"></i></div>
-                    <div class="kpi-card__label">Patient Registry</div>
-                    <p class="small text-muted mt-1 mb-0">Register new patients and manage records.</p>
+                    <h2><i class="fas {{ $icon }} mr-2 text-teal-600" aria-hidden="true"></i>{{ $title }}</h2>
+                    <p class="ui-muted mt-1">{{ $text }}</p>
                 </div>
-                <a href="{{ route('secretary.patients') }}" class="btn btn-primary btn-sm mt-3">
-                    <i class="fas fa-external-link-alt mr-1"></i>Open Patients
-                </a>
+                <a href="{{ $url }}" class="ui-button ui-button-secondary">{{ $action }}</a>
             </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--orange h-100 d-flex flex-column justify-content-between">
-                <div>
-                    <div class="kpi-card__icon"><i class="fas fa-calendar-check fa-lg"></i></div>
-                    <div class="kpi-card__label">Appointments</div>
-                    <p class="small text-muted mt-1 mb-0">Schedule and track patient appointments.</p>
-                </div>
-                <a href="{{ route('secretary.appointments') }}" class="btn btn-warning btn-sm mt-3">
-                    <i class="fas fa-external-link-alt mr-1"></i>Open Schedule
-                </a>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--teal h-100 d-flex flex-column justify-content-between">
-                <div>
-                    <div class="kpi-card__icon"><i class="fas fa-shopping-cart fa-lg"></i></div>
-                    <div class="kpi-card__label">Point of Sale</div>
-                    <p class="small text-muted mt-1 mb-0">Process drug &amp; product sales transactions.</p>
-                </div>
-                <a href="{{ route('cashier.seller-desk') }}" class="btn btn-info btn-sm mt-3">
-                    <i class="fas fa-external-link-alt mr-1"></i>Open POS
-                </a>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-3">
-            <div class="kpi-card kpi-card--green h-100 d-flex flex-column justify-content-between">
-                <div>
-                    <div class="kpi-card__icon"><i class="fas fa-capsules fa-lg"></i></div>
-                    <div class="kpi-card__label">Drugs &amp; Spectacles</div>
-                    <p class="small text-muted mt-1 mb-0">Manage spectacle orders and drug dispensing.</p>
-                </div>
-                <a href="{{ route('secretary.spectacles') }}" class="btn btn-success btn-sm mt-3">
-                    <i class="fas fa-external-link-alt mr-1"></i>Open Dispensary
-                </a>
-            </div>
-        </div>
-
+        @endforeach
     </div>
 
-</div>{{-- /container-fluid --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const canvas = document.getElementById('secretaryPatientsChart');
+            if (!canvas || !window.Chart) return;
 
-{{-- Chart.js --}}
-<script>
-document.addEventListener('livewire:init', function () {
-    const ctx = document.getElementById('secretaryPatientsChart');
-    if (!ctx) return;
-
-    const labels = @json($chartLabels);
-    const counts = @json($chartData);
-
-    const context  = ctx.getContext('2d');
-    const gradient = context.createLinearGradient(0, 0, 0, 240);
-    gradient.addColorStop(0, 'rgba(0,123,255,0.25)');
-    gradient.addColorStop(1, 'rgba(0,123,255,0.02)');
-
-    new Chart(context, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'New Patients',
-                data: counts,
-                backgroundColor: gradient,
-                borderColor: '#007bff',
-                borderWidth: 2,
-                borderRadius: 6,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                    align: 'end',
-                    labels: { usePointStyle: true, padding: 16, font: { size: 12, weight: '600' } }
+            new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: @json($chartLabels),
+                    datasets: [{
+                        label: 'New patients',
+                        data: @json($chartData),
+                        backgroundColor: 'rgba(8, 126, 131, 0.18)',
+                        borderColor: '#087e83',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                    }]
                 },
-                tooltip: {
-                    backgroundColor: 'rgba(0,0,0,.85)',
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: {
-                        label: function (ctx) {
-                            return ' ' + ctx.parsed.y + ' patient(s)';
-                        }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => ' ' + ctx.parsed.y + ' patient(s)' } }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(15, 23, 42, .06)' }, ticks: { precision: 0, font: { size: 11 } } }
                     }
                 }
-            },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { font: { size: 11 } }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,.05)', borderDash: [4, 4] },
-                    ticks: {
-                        precision: 0,
-                        font: { size: 11 }
-                    }
-                }
-            }
-        }
-    });
-});
-</script>
-
-<style>
-.kpi-card {
-    background: #fff;
-    border-radius: 14px;
-    padding: 1.1rem 1.2rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
-    position: relative;
-    overflow: hidden;
-}
-.kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    border-radius: 14px 14px 0 0;
-}
-.kpi-card--blue::before   { background: #007bff; }
-.kpi-card--green::before  { background: #28a745; }
-.kpi-card--orange::before { background: #fd7e14; }
-.kpi-card--teal::before   { background: #20c997; }
-.kpi-card--purple::before { background: #6f42c1; }
-.kpi-card--yellow::before { background: #ffc107; }
-.kpi-card__icon { font-size: 1.1rem; margin-bottom: .4rem; }
-.kpi-card--blue .kpi-card__icon   { color: #007bff; }
-.kpi-card--green .kpi-card__icon  { color: #28a745; }
-.kpi-card--orange .kpi-card__icon { color: #fd7e14; }
-.kpi-card--teal .kpi-card__icon   { color: #20c997; }
-.kpi-card--purple .kpi-card__icon { color: #6f42c1; }
-.kpi-card--yellow .kpi-card__icon { color: #ffc107; }
-.kpi-card__label {
-    font-size: .7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: #6c757d;
-    margin-bottom: .25rem;
-}
-.kpi-card__value { font-size: 1.1rem; font-weight: 800; color: #212529; line-height: 1.2; }
-.kpi-card__value--green  { color: #28a745; }
-.kpi-card__value--orange { color: #fd7e14; }
-.kpi-card__value--teal   { color: #20c997; }
-.kpi-card__value--purple { color: #6f42c1; }
-.kpi-card__value--yellow { color: #e0a800; }
-</style>
-
-</div>{{-- /content --}}
+            });
+        });
+    </script>
+</div>

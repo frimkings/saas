@@ -1,5 +1,5 @@
 <section class="history-surface">
-    <div class="history-surface-heading"><div><h3><i class="fas fa-images text-primary"></i> Diagnostic Scans & Attachments</h3><p>Latest 12 uploaded files · Open a file to inspect the original.</p></div><button type="button" class="px-btn px-btn--primary" wire:click="switchTab('bills')"><i class="fas fa-upload"></i> Upload / Manage</button></div>
+    <div class="history-surface-heading"><div><h3><i class="fas fa-images text-teal-700"></i> Diagnostic Scans & Attachments</h3><p>Latest 12 uploaded files · Open a file to inspect the original.</p></div><button type="button" class="px-btn px-btn--primary" wire:click="switchTab('bills')"><i class="fas fa-upload"></i> Upload / Manage</button></div>
     <div class="history-scan-grid">
         @forelse($historyDocuments as $document)
             <article class="history-scan-card">

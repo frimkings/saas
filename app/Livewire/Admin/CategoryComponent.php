@@ -12,7 +12,7 @@ class CategoryComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $searchTerm = '';
     public $state = [

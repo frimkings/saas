@@ -6,10 +6,10 @@
             <p class="ui-muted">Today's metrics, ready collections, outstanding balances, and inventory alerts.</p>
         </div>
         <div class="ui-actions">
-            <a href="{{ route('optical.orders.create') }}" class="ui-button ui-button-primary">
+            <a wire:navigate href="{{ route('optical.orders.create') }}" class="ui-button ui-button-primary">
                 + New Order
             </a>
-            <a href="{{ route('optical.pos') }}" class="ui-button ui-button-secondary">
+            <a wire:navigate href="{{ route('optical.pos') }}" class="ui-button ui-button-secondary">
                 Walk-in POS Sale
             </a>
         </div>
@@ -19,7 +19,7 @@
     @livewire('attention-panel-component', ['line' => 'optical', 'compact' => true], key('attention-optical'))
 
     @if($overdueCount || $stuckCount)
-        <a href="{{ route('optical.jobs') }}" class="ui-panel p-3 flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 text-amber-900 no-underline" role="status">
+        <a wire:navigate href="{{ route('optical.jobs') }}" class="ui-panel p-3 flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 text-amber-900 no-underline" role="status">
             <span class="text-sm"><strong>Jobs need attention:</strong>
                 {{ $overdueCount }} overdue · {{ $stuckCount }} stuck</span>
             <span class="text-xs font-semibold underline">Open Job Tracking →</span>
@@ -65,7 +65,7 @@
                     <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                     Ready for Collection
                 </h2>
-                <a href="{{ route('optical.orders', ['status' => 'Ready for Collection']) }}" class="text-xs font-semibold text-teal-700 hover:underline">View All →</a>
+                <a wire:navigate href="{{ route('optical.orders', ['status' => 'Ready for Collection']) }}" class="text-xs font-semibold text-teal-700 hover:underline">View All →</a>
             </div>
             <div class="ui-table-wrap">
                 <table class="ui-table">
@@ -88,7 +88,7 @@
                                     {{ currency() }} {{ number_format(max(0, $order->total - $order->paid_amount), 2) }}
                                 </td>
                                 <td class="text-right">
-                                    <a href="{{ route('optical.orders', ['search' => $order->order_id]) }}" class="ui-button ui-button-secondary py-1 text-xs">
+                                    <a wire:navigate href="{{ route('optical.orders', ['search' => $order->order_id]) }}" class="ui-button ui-button-secondary py-1 text-xs">
                                         Collect & Pay
                                     </a>
                                 </td>

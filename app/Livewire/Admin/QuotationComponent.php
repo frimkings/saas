@@ -15,7 +15,7 @@ class QuotationComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // List filters
     public string $search    = '';

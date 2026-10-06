@@ -29,7 +29,7 @@ x-init="initTheme()"
 <div class="pos-overlay" style="z-index:9999;">
     <div class="pos-receipt-dialog">
         <div class="pos-receipt-header">
-            <span><i class="fas fa-check-circle me-2"></i>Sale Complete — Receipt Ready</span>
+            <span><i class="fas fa-check-circle mr-2"></i>Sale Complete — Receipt Ready</span>
             <button wire:click="dismissReceipt"><i class="fas fa-times"></i></button>
         </div>
         <div class="pos-receipt-body">
@@ -119,18 +119,18 @@ x-init="initTheme()"
         @endphp
         <div class="pos-receipt-footer" id="receipt-modal-footer" data-receipt="{{ $encodedPrintData }}">
             <button type="button" class="pos-btn pos-btn--success pos-btn--lg" onclick="return printReceiptFromDom(event)">
-                <i class="fas fa-print me-2"></i>Print Receipt
+                <i class="fas fa-print mr-2"></i>Print Receipt
             </button>
             @if(!empty($receiptData['sale_id']))
                 <a class="pos-btn pos-btn--pdf pos-btn--lg"
                    href="{{ route('cashier.receipt.pdf', ['saleId' => $receiptData['sale_id'], 'change' => $receiptData['change'] ?? 0]) }}"
                    target="_blank"
                    rel="noopener">
-                    <i class="fas fa-file-pdf me-2"></i>Save PDF
+                    <i class="fas fa-file-pdf mr-2"></i>Save PDF
                 </a>
             @endif
             <button type="button" class="pos-btn pos-btn--ghost" wire:click="dismissReceipt">
-                <i class="fas fa-times me-1"></i>Close
+                <i class="fas fa-times mr-1"></i>Close
             </button>
         </div>
     </div>
@@ -362,9 +362,9 @@ window.printReceiptFromDom = function(event) {
             @endphp
             @if($visitUrl)
                 <div class="pos-co-section">
-                    <button type="button" class="pos-btn pos-btn--add w-100"
+                    <button type="button" class="pos-btn pos-btn--add w-full"
                             onclick="window.open('{{ $visitUrl }}','_blank','width=302,height=600')">
-                        <i class="fas fa-file-invoice me-1"></i> Print visit receipt ({{ $visitNo }})
+                        <i class="fas fa-file-invoice mr-1"></i> Print visit receipt ({{ $visitNo }})
                     </button>
                 </div>
             @endif
@@ -488,7 +488,7 @@ window.printReceiptFromDom = function(event) {
                                 <span class="pos-frame-adder__option-meta">
                                     {{ currency() }} {{ number_format($fr['price'], 2) }}
                                     &nbsp;·&nbsp;
-                                    @if(is_numeric($fr['stock']))<span class="{{ $fr['stock'] <= 3 ? 'text-warning' : '' }}">{{ $fr['stock'] }} in stock</span>@else<span>{{ $fr['stock'] }}</span>@endif
+                                    @if(is_numeric($fr['stock']))<span class="{{ $fr['stock'] <= 3 ? 'text-amber-600' : '' }}">{{ $fr['stock'] }} in stock</span>@else<span>{{ $fr['stock'] }}</span>@endif
                                 </span>
                             </button>
                             @endforeach
@@ -539,9 +539,9 @@ window.printReceiptFromDom = function(event) {
                                         wire:click="requestDiscountApproval"
                                         {{ $pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending' ? 'disabled' : '' }}>
                                     @if($pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending')
-                                        <i class="fas fa-clock me-1"></i>Pending
+                                        <i class="fas fa-clock mr-1"></i>Pending
                                     @else
-                                        <i class="fas fa-paper-plane me-1"></i>Approve
+                                        <i class="fas fa-paper-plane mr-1"></i>Approve
                                     @endif
                                 </button>
                             @endif
@@ -599,16 +599,16 @@ window.printReceiptFromDom = function(event) {
                     {{-- Insurance co-pay --}}
                     @if($insurerName)
                         <div class="pos-insurance border rounded p-2 mt-2" style="font-size:.85rem;">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <span><i class="fas fa-shield-alt text-info me-1"></i>Bill <strong>{{ $insurerName }}</strong></span>
+                            <div class="flex items-center justify-between">
+                                <span><i class="fas fa-shield-alt text-sky-700 mr-1"></i>Bill <strong>{{ $insurerName }}</strong></span>
                                 <label class="pos-switch mb-0">
                                     <input type="checkbox" wire:model.live="billInsurer">
                                     <span class="pos-switch__track"></span>
                                 </label>
                             </div>
                             @if($billInsurer)
-                                <div class="d-flex align-items-center justify-content-between mt-2" style="gap:6px;">
-                                    <span class="text-muted">Insurer pays</span>
+                                <div class="mt-2 flex items-center justify-between gap-1.5">
+                                    <span class="text-slate-500">Insurer pays</span>
                                     <input type="number" class="pos-co-input" style="max-width:120px;" min="0" step="0.01"
                                            wire:model.live.debounce.500ms="insurerOverride"
                                            placeholder="{{ number_format(min($computedInsurerAmount, $finalAmount), 2, '.', '') }}">
@@ -620,7 +620,7 @@ window.printReceiptFromDom = function(event) {
                                        placeholder="Reason for changing what the insurer pays (required)">
                             @endif
                         </div>
-                        <div class="pos-sum-row text-info">
+                        <div class="pos-sum-row text-sky-700">
                             <span>Insurer Pays</span>
                             <span>{{ currency() }} {{ number_format($insurerAmount, 2) }}</span>
                         </div>
@@ -703,7 +703,7 @@ window.printReceiptFromDom = function(event) {
 
                         @if($isPartPayment && count($payments) > 0 && $totalPaid < $amountDue)
                             <p class="pos-part-note">
-                                <i class="fas fa-info-circle me-1"></i>
+                                <i class="fas fa-info-circle mr-1"></i>
                                 Deposit {{ currency() }} {{ number_format($totalPaid, 2) }} recorded. Balance {{ currency() }} {{ number_format($amountDue - $totalPaid, 2) }} due on pickup.
                             </p>
                         @endif
@@ -723,20 +723,20 @@ window.printReceiptFromDom = function(event) {
                             {{ $canCheckout ? '' : 'disabled' }}>
                         <span wire:loading.remove wire:target="initiateCheckout">
                             @if($discountBlocked)
-                                <i class="fas fa-lock me-2"></i>Awaiting Discount Approval
+                                <i class="fas fa-lock mr-2"></i>Awaiting Discount Approval
                             @elseif($isPartPayment)
-                                <i class="fas fa-clock me-2"></i>Hold Order — Part Payment
+                                <i class="fas fa-clock mr-2"></i>Hold Order — Part Payment
                             @else
-                                <i class="fas fa-check-circle me-2"></i>Complete Sale
+                                <i class="fas fa-check-circle mr-2"></i>Complete Sale
                             @endif
                         </span>
                         <span wire:loading wire:target="initiateCheckout">
-                            <i class="fas fa-spinner fa-spin me-2"></i>Processing…
+                            <i class="fas fa-spinner fa-spin mr-2"></i>Processing…
                         </span>
                     </button>
                     @if($discountBlocked)
                         <button type="button" class="pos-secondary-cta" wire:click="confirmSellWithoutPendingDiscount">
-                            <i class="fas fa-tag me-1"></i>Sell at full price
+                            <i class="fas fa-tag mr-1"></i>Sell at full price
                         </button>
                     @endif
                 </div>
@@ -770,142 +770,112 @@ window.printReceiptFromDom = function(event) {
         currentUserId = $event.detail.currentUserId;
         expandedCart = null;
     "
-    @close-pending-carts-modal.window="showPendingCartsModal = false">
+    @close-pending-carts-modal.window="showPendingCartsModal = false"
+    @keydown.escape.window="if (showPendingCartsModal) { showPendingCartsModal = false; $dispatch('close-pending-carts-modal') }">
 
-    <div x-show="showPendingCartsModal"
-         x-cloak
-         style="display:block; background:rgba(0,0,0,0.5); z-index:10500; position:fixed; top:0; left:0; width:100%; height:100%; overflow-y:auto;"
+    <div x-show="showPendingCartsModal" x-cloak
+         class="fixed inset-0 z-[10500] flex items-center justify-center bg-slate-900/50 p-4"
          @click.self="showPendingCartsModal = false; $dispatch('close-pending-carts-modal')">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="position:relative; z-index:10501; pointer-events:auto;">
-            <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title">
-                        <i class="fas fa-shopping-cart me-2"></i>Doctor Prescription Carts
-                        <span class="badge bg-white text-info ms-2" x-text="totalCarts"></span>
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white"
-                            @click="showPendingCartsModal = false; $dispatch('close-pending-carts-modal')"></button>
-                </div>
-                <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
-                    <template x-if="pendingCarts.length === 0">
-                        <div class="text-center py-5">
-                            <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
-                            <h5 class="text-muted">No Doctor Prescription Carts</h5>
-                        </div>
-                    </template>
-                    <template x-if="pendingCarts.length > 0">
-                        <div class="accordion" id="pendingCartsAccordion">
-                            <template x-for="(cart, index) in pendingCarts" :key="cart.patient_id">
-                                <div class="card mb-2 shadow-sm"
-                                     :class="cart.is_mine ? 'border-primary' : 'border-secondary'">
-                                    <div class="card-header"
-                                         :class="expandedCart === index ? (cart.is_mine ? 'bg-primary text-white' : 'bg-secondary text-white') : 'bg-light'">
-                                        <div class="row align-items-center">
-                                            <div class="col-md-3">
-                                                <h6 class="mb-0" :class="expandedCart === index ? 'text-white' : 'text-dark'">
-                                                    <i class="fas fa-user-circle me-2"></i>
-                                                    <span x-text="cart.patient_name"></span>
-                                                    <template x-if="cart.is_mine">
-                                                        <span class="badge badge-sm bg-success ms-1">Mine</span>
-                                                    </template>
-                                                </h6>
-                                                <small :class="expandedCart === index ? 'text-white-50' : 'text-muted'">
-                                                    <i class="fas fa-id-card me-1"></i><span x-text="cart.patient_number"></span>
-                                                    <span class="d-block">Consultation #<span x-text="cart.consultation_id"></span></span>
-                                                </small>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <div :class="expandedCart === index ? 'text-white' : 'text-muted'">
-                                                    <i class="fas fa-shopping-basket me-1"></i><span x-text="cart.item_count"></span> items
-                                                    <small class="d-block">Qty: <span x-text="cart.total_quantity"></span></small>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <div :class="expandedCart === index ? 'text-white' : 'text-muted'">
-                                                    <i class="fas fa-user-tie me-1"></i>
-                                                    <small class="d-block" x-text="cart.cashier_name"></small>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <small :class="expandedCart === index ? 'text-white-50' : 'text-muted'">
-                                                    <i class="fas fa-clock me-1"></i><span x-text="cart.created_at_human"></span>
-                                                </small>
-                                            </div>
-                                            <div class="col-md-1 text-center">
-                                                <h5 class="mb-0" :class="expandedCart === index ? 'text-white' : 'text-success'">
-                                                    <span x-text="'{{ currency() }} ' + cart.total_amount.toFixed(2)"></span>
-                                                </h5>
-                                            </div>
-                                            <div class="col-md-2 text-end">
-                                                <button class="btn btn-sm btn-success me-1"
-                                                        @click="$wire.loadCartFromList(cart.patient_id, cart.consultation_id)">
-                                                    <i class="fas fa-download"></i> Load to Cart
-                                                </button>
-                                                <button class="btn btn-sm"
-                                                        :class="expandedCart === index ? 'btn-light' : 'btn-outline-primary'"
-                                                        @click="expandedCart = expandedCart === index ? null : index">
-                                                    <i class="fas" :class="expandedCart === index ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                                                </button>
-                                                <template x-if="cart.is_mine">
-                                                    <button class="btn btn-sm btn-outline-danger ms-1"
-                                                            @click="appConfirm('Delete this cart?').then(ok => ok && $wire.deletePendingCart(cart.patient_id, cart.cashier_id))">
-                                                        <i class="fas fa-trash-alt"></i>
-                                                    </button>
-                                                </template>
-                                                <template x-if="!cart.is_mine">
-                                                    <button class="btn btn-sm btn-outline-secondary ms-1" disabled>
-                                                        <i class="fas fa-lock"></i>
-                                                    </button>
-                                                </template>
-                                            </div>
-                                        </div>
+        <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="pending-carts-title">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+                <h2 id="pending-carts-title" class="text-base font-semibold">
+                    <i class="fas fa-shopping-cart mr-2 text-teal-700" aria-hidden="true"></i>Doctor prescription carts
+                    <span class="ml-2 rounded-full bg-teal-100 px-2 text-xs text-teal-800" x-text="totalCarts"></span>
+                </h2>
+                <button type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" aria-label="Close dialog"
+                        @click="showPendingCartsModal = false; $dispatch('close-pending-carts-modal')">Close</button>
+            </div>
+            <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                <template x-if="pendingCarts.length === 0">
+                    <div class="py-12 text-center text-slate-500">
+                        <i class="fas fa-inbox mb-3 text-5xl text-slate-300" aria-hidden="true"></i>
+                        <p class="font-semibold">No doctor prescription carts</p>
+                    </div>
+                </template>
+                <template x-if="pendingCarts.length > 0">
+                    <div class="space-y-2">
+                        <template x-for="(cart, index) in pendingCarts" :key="cart.patient_id">
+                            <div class="overflow-hidden rounded-lg border" :class="cart.is_mine ? 'border-teal-300' : 'border-slate-200'">
+                                <div class="grid items-center gap-3 px-4 py-3 md:grid-cols-[3fr_2fr_2fr_2fr_1.5fr_auto]"
+                                     :class="expandedCart === index ? 'bg-teal-50' : 'bg-slate-50'">
+                                    <div>
+                                        <p class="font-semibold">
+                                            <i class="fas fa-user-circle mr-1 text-slate-400" aria-hidden="true"></i><span x-text="cart.patient_name"></span>
+                                            <template x-if="cart.is_mine"><span class="ml-1 rounded bg-green-100 px-1.5 text-xs text-green-800">Mine</span></template>
+                                        </p>
+                                        <p class="text-xs text-slate-500"><i class="fas fa-id-card mr-1" aria-hidden="true"></i><span x-text="cart.patient_number"></span></p>
+                                        <p class="text-xs text-slate-500">Consultation #<span x-text="cart.consultation_id"></span></p>
                                     </div>
-                                    <div x-show="expandedCart === index" x-collapse class="card-body">
-                                        <div class="table-responsive">
-                                            <table class="table table-sm table-hover mb-0">
-                                                <thead class="table-light">
-                                                    <tr><th width="5%">#</th><th width="30%">Product</th><th width="10%" class="text-center">Qty</th><th width="15%">Frequency</th><th width="10%">Eye</th><th width="15%" class="text-end">Price</th><th width="15%" class="text-end">Total</th></tr>
-                                                </thead>
-                                                <tbody>
-                                                    <template x-for="(item, itemIndex) in cart.items" :key="itemIndex">
-                                                        <tr>
-                                                            <td class="text-center"><span class="badge badge-secondary" x-text="itemIndex + 1"></span></td>
-                                                            <td><strong x-text="item.product_name"></strong></td>
-                                                            <td class="text-center"><span class="badge badge-info" x-text="item.quantity"></span></td>
-                                                            <td>
-                                                                <template x-if="item.frequency"><span class="badge badge-primary" x-text="item.frequency"></span></template>
-                                                                <template x-if="!item.frequency"><small class="text-muted">—</small></template>
-                                                            </td>
-                                                            <td>
-                                                                <template x-if="item.eye"><span class="badge" :class="{ 'badge-primary': item.eye === 'OD', 'badge-info': item.eye === 'OS', 'badge-success': item.eye === 'OU' }" x-text="item.eye"></span></template>
-                                                                <template x-if="!item.eye"><small class="text-muted">—</small></template>
-                                                            </td>
-                                                            <td class="text-end"><span x-text="'{{ currency() }} ' + item.price.toFixed(2)"></span></td>
-                                                            <td class="text-end"><strong x-text="'{{ currency() }} ' + item.total.toFixed(2)"></strong></td>
-                                                        </tr>
-                                                    </template>
-                                                </tbody>
-                                                <tfoot class="table-light">
-                                                    <tr>
-                                                        <th colspan="6" class="text-end">Cart Total:</th>
-                                                        <th class="text-end"><h5 class="mb-0 text-success"><span x-text="'{{ currency() }} ' + cart.total_amount.toFixed(2)"></span></h5></th>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
-                                        </div>
+                                    <div class="text-sm text-slate-600">
+                                        <i class="fas fa-shopping-basket mr-1" aria-hidden="true"></i><span x-text="cart.item_count"></span> items
+                                        <span class="block text-xs">Qty: <span x-text="cart.total_quantity"></span></span>
+                                    </div>
+                                    <div class="text-sm text-slate-600"><i class="fas fa-user-tie mr-1" aria-hidden="true"></i><span x-text="cart.cashier_name"></span></div>
+                                    <div class="text-xs text-slate-500"><i class="fas fa-clock mr-1" aria-hidden="true"></i><span x-text="cart.created_at_human"></span></div>
+                                    <div class="text-lg font-semibold text-green-700" x-text="'{{ currency() }} ' + cart.total_amount.toFixed(2)"></div>
+                                    <div class="flex justify-end gap-1">
+                                        <button type="button" class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800"
+                                                @click="$wire.loadCartFromList(cart.patient_id, cart.consultation_id)">
+                                            <i class="fas fa-download mr-1" aria-hidden="true"></i>Load to cart
+                                        </button>
+                                        <button type="button" class="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50"
+                                                :aria-expanded="(expandedCart === index).toString()" aria-label="Show items"
+                                                @click="expandedCart = expandedCart === index ? null : index">
+                                            <i class="fas" :class="expandedCart === index ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+                                        </button>
+                                        <template x-if="cart.is_mine">
+                                            <button type="button" class="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-sm text-red-700 hover:bg-red-50" aria-label="Delete cart"
+                                                    @click="appConfirm('Delete this cart?').then(ok => ok && $wire.deletePendingCart(cart.patient_id, cart.cashier_id))">
+                                                <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                            </button>
+                                        </template>
+                                        <template x-if="!cart.is_mine">
+                                            <button type="button" class="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-400" disabled aria-label="Another cashier's cart">
+                                                <i class="fas fa-lock" aria-hidden="true"></i>
+                                            </button>
+                                        </template>
                                     </div>
                                 </div>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-                <div class="modal-footer">
-                    <span class="badge bg-primary me-auto"><i class="fas fa-info-circle me-1"></i>Your carts are highlighted</span>
-                    <button type="button" class="btn btn-secondary"
-                            @click="showPendingCartsModal = false; $dispatch('close-pending-carts-modal')">
-                        <i class="fas fa-times me-1"></i>Close
-                    </button>
-                </div>
+                                <div x-show="expandedCart === index" x-collapse>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-sm">
+                                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                                <tr><th class="px-3 py-2">#</th><th class="px-3 py-2">Product</th><th class="px-3 py-2 text-center">Qty</th><th class="px-3 py-2">Frequency</th><th class="px-3 py-2">Eye</th><th class="px-3 py-2 text-right">Price</th><th class="px-3 py-2 text-right">Total</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="(item, itemIndex) in cart.items" :key="itemIndex">
+                                                    <tr class="border-t border-slate-100">
+                                                        <td class="px-3 py-2 text-slate-500" x-text="itemIndex + 1"></td>
+                                                        <td class="px-3 py-2 font-semibold" x-text="item.product_name"></td>
+                                                        <td class="px-3 py-2 text-center" x-text="item.quantity"></td>
+                                                        <td class="px-3 py-2" x-text="item.frequency || '—'"></td>
+                                                        <td class="px-3 py-2">
+                                                            <template x-if="item.eye"><span class="rounded bg-sky-50 px-1.5 text-xs font-semibold text-sky-800" x-text="item.eye"></span></template>
+                                                            <template x-if="!item.eye"><span class="text-slate-400">—</span></template>
+                                                        </td>
+                                                        <td class="px-3 py-2 text-right" x-text="'{{ currency() }} ' + item.price.toFixed(2)"></td>
+                                                        <td class="px-3 py-2 text-right font-semibold" x-text="'{{ currency() }} ' + item.total.toFixed(2)"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                            <tfoot class="bg-slate-50">
+                                                <tr>
+                                                    <th colspan="6" class="px-3 py-2 text-right">Cart total:</th>
+                                                    <th class="px-3 py-2 text-right text-green-700" x-text="'{{ currency() }} ' + cart.total_amount.toFixed(2)"></th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            <div class="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                <span class="text-xs text-slate-500"><i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Your carts are highlighted</span>
+                <button type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50"
+                        @click="showPendingCartsModal = false; $dispatch('close-pending-carts-modal')">Close</button>
             </div>
         </div>
     </div>
@@ -927,102 +897,81 @@ window.printReceiptFromDom = function(event) {
         totalDiscounts = $event.detail.totalDiscounts;
         expandedDiscount = null;
     "
-    @close-approved-discounts-modal.window="showApprovedDiscountsModal = false">
+    @close-approved-discounts-modal.window="showApprovedDiscountsModal = false"
+    @keydown.escape.window="if (showApprovedDiscountsModal) { showApprovedDiscountsModal = false; $dispatch('close-approved-discounts-modal') }">
 
-    <div x-show="showApprovedDiscountsModal"
-         x-cloak
-         style="display:block; background:rgba(0,0,0,0.5); z-index:10500; position:fixed; top:0; left:0; width:100%; height:100%; overflow-y:auto;"
+    <div x-show="showApprovedDiscountsModal" x-cloak
+         class="fixed inset-0 z-[10500] flex items-center justify-center bg-slate-900/50 p-4"
          @click.self="showApprovedDiscountsModal = false; $dispatch('close-approved-discounts-modal')">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" style="position:relative; z-index:10501; pointer-events:auto;">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title">
-                        <i class="fas fa-tags me-2"></i>Approved Discounts
-                        <span class="badge bg-white text-success ms-2" x-text="totalDiscounts"></span>
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white"
-                            @click="showApprovedDiscountsModal = false; $dispatch('close-approved-discounts-modal')"></button>
-                </div>
-                <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
-                    <template x-if="approvedDiscounts.length === 0">
-                        <div class="text-center py-5">
-                            <i class="fas fa-tags fa-4x text-muted mb-3"></i>
-                            <h5 class="text-muted">No Approved Discounts</h5>
-                        </div>
-                    </template>
-                    <template x-if="approvedDiscounts.length > 0">
-                        <div class="accordion" id="approvedDiscountsAccordion">
-                            <template x-for="(discount, index) in approvedDiscounts" :key="discount.id">
-                                <div class="card mb-2 shadow-sm border-success">
-                                    <div class="card-header" :class="expandedDiscount === index ? 'bg-success text-white' : 'bg-light'">
-                                        <div class="row align-items-center">
-                                            <div class="col-md-3">
-                                                <h6 class="mb-0" :class="expandedDiscount === index ? 'text-white' : 'text-dark'">
-                                                    <i class="fas fa-user-circle me-2"></i>
-                                                    <span x-text="discount.patient_name"></span>
-                                                </h6>
-                                                <small :class="expandedDiscount === index ? 'text-white-50' : 'text-muted'">
-                                                    <i class="fas fa-id-card me-1"></i><span x-text="discount.patient_number"></span>
-                                                </small>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <small :class="expandedDiscount === index ? 'text-white-50' : 'text-muted'">Approved by</small>
-                                                <div :class="expandedDiscount === index ? 'text-white' : 'text-dark'" x-text="discount.approver_name"></div>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <small :class="expandedDiscount === index ? 'text-white-50' : 'text-muted'">Gross</small>
-                                                <div :class="expandedDiscount === index ? 'text-white' : 'text-muted'" x-text="'{{ currency() }} ' + discount.gross_amount.toFixed(2)"></div>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <small :class="expandedDiscount === index ? 'text-white-50' : 'text-muted'">Discount</small>
-                                                <h5 class="mb-0" :class="expandedDiscount === index ? 'text-white' : 'text-success'" x-text="'{{ currency() }} ' + discount.discount_amount.toFixed(2)"></h5>
-                                            </div>
-                                            <div class="col-md-1">
-                                                <small :class="expandedDiscount === index ? 'text-white-50' : 'text-muted'" x-text="discount.approved_at_human"></small>
-                                            </div>
-                                            <div class="col-md-2 text-end">
-                                                <button class="btn btn-sm btn-success me-1"
-                                                        @click="$wire.applyApprovedDiscount(discount.id)">
-                                                    <i class="fas fa-check"></i> Apply to Cart
-                                                </button>
-                                                <button class="btn btn-sm"
-                                                        :class="expandedDiscount === index ? 'btn-light' : 'btn-outline-success'"
-                                                        @click="expandedDiscount = expandedDiscount === index ? null : index">
-                                                    <i class="fas" :class="expandedDiscount === index ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                                                </button>
-                                            </div>
-                                        </div>
+        <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="approved-discounts-title">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+                <h2 id="approved-discounts-title" class="text-base font-semibold">
+                    <i class="fas fa-tags mr-2 text-green-700" aria-hidden="true"></i>Approved discounts
+                    <span class="ml-2 rounded-full bg-green-100 px-2 text-xs text-green-800" x-text="totalDiscounts"></span>
+                </h2>
+                <button type="button" class="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" aria-label="Close dialog"
+                        @click="showApprovedDiscountsModal = false; $dispatch('close-approved-discounts-modal')">Close</button>
+            </div>
+            <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                <template x-if="approvedDiscounts.length === 0">
+                    <div class="py-12 text-center text-slate-500">
+                        <i class="fas fa-tags mb-3 text-5xl text-slate-300" aria-hidden="true"></i>
+                        <p class="font-semibold">No approved discounts</p>
+                    </div>
+                </template>
+                <template x-if="approvedDiscounts.length > 0">
+                    <div class="space-y-2">
+                        <template x-for="(discount, index) in approvedDiscounts" :key="discount.id">
+                            <div class="overflow-hidden rounded-lg border border-green-200">
+                                <div class="grid items-center gap-3 px-4 py-3 md:grid-cols-[3fr_2fr_2fr_2fr_1.5fr_auto]"
+                                     :class="expandedDiscount === index ? 'bg-green-50' : 'bg-slate-50'">
+                                    <div>
+                                        <p class="font-semibold"><i class="fas fa-user-circle mr-1 text-slate-400" aria-hidden="true"></i><span x-text="discount.patient_name"></span></p>
+                                        <p class="text-xs text-slate-500"><i class="fas fa-id-card mr-1" aria-hidden="true"></i><span x-text="discount.patient_number"></span></p>
                                     </div>
-                                    <div x-show="expandedDiscount === index" x-collapse class="card-body">
-                                        <div class="table-responsive">
-                                            <table class="table table-sm table-hover mb-0">
-                                                <thead class="table-light">
-                                                    <tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Total</th></tr>
-                                                </thead>
-                                                <tbody>
-                                                    <template x-for="(item, itemIndex) in discount.items" :key="itemIndex">
-                                                        <tr>
-                                                            <td><strong x-text="item.name"></strong></td>
-                                                            <td class="text-center"><span class="badge badge-info" x-text="item.quantity"></span></td>
-                                                            <td class="text-end"><strong x-text="'{{ currency() }} ' + item.total.toFixed(2)"></strong></td>
-                                                        </tr>
-                                                    </template>
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                    <div><span class="block text-xs text-slate-500">Approved by</span><span class="text-sm" x-text="discount.approver_name"></span></div>
+                                    <div><span class="block text-xs text-slate-500">Gross</span><span class="text-sm" x-text="'{{ currency() }} ' + discount.gross_amount.toFixed(2)"></span></div>
+                                    <div><span class="block text-xs text-slate-500">Discount</span><span class="text-lg font-semibold text-green-700" x-text="'{{ currency() }} ' + discount.discount_amount.toFixed(2)"></span></div>
+                                    <div class="text-xs text-slate-500" x-text="discount.approved_at_human"></div>
+                                    <div class="flex justify-end gap-1">
+                                        <button type="button" class="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800"
+                                                @click="$wire.applyApprovedDiscount(discount.id)">
+                                            <i class="fas fa-check mr-1" aria-hidden="true"></i>Apply to cart
+                                        </button>
+                                        <button type="button" class="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50"
+                                                :aria-expanded="(expandedDiscount === index).toString()" aria-label="Show items"
+                                                @click="expandedDiscount = expandedDiscount === index ? null : index">
+                                            <i class="fas" :class="expandedDiscount === index ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+                                        </button>
                                     </div>
                                 </div>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-                <div class="modal-footer">
-                    <span class="badge bg-success me-auto"><i class="fas fa-check-circle me-1"></i>Apply an approval before checkout</span>
-                    <button type="button" class="btn btn-secondary"
-                            @click="showApprovedDiscountsModal = false; $dispatch('close-approved-discounts-modal')">
-                        <i class="fas fa-times me-1"></i>Close
-                    </button>
-                </div>
+                                <div x-show="expandedDiscount === index" x-collapse>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-sm">
+                                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                                <tr><th class="px-3 py-2">Item</th><th class="px-3 py-2 text-center">Qty</th><th class="px-3 py-2 text-right">Total</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="(item, itemIndex) in discount.items" :key="itemIndex">
+                                                    <tr class="border-t border-slate-100">
+                                                        <td class="px-3 py-2 font-semibold" x-text="item.name"></td>
+                                                        <td class="px-3 py-2 text-center" x-text="item.quantity"></td>
+                                                        <td class="px-3 py-2 text-right font-semibold" x-text="'{{ currency() }} ' + item.total.toFixed(2)"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            <div class="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                <span class="text-xs text-slate-500"><i class="fas fa-check-circle mr-1" aria-hidden="true"></i>Apply an approval before checkout</span>
+                <button type="button" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm hover:bg-slate-50"
+                        @click="showApprovedDiscountsModal = false; $dispatch('close-approved-discounts-modal')">Close</button>
             </div>
         </div>
     </div>
@@ -1036,12 +985,12 @@ window.printReceiptFromDom = function(event) {
 <div class="pos-overlay" style="z-index:11000;">
     <div class="pos-approval-dialog">
         <div class="pos-approval-header">
-            <span><i class="fas fa-user-shield me-2"></i>Manager Approval Required</span>
+            <span><i class="fas fa-user-shield mr-2"></i>Manager Approval Required</span>
             <button wire:click="cancelApproval"><i class="fas fa-times"></i></button>
         </div>
         <div class="pos-approval-body">
             <div class="pos-approval-disc-info">
-                <i class="fas fa-tag me-1"></i>
+                <i class="fas fa-tag mr-1"></i>
                 <strong>Discount:</strong>
                 {{ $discountType === 'percentage' ? number_format($discountValue, 0).'% off' : currency().' '.number_format($discountValue, 2).' off' }}
                 &nbsp;&rarr;&nbsp;
@@ -1051,7 +1000,7 @@ window.printReceiptFromDom = function(event) {
 
             @if($approvalError)
                 <div class="pos-approval-error">
-                    <i class="fas fa-exclamation-circle me-1"></i>{{ $approvalError }}
+                    <i class="fas fa-exclamation-circle mr-1"></i>{{ $approvalError }}
                 </div>
             @endif
 
@@ -1071,11 +1020,11 @@ window.printReceiptFromDom = function(event) {
             </div>
 
             <button class="pos-btn pos-btn--approve" wire:click="approveDiscount" wire:loading.attr="disabled" wire:target="approveDiscount">
-                <span wire:loading.remove wire:target="approveDiscount"><i class="fas fa-check-circle me-2"></i>Approve Discount</span>
-                <span wire:loading wire:target="approveDiscount"><i class="fas fa-spinner fa-spin me-2"></i>Verifying…</span>
+                <span wire:loading.remove wire:target="approveDiscount"><i class="fas fa-check-circle mr-2"></i>Approve Discount</span>
+                <span wire:loading wire:target="approveDiscount"><i class="fas fa-spinner fa-spin mr-2"></i>Verifying…</span>
             </button>
             <button class="pos-btn pos-btn--ghost pos-btn--full" wire:click="cancelApproval" style="margin-top:.5rem;">
-                <i class="fas fa-times me-1"></i>Cancel
+                <i class="fas fa-times mr-1"></i>Cancel
             </button>
         </div>
     </div>
@@ -2479,5 +2428,7 @@ function updateTime() {
 }
 updateTime();
 setInterval(updateTime, 1000);
+
+// Checkout confirmations live in layouts/partials/till-scripts.
 </script>
 </section>

@@ -1,12 +1,12 @@
-<div>
+<div class="clinic-ui ui-page">
     <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2 align-items-center">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Categories <span class="badge badge-secondary">{{ $categories->total() }}</span></h1>
-                    <small class="text-muted">Manage POS, inventory, reporting, and clinical product groups.</small>
+        <div class="w-full">
+            <div class="flex flex-wrap -mx-2 mb-2 items-center">
+                <div class="w-full sm:w-6/12 px-2">
+                    <h1 class="m-0">Categories <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $categories->total() }}</span></h1>
+                    <small class="text-slate-500">Manage POS, inventory, reporting, and clinical product groups.</small>
                 </div>
-                <div class="col-sm-6">
+                <div class="w-full sm:w-6/12 px-2">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
                         <li class="breadcrumb-item active">Categories</li>
@@ -17,36 +17,36 @@
     </div>
 
     <div class="content">
-        <div class="container-fluid">
-            <div class="card category-admin-card">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div class="w-full">
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white category-admin-card">
+                <div class="card-header border-b border-slate-200 px-4 py-2 bg-white flex justify-between items-center">
                     <div>
-                        <h5 class="mb-0 font-weight-bold">Category Directory</h5>
-                        <small class="text-muted">Use clear category types for POS filtering and income reports.</small>
+                        <h5 class="mb-0 font-semibold">Category Directory</h5>
+                        <small class="text-slate-500">Use clear category types for POS filtering and income reports.</small>
                     </div>
-                    <button wire:click.prevent="openCategoryModal" class="btn btn-primary">
+                    <button wire:click.prevent="openCategoryModal" class="btn ui-button ui-button-primary">
                         <i class="fa fa-plus-circle mr-1"></i> Add Category
                     </button>
                 </div>
 
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-5">
-                            <div class="input-group">
-                                <div class="input-group-prepend">
-                                    <span class="input-group-text"><i class="fa fa-search"></i></span>
+                <div class="card-body p-4">
+                    <div class="flex flex-wrap -mx-2 mb-4">
+                        <div class="w-full md:w-5/12 px-2">
+                            <div class="flex items-stretch">
+                                <div class="flex">
+                                    <span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fa fa-search"></i></span>
                                 </div>
                                 <input type="text"
                                     wire:model.live.debounce.300ms="searchTerm"
-                                    class="form-control"
+                                    class="form-control ui-input"
                                     placeholder="Search category, type, or description...">
                             </div>
                         </div>
                     </div>
 
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="thead-light">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table mb-0">
+                            <thead class="">
                                 <tr>
                                     <th>Category</th>
                                     <th>Type</th>
@@ -61,23 +61,23 @@
                                 @forelse ($categories as $category)
                                     <tr>
                                         <td>
-                                            <div class="font-weight-bold">{{ $category->name }}</div>
-                                            <small class="text-muted">{{ $category->description ?: 'No description provided' }}</small>
+                                            <div class="font-semibold">{{ $category->name }}</div>
+                                            <small class="text-slate-500">{{ $category->description ?: 'No description provided' }}</small>
                                         </td>
                                         <td>
-                                            <span class="badge badge-light border">
+                                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
                                                 {{ $categoryTypes[$category->type ?? 'product'] ?? ucfirst($category->type ?? 'Product') }}
                                             </span>
                                         </td>
-                                        <td class="text-center font-weight-bold">{{ $category->products_count }}</td>
-                                        <td class="text-center text-success font-weight-bold">{{ $category->in_stock_products_count }}</td>
-                                        <td class="text-center {{ $category->low_stock_products_count > 0 ? 'text-warning font-weight-bold' : 'text-muted' }}">
+                                        <td class="text-center font-semibold">{{ $category->products_count }}</td>
+                                        <td class="text-center text-green-700 font-semibold">{{ $category->in_stock_products_count }}</td>
+                                        <td class="text-center {{ $category->low_stock_products_count > 0 ? 'text-amber-600 font-semibold' : 'text-slate-500' }}">
                                             {{ $category->low_stock_products_count }}
                                         </td>
                                         <td>
                                             <button type="button"
                                                 wire:click="toggleCategoryStatus({{ $category->id }})"
-                                                class="btn btn-xs {{ $category->is_active ? 'btn-outline-success' : 'btn-outline-secondary' }}">
+                                                class="btn ui-button ui-button-sm {{ $category->is_active ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                                                 <i class="fa {{ $category->is_active ? 'fa-check-circle' : 'fa-pause-circle' }} mr-1"></i>
                                                 {{ $category->is_active ? 'Active' : 'Inactive' }}
                                             </button>
@@ -85,14 +85,14 @@
                                         <td class="text-right">
                                             <button type="button"
                                                 wire:click.prevent="editCategoryModal({{ $category->id }})"
-                                                class="btn btn-sm btn-outline-primary"
+                                                class="btn ui-button ui-button-sm ui-button-secondary"
                                                 title="Edit category">
                                                 <i class="fa fa-edit"></i>
                                             </button>
 
                                             <button type="button"
                                                 wire:click.prevent="confirmCategoryDeletion({{ $category->id }})"
-                                                class="btn btn-sm {{ $category->products_count > 0 ? 'btn-outline-secondary' : 'btn-outline-danger' }}"
+                                                class="btn ui-button ui-button-sm {{ $category->products_count > 0 ? 'ui-button-secondary' : 'ui-button-danger' }}"
                                                 title="{{ $category->products_count > 0 ? 'Move products before deleting this category' : 'Delete category' }}">
                                                 <i class="fa {{ $category->products_count > 0 ? 'fa-lock' : 'fa-trash' }}"></i>
                                             </button>
@@ -100,8 +100,8 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center text-muted py-5">
-                                            <i class="fa fa-folder-open fa-3x mb-3 d-block"></i>
+                                        <td colspan="7" class="text-center text-slate-500 py-12">
+                                            <i class="fa fa-folder-open fa-3x mb-4 block"></i>
                                             No categories found.
                                         </td>
                                     </tr>
@@ -111,77 +111,77 @@
                     </div>
                 </div>
 
-                <div class="card-footer d-flex justify-content-end">
+                <div class="border-t border-slate-200 bg-slate-50 px-4 py-2 flex justify-end">
                     {{ $categories->links() }}
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="addCategoryModal" tabindex="-1" role="dialog" aria-labelledby="categoryModalLabel"
+    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 hidden" id="addCategoryModal" tabindex="-1" role="dialog" aria-labelledby="categoryModalLabel"
         aria-hidden="true" wire:ignore.self>
-        <div class="modal-dialog" role="document">
+        <div class="mx-auto my-8 w-full max-w-lg" role="document">
             <form autocomplete="off" wire:submit="{{ $showEditModal ? 'updateCategory' : 'createCategory' }}">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="categoryModalLabel">
+                <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl">
+                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                        <h5 class="text-base font-semibold" id="categoryModalLabel">
                             {{ $showEditModal ? 'Edit Category' : 'Add New Category' }}
                         </h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <button type="button" class="text-xl leading-none text-slate-500 hover:text-slate-800" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
 
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label for="category-name">Name <span class="text-danger">*</span></label>
+                    <div class="p-4">
+                        <div class="mb-4">
+                            <label for="category-name">Name <span class="text-red-700">*</span></label>
                             <input type="text"
                                 wire:model="state.name"
-                                class="form-control @error('state.name') is-invalid @enderror"
+                                class="form-control ui-input @error('state.name') is-invalid @enderror"
                                 id="category-name"
                                 placeholder="e.g. Drugs, Frames, Lenses">
                             @error('state.name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="ui-error">{{ $message }}</div>
                             @enderror
                         </div>
 
-                        <div class="form-group">
-                            <label for="category-type">Category Type <span class="text-danger">*</span></label>
+                        <div class="mb-4">
+                            <label for="category-type">Category Type <span class="text-red-700">*</span></label>
                             <select wire:model="state.type"
-                                class="form-control @error('state.type') is-invalid @enderror"
+                                class="form-control ui-input @error('state.type') is-invalid @enderror"
                                 id="category-type">
                                 @foreach($categoryTypes as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
                             @error('state.type')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="ui-error">{{ $message }}</div>
                             @enderror
                         </div>
 
-                        <div class="form-group">
+                        <div class="mb-4">
                             <label for="category-description">Description</label>
                             <textarea wire:model="state.description"
-                                class="form-control @error('state.description') is-invalid @enderror"
+                                class="form-control ui-input @error('state.description') is-invalid @enderror"
                                 id="category-description"
                                 rows="3"
                                 placeholder="Optional note for reporting, POS, or inventory use"></textarea>
                             @error('state.description')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                                <div class="ui-error">{{ $message }}</div>
                             @enderror
                         </div>
 
-                        <div class="custom-control custom-switch">
-                            <input type="checkbox" wire:model="state.is_active" class="custom-control-input" id="category-active">
-                            <label class="custom-control-label" for="category-active">Active in POS and inventory workflows</label>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" wire:model="state.is_active" class="rounded border-slate-300 text-teal-700" id="category-active">
+                            <label class="" for="category-active">Active in POS and inventory workflows</label>
                         </div>
                     </div>
 
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+                        <button type="button" class="btn ui-button ui-button-secondary" data-dismiss="modal">
                             <i class="fa fa-times mr-1"></i> Cancel
                         </button>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn ui-button ui-button-primary">
                             <i class="fa fa-save mr-1"></i>
                             {{ $showEditModal ? 'Update Category' : 'Save Category' }}
                         </button>
@@ -212,11 +212,11 @@
 
     <script>
         window.addEventListener('show-addCategoryModal-form', event => {
-            $('#addCategoryModal').modal('show');
+            uiModal('addCategoryModal', true);
         });
 
         window.addEventListener('hide-addCategoryModal-form', event => {
-            $('#addCategoryModal').modal('hide');
+            uiModal('addCategoryModal', false);
         });
 
         window.addEventListener('show-category-delete-confirmation', event => {

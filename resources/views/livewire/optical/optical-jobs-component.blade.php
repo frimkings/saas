@@ -3,7 +3,7 @@
     <div class="ui-heading">
         <div>
             <h1>Job Tracking</h1>
-            <p class="ui-muted">Open jobs that need following up, worst first. Each job is listed once with every reason. Lab turnaround is in <a class="underline" href="{{ route('optical.reports') }}#turnaround">Reports</a>.</p>
+            <p class="ui-muted">Open jobs that need following up, worst first. Each job is listed once with every reason. Lab turnaround is in <a class="underline" wire:navigate href="{{ route('optical.reports') }}#turnaround">Reports</a>.</p>
         </div>
     </div>
 

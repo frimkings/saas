@@ -16,7 +16,7 @@ class SpectacleRenewalApprovalsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $filterStatus = 'pending';
 

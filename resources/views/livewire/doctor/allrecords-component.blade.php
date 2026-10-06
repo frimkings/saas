@@ -1,28 +1,15 @@
-<div>
+<div class="clinic-ui ui-page space-y-5">
 
     {{-- ── Page Header ──────────────────────────────────────────────────── --}}
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row align-items-center mb-3">
-                <div class="col-sm-6">
-                    <h4 class="m-0 font-weight-bold" style="color:#2c3e50;">
-                        <i class="fas fa-folder-open text-primary mr-2"></i>Patient Records
-                    </h4>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right bg-white shadow-sm px-3 py-2 rounded mb-0">
-                        <li class="breadcrumb-item">
-                            <a href="{{ route('doctor.dashboard') }}" class="text-primary">Dashboard</a>
-                        </li>
-                        <li class="breadcrumb-item active text-muted">All Records</li>
-                    </ol>
-                </div>
-            </div>
+    <div class="ui-heading">
+        <div>
+            <h1><i class="fas fa-folder-open mr-2 text-teal-700" aria-hidden="true"></i>Patient records</h1>
+            <p class="ui-muted"><a href="{{ route('doctor.dashboard') }}" class="text-teal-700 no-underline hover:underline">Dashboard</a> / All records</p>
         </div>
     </div>
 
     <div class="content">
-        <div class="container-fluid">
+        <div class="w-full">
 
             {{-- ═══════════════════════════════════════════════════════════ --}}
             {{-- FILTER CARD                                                  --}}
@@ -39,23 +26,23 @@
                              + (int)$hasAge + (int)$hasIop + (int)$hasCdr + (int)$hasVa;
             @endphp
 
-            <div class="filter-card mb-4">
+            <div class="filter-card mb-6">
 
                 {{-- Card Header --}}
                 <div class="filter-card__header">
-                    <div class="d-flex align-items-center">
+                    <div class="flex items-center">
                         <i class="fas fa-sliders-h mr-2"></i>
                         <span>Filter Records</span>
                         @if($filterCount)
                             <span class="filter-badge ml-2">{{ $filterCount }} active</span>
                         @endif
                     </div>
-                    <div class="d-flex align-items-center" style="gap:8px;">
-                        <span class="small text-muted">
-                            <span class="font-weight-bold text-dark">{{ number_format($allrecords->total()) }}</span> records
+                    <div class="flex items-center" style="gap:8px;">
+                        <span class="text-sm text-slate-500">
+                            <span class="font-semibold text-slate-900">{{ number_format($allrecords->total()) }}</span> records
                             <span wire:loading.delay
                                   wire:target="searchTerm,startDate,endDate,genderFilter,diagnosisFilter,ageMin,ageMax,iopMin,iopMax,cdrMin,cdrMax,vaMin,vaMax,resetFilters,clearClinicalFilters,previousPage,nextPage,gotoPage">
-                                <i class="fas fa-spinner fa-spin fa-xs text-muted ml-1"></i>
+                                <i class="fas fa-spinner fa-spin fa-xs text-slate-500 ml-1"></i>
                             </span>
                         </span>
                         <button wire:click="resetFilters" class="btn-reset">
@@ -67,11 +54,11 @@
                 <div class="filter-card__body">
 
                     {{-- ── Row 1: Search · Date · Age · Gender  (4 × col-md-3) --}}
-                    <div class="row align-items-stretch mb-3" style="row-gap:10px;">
+                    <div class="flex flex-wrap -mx-2 items-stretch mb-4" style="row-gap:10px;">
 
                         {{-- Search --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
                                     <i class="fas fa-search mr-1" style="color:#007bff;"></i>Search
                                 </div>
@@ -85,8 +72,8 @@
                         </div>
 
                         {{-- Date Range --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
                                     <i class="fas fa-calendar-alt mr-1" style="color:#20c997;"></i>Date Range
                                 </div>
@@ -97,10 +84,10 @@
                         </div>
 
                         {{-- Age --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
-                                    <i class="fas fa-user-alt mr-1" style="color:#17a2b8;"></i>Age <span class="text-muted">(yrs)</span>
+                                    <i class="fas fa-user-alt mr-1" style="color:#17a2b8;"></i>Age <span class="text-slate-500">(yrs)</span>
                                 </div>
                                 <div class="filter-range__controls">
                                     <input type="number" wire:model.blur="ageMin" class="filter-range__input" placeholder="Min" min="0" max="120">
@@ -111,8 +98,8 @@
                         </div>
 
                         {{-- Gender --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
                                     <i class="fas fa-venus-mars mr-1" style="color:#e83e8c;"></i>Gender
                                 </div>
@@ -130,11 +117,11 @@
                     </div>
 
                     {{-- ── Row 2: Diagnosis · IOP · CDR · VA  (4 × col-md-3) --}}
-                    <div class="row align-items-stretch" style="row-gap:10px;">
+                    <div class="flex flex-wrap -mx-2 items-stretch" style="row-gap:10px;">
 
                         {{-- Diagnosis --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
                                     <i class="fas fa-stethoscope mr-1" style="color:#6610f2;"></i>Diagnosis
                                     @if($hasDiag)
@@ -143,15 +130,15 @@
                                 </div>
                                 <div class="dropdown diag-multiselect" style="position:relative;">
                                     <button type="button" class="diag-toggle filter-diag-trigger">
-                                        <span class="text-truncate" style="max-width:90%;">
+                                        <span class="truncate" style="max-width:90%;">
                                             @if($hasDiag)
-                                                <i class="fas fa-check-circle text-primary mr-1" style="font-size:.75rem;"></i>
+                                                <i class="fas fa-check-circle text-teal-700 mr-1" style="font-size:.75rem;"></i>
                                                 {{ count($diagnosisFilter) }} selected
                                             @else
-                                                <span class="text-muted">All diagnoses — click to filter</span>
+                                                <span class="text-slate-500">All diagnoses — click to filter</span>
                                             @endif
                                         </span>
-                                        <i class="fas fa-chevron-down text-muted" style="font-size:.6rem; flex-shrink:0;"></i>
+                                        <i class="fas fa-chevron-down text-slate-500" style="font-size:.6rem; flex-shrink:0;"></i>
                                     </button>
                                     <div class="diag-panel diag-dropdown-panel">
                                         <div class="diag-search-wrap">
@@ -165,15 +152,15 @@
                                                     <span>{{ $diag->name }}</span>
                                                 </label>
                                             @empty
-                                                <p class="text-muted text-center py-3 mb-0 small">No diagnoses available.</p>
+                                                <p class="text-slate-500 text-center py-4 mb-0 text-sm">No diagnoses available.</p>
                                             @endforelse
-                                            <p class="diag-no-results text-muted text-center py-3 mb-0 small" style="display:none;">No match found.</p>
+                                            <p class="diag-no-results text-slate-500 text-center py-4 mb-0 text-sm" style="display:none;">No match found.</p>
                                         </div>
                                         @if($hasDiag)
                                         <div class="diag-footer">
-                                            <small class="text-muted">{{ count($diagnosisFilter) }} selected</small>
+                                            <small class="text-slate-500">{{ count($diagnosisFilter) }} selected</small>
                                             <button type="button" wire:click="$set('diagnosisFilter', [])"
-                                                    class="btn btn-link btn-sm text-danger p-0" style="font-size:.78rem;">
+                                                    class="btn ui-button ui-button-link ui-button-sm text-red-700 p-0" style="font-size:.78rem;">
                                                 <i class="fas fa-times mr-1"></i>Clear
                                             </button>
                                         </div>
@@ -184,10 +171,10 @@
                         </div>
 
                         {{-- IOP --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
-                                    <i class="fas fa-tachometer-alt mr-1" style="color:#fd7e14;"></i>IOP <span class="text-muted">(mmHg)</span>
+                                    <i class="fas fa-tachometer-alt mr-1" style="color:#fd7e14;"></i>IOP <span class="text-slate-500">(mmHg)</span>
                                 </div>
                                 <div class="filter-range__controls">
                                     <input type="number" wire:model.blur="iopMin" class="filter-range__input" placeholder="Min" min="0" max="100" step="0.5">
@@ -198,10 +185,10 @@
                         </div>
 
                         {{-- CDR --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
-                                    <i class="fas fa-dot-circle mr-1" style="color:#6f42c1;"></i>CDR <span class="text-muted">(0–1)</span>
+                                    <i class="fas fa-dot-circle mr-1" style="color:#6f42c1;"></i>CDR <span class="text-slate-500">(0–1)</span>
                                 </div>
                                 <div class="filter-range__controls">
                                     <input type="number" wire:model.blur="cdrMin" class="filter-range__input" placeholder="0.0" min="0" max="1" step="0.1">
@@ -212,10 +199,10 @@
                         </div>
 
                         {{-- VA --}}
-                        <div class="col-md-3">
-                            <div class="filter-range h-100">
+                        <div class="w-full md:w-3/12 px-2">
+                            <div class="filter-range h-full">
                                 <div class="filter-range__label">
-                                    <i class="fas fa-eye mr-1" style="color:#28a745;"></i>Visual Acuity <span class="text-muted">(OD or OS)</span>
+                                    <i class="fas fa-eye mr-1" style="color:#28a745;"></i>Visual Acuity <span class="text-slate-500">(OD or OS)</span>
                                 </div>
                                 <div class="filter-range__controls">
                                     <select wire:model.live="vaMin" class="filter-range__select">
@@ -242,7 +229,7 @@
                     @if($hasAge || $hasIop || $hasCdr || $hasVa)
                     <div class="mt-2 text-right">
                         <button wire:click="clearClinicalFilters"
-                                class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                                class="btn ui-button ui-button-sm ui-button-danger rounded-full px-4">
                             <i class="fas fa-times mr-1"></i>Clear Clinical Filters
                         </button>
                     </div>
@@ -250,8 +237,8 @@
 
                     {{-- ── Active filter chips ──────────────────────────── --}}
                     @if($filterCount)
-                    <div class="d-flex flex-wrap mt-3 pt-3" style="border-top:1px dashed #e9ecef; gap:6px; align-items:center;">
-                        <span class="small text-muted font-weight-bold mr-1">
+                    <div class="flex flex-wrap mt-4 pt-4" style="border-top:1px dashed #e9ecef; gap:6px; align-items:center;">
+                        <span class="text-sm text-slate-500 font-semibold mr-1">
                             <i class="fas fa-filter mr-1"></i>Active:
                         </span>
                         @if($hasSearch)
@@ -316,41 +303,41 @@
             {{-- Centered overlay spinner — appears after 200ms on any filter/page change --}}
             <div wire:loading.delay.flex
                  wire:target="searchTerm,startDate,endDate,genderFilter,diagnosisFilter,ageMin,ageMax,iopMin,iopMax,cdrMin,cdrMax,vaMin,vaMax,resetFilters,clearClinicalFilters,previousPage,nextPage,gotoPage"
-                 class="position-fixed"
+                 class="fixed"
                  style="display:none; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9999; pointer-events:none; flex-direction:column; align-items:center;">
-                <div class="spinner-border text-primary" role="status" style="width:3rem; height:3rem;">
+                <div class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-current border-r-transparent text-teal-700" role="status" style="width:3rem; height:3rem;">
                     <span class="sr-only">Loading...</span>
                 </div>
-                <small class="text-muted mt-2 font-weight-bold" style="font-size:.8rem;">Searching records…</small>
+                <small class="text-slate-500 mt-2 font-semibold" style="font-size:.8rem;">Searching records…</small>
             </div>
 
-            <div class="card shadow-sm border-0" style="border-radius:10px; overflow:hidden;">
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0" style="border-radius:10px; overflow:hidden;">
 
                 {{-- Export toolbar (shown always; selection count updates dynamically) --}}
-                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-2 px-3">
-                    <div class="d-flex align-items-center" style="gap:8px;">
-                        <span class="small text-muted">
+                <div class="card-header border-b bg-white border-slate-200 flex justify-between items-center py-2 px-4">
+                    <div class="flex items-center" style="gap:8px;">
+                        <span class="text-sm text-slate-500">
                             @if(count($selectedIds))
-                                <span class="font-weight-bold text-dark">{{ count($selectedIds) }}</span> selected
+                                <span class="font-semibold text-slate-900">{{ count($selectedIds) }}</span> selected
                             @else
-                                <span class="text-muted">Select rows to export</span>
+                                <span class="text-slate-500">Select rows to export</span>
                             @endif
                         </span>
                         @if(count($selectedIds))
-                        <span class="text-muted">|</span>
-                        <button wire:click="$set('selectedIds', [])" class="btn btn-link btn-sm text-danger p-0"
+                        <span class="text-slate-500">|</span>
+                        <button wire:click="$set('selectedIds', [])" class="btn ui-button ui-button-link ui-button-sm text-red-700 p-0"
                                 style="font-size:.78rem;">
                             <i class="fas fa-times mr-1"></i>Deselect all
                         </button>
                         @endif
                     </div>
-                    <div class="d-flex align-items-center" style="gap:6px;">
-                        <span class="small text-muted mr-1">
+                    <div class="flex items-center" style="gap:6px;">
+                        <span class="text-sm text-slate-500 mr-1">
                             @if(count($selectedIds) === 0) Export all filtered @else Export selected @endif
                         </span>
                         <a wire:click="exportCsv" href="#"
                            wire:loading.class="disabled" wire:target="exportCsv"
-                           class="btn btn-sm btn-outline-success rounded-pill px-3"
+                           class="btn ui-button ui-button-sm ui-button-secondary rounded-full px-4"
                            style="font-size:.78rem;">
                             <span wire:loading.remove wire:target="exportCsv">
                                 <i class="fas fa-file-csv mr-1"></i>CSV
@@ -361,7 +348,7 @@
                         </a>
                         <a wire:click="exportPdf" href="#"
                            wire:loading.class="disabled" wire:target="exportPdf"
-                           class="btn btn-sm btn-outline-danger rounded-pill px-3"
+                           class="btn ui-button ui-button-sm ui-button-danger rounded-full px-4"
                            style="font-size:.78rem;">
                             <span wire:loading.remove wire:target="exportPdf">
                                 <i class="fas fa-file-pdf mr-1"></i>PDF
@@ -374,11 +361,11 @@
                 </div>
 
                 <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0" style="font-size:.875rem;">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table mb-0" style="font-size:.875rem;">
                             <thead style="background:linear-gradient(135deg,#2c3e50 0%,#3d5166 100%);">
                                 <tr>
-                                    <th class="px-3 border-0" style="width:36px;">
+                                    <th class="px-4 border-0" style="width:36px;">
                                         <input type="checkbox" wire:model.live="selectAll"
                                                class="export-checkbox export-checkbox--all"
                                                title="Select all filtered records">
@@ -395,7 +382,7 @@
                                     <th class="text-white border-0 text-center">
                                         VA <small style="opacity:.7; font-weight:400;">(OD/OS)</small>
                                     </th>
-                                    <th class="text-white border-0 text-right px-3">Actions</th>
+                                    <th class="text-white border-0 text-right px-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody wire:loading.class="opacity-50">
@@ -412,26 +399,26 @@
                                     $vaOS      = $record->vaOS6m;
                                 @endphp
                                 <tr class="{{ in_array((string)$record->id, array_map('strval', $selectedIds)) ? 'table-row--selected' : '' }}">
-                                    <td class="px-3 align-middle">
+                                    <td class="px-4 align-middle">
                                         <input type="checkbox"
                                                wire:model.live="selectedIds"
                                                value="{{ $record->id }}"
                                                class="export-checkbox">
                                     </td>
-                                    <td class="px-2 text-muted align-middle">
+                                    <td class="px-2 text-slate-500 align-middle">
                                         {{ $allrecords->firstItem() + $loop->index }}
                                     </td>
 
                                     <td class="align-middle">
-                                        <div class="font-weight-bold text-dark" style="line-height:1.3;">
+                                        <div class="font-semibold text-slate-900" style="line-height:1.3;">
                                             {{ $patient?->name ?? '—' }}
                                         </div>
-                                        <div class="d-flex align-items-center mt-1" style="gap:6px;">
-                                            <code class="text-muted" style="font-size:.72rem; background:#f8f9fa; padding:1px 5px; border-radius:4px;">
+                                        <div class="flex items-center mt-1" style="gap:6px;">
+                                            <code class="text-slate-500" style="font-size:.72rem; background:#f8f9fa; padding:1px 5px; border-radius:4px;">
                                                 {{ $patient?->pxnumber ?? '—' }}
                                             </code>
                                             @if($patient?->contact)
-                                            <span class="text-muted" style="font-size:.75rem;">
+                                            <span class="text-slate-500" style="font-size:.75rem;">
                                                 {{ $patient->contact }}
                                             </span>
                                             @endif
@@ -440,14 +427,14 @@
 
                                     <td class="align-middle" style="white-space:nowrap;">
                                         @if($age !== null)
-                                        <span class="font-weight-bold text-dark">{{ $age }}</span>
-                                        <span class="text-muted" style="font-size:.75rem;"> yrs</span>
+                                        <span class="font-semibold text-slate-900">{{ $age }}</span>
+                                        <span class="text-slate-500" style="font-size:.75rem;"> yrs</span>
                                         @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-slate-500">—</span>
                                         @endif
                                         @if($gender)
                                         <br>
-                                        <span class="badge mt-1"
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold mt-1"
                                               style="font-size:.68rem;
                                                      background:{{ $gender === 'Male' ? '#dbeafe' : ($gender === 'Female' ? '#fce7f3' : '#f3f4f6') }};
                                                      color:{{ $gender === 'Male' ? '#1d4ed8' : ($gender === 'Female' ? '#9d174d' : '#374151') }};">
@@ -457,15 +444,15 @@
                                     </td>
 
                                     <td class="align-middle" style="white-space:nowrap;">
-                                        <div class="font-weight-bold" style="font-size:.83rem;">
+                                        <div class="font-semibold" style="font-size:.83rem;">
                                             {{ $record->created_at->format('d M Y') }}
                                         </div>
-                                        <div class="text-muted" style="font-size:.75rem;">
+                                        <div class="text-slate-500" style="font-size:.75rem;">
                                             {{ $record->created_at->format('g:i A') }}
                                         </div>
                                     </td>
 
-                                    <td class="align-middle text-muted" style="max-width:155px; font-size:.82rem;">
+                                    <td class="align-middle text-slate-500" style="max-width:155px; font-size:.82rem;">
                                         <span title="{{ $record->chiefComplaint }}">
                                             {{ \Illuminate\Support\Str::limit($record->chiefComplaint, 42) ?: '—' }}
                                         </span>
@@ -475,7 +462,7 @@
                                         @forelse($record->diagnoses as $diag)
                                             <span class="diag-badge">{{ $diag->name }}</span>
                                         @empty
-                                            <span class="text-muted" style="font-size:.8rem;">—</span>
+                                            <span class="text-slate-500" style="font-size:.8rem;">—</span>
                                         @endforelse
                                     </td>
 
@@ -484,33 +471,33 @@
                                         <span class="clinical-val {{ ($iopOD > 21) ? 'clinical-val--high' : '' }}">
                                             {{ $iopOD ?? '—' }}
                                         </span>
-                                        <span class="text-muted" style="font-size:.7rem;">/</span>
+                                        <span class="text-slate-500" style="font-size:.7rem;">/</span>
                                         <span class="clinical-val {{ ($iopOS > 21) ? 'clinical-val--high' : '' }}">
                                             {{ $iopOS ?? '—' }}
                                         </span>
                                         @else
-                                        <span class="text-muted" style="font-size:.8rem;">—</span>
+                                        <span class="text-slate-500" style="font-size:.8rem;">—</span>
                                         @endif
                                     </td>
 
                                     <td class="text-center align-middle" style="white-space:nowrap;">
                                         @if($vaOD || $vaOS)
                                         <span class="clinical-val">{{ $vaOD ?? '—' }}</span>
-                                        <span class="text-muted" style="font-size:.7rem;">/</span>
+                                        <span class="text-slate-500" style="font-size:.7rem;">/</span>
                                         <span class="clinical-val">{{ $vaOS ?? '—' }}</span>
                                         @else
-                                        <span class="text-muted" style="font-size:.8rem;">—</span>
+                                        <span class="text-slate-500" style="font-size:.8rem;">—</span>
                                         @endif
                                     </td>
 
-                                    <td class="text-right px-3 align-middle">
+                                    <td class="text-right px-4 align-middle">
                                         <a href="{{ route('doctor.patient-records', $record->clearance) }}"
-                                           class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm"
+                                           class="btn ui-button ui-button-sm ui-button-primary rounded-full px-4 shadow-sm"
                                            style="font-size:.78rem;">
                                             <i class="fas fa-folder-open mr-1"></i>Open
                                         </a>
                                         <a href="{{ route('doctor.patient-timeline', $record->patient) }}"
-                                           class="btn btn-sm btn-outline-secondary rounded-pill px-2 shadow-sm ml-1"
+                                           class="btn ui-button ui-button-sm ui-button-secondary rounded-full px-2 shadow-sm ml-1"
                                            title="Clinical Timeline" style="font-size:.78rem;">
                                             <i class="fas fa-stream"></i>
                                         </a>
@@ -518,12 +505,12 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-5">
+                                    <td colspan="10" class="text-center py-12">
                                         <div style="color:#dee2e6;">
-                                            <i class="fas fa-search fa-3x mb-3 d-block"></i>
+                                            <i class="fas fa-search fa-3x mb-4 block"></i>
                                         </div>
-                                        <p class="text-muted mb-1 font-weight-bold">No records found</p>
-                                        <p class="text-muted small mb-0">Try adjusting your filters or expanding the date range.</p>
+                                        <p class="text-slate-500 mb-1 font-semibold">No records found</p>
+                                        <p class="text-slate-500 text-sm mb-0">Try adjusting your filters or expanding the date range.</p>
                                     </td>
                                 </tr>
                                 @endforelse
@@ -531,15 +518,15 @@
                         </table>
                     </div>
                 </div>
-                <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center py-3 px-4">
-                    <span class="small text-muted">
+                <div class="border-t border-slate-200 bg-white border-t-0 flex justify-between items-center py-4 px-6">
+                    <span class="text-sm text-slate-500">
                         @if($allrecords->total())
                             Showing
-                            <span class="font-weight-bold text-dark">{{ $allrecords->firstItem() }}</span>
+                            <span class="font-semibold text-slate-900">{{ $allrecords->firstItem() }}</span>
                             –
-                            <span class="font-weight-bold text-dark">{{ $allrecords->lastItem() }}</span>
+                            <span class="font-semibold text-slate-900">{{ $allrecords->lastItem() }}</span>
                             of
-                            <span class="font-weight-bold text-dark">{{ number_format($allrecords->total()) }}</span>
+                            <span class="font-semibold text-slate-900">{{ number_format($allrecords->total()) }}</span>
                         @else
                             No records
                         @endif

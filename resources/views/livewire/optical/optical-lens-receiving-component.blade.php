@@ -1,10 +1,18 @@
 <div class="clinic-ui ui-page space-y-6"
     x-data="{ saved: false, dirty() { const grid = $wire.bulkQuantities || {}; return Object.values(grid).some(row => Object.values(row || {}).some(q => Number(q) > 0)) || !! $wire.excelFile || Number($wire.quantity) > 0 } }"
-    x-init="window.addEventListener('beforeunload', e => { if (! saved && dirty()) { e.preventDefault(); e.returnValue = '' } })"
+    {{-- Warn before unsaved lenses are lost: on closing the tab, and on in-app links (wire:navigate).
+         Alpine listeners, so they go away with the page. --}}
+    x-on:beforeunload.window="if (! saved && dirty()) { $event.preventDefault(); $event.returnValue = '' }"
+    x-on:livewire:navigate.document="if (! saved && ! $event.detail.history && dirty()) {
+            $event.preventDefault();
+            const url = String($event.detail.url);
+            window.appConfirm('Leave without saving? The lenses you entered on this page will be lost.', { confirmText: 'Leave', danger: true })
+                .then(ok => { if (ok) { saved = true; Livewire.navigate(url) } });
+        }"
     x-on:lens-receipt-saved.window="saved = true">
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
-            <a href="{{ route('optical.stock') }}" class="text-xs text-teal-800 underline">← Stock management</a>
+            <a wire:navigate href="{{ route('optical.stock') }}" class="text-xs text-teal-800 underline">← Stock management</a>
             <h1 class="text-xl font-bold text-slate-900">Receive lenses</h1>
             <p class="ui-muted text-xs">Enter a supplier lens order by power grid or Excel order sheet. Stock is recorded only when you confirm the receipt.</p>
         </div>
@@ -37,7 +45,7 @@
                 @if($errors->any())<span class="ml-2 text-red-700" role="alert">Fix the highlighted errors above before receiving.</span>@endif
             </div>
             <div class="flex gap-2">
-                <a href="{{ route('optical.stock') }}" class="ui-button">Cancel</a>
+                <a wire:navigate href="{{ route('optical.stock') }}" class="ui-button">Cancel</a>
                 <button type="submit" wire:loading.attr="disabled" wire:target="save" class="ui-button ui-button-primary">Confirm &amp; Receive Stock</button>
             </div>
         </div>

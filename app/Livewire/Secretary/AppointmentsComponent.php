@@ -1183,7 +1183,7 @@ public $recallCategories = [
             'searchablePatients' => (strlen($this->patientSearch) >= 2)
                 ? Patient::quickSearch($this->patientSearch)->take(7)->get()
                 : [],
-            'doctors' => User::role('Doctor')->orderBy('name')->get(['id', 'name']),
-        ])->layout('layouts.secretary.secretary-layout');
+            'doctors' => User::role('Doctor')->inCurrentClinic(['active'])->orderBy('name')->get(['id', 'name']),
+        ])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

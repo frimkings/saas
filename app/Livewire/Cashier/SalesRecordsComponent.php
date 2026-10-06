@@ -6,6 +6,7 @@ use App\Models\RefundLog;
 use App\Models\Sales;
 use App\Models\AuditTrail;
 use App\Services\NotificationService;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Carbon\Carbon;
@@ -33,7 +34,6 @@ class SalesRecordsComponent extends Component
     public $initiateRefundType = RefundLog::TYPE_REFUND;
     public array $initiateRefundItemIds = [];
 
-    protected $paginationTheme = 'bootstrap';
 
     protected $rules = [
         'initiateRefundReason' => 'required|string|min:10|max:500',
@@ -507,9 +507,7 @@ class SalesRecordsComponent extends Component
                 ->sum('total_amount');
         }
 
-        $layout = $this->businessLine === 'optical' ? 'layouts.optical' : (request()->routeIs('admin.*')
-            ? 'layouts.admin.admin-layout'
-            : 'layouts.secretary.secretary-layout');
+        $layout = $this->businessLine === 'optical' ? 'layouts.optical' : 'layouts.clinic';
 
         $sales = $query->orderBy($this->sortColumn, $this->sortDirection)->paginate(10);
         // Optical draws every listed sale's panel, hidden, so View opens it in the browser without a call.
@@ -526,6 +524,11 @@ class SalesRecordsComponent extends Component
             'totalReceipts' => $totalReceipts,
             'refundCount' => $refundCount,
             'refundTotal' => $refundTotal,
-        ])->layout($layout);
+        ])->layout($layout, ['menu' => 'reception']);
+    }
+
+    public function paginationView(): string
+    {
+        return 'livewire::tailwind';
     }
 }

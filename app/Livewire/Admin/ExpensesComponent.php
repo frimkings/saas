@@ -26,7 +26,7 @@ class ExpensesComponent extends Component
 {
     use WithPagination, WithFileUploads;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public const DEFAULT_OPTICAL_CATEGORIES = ['Rent', 'Salaries & wages', 'Utilities', 'Lab & glazing charges', 'Marketing', 'Repairs & maintenance', 'Transport & delivery', 'Bank & MoMo charges', 'Other'];
 

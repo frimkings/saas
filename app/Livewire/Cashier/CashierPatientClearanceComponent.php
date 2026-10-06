@@ -26,7 +26,7 @@ class CashierPatientClearanceComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // --- Tab state ---
     public string $activeTab = 'pending'; // pending | cleared
@@ -646,6 +646,6 @@ class CashierPatientClearanceComponent extends Component
             'patients', 'clearances', 'services',
             'pendingCount', 'clearedToday', 'paidToday', 'unpaidToday',
             'reconciliation', 'reconciliationTotal'
-        ) + ['visitReceipts' => PatientVisits::enabled()])->layout('layouts.secretary.secretary-layout');
+        ) + ['visitReceipts' => PatientVisits::enabled()])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

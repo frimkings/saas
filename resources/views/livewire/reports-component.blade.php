@@ -1,284 +1,110 @@
-<div class="reports-wrap" style="background:#f0f2f5; min-height:100vh;">
-<div class="row no-gutters">
-
-    {{-- ═══════════════════════════ SIDEBAR ═══════════════════════════ --}}
-    <div class="col-lg-2 reports-sidebar bg-white border-right" style="min-height:100vh;">
-        <div class="p-3">
-
-            <h6 class="sidebar-title font-weight-bold text-primary mb-4 pb-2 border-bottom">
-                <i class="fas fa-chart-bar mr-2"></i>Sales Analytics
-            </h6>
-
-            {{-- PERIOD QUICK-SELECT --}}
-            <div class="mb-4">
-                <p class="sidebar-label">Period</p>
-                <div class="d-flex flex-column" style="gap:4px;">
-                    @foreach([
-                        'today'   => ['label' => 'Today',      'icon' => 'fa-calendar-day'],
-                        'week'    => ['label' => 'This Week',   'icon' => 'fa-calendar-week'],
-                        'month'   => ['label' => 'This Month',  'icon' => 'fa-calendar-alt'],
-                        'range'   => ['label' => 'Custom Range','icon' => 'fa-sliders-h'],
-                        'history' => ['label' => 'All Time',    'icon' => 'fa-history'],
-                        'trash'   => ['label' => 'Refunded',    'icon' => 'fa-undo'],
-                    ] as $tab => $meta)
-                        <button
-                            wire:click="switchTab('{{ $tab }}')"
-                            class="period-btn btn btn-sm text-left {{ $activeTab === $tab ? 'period-btn--active' : '' }}"
-                        >
-                            <i class="fas {{ $meta['icon'] }} mr-2 fa-fw"></i>{{ $meta['label'] }}
-                        </button>
-                    @endforeach
-                </div>
-            </div>
-
-            {{-- DATE RANGE PICKERS --}}
-            @if($activeTab === 'range')
-            <div class="mb-4 pb-3 border-bottom">
-                <p class="sidebar-label"><i class="fas fa-calendar-alt mr-1"></i>Date Range</p>
-                <div class="form-group mb-0"><x-date-range from="fromDate" to="toDate" presets="finance" /></div>
-            </div>
-            @else
-            <div class="mb-4 pb-3 border-bottom">
-                <p class="sidebar-label"><i class="fas fa-calendar-check mr-1"></i>Active Period</p>
-                <div class="small text-muted">
-                    <div>{{ \Carbon\Carbon::parse($fromDate)->format('M d, Y') }}</div>
-                    @if($fromDate !== $toDate)
-                    <div class="text-center my-1" style="font-size:10px; color:#aaa;">to</div>
-                    <div>{{ \Carbon\Carbon::parse($toDate)->format('M d, Y') }}</div>
-                    @endif
-                </div>
-            </div>
-            @endif
-
-            {{-- SEARCH --}}
-            <div class="mb-4 pb-3 border-bottom">
-                <p class="sidebar-label">
-                    <i class="fas fa-search mr-1"></i>
-                    @if($analyticsView === 'items') Search Products
-                    @elseif($analyticsView === 'transactions') Search Transactions
-                    @else Search
-                    @endif
-                </p>
-                <input
-                    type="text"
-                    wire:model.live.debounce.500ms="searchQuery"
-                    class="form-control form-control-sm"
-                    placeholder="{{ $analyticsView === 'items' ? 'Product name...' : 'Transaction or Patient...' }}"
-                >
-            </div>
-
-            {{-- OPTIONS --}}
-            @if($activeTab !== 'trash')
-            <div class="mb-4 pb-3 border-bottom">
-                <p class="sidebar-label"><i class="fas fa-cog mr-1"></i>Options</p>
-                <div class="custom-control custom-switch mb-2">
-                    <input type="checkbox" class="custom-control-input" id="showRefundedSwitch" wire:model.live="showRefunded">
-                    <label class="custom-control-label small" for="showRefundedSwitch">Include Refunds</label>
-                </div>
-                <select wire:model.live="paymentStatus" class="form-control form-control-sm">
-                    <option value="">All Payment Statuses</option>
-                    <option value="paid">Paid</option>
-                    <option value="partial">Partial</option>
-                    <option value="unpaid">Unpaid</option>
-                </select>
-                <select wire:model.live="purchaseType" class="form-control form-control-sm mt-2">
-                    <option value="">All Purchase Types</option>
-                    <option value="patient">Patient Purchase</option>
-                    <option value="direct">Direct Purchase / Walk-in</option>
-                </select>
-                <select wire:model.live="insuranceFilter" class="form-control form-control-sm mt-2">
-                    <option value="">Insured &amp; uninsured bills</option>
-                    <option value="insured">Insured bills only</option>
-                    <option value="uninsured">Exclude insured bills</option>
-                </select>
-            </div>
-            @endif
-
-            {{-- PER PAGE --}}
-            <div class="mb-4 pb-3 border-bottom">
-                <p class="sidebar-label"><i class="fas fa-list-ol mr-1"></i>Per Page</p>
-                <select wire:model.live="perPage" class="form-control form-control-sm">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-            </div>
-
-            {{-- ACTIONS --}}
-            <button wire:click="refreshData" wire:loading.attr="disabled" class="btn btn-primary btn-sm btn-block mb-2">
-                <span wire:loading.remove wire:target="refreshData"><i class="fas fa-sync-alt mr-1"></i>Refresh</span>
-                <span wire:loading wire:target="refreshData"><span class="spinner-border spinner-border-sm mr-1"></span>Refreshing…</span>
-            </button>
-            <button wire:click="resetFilters" class="btn btn-outline-secondary btn-sm btn-block">
-                <i class="fas fa-redo mr-1"></i>Reset Filters
-            </button>
-
-            {{-- ACTIVE FILTERS --}}
-            @if($searchQuery || ($showRefunded && $activeTab !== 'trash') || $paymentStatus || $purchaseType || $insuranceFilter)
-            <div class="mt-3 pt-3 border-top">
-                <p class="sidebar-label">Active Filters</p>
-                @if($searchQuery)
-                    <span class="badge badge-primary d-inline-block mb-1">{{ Str::limit($searchQuery, 12) }}</span>
-                @endif
-                @if($showRefunded && $activeTab !== 'trash')
-                    <span class="badge badge-warning d-inline-block mb-1">+Refunds</span>
-                @endif
-                @if($paymentStatus)
-                    <span class="badge badge-info d-inline-block mb-1">{{ ucfirst($paymentStatus) }}</span>
-                @endif
-                @if($purchaseType)
-                    <span class="badge badge-success d-inline-block mb-1">
-                        {{ $purchaseType === 'patient' ? 'Patient Purchase' : 'Direct Purchase' }}
-                    </span>
-                @endif
-                @if($insuranceFilter)
-                    <span class="badge badge-primary d-inline-block mb-1">{{ $insuranceFilter === 'insured' ? 'Insured only' : 'Uninsured only' }}</span>
-                @endif
-            </div>
-            @endif
-
-        </div>
-    </div>
-    {{-- end sidebar --}}
+<div class="clinic-ui ui-page reports-wrap">
+<div>
 
     {{-- ═══════════════════════════ MAIN CONTENT ═══════════════════════════ --}}
-    <div class="col-lg-10">
-        <div class="p-4">
+    <div>
+        <div>
 
             {{-- PAGE HEADER --}}
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="flex justify-between items-center mb-6">
                 <div>
-                    <h4 class="font-weight-bold mb-0">{{ \App\Support\FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports' }}</h4>
+                    <h4 class="font-semibold mb-0">{{ \App\Support\FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports' }}</h4>
                     @if(\App\Support\FinanceStatements::hasBothLines())
-                        <p class="text-muted small mb-0">Clinic sales only. Optical sales are in the <a href="{{ route('optical.reports') }}">Optical reports</a>.</p>
+                        <p class="text-slate-500 text-sm mb-0">Clinic sales only. Optical sales are in the <a href="{{ route('optical.reports') }}">Optical reports</a>.</p>
                     @endif
-                    <p class="text-muted small mb-0">
-                        @php
-                            $periodLabels = [
-                                'today'   => 'Today — ' . now()->format('F d, Y'),
-                                'week'    => 'This Week — ' . now()->startOfWeek()->format('M d') . ' to ' . now()->endOfWeek()->format('M d, Y'),
-                                'month'   => 'This Month — ' . now()->format('F Y'),
-                                'range'   => \Carbon\Carbon::parse($fromDate)->format('M d, Y') . ' → ' . \Carbon\Carbon::parse($toDate)->format('M d, Y'),
-                                'history' => 'All Time (last 12 months)',
-                                'trash'   => 'Refunded Transactions',
-                            ];
-                        @endphp
-                        {{ $periodLabels[$activeTab] ?? '' }}
-                    </p>
+                    <p class="text-slate-500 text-xs mb-0" title="Figures are kept for 5 minutes; Refresh updates them now."><i class="far fa-clock mr-1" aria-hidden="true"></i>Figures as of {{ $summary['computed_at'] ?? now()->format('H:i') }}</p>
                 </div>
-                <div class="text-right d-flex" style="gap:.5rem;">
-                    <button wire:click="exportCsv" class="btn btn-outline-success btn-sm">
+                <div class="flex items-center gap-2">
+                    <button wire:click="exportCsv" class="ui-button ui-button-secondary ui-button-sm">
                         <i class="fas fa-file-csv mr-1"></i>Export CSV
                     </button>
                     <a
-                        href="{{ route('reports.export.pdf', ['from' => $fromDate, 'to' => $toDate]) }}"
+                        href="{{ route('reports.export.pdf', array_filter([
+                            'from' => $fromDate, 'to' => $toDate, 'search' => $searchQuery,
+                            'trash' => $activeTab === 'trash' ? 1 : null, 'show_refunded' => $showRefunded ? 1 : null,
+                            'payment_status' => $paymentStatus, 'purchase_type' => $purchaseType, 'insurance' => $insuranceFilter,
+                        ])) }}"
                         target="_blank"
-                        class="btn btn-outline-danger btn-sm"
+                        class="ui-button ui-button-danger ui-button-sm"
                     >
                         <i class="fas fa-file-pdf mr-1"></i>Export PDF
                     </a>
                 </div>
             </div>
 
-            {{-- ── KPI CARDS ── --}}
-            <div class="row mb-4" style="gap:0;">
-                {{-- Transactions --}}
-                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
-                    <div class="kpi-card kpi-card--blue h-100">
-                        <div class="kpi-card__icon"><i class="fas fa-receipt"></i></div>
-                        <div class="kpi-card__label">Transactions</div>
-                        <div class="kpi-card__value">{{ number_format($summary['count']) }}</div>
+            {{-- ── FILTERS (one row; wraps only on narrow screens) ── --}}
+            @php
+                $fl = 'mb-1 block truncate text-xs font-semibold uppercase tracking-wide text-slate-500';
+                $fs = 'ui-input !py-1.5 !text-sm';
+                $inTrash = $activeTab === 'trash';
+            @endphp
+            <div class="reports-filters mb-6 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-nowrap">
+                <div class="w-44 shrink-0">
+                    <span class="{{ $fl }}">Period</span>
+                    <x-date-range from="fromDate" to="toDate" presets="finance" class="w-full" />
+                </div>
+                <div class="min-w-[8rem] flex-[2]">
+                    <label for="reports-search" class="{{ $fl }}">Search</label>
+                    <div class="relative">
+                        <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" aria-hidden="true"></i>
+                        <input id="reports-search" type="search" wire:model.live.debounce.500ms="searchQuery" class="{{ $fs }} !pl-8"
+                               placeholder="{{ $analyticsView === 'items' ? 'Product…' : 'Transaction or patient…' }}">
                     </div>
                 </div>
-                {{-- Net Revenue --}}
-                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
-                    <div class="kpi-card kpi-card--green h-100">
-                        <div class="kpi-card__icon"><i class="fas fa-dollar-sign"></i></div>
-                        <div class="kpi-card__label">Net Revenue</div>
-                        <div class="kpi-card__value kpi-card__value--green">{{ currency() }} {{ number_format($summary['total_sales'], 2) }}</div>
-                    </div>
+                <div class="min-w-[6rem] flex-1">
+                    <label for="reports-payment" class="{{ $fl }}">Payment</label>
+                    <select id="reports-payment" wire:model.live="paymentStatus" class="{{ $fs }}" @disabled($inTrash)>
+                        <option value="">All</option>
+                        <option value="paid">Paid</option>
+                        <option value="partial">Partial</option>
+                        <option value="unpaid">Unpaid</option>
+                    </select>
                 </div>
-                {{-- Cost of Sales --}}
-                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
-                    <div class="kpi-card kpi-card--orange h-100">
-                        <div class="kpi-card__icon"><i class="fas fa-shopping-cart"></i></div>
-                        <div class="kpi-card__label">Cost of Sales</div>
-                        <div class="kpi-card__value kpi-card__value--orange">{{ currency() }} {{ number_format($summary['cost_of_sales'], 2) }}</div>
-                    </div>
+                <div class="min-w-[6rem] flex-1">
+                    <label for="reports-purchase" class="{{ $fl }}">Purchase</label>
+                    <select id="reports-purchase" wire:model.live="purchaseType" class="{{ $fs }}" @disabled($inTrash)>
+                        <option value="">All</option>
+                        <option value="patient">Patient</option>
+                        <option value="direct">Walk-in</option>
+                    </select>
                 </div>
-                {{-- Gross Profit --}}
-                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
-                    <div class="kpi-card kpi-card--teal h-100">
-                        <div class="kpi-card__icon"><i class="fas fa-chart-line"></i></div>
-                        <div class="kpi-card__label">Gross Profit</div>
-                        <div class="kpi-card__value kpi-card__value--teal">{{ currency() }} {{ number_format($summary['gross_profit'], 2) }}</div>
-                    </div>
+                <div class="min-w-[6rem] flex-1">
+                    <label for="reports-insurance" class="{{ $fl }}">Insurance</label>
+                    <select id="reports-insurance" wire:model.live="insuranceFilter" class="{{ $fs }}" @disabled($inTrash)>
+                        <option value="">All bills</option>
+                        <option value="insured">Insured only</option>
+                        <option value="uninsured">Uninsured only</option>
+                    </select>
                 </div>
-                {{-- Profit Margin --}}
-                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
-                    <div class="kpi-card kpi-card--purple h-100">
-                        <div class="kpi-card__icon"><i class="fas fa-percentage"></i></div>
-                        <div class="kpi-card__label">Profit Margin</div>
-                        <div class="kpi-card__value kpi-card__value--purple">{{ number_format($summary['margin'], 1) }}%</div>
-                        <div class="kpi-card__progress mt-2">
-                            <div class="progress" style="height:4px; background:rgba(255,255,255,.3);">
-                                <div class="progress-bar bg-white" style="width:{{ min($summary['margin'],100) }}%"></div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="min-w-[6rem] flex-1">
+                    <label for="reports-refunds" class="{{ $fl }}">Refunds</label>
+                    <select id="reports-refunds" wire:model.live="refundMode" class="{{ $fs }} {{ $inTrash ? '!border-red-300 !bg-red-50 !text-red-700' : '' }}">
+                        <option value="exclude">Exclude</option>
+                        <option value="include">Include</option>
+                        <option value="only">Refunded only</option>
+                    </select>
                 </div>
-                {{-- Avg Transaction --}}
-                <div class="col-xl-2 col-md-4 col-sm-6 mb-3">
-                    <div class="kpi-card kpi-card--yellow h-100">
-                        <div class="kpi-card__icon"><i class="fas fa-calculator"></i></div>
-                        <div class="kpi-card__label">Avg Transaction</div>
-                        <div class="kpi-card__value kpi-card__value--yellow">{{ currency() }} {{ number_format($summary['avg_transaction'], 2) }}</div>
-                    </div>
+                <div class="w-16 shrink-0">
+                    <label for="reports-per-page" class="{{ $fl }}">Rows</label>
+                    <select id="reports-per-page" wire:model.live="perPage" class="{{ $fs }} !pl-2 !pr-6">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
                 </div>
-            </div>
-            {{-- end KPI cards --}}
-
-            {{-- Insurance: who pays the bills above, and what insurers paid, owe and did not pay --}}
-            @if($insurance)
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center flex-wrap" style="gap:6px;">
-                    <span class="font-weight-bold"><i class="fas fa-shield-alt text-info mr-1"></i>Insurance</span>
-                    <a href="{{ route('admin.insurance.receivables') }}" class="small">Insurer receivables &rarr;</a>
-                </div>
-                <div class="card-body py-3">
-                    <div class="row text-center">
-                        <div class="col-6 col-md mb-2">
-                            <div class="small text-muted">Patients' share</div>
-                            <div class="h6 font-weight-bold mb-0">{{ currency() }} {{ number_format($insurance['patient'], 2) }}</div>
-                        </div>
-                        <div class="col-6 col-md mb-2">
-                            <div class="small text-muted">Billed to insurers</div>
-                            <div class="h6 font-weight-bold mb-0 text-info">{{ currency() }} {{ number_format($insurance['billed'], 2) }}</div>
-                        </div>
-                        <div class="col-6 col-md mb-2">
-                            <div class="small text-muted">Received from insurers</div>
-                            <div class="h6 font-weight-bold mb-0 text-success">{{ currency() }} {{ number_format($insurance['received'], 2) }}</div>
-                        </div>
-                        <div class="col-6 col-md mb-2">
-                            <div class="small text-muted">Insurer shortfalls written off</div>
-                            <div class="h6 font-weight-bold mb-0 text-danger">{{ currency() }} {{ number_format($insurance['writtenOff'], 2) }}</div>
-                        </div>
-                        <div class="col-12 col-md mb-2">
-                            <div class="small text-muted">Insurers owe now</div>
-                            <div class="h6 font-weight-bold mb-0 text-warning">{{ currency() }} {{ number_format($insurance['owedNow'], 2) }}</div>
-                        </div>
-                    </div>
-                    <div class="small text-muted mt-1">
-                        Net Revenue includes the insurers' share. Received and written off cover payments and write-offs dated in this period;
-                        "owe now" is every insured bill still unpaid by its insurer, whatever its date.
-                    </div>
+                <div class="flex shrink-0 gap-1">
+                    <button type="button" wire:click="refreshData" wire:loading.attr="disabled" class="ui-button ui-button-secondary !px-2.5 !py-1.5" title="Refresh" aria-label="Refresh">
+                        <i class="fas fa-sync-alt" wire:loading.class="fa-spin" wire:target="refreshData" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" wire:click="resetFilters" class="ui-button ui-button-secondary !px-2.5 !py-1.5" title="Reset filters" aria-label="Reset filters">
+                        <i class="fas fa-undo" aria-hidden="true"></i>
+                    </button>
                 </div>
             </div>
-            @endif
 
             {{-- ── ANALYTICS NAVIGATION ── --}}
-            <div class="analytics-nav mb-4">
+            <div class="analytics-nav mb-4" role="tablist" aria-label="Report view">
                 @foreach([
                     'overview'     => ['icon' => 'fa-tachometer-alt', 'label' => 'Overview'],
                     'items'        => ['icon' => 'fa-boxes',           'label' => 'Sales by Item'],
@@ -287,6 +113,7 @@
                     'transactions' => ['icon' => 'fa-list-alt',        'label' => 'Transactions'],
                 ] as $view => $meta)
                     <button
+                        type="button" role="tab" aria-selected="{{ $analyticsView === $view ? 'true' : 'false' }}"
                         wire:click="switchAnalyticsView('{{ $view }}')"
                         class="analytics-nav__btn {{ $analyticsView === $view ? 'analytics-nav__btn--active' : '' }}"
                     >
@@ -295,25 +122,121 @@
                 @endforeach
             </div>
 
+            {{-- ── KPI CARDS (each with a "vs previous period" line) ── --}}
+            @php
+                $money = fn ($v) => currency() . ' ' . number_format($v, 2);
+                $marginBadge = fn ($m) => $m >= 40 ? 'bg-green-100 text-green-800' : ($m >= 20 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800');
+                $kpis = [
+                    ['key' => 'count', 'icon' => 'fa-receipt', 'label' => 'Transactions', 'value' => number_format($summary['count']), 'colour' => 'text-slate-900', 'good' => 'up'],
+                    ['key' => 'total_sales', 'icon' => 'fa-coins', 'label' => 'Net revenue', 'value' => $money($summary['total_sales']), 'colour' => 'text-green-700', 'good' => 'up'],
+                    ['key' => 'cost_of_sales', 'icon' => 'fa-shopping-cart', 'label' => 'Cost of sales', 'value' => $money($summary['cost_of_sales']), 'colour' => 'text-red-700', 'good' => null],
+                    ['key' => 'gross_profit', 'icon' => 'fa-chart-line', 'label' => 'Gross profit', 'value' => $money($summary['gross_profit']), 'colour' => 'text-teal-700', 'good' => 'up'],
+                    ['key' => 'margin', 'icon' => 'fa-percentage', 'label' => 'Profit margin', 'value' => number_format($summary['margin'], 1) . '%', 'colour' => 'text-teal-700', 'good' => 'up', 'points' => true],
+                    ['key' => 'avg_transaction', 'icon' => 'fa-calculator', 'label' => 'Avg transaction', 'value' => $money($summary['avg_transaction']), 'colour' => 'text-slate-900', 'good' => 'up'],
+                ];
+            @endphp
+            <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                @foreach($kpis as $kpi)
+                    @php
+                        $change = null;
+                        if ($previous) {
+                            $now = (float) $summary[$kpi['key']];
+                            $before = (float) $previous[$kpi['key']];
+                            if (!empty($kpi['points'])) {
+                                $diff = round($now - $before, 1);
+                                $change = ['dir' => $diff <=> 0, 'text' => ($diff > 0 ? '+' : '') . number_format($diff, 1) . ' pts'];
+                            } elseif ($before != 0.0) {
+                                $pct = round(($now - $before) / abs($before) * 100);
+                                $change = ['dir' => $pct <=> 0, 'text' => ($pct > 0 ? '+' : '') . number_format($pct) . '%'];
+                            } elseif ($now != 0.0) {
+                                $change = ['dir' => 1, 'text' => 'new'];
+                            } else {
+                                $change = ['dir' => 0, 'text' => 'no change'];
+                            }
+                        }
+                        $tone = match (true) {
+                            !$change || $change['dir'] === 0 || $kpi['good'] === null => 'text-slate-500',
+                            $change['dir'] > 0 => 'text-green-700',
+                            default => 'text-red-700',
+                        };
+                    @endphp
+                    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <p class="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"><i class="fas {{ $kpi['icon'] }} text-slate-400" aria-hidden="true"></i>{{ $kpi['label'] }}</p>
+                        <p class="text-lg font-bold leading-tight {{ $kpi['colour'] }}">{{ $kpi['value'] }}</p>
+                        @if($kpi['key'] === 'margin')
+                            <div class="mt-2 h-1 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-teal-600" style="width:{{ max(0, min($summary['margin'], 100)) }}%"></div></div>
+                        @endif
+                        @if($change)
+                            <p class="mt-1 text-xs {{ $tone }}" title="Previous period: {{ !empty($kpi['points']) ? number_format($previous[$kpi['key']], 1) . '%' : ($kpi['key'] === 'count' ? number_format($previous['count']) : $money($previous[$kpi['key']])) }}">
+                                @if($change['dir'] > 0)<i class="fas fa-caret-up" aria-hidden="true"></i>@elseif($change['dir'] < 0)<i class="fas fa-caret-down" aria-hidden="true"></i>@endif
+                                <span class="font-semibold">{{ $change['text'] }}</span> <span class="text-slate-400">{{ $previous['label'] }}</span>
+                            </p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+            {{-- end KPI cards --}}
+
+            {{-- Insurance: who pays the bills above, and what insurers paid, owe and did not pay --}}
+            @if($insurance)
+            <div class="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3" style="gap:6px;">
+                    <span class="font-semibold"><i class="fas fa-shield-alt text-sky-700 mr-1"></i>Insurance</span>
+                    <a href="{{ route('admin.insurance.receivables') }}" class="text-sm">Insurer receivables &rarr;</a>
+                </div>
+                <div class="p-4 py-4">
+                    <div class="flex flex-wrap -mx-2 text-center">
+                        <div class="w-6/12 w-full md:w-auto md:flex-1 px-2 mb-2">
+                            <div class="text-sm text-slate-500">Patients' share</div>
+                            <div class="text-sm font-semibold mb-0">{{ currency() }} {{ number_format($insurance['patient'], 2) }}</div>
+                        </div>
+                        <div class="w-6/12 w-full md:w-auto md:flex-1 px-2 mb-2">
+                            <div class="text-sm text-slate-500">Billed to insurers</div>
+                            <div class="text-sm font-semibold mb-0 text-sky-700">{{ currency() }} {{ number_format($insurance['billed'], 2) }}</div>
+                        </div>
+                        <div class="w-6/12 w-full md:w-auto md:flex-1 px-2 mb-2">
+                            <div class="text-sm text-slate-500">Received from insurers</div>
+                            <div class="text-sm font-semibold mb-0 text-green-700">{{ currency() }} {{ number_format($insurance['received'], 2) }}</div>
+                        </div>
+                        <div class="w-6/12 w-full md:w-auto md:flex-1 px-2 mb-2">
+                            <div class="text-sm text-slate-500">Insurer shortfalls written off</div>
+                            <div class="text-sm font-semibold mb-0 text-red-700">{{ currency() }} {{ number_format($insurance['writtenOff'], 2) }}</div>
+                        </div>
+                        <div class="w-full md:w-auto md:flex-1 px-2 mb-2">
+                            <div class="text-sm text-slate-500">Insurers owe now</div>
+                            <div class="text-sm font-semibold mb-0 text-amber-600">{{ currency() }} {{ number_format($insurance['owedNow'], 2) }}</div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-slate-500 mt-1">
+                        Net Revenue includes the insurers' share. Received and written off cover payments and write-offs dated in this period;
+                        "owe now" is every insured bill still unpaid by its insurer, whatever its date.
+                    </div>
+                </div>
+            </div>
+            @endif
+
             {{-- ════════════════════════════════════════════════ --}}
             {{-- OVERVIEW TAB                                     --}}
             {{-- ════════════════════════════════════════════════ --}}
             @if($analyticsView === 'overview')
 
-            <div class="row mb-4">
+            <div class="flex flex-wrap -mx-2 mb-6">
                 {{-- Revenue & Profit Trend Chart --}}
-                <div class="col-lg-8 mb-3 mb-lg-0">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-3">
-                            <h6 class="mb-0 font-weight-bold"><i class="fas fa-chart-area mr-2 text-primary"></i>Revenue &amp; Profit Trend</h6>
-                            <select wire:model.live="chartPeriod" class="form-control form-control-sm w-auto">
+                <div class="w-full lg:w-8/12 px-2 mb-4 lg:mb-0">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm h-full">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                            <h3 class="!mb-0 text-sm font-semibold text-slate-800"><i class="fas fa-chart-area mr-2 text-teal-700"></i>Revenue &amp; Profit Trend</h3>
+                            <select wire:model.live="chartPeriod" class="ui-input ui-input-sm w-auto">
                                 <option value="daily">Daily</option>
                                 <option value="weekly">Weekly</option>
                                 <option value="monthly">Monthly</option>
                                 <option value="yearly">Yearly</option>
                             </select>
                         </div>
-                        <div class="card-body">
+                        <div class="p-4">
+                            @if($activeTab === 'today')
+                                <p class="mb-2 text-xs text-slate-500"><i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Today is selected, so the chart shows the surrounding {{ ['weekly' => 'month', 'monthly' => 'year', 'yearly' => 'five years'][$chartPeriod] ?? 'week' }} for context.</p>
+                            @endif
                             <div wire:ignore style="height:260px;">
                                 <canvas id="salesChart"></canvas>
                             </div>
@@ -322,81 +245,32 @@
                 </div>
 
                 {{-- Top 5 Products --}}
-                <div class="col-lg-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header bg-white border-0 py-3">
-                            <h6 class="mb-0 font-weight-bold"><i class="fas fa-trophy mr-2 text-warning"></i>Top 5 Products</h6>
+                <div class="w-full lg:w-4/12 px-2">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm h-full">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                            <h3 class="!mb-0 text-sm font-semibold text-slate-800"><i class="fas fa-trophy mr-2 text-amber-600"></i>Top 5 Products</h3>
                         </div>
-                        <div class="card-body p-0">
-                            <div class="list-group list-group-flush">
+                        <div class="p-0">
+                            <div>
                                 @forelse($this->topProducts(5) as $i => $item)
-                                    <div class="list-group-item border-0 py-3 px-3">
-                                        <div class="d-flex align-items-center">
-                                            <span class="rank-badge rank-badge--{{ $i + 1 }} mr-3">{{ $i + 1 }}</span>
-                                            <div class="flex-grow-1 min-w-0">
-                                                <div class="font-weight-bold small text-truncate">{{ $item->product->name ?? 'Unknown' }}</div>
-                                                <small class="text-muted">{{ number_format($item->qty_sold) }} units sold</small>
+                                    <div class="block w-full border-b border-slate-100 text-left last:border-b-0 py-4 px-4">
+                                        <div class="flex items-center">
+                                            <span class="rank-badge rank-badge--{{ $i + 1 }} mr-4">{{ $i + 1 }}</span>
+                                            <div class="grow min-w-0">
+                                                <div class="font-semibold text-sm truncate">{{ $item->product->name ?? 'Unknown' }}</div>
+                                                <small class="text-slate-500">{{ number_format($item->qty_sold) }} units sold</small>
                                             </div>
                                             <div class="text-right ml-2">
-                                                <div class="font-weight-bold text-success small">{{ currency() }} {{ number_format($item->revenue, 2) }}</div>
+                                                <div class="font-semibold text-green-700 text-sm">{{ currency() }} {{ number_format($item->revenue, 2) }}</div>
                                             </div>
                                         </div>
                                     </div>
                                 @empty
-                                    <div class="list-group-item border-0 text-center py-5 text-muted">
-                                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                    <div class="block w-full px-3 text-center py-12 text-slate-500">
+                                        <i class="fas fa-inbox fa-2x mb-2 block"></i>
                                         <small>No data for this period</small>
                                     </div>
                                 @endforelse
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Profit Breakdown mini cards --}}
-            <div class="row mb-0">
-                <div class="col-md-4 mb-3">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-body py-3">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <p class="text-muted small mb-1 text-uppercase font-weight-bold">Total Revenue</p>
-                                    <h5 class="font-weight-bold mb-0 text-success">{{ currency() }} {{ number_format($summary['total_sales'], 2) }}</h5>
-                                </div>
-                                <div style="width:48px;height:48px;background:rgba(40,167,69,.1);border-radius:12px;display:flex;align-items:center;justify-content:center;">
-                                    <i class="fas fa-arrow-up text-success fa-lg"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-body py-3">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <p class="text-muted small mb-1 text-uppercase font-weight-bold">Cost of Goods Sold</p>
-                                    <h5 class="font-weight-bold mb-0 text-danger">{{ currency() }} {{ number_format($summary['cost_of_sales'], 2) }}</h5>
-                                </div>
-                                <div style="width:48px;height:48px;background:rgba(220,53,69,.1);border-radius:12px;display:flex;align-items:center;justify-content:center;">
-                                    <i class="fas fa-arrow-down text-danger fa-lg"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-body py-3">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <p class="text-muted small mb-1 text-uppercase font-weight-bold">Net Profit</p>
-                                    <h5 class="font-weight-bold mb-0 text-info">{{ currency() }} {{ number_format($summary['profit'], 2) }}</h5>
-                                </div>
-                                <div style="width:48px;height:48px;background:rgba(23,162,184,.1);border-radius:12px;display:flex;align-items:center;justify-content:center;">
-                                    <i class="fas fa-chart-line text-info fa-lg"></i>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -411,19 +285,19 @@
             {{-- ════════════════════════════════════════════════ --}}
             @if($analyticsView === 'items')
 
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 font-weight-bold"><i class="fas fa-boxes mr-2 text-primary"></i>Sales by Item</h6>
-                    <span class="badge badge-secondary">{{ $salesByItems->count() }} products</span>
+            <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <h3 class="!mb-0 text-sm font-semibold text-slate-800"><i class="fas fa-boxes mr-2 text-teal-700"></i>Sales by Item</h3>
+                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $salesByItems->count() }} products</span>
                 </div>
-                <div class="card-body p-0">
+                <div class="p-0">
                     @if($salesByItems->isNotEmpty())
                     @php
                         $maxRevenue = $salesByItems->max('revenue') ?: 1;
                     @endphp
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 analytics-table">
-                            <thead class="thead-light">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table mb-0 analytics-table">
+                            <thead class="">
                                 <tr>
                                     <th>#</th>
                                     <th>Product</th>
@@ -439,49 +313,49 @@
                                 @foreach($salesByItems as $i => $item)
                                 @php
                                     $share = $summary['total_sales'] > 0 ? ($item->revenue / $summary['total_sales']) * 100 : 0;
-                                    $marginClass = $item->margin >= 40 ? 'success' : ($item->margin >= 20 ? 'warning' : 'danger');
+                                    $marginClass = $marginBadge($item->margin);
                                 @endphp
                                 <tr>
-                                    <td class="text-muted small">{{ $i + 1 }}</td>
+                                    <td class="text-slate-500 text-sm">{{ $i + 1 }}</td>
                                     <td>
-                                        <div class="font-weight-bold">{{ $item->product->name ?? 'Unknown' }}</div>
+                                        <div class="font-semibold">{{ $item->product->name ?? 'Unknown' }}</div>
                                         @if($item->product?->category)
-                                            <small class="text-muted">{{ $item->product->category->name }}</small>
+                                            <small class="text-slate-500">{{ $item->product->category->name }}</small>
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge badge-light font-weight-bold">{{ number_format($item->qty_sold) }}</span>
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600">{{ number_format($item->qty_sold) }}</span>
                                     </td>
-                                    <td class="text-right font-weight-bold text-success">{{ currency() }} {{ number_format($item->revenue, 2) }}</td>
-                                    <td class="text-right text-danger">{{ currency() }} {{ number_format($item->cost_of_sales, 2) }}</td>
-                                    <td class="text-right font-weight-bold text-info">{{ currency() }} {{ number_format($item->gross_profit, 2) }}</td>
+                                    <td class="text-right font-semibold text-green-700">{{ currency() }} {{ number_format($item->revenue, 2) }}</td>
+                                    <td class="text-right text-red-700">{{ currency() }} {{ number_format($item->cost_of_sales, 2) }}</td>
+                                    <td class="text-right font-semibold text-teal-700">{{ currency() }} {{ number_format($item->gross_profit, 2) }}</td>
                                     <td class="text-center">
-                                        <span class="badge badge-{{ $marginClass }}">{{ number_format($item->margin, 1) }}%</span>
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $marginClass }}">{{ number_format($item->margin, 1) }}%</span>
                                     </td>
                                     <td style="min-width:120px;">
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress flex-grow-1 mr-2" style="height:6px;">
-                                                <div class="progress-bar bg-primary" style="width:{{ $share }}%"></div>
+                                        <div class="flex items-center">
+                                            <div class="h-2 overflow-hidden rounded-full bg-slate-200 grow mr-2" style="height:6px;">
+                                                <div class="h-full bg-teal-700 text-white" style="width:{{ $share }}%"></div>
                                             </div>
-                                            <small class="text-muted" style="width:34px; text-align:right;">{{ number_format($share, 1) }}%</small>
+                                            <small class="text-slate-500" style="width:34px; text-align:right;">{{ number_format($share, 1) }}%</small>
                                         </div>
                                     </td>
                                 </tr>
                                 @endforeach
                             </tbody>
-                            <tfoot class="bg-light font-weight-bold">
+                            <tfoot class="bg-slate-50 font-semibold">
                                 <tr>
-                                    <td colspan="2" class="text-uppercase small">Totals</td>
+                                    <td colspan="2" class="uppercase text-sm">Totals</td>
                                     <td class="text-center">{{ number_format($salesByItems->sum('qty_sold')) }}</td>
-                                    <td class="text-right text-success">{{ currency() }} {{ number_format($salesByItems->sum('revenue'), 2) }}</td>
-                                    <td class="text-right text-danger">{{ currency() }} {{ number_format($salesByItems->sum('cost_of_sales'), 2) }}</td>
-                                    <td class="text-right text-info">{{ currency() }} {{ number_format($salesByItems->sum('gross_profit'), 2) }}</td>
+                                    <td class="text-right text-green-700">{{ currency() }} {{ number_format($salesByItems->sum('revenue'), 2) }}</td>
+                                    <td class="text-right text-red-700">{{ currency() }} {{ number_format($salesByItems->sum('cost_of_sales'), 2) }}</td>
+                                    <td class="text-right text-teal-700">{{ currency() }} {{ number_format($salesByItems->sum('gross_profit'), 2) }}</td>
                                     <td class="text-center">
                                         @php
                                             $totalRev = $salesByItems->sum('revenue');
                                             $avgMargin = $totalRev > 0 ? ($salesByItems->sum('gross_profit') / $totalRev) * 100 : 0;
                                         @endphp
-                                        <span class="badge badge-{{ $avgMargin >= 40 ? 'success' : ($avgMargin >= 20 ? 'warning' : 'danger') }}">
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $marginBadge($avgMargin) }}">
                                             {{ number_format($avgMargin, 1) }}%
                                         </span>
                                     </td>
@@ -491,8 +365,8 @@
                         </table>
                     </div>
                     @else
-                    <div class="text-center py-5 text-muted">
-                        <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                    <div class="text-center py-12 text-slate-500">
+                        <i class="fas fa-inbox fa-3x mb-4 block"></i>
                         <p class="mb-0">No item sales data for this period.</p>
                     </div>
                     @endif
@@ -508,48 +382,48 @@
             @if($analyticsView === 'categories')
 
             @php
-                $catColors = ['primary','success','info','warning','danger','secondary','dark'];
+                $catColors = ['#087e83', '#0284c7', '#16a34a', '#d97706', '#dc2626', '#64748b', '#4f46e5'];
             @endphp
 
             {{-- Category cards --}}
-            <div class="row mb-4">
+            <div class="flex flex-wrap -mx-2 mb-6">
                 @forelse($salesByCategory as $ci => $cat)
                 @php $color = $catColors[$ci % count($catColors)]; @endphp
-                <div class="col-xl-3 col-md-4 col-sm-6 mb-3">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center mb-3">
-                                <div class="category-icon bg-{{ $color }} text-white mr-3">
+                <div class="w-full xl:w-3/12 md:w-4/12 sm:w-6/12 px-2 mb-4">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm h-full">
+                        <div class="p-4">
+                            <div class="flex items-center mb-4">
+                                <div class="category-icon text-white mr-4" style="background:{{ $color }};">
                                     <i class="fas fa-tag"></i>
                                 </div>
-                                <div class="font-weight-bold">{{ $cat->category_name }}</div>
+                                <div class="font-semibold">{{ $cat->category_name }}</div>
                             </div>
-                            <div class="row text-center">
-                                <div class="col-6 border-right">
-                                    <div class="text-success font-weight-bold small">{{ currency() }} {{ number_format($cat->revenue, 0) }}</div>
-                                    <div class="text-muted" style="font-size:10px;">Revenue</div>
+                            <div class="flex flex-wrap -mx-2 text-center">
+                                <div class="w-6/12 px-2 border-r border-slate-200">
+                                    <div class="text-green-700 font-semibold text-sm">{{ currency() }} {{ number_format($cat->revenue, 0) }}</div>
+                                    <div class="text-slate-500" style="font-size:10px;">Revenue</div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="text-info font-weight-bold small">{{ currency() }} {{ number_format($cat->gross_profit, 0) }}</div>
-                                    <div class="text-muted" style="font-size:10px;">Profit</div>
+                                <div class="w-6/12 px-2">
+                                    <div class="text-teal-700 font-semibold text-sm">{{ currency() }} {{ number_format($cat->gross_profit, 0) }}</div>
+                                    <div class="text-slate-500" style="font-size:10px;">Profit</div>
                                 </div>
                             </div>
                             <hr class="my-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted">{{ number_format($cat->qty_sold) }} units · {{ $cat->transaction_count }} txns</small>
-                                <span class="badge badge-{{ $cat->margin >= 40 ? 'success' : ($cat->margin >= 20 ? 'warning' : 'danger') }}">
+                            <div class="flex justify-between items-center">
+                                <small class="text-slate-500">{{ number_format($cat->qty_sold) }} units · {{ $cat->transaction_count }} txns</small>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $marginBadge($cat->margin) }}">
                                     {{ number_format($cat->margin, 1) }}%
                                 </span>
                             </div>
-                            <div class="progress mt-2" style="height:4px;">
-                                <div class="progress-bar bg-{{ $color }}" style="width:{{ min($cat->margin,100) }}%"></div>
+                            <div class="h-2 overflow-hidden rounded-full bg-slate-200 mt-2" style="height:4px;">
+                                <div class="h-full" style="width:{{ min($cat->margin,100) }}%; background:{{ $color }};"></div>
                             </div>
                         </div>
                     </div>
                 </div>
                 @empty
-                <div class="col-12 text-center py-5 text-muted">
-                    <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                <div class="w-full px-2 text-center py-12 text-slate-500">
+                    <i class="fas fa-inbox fa-3x mb-4 block"></i>
                     <p>No category data for this period.</p>
                 </div>
                 @endforelse
@@ -557,14 +431,14 @@
 
             {{-- Category detail table --}}
             @if($salesByCategory->isNotEmpty())
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h6 class="mb-0 font-weight-bold"><i class="fas fa-table mr-2 text-primary"></i>Category Breakdown</h6>
+            <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <h3 class="!mb-0 text-sm font-semibold text-slate-800"><i class="fas fa-table mr-2 text-teal-700"></i>Category Breakdown</h3>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 analytics-table">
-                            <thead class="thead-light">
+                <div class="p-0">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table mb-0 analytics-table">
+                            <thead class="">
                                 <tr>
                                     <th>Category</th>
                                     <th class="text-center">Transactions</th>
@@ -584,36 +458,36 @@
                                 @endphp
                                 <tr>
                                     <td>
-                                        <span class="badge badge-{{ $color }} mr-1">&nbsp;</span>
-                                        <span class="font-weight-bold">{{ $cat->category_name }}</span>
+                                        <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full align-middle" style="background:{{ $color }};"></span>
+                                        <span class="font-semibold">{{ $cat->category_name }}</span>
                                     </td>
                                     <td class="text-center">{{ number_format($cat->transaction_count) }}</td>
                                     <td class="text-center">{{ number_format($cat->qty_sold) }}</td>
-                                    <td class="text-right font-weight-bold text-success">{{ currency() }} {{ number_format($cat->revenue, 2) }}</td>
-                                    <td class="text-right text-danger">{{ currency() }} {{ number_format($cat->cost_of_sales, 2) }}</td>
-                                    <td class="text-right font-weight-bold text-info">{{ currency() }} {{ number_format($cat->gross_profit, 2) }}</td>
+                                    <td class="text-right font-semibold text-green-700">{{ currency() }} {{ number_format($cat->revenue, 2) }}</td>
+                                    <td class="text-right text-red-700">{{ currency() }} {{ number_format($cat->cost_of_sales, 2) }}</td>
+                                    <td class="text-right font-semibold text-teal-700">{{ currency() }} {{ number_format($cat->gross_profit, 2) }}</td>
                                     <td class="text-center">
-                                        <span class="badge badge-{{ $cat->margin >= 40 ? 'success' : ($cat->margin >= 20 ? 'warning' : 'danger') }}">{{ number_format($cat->margin, 1) }}%</span>
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $marginBadge($cat->margin) }}">{{ number_format($cat->margin, 1) }}%</span>
                                     </td>
                                     <td style="min-width:120px;">
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress flex-grow-1 mr-2" style="height:6px;">
-                                                <div class="progress-bar bg-{{ $color }}" style="width:{{ $share }}%"></div>
+                                        <div class="flex items-center">
+                                            <div class="h-2 overflow-hidden rounded-full bg-slate-200 grow mr-2" style="height:6px;">
+                                                <div class="h-full" style="width:{{ $share }}%; background:{{ $color }};"></div>
                                             </div>
-                                            <small class="text-muted" style="width:34px; text-align:right;">{{ number_format($share, 1) }}%</small>
+                                            <small class="text-slate-500" style="width:34px; text-align:right;">{{ number_format($share, 1) }}%</small>
                                         </div>
                                     </td>
                                 </tr>
                                 @endforeach
                             </tbody>
-                            <tfoot class="bg-light font-weight-bold">
+                            <tfoot class="bg-slate-50 font-semibold">
                                 <tr>
-                                    <td class="text-uppercase small">Totals</td>
+                                    <td class="uppercase text-sm">Totals</td>
                                     <td class="text-center">—</td>
                                     <td class="text-center">{{ number_format($salesByCategory->sum('qty_sold')) }}</td>
-                                    <td class="text-right text-success">{{ currency() }} {{ number_format($salesByCategory->sum('revenue'), 2) }}</td>
-                                    <td class="text-right text-danger">{{ currency() }} {{ number_format($salesByCategory->sum('cost_of_sales'), 2) }}</td>
-                                    <td class="text-right text-info">{{ currency() }} {{ number_format($salesByCategory->sum('gross_profit'), 2) }}</td>
+                                    <td class="text-right text-green-700">{{ currency() }} {{ number_format($salesByCategory->sum('revenue'), 2) }}</td>
+                                    <td class="text-right text-red-700">{{ currency() }} {{ number_format($salesByCategory->sum('cost_of_sales'), 2) }}</td>
+                                    <td class="text-right text-teal-700">{{ currency() }} {{ number_format($salesByCategory->sum('gross_profit'), 2) }}</td>
                                     <td class="text-center">—</td>
                                     <td></td>
                                 </tr>
@@ -639,21 +513,21 @@
                 $pmChartColors = $paymentMethods->pluck('color')->values()->toArray();
             @endphp
 
-            <div class="row">
+            <div class="flex flex-wrap -mx-2">
                 {{-- Donut Chart --}}
-                <div class="col-lg-5 mb-4 mb-lg-0">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header bg-white border-0 py-3">
-                            <h6 class="mb-0 font-weight-bold"><i class="fas fa-chart-pie mr-2 text-primary"></i>How We Receive Payments</h6>
+                <div class="w-full lg:w-5/12 px-2 mb-6 lg:mb-0">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm h-full">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                            <h3 class="!mb-0 text-sm font-semibold text-slate-800"><i class="fas fa-chart-pie mr-2 text-teal-700"></i>How We Receive Payments</h3>
                         </div>
-                        <div class="card-body d-flex align-items-center justify-content-center">
+                        <div class="p-4 flex items-center justify-center">
                             @if($paymentMethods->isNotEmpty())
                                 <div style="position:relative; height:280px; width:100%;">
                                     <canvas id="pmDonutChart"></canvas>
                                 </div>
                             @else
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-chart-pie fa-3x mb-3 d-block" style="opacity:.25;"></i>
+                                <div class="text-center py-12 text-slate-500">
+                                    <i class="fas fa-chart-pie fa-3x mb-4 block" style="opacity:.25;"></i>
                                     <p class="mb-0">No payment data for this period.</p>
                                 </div>
                             @endif
@@ -662,19 +536,19 @@
                 </div>
 
                 {{-- Breakdown Table --}}
-                <div class="col-lg-7">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0 font-weight-bold"><i class="fas fa-table mr-2 text-primary"></i>Payment Breakdown</h6>
+                <div class="w-full lg:w-7/12 px-2">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm h-full">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                            <h3 class="!mb-0 text-sm font-semibold text-slate-800"><i class="fas fa-table mr-2 text-teal-700"></i>Payment Breakdown</h3>
                             @if($pmTotal > 0)
-                                <span class="badge badge-light font-weight-bold">{{ currency() }} {{ number_format($pmTotal, 2) }} total</span>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600">{{ currency() }} {{ number_format($pmTotal, 2) }} total</span>
                             @endif
                         </div>
-                        <div class="card-body p-0">
+                        <div class="p-0">
                             @if($paymentMethods->isNotEmpty())
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0 analytics-table">
-                                    <thead class="thead-light">
+                            <div class="ui-table-wrap">
+                                <table class="table ui-table mb-0 analytics-table">
+                                    <thead class="">
                                         <tr>
                                             <th>Method</th>
                                             <th class="text-center">Transactions</th>
@@ -687,37 +561,37 @@
                                         @php $share = $pmTotal > 0 ? ($pm->total / $pmTotal) * 100 : 0; @endphp
                                         <tr>
                                             <td>
-                                                <span class="d-inline-block rounded-circle mr-2" style="width:10px;height:10px;background:{{ $pm->color }};"></span>
-                                                <span class="font-weight-bold">{{ $pm->label }}</span>
+                                                <span class="inline-block rounded-full mr-2" style="width:10px;height:10px;background:{{ $pm->color }};"></span>
+                                                <span class="font-semibold">{{ $pm->label }}</span>
                                             </td>
                                             <td class="text-center">
-                                                <span class="badge badge-light">{{ number_format($pm->cnt) }}</span>
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600">{{ number_format($pm->cnt) }}</span>
                                             </td>
-                                            <td class="text-right font-weight-bold text-success">{{ currency() }} {{ number_format($pm->total, 2) }}</td>
+                                            <td class="text-right font-semibold text-green-700">{{ currency() }} {{ number_format($pm->total, 2) }}</td>
                                             <td style="min-width:110px;">
-                                                <div class="d-flex align-items-center">
-                                                    <div class="progress flex-grow-1 mr-2" style="height:6px;">
-                                                        <div class="progress-bar" style="width:{{ $share }}%; background:{{ $pm->color }};"></div>
+                                                <div class="flex items-center">
+                                                    <div class="h-2 overflow-hidden rounded-full bg-slate-200 grow mr-2" style="height:6px;">
+                                                        <div class="h-full bg-teal-600" style="width:{{ $share }}%; background:{{ $pm->color }};"></div>
                                                     </div>
-                                                    <small class="text-muted" style="width:36px; text-align:right;">{{ number_format($share, 1) }}%</small>
+                                                    <small class="text-slate-500" style="width:36px; text-align:right;">{{ number_format($share, 1) }}%</small>
                                                 </div>
                                             </td>
                                         </tr>
                                         @endforeach
                                     </tbody>
-                                    <tfoot class="bg-light font-weight-bold">
+                                    <tfoot class="bg-slate-50 font-semibold">
                                         <tr>
                                             <td>Total</td>
                                             <td class="text-center">{{ number_format($paymentMethods->sum('cnt')) }}</td>
-                                            <td class="text-right text-success">{{ currency() }} {{ number_format($pmTotal, 2) }}</td>
+                                            <td class="text-right text-green-700">{{ currency() }} {{ number_format($pmTotal, 2) }}</td>
                                             <td class="text-center">100%</td>
                                         </tr>
                                     </tfoot>
                                 </table>
                             </div>
                             @else
-                            <div class="text-center py-5 text-muted">
-                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                            <div class="text-center py-12 text-slate-500">
+                                <i class="fas fa-inbox fa-3x mb-4 block"></i>
                                 <p class="mb-0">No payment data for this period.</p>
                             </div>
                             @endif
@@ -803,24 +677,24 @@
             {{-- ════════════════════════════════════════════════ --}}
             @if($analyticsView === 'transactions')
 
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 font-weight-bold">
-                        <i class="fas fa-list-alt mr-2 text-primary"></i>
+            <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <h3 class="!mb-0 text-sm font-semibold text-slate-800">
+                        <i class="fas fa-list-alt mr-2 text-teal-700"></i>
                         {{ $activeTab === 'trash' ? 'Refunded Transactions' : 'Transactions' }}
-                    </h6>
-                    <span class="badge badge-secondary">{{ $sales->total() }} total</span>
+                    </h3>
+                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $sales->total() }} total</span>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 analytics-table">
-                            <thead class="thead-light">
+                <div class="p-0">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table mb-0 analytics-table">
+                            <thead class="">
                                 <tr>
-                                    <th class="text-uppercase small">Status / Date</th>
-                                    <th class="text-uppercase small">Patient &amp; Transaction</th>
-                                    <th class="text-uppercase small text-right">Amount</th>
-                                    <th class="text-uppercase small text-right">Profit</th>
-                                    <th class="text-uppercase small text-right">Actions</th>
+                                    <th class="uppercase text-sm">Status / Date</th>
+                                    <th class="uppercase text-sm">Patient &amp; Transaction</th>
+                                    <th class="uppercase text-sm text-right">Amount</th>
+                                    <th class="uppercase text-sm text-right">Profit</th>
+                                    <th class="uppercase text-sm text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -828,37 +702,37 @@
                                 <tr>
                                     <td>
                                         @if($sale->is_refunded)
-                                            <span class="badge badge-danger mb-1">REFUNDED</span>
+                                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800 mb-1">REFUNDED</span>
                                         @else
-                                            <span class="badge badge-success mb-1">COMPLETED</span>
+                                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800 mb-1">COMPLETED</span>
                                         @endif
-                                        <div class="small text-muted">{{ $sale->created_at->format('M d, Y') }}</div>
-                                        <div class="small text-muted">{{ $sale->created_at->format('h:i A') }}</div>
+                                        <div class="text-sm text-slate-500">{{ $sale->created_at->format('M d, Y') }}</div>
+                                        <div class="text-sm text-slate-500">{{ $sale->created_at->format('h:i A') }}</div>
                                     </td>
                                     <td>
-                                        <div class="font-weight-bold">{{ $sale->customer_display_name }}</div>
-                                        <span class="badge {{ $sale->patient_id ? 'badge-primary' : 'badge-success' }}">
+                                        <div class="font-semibold">{{ $sale->customer_display_name }}</div>
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $sale->patient_id ? 'bg-teal-100 text-teal-800' : 'bg-green-100 text-green-800' }}">
                                             {{ $sale->patient_id ? 'Patient Purchase' : 'Direct Purchase' }}
                                         </span>
-                                        <small class="text-muted">#{{ $sale->transaction_id }}</small>
+                                        <small class="text-slate-500">#{{ $sale->transaction_id }}</small>
                                     </td>
-                                    <td class="text-right font-weight-bold">{{ currency() }} {{ number_format($sale->total_amount, 2) }}</td>
+                                    <td class="text-right font-semibold">{{ currency() }} {{ number_format($sale->total_amount, 2) }}</td>
                                     <td class="text-right">
-                                        <span class="font-weight-bold {{ $sale->profit > 0 ? 'text-success' : 'text-danger' }}">
+                                        <span class="font-semibold {{ $sale->profit > 0 ? 'text-green-700' : 'text-red-700' }}">
                                             {{ currency() }} {{ number_format($sale->profit, 2) }}
                                         </span>
                                     </td>
                                     <td class="text-right">
-                                        <div class="btn-group btn-group-sm">
-                                            <button wire:click="showItemsModal({{ $sale->id }})" class="btn btn-outline-primary" title="View Items">
+                                        <div class="inline-flex flex-wrap gap-1">
+                                            <button wire:click="showItemsModal({{ $sale->id }})" class="ui-button ui-button-secondary" title="View Items">
                                                 <i class="fas fa-eye"></i>
                                             </button>
                                             @if($sale->is_refunded)
-                                                <button wire:click="showRefundDetailsModal({{ $sale->id }})" class="btn btn-outline-info" title="Refund Details">
+                                                <button wire:click="showRefundDetailsModal({{ $sale->id }})" class="ui-button ui-button-secondary" title="Refund Details">
                                                     <i class="fas fa-info-circle"></i>
                                                 </button>
                                             @else
-                                                <button wire:click="showRefundModal({{ $sale->id }})" class="btn btn-outline-warning" title="Request Refund">
+                                                <button wire:click="showRefundModal({{ $sale->id }})" class="ui-button ui-button-secondary" title="Request Refund">
                                                     <i class="fas fa-undo"></i>
                                                 </button>
                                             @endif
@@ -867,11 +741,11 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-5">
-                                        <i class="fas fa-inbox fa-3x text-muted mb-3 d-block"></i>
-                                        <p class="text-muted mb-0">No results for the current filters.</p>
+                                    <td colspan="5" class="text-center py-12">
+                                        <i class="fas fa-inbox fa-3x text-slate-500 mb-4 block"></i>
+                                        <p class="text-slate-500 mb-0">No results for the current filters.</p>
                                         @if($searchQuery || $showRefunded)
-                                            <button wire:click="resetFilters" class="btn btn-sm btn-outline-primary mt-2">
+                                            <button wire:click="resetFilters" class="ui-button ui-button-sm ui-button-secondary mt-2">
                                                 Clear Filters
                                             </button>
                                         @endif
@@ -883,7 +757,7 @@
                     </div>
                 </div>
                 @if($sales->hasPages())
-                <div class="card-footer bg-white border-0 py-3">
+                <div class="border-t border-slate-200 bg-white px-4 py-3">
                     {{ $sales->links() }}
                 </div>
                 @endif
@@ -902,24 +776,24 @@
 {{-- ═══════════════════════════ MODALS ═══════════════════════════ --}}
 
 {{-- View Items Modal --}}
-<div wire:ignore.self class="modal fade" id="itemsModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title font-weight-bold">
+<div wire:ignore.self class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 hidden" id="itemsModal" tabindex="-1" role="dialog">
+    <div class="mx-auto my-8 w-full max-w-3xl" role="document">
+        <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 bg-teal-700 text-white">
+                <h5 class="text-base font-semibold">
                     <i class="fas fa-receipt mr-2"></i>Transaction #{{ $viewingSale->transaction_id ?? '' }}
                 </h5>
-                <button type="button" class="close text-white" wire:click="closeItemsModal"><span>&times;</span></button>
+                <button type="button" class="text-xl leading-none hover:text-slate-800 text-white" wire:click="closeItemsModal"><span>&times;</span></button>
             </div>
-            <div class="modal-body p-0">
+            <div class="p-0">
                 @if($viewingSale)
-                <div class="px-4 pt-3 pb-1 bg-light border-bottom d-flex justify-content-between">
-                    <div><span class="text-muted small">Customer:</span> <strong>{{ $viewingSale->customer_display_name }}</strong></div>
-                    <div><span class="text-muted small">Date:</span> <strong>{{ $viewingSale->created_at->format('M d, Y h:i A') }}</strong></div>
+                <div class="px-6 pt-4 pb-1 bg-slate-50 border-b border-slate-200 flex justify-between">
+                    <div><span class="text-slate-500 text-sm">Customer:</span> <strong>{{ $viewingSale->customer_display_name }}</strong></div>
+                    <div><span class="text-slate-500 text-sm">Date:</span> <strong>{{ $viewingSale->created_at->format('M d, Y h:i A') }}</strong></div>
                 </div>
-                <div class="table-responsive">
-                    <table class="table mb-0 analytics-table">
-                        <thead class="thead-light">
+                <div class="ui-table-wrap">
+                    <table class="table ui-table mb-0 analytics-table">
+                        <thead class="">
                             <tr>
                                 <th>Product</th>
                                 <th class="text-center">Qty</th>
@@ -935,21 +809,21 @@
                             @endphp
                             <tr>
                                 <td>
-                                    <div class="font-weight-bold">{{ $item->product->name ?? 'N/A' }}</div>
+                                    <div class="font-semibold">{{ $item->product->name ?? 'N/A' }}</div>
                                     @if(isset($item->product->description) && $item->product->description)
-                                        <small class="text-muted">{{ Str::limit($item->product->description, 50) }}</small>
+                                        <small class="text-slate-500">{{ Str::limit($item->product->description, 50) }}</small>
                                     @endif
                                 </td>
                                 <td class="text-center">{{ $qty }}</td>
                                 <td class="text-right">{{ currency() }} {{ number_format($unitPrice, 2) }}</td>
-                                <td class="text-right font-weight-bold">{{ currency() }} {{ number_format($item->subtotal, 2) }}</td>
+                                <td class="text-right font-semibold">{{ currency() }} {{ number_format($item->subtotal, 2) }}</td>
                             </tr>
                             @endforeach
                         </tbody>
-                        <tfoot class="bg-light">
-                            <tr class="font-weight-bold">
-                                <td colspan="3" class="text-right text-uppercase small">Total</td>
-                                <td class="text-right text-success">{{ currency() }} {{ number_format($viewingSale->total_amount, 2) }}</td>
+                        <tfoot class="bg-slate-50">
+                            <tr class="font-semibold">
+                                <td colspan="3" class="text-right uppercase text-sm">Total</td>
+                                <td class="text-right text-green-700">{{ currency() }} {{ number_format($viewingSale->total_amount, 2) }}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -961,37 +835,37 @@
 </div>
 
 {{-- Refund Request Modal --}}
-<div wire:ignore.self class="modal fade" id="refundModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title"><i class="fas fa-undo mr-2"></i>Request Refund</h5>
-                <button type="button" class="close" wire:click="cancelRefund"><span>&times;</span></button>
+<div wire:ignore.self class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 hidden" id="refundModal" tabindex="-1" role="dialog">
+    <div class="mx-auto my-8 w-full max-w-lg" role="document">
+        <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 bg-amber-400 text-slate-900">
+                <h5 class="text-base font-semibold"><i class="fas fa-undo mr-2"></i>Request Refund</h5>
+                <button type="button" class="text-xl leading-none text-slate-500 hover:text-slate-800" wire:click="cancelRefund"><span>&times;</span></button>
             </div>
-            <div class="modal-body">
+            <div class="p-4">
                 @if($refundingSale)
-                <div class="alert alert-info border-0 small">
+                <div class="rounded-lg border px-3 py-2 text-sm border-sky-200 bg-sky-50 text-sky-900">
                     Submitting a refund request for
                     <strong>#{{ $refundingSale->transaction_id }}</strong>
                     &mdash; {{ $refundingSale->items->count() }} item(s).
                     A manager will review and approve before the refund is executed.
                 </div>
-                <div class="form-group mb-0">
-                    <label class="font-weight-bold">Reason for Refund <span class="text-danger">*</span></label>
+                <div class="mb-0">
+                    <label class="font-semibold">Reason for Refund <span class="text-red-700">*</span></label>
                     <textarea
                         wire:model="refundReason"
-                        class="form-control @error('refundReason') is-invalid @enderror"
+                        class="ui-input @error('refundReason') is-invalid @enderror"
                         rows="4"
                         placeholder="Provide a detailed reason for this refund…"
                     ></textarea>
-                    @error('refundReason')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    <small class="form-text text-muted">Minimum 10 characters required</small>
+                    @error('refundReason')<div class="ui-error">{{ $message }}</div>@enderror
+                    <small class="mt-1 block text-xs text-slate-500">Minimum 10 characters required</small>
                 </div>
                 @endif
             </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-secondary" wire:click="cancelRefund">Cancel</button>
-                <button type="button" class="btn btn-warning" wire:click="processRefund">
+            <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 bg-slate-50">
+                <button type="button" class="ui-button ui-button-secondary" wire:click="cancelRefund">Cancel</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="processRefund">
                     <i class="fas fa-paper-plane mr-2"></i>Submit Request
                 </button>
             </div>
@@ -1000,36 +874,36 @@
 </div>
 
 {{-- Refund Details Modal --}}
-<div wire:ignore.self class="modal fade" id="refundDetailsModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title"><i class="fas fa-info-circle mr-2"></i>Refund Information</h5>
-                <button type="button" class="close text-white" wire:click="closeRefundDetailsModal"><span>&times;</span></button>
+<div wire:ignore.self class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 hidden" id="refundDetailsModal" tabindex="-1" role="dialog">
+    <div class="mx-auto my-8 w-full max-w-lg" role="document">
+        <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <h5 class="text-base font-semibold"><i class="fas fa-info-circle mr-2 text-teal-700"></i>Refund Information</h5>
+                <button type="button" class="text-xl leading-none text-slate-500 hover:text-slate-800" wire:click="closeRefundDetailsModal" aria-label="Close dialog"><span>&times;</span></button>
             </div>
-            <div class="modal-body">
+            <div class="p-4">
                 @if($viewingRefundSale)
-                <div class="mb-3">
-                    <label class="text-muted small text-uppercase font-weight-bold">Transaction ID</label>
-                    <div class="h5 mb-0">#{{ $viewingRefundSale->transaction_id }}</div>
+                <div class="mb-4">
+                    <label class="text-slate-500 text-sm uppercase font-semibold">Transaction ID</label>
+                    <div class="text-base font-semibold mb-0">#{{ $viewingRefundSale->transaction_id }}</div>
                 </div>
-                <div class="mb-3">
-                    <label class="text-muted small text-uppercase font-weight-bold">Refund Reason</label>
-                    <div class="p-3 bg-light border rounded small">{{ $this->refundLog?->reason ?? $viewingRefundSale->refund_reason ?? '—' }}</div>
+                <div class="mb-4">
+                    <label class="text-slate-500 text-sm uppercase font-semibold">Refund Reason</label>
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-md text-sm">{{ $this->refundLog?->reason ?? $viewingRefundSale->refund_reason ?? '—' }}</div>
                 </div>
-                <div class="row">
-                    <div class="col-6">
-                        <label class="text-muted small text-uppercase font-weight-bold">Refunded At</label>
-                        <div class="small">{{ $viewingRefundSale->refunded_at?->format('M d, Y h:i A') ?? '—' }}</div>
+                <div class="flex flex-wrap -mx-2">
+                    <div class="w-6/12 px-2">
+                        <label class="text-slate-500 text-sm uppercase font-semibold">Refunded At</label>
+                        <div class="text-sm">{{ $viewingRefundSale->refunded_at?->format('M d, Y h:i A') ?? '—' }}</div>
                     </div>
-                    <div class="col-6">
-                        <label class="text-muted small text-uppercase font-weight-bold">Processed By</label>
-                        <div class="small">{{ $viewingRefundSale->refundedBy->name ?? 'System' }}</div>
+                    <div class="w-6/12 px-2">
+                        <label class="text-slate-500 text-sm uppercase font-semibold">Processed By</label>
+                        <div class="text-sm">{{ $viewingRefundSale->refundedBy->name ?? 'System' }}</div>
                     </div>
                 </div>
                 @if($this->refundLog)
                     <hr>
-                    <small class="text-muted">Refund Log ID: {{ $this->refundLog->id }}</small>
+                    <small class="text-slate-500">Refund Log ID: {{ $this->refundLog->id }}</small>
                 @endif
                 @endif
             </div>
@@ -1038,8 +912,6 @@
 </div>
 
 {{-- ═══════════════════════════ SCRIPTS ═══════════════════════════ --}}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 <script>
 document.addEventListener('livewire:init', function () {
@@ -1135,112 +1007,28 @@ document.addEventListener('livewire:init', function () {
     window.addEventListener('update-chart', e => initSalesChart(e.detail));
 
     /* ─── Modal events ─── */
-    window.addEventListener('show-itemsModal-form',         () => $('#itemsModal').modal('show'));
-    window.addEventListener('hide-itemsModal-modal',        () => $('#itemsModal').modal('hide'));
-    window.addEventListener('show-refundModal-form',        () => $('#refundModal').modal('show'));
-    window.addEventListener('hide-refundModal-modal',       () => $('#refundModal').modal('hide'));
-    window.addEventListener('show-refundDetailsModal-form', () => $('#refundDetailsModal').modal('show'));
-    window.addEventListener('hide-refundDetailsModal-modal',() => $('#refundDetailsModal').modal('hide'));
+    window.addEventListener('show-itemsModal-form',         () => uiModal('itemsModal', true));
+    window.addEventListener('hide-itemsModal-modal',        () => uiModal('itemsModal', false));
+    window.addEventListener('show-refundModal-form',        () => uiModal('refundModal', true));
+    window.addEventListener('hide-refundModal-modal',       () => uiModal('refundModal', false));
+    window.addEventListener('show-refundDetailsModal-form', () => uiModal('refundDetailsModal', true));
+    window.addEventListener('hide-refundDetailsModal-modal',() => uiModal('refundDetailsModal', false));
 
-    /* ─── Toast notifications ─── */
-    window.addEventListener('notify', e => {
-        const cls   = e.detail.type === 'success' ? 'alert-success' : e.detail.type === 'error' ? 'alert-danger' : 'alert-info';
-        const title = e.detail.type === 'success' ? 'Success!' : e.detail.type === 'error' ? 'Error!' : 'Info';
-        const el    = document.createElement('div');
-        el.className = `alert ${cls} alert-dismissible fade show position-fixed`;
-        el.style.cssText = 'top:20px;right:20px;z-index:9999;min-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.15);border-radius:10px;';
-        el.innerHTML = `<strong>${title}</strong> ${e.detail.message}
-            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>`;
-        document.body.appendChild(el);
-        setTimeout(() => el.remove(), 4000);
-    });
+    // Toasts for `notify` come from the layout (layouts/partials/toasts).
 });
 </script>
 
 {{-- ═══════════════════════════ STYLES ═══════════════════════════ --}}
 <style>
-/* ── Sidebar ── */
-.reports-sidebar { position: sticky; top: 0; }
-.sidebar-title { font-size: .9rem; }
-.sidebar-label {
-    font-size: .7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #6c757d;
-    margin-bottom: .4rem;
-}
-.period-btn {
-    background: transparent;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    color: #495057;
-    font-size: .82rem;
-    padding: .45rem .75rem;
-    transition: all .15s;
-}
-.period-btn:hover { background: #f8f9fa; border-color: #ced4da; color: #007bff; }
-.period-btn--active { background: #007bff !important; border-color: #007bff !important; color: #fff !important; font-weight: 600; }
-
-/* ── KPI Cards ── */
-.kpi-card {
-    background: #fff;
-    border-radius: 14px;
-    padding: 1.1rem 1.2rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06);
-    position: relative;
-    overflow: hidden;
-}
-.kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    border-radius: 14px 14px 0 0;
-}
-.kpi-card--blue::before   { background: #007bff; }
-.kpi-card--green::before  { background: #28a745; }
-.kpi-card--orange::before { background: #fd7e14; }
-.kpi-card--teal::before   { background: #20c997; }
-.kpi-card--purple::before { background: #6f42c1; }
-.kpi-card--yellow::before { background: #ffc107; }
-.kpi-card__icon {
-    font-size: 1.1rem;
-    margin-bottom: .4rem;
-    color: #adb5bd;
-}
-.kpi-card--blue .kpi-card__icon   { color: #007bff; }
-.kpi-card--green .kpi-card__icon  { color: #28a745; }
-.kpi-card--orange .kpi-card__icon { color: #fd7e14; }
-.kpi-card--teal .kpi-card__icon   { color: #20c997; }
-.kpi-card--purple .kpi-card__icon { color: #6f42c1; }
-.kpi-card--yellow .kpi-card__icon { color: #ffc107; }
-.kpi-card__label {
-    font-size: .7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: #6c757d;
-    margin-bottom: .25rem;
-}
-.kpi-card__value {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #212529;
-    line-height: 1.2;
-}
-.kpi-card__value--green  { color: #28a745; }
-.kpi-card__value--orange { color: #fd7e14; }
-.kpi-card__value--teal   { color: #20c997; }
-.kpi-card__value--purple { color: #6f42c1; }
-.kpi-card__value--yellow { color: #e0a800; }
+/* ── Filter bar ── */
+.reports-filters .drp-trigger { min-width: 0; }
 
 /* ── Analytics Nav ── */
 .analytics-nav {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid #e2e8f0;
     padding-bottom: 0;
 }
 .analytics-nav__btn {
@@ -1255,8 +1043,8 @@ document.addEventListener('livewire:init', function () {
     transition: all .15s;
     border-radius: 0;
 }
-.analytics-nav__btn:hover { color: #007bff; }
-.analytics-nav__btn--active { color: #007bff; border-bottom-color: #007bff; font-weight: 700; }
+.analytics-nav__btn:hover { color: #087e83; }
+.analytics-nav__btn--active { color: #087e83; border-bottom-color: #087e83; font-weight: 700; }
 
 /* ── Analytics Table ── */
 .analytics-table th {
@@ -1300,8 +1088,5 @@ document.addEventListener('livewire:init', function () {
     flex-shrink: 0;
 }
 
-@media (max-width: 991px) {
-    .reports-sidebar { position: static; border-right: none !important; border-bottom: 1px solid #dee2e6; }
-}
 </style>
 </div>

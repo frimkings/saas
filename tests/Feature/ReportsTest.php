@@ -64,6 +64,136 @@ class ReportsTest extends TestCase
         Livewire::test(ReportsComponent::class);
     }
 
+    // ── Filter bar ───────────────────────────────────────────────────────
+
+    public function test_period_picker_switches_between_today_and_a_custom_range(): void
+    {
+        Livewire::test(ReportsComponent::class)
+            ->assertSee('Refunded only')->assertSee('id="reports-refunds"', false)
+            ->assertDontSee('Custom Range')
+            ->set('fromDate', now()->subDays(6)->format('Y-m-d'))
+            ->assertSet('activeTab', 'range')
+            ->set('fromDate', now()->format('Y-m-d'))
+            ->assertSet('activeTab', 'today');
+    }
+
+    public function test_refunds_filter_includes_shows_only_and_excludes_refunds(): void
+    {
+        $this->makeSale(['is_refunded' => true, 'refunded_at' => now()]);
+
+        Livewire::test(ReportsComponent::class)
+            ->set('refundMode', 'include')
+            ->assertSet('showRefunded', true)
+            ->assertSet('activeTab', 'today')
+            ->set('refundMode', 'only')
+            ->assertSet('activeTab', 'trash')
+            ->assertSet('showRefunded', true)
+            ->set('refundMode', 'exclude')
+            ->assertSet('activeTab', 'today')
+            ->assertSet('showRefunded', false)
+            ->assertSet('fromDate', now()->format('Y-m-d'));
+    }
+
+    public function test_refresh_drops_cached_figures_so_a_new_sale_shows_at_once(): void
+    {
+        $this->makeSale();
+        $component = Livewire::test(ReportsComponent::class);
+        $before = $component->viewData('summary')['count'];
+
+        $this->makeSale();
+        $this->assertSame($before, Livewire::test(ReportsComponent::class)->viewData('summary')['count'], 'Figures are kept for 5 minutes.');
+
+        $component->call('refreshData');
+        $this->assertSame($before + 1, $component->viewData('summary')['count']);
+    }
+
+    public function test_pdf_link_and_export_use_the_screen_filters(): void
+    {
+        $paid = $this->makeSale(['total_amount' => 100]);
+        $unpaid = $this->makeSale(['total_amount' => 70, 'amount_paid' => 0, 'payment_status' => 'unpaid']);
+
+        Livewire::test(ReportsComponent::class)
+            ->set('paymentStatus', 'unpaid')
+            ->assertSee('payment_status=unpaid', false);
+
+        $captured = null;
+        $pdf = \Mockery::mock(\Barryvdh\DomPDF\PDF::class);
+        $pdf->shouldReceive('download')->andReturn(response('pdf'));
+        \Barryvdh\DomPDF\Facade\Pdf::shouldReceive('loadView')->once()
+            ->withArgs(function ($view, $data) use (&$captured) { $captured = $data; return $view === 'reports.pdf-sales'; })
+            ->andReturn($pdf);
+
+        $this->get(route('reports.export.pdf', [
+            'from' => now()->toDateString(), 'to' => now()->toDateString(), 'payment_status' => 'unpaid',
+        ]))->assertOk();
+
+        $ids = $captured['sales']->pluck('id')->all();
+        $this->assertContains($unpaid->id, $ids);
+        $this->assertNotContains($paid->id, $ids);
+        $this->assertSame(['Payment: Unpaid'], $captured['applied']);
+
+        $html = view('reports.pdf-sales', $captured + ['clinicSettings' => null])->render();
+        $this->assertStringContainsString('Filters: Payment: Unpaid', $html);
+    }
+
+    public function test_previous_period_matches_the_picked_period(): void
+    {
+        $component = new ReportsComponent;
+        $component->activeTab = 'today';
+        $component->fromDate = $component->toDate = '2026-10-05';
+        $this->assertSame(['2026-10-04', '2026-10-04'], array_slice($component->previousPeriod(), 0, 2));
+
+        $component->activeTab = 'range';
+        [$component->fromDate, $component->toDate] = ['2026-10-01', '2026-10-31'];
+        $this->assertSame(['2026-09-01', '2026-09-30', 'vs Sep'], $component->previousPeriod());
+
+        [$component->fromDate, $component->toDate] = ['2026-09-29', '2026-10-05'];
+        $this->assertSame(['2026-09-22', '2026-09-28', 'vs previous week'], $component->previousPeriod());
+
+        $component->activeTab = 'trash';
+        $this->assertNull($component->previousPeriod());
+    }
+
+    public function test_cards_compare_with_the_day_before(): void
+    {
+        $this->makeSale(['total_amount' => 300]);
+        $yesterday = $this->makeSale(['total_amount' => 200]);
+        $yesterday->forceFill(['created_at' => now()->subDay()])->save();
+
+        $component = Livewire::test(ReportsComponent::class);
+        $this->assertSame(200.0, $component->viewData('previous')['total_sales']);
+        $component->assertSee('+50%')->assertSee('vs yesterday');
+    }
+
+    public function test_chart_follows_the_payment_filter_and_refunds(): void
+    {
+        $this->makeSale(['total_amount' => 100]);
+        $this->makeSale(['total_amount' => 40, 'amount_paid' => 0, 'payment_status' => 'unpaid']);
+        $this->makeSale(['total_amount' => 25, 'is_refunded' => true, 'refunded_at' => now()]);
+
+        $component = new ReportsComponent;
+        $component->mount();
+        $chart = fn () => array_sum((fn () => $this->buildChartPayload())->call($component)['revenue']);
+
+        $this->assertSame(140.0, $chart());
+        $component->paymentStatus = 'unpaid';
+        $this->assertSame(40.0, $chart());
+        $component->paymentStatus = '';
+        $component->showRefunded = true;
+        $this->assertSame(165.0, $chart());
+    }
+
+    public function test_every_report_tab_renders_with_a_sale(): void
+    {
+        $this->makeSale();
+        $component = Livewire::test(ReportsComponent::class);
+
+        foreach (['overview' => 'Top 5 Products', 'items' => 'Sales by Item', 'categories' => 'No category data for this period',
+                  'payments' => 'Payment Breakdown', 'transactions' => 'Transactions'] as $view => $heading) {
+            $component->call('switchAnalyticsView', $view)->assertOk()->assertSee($heading)->assertDontSee(' badge-', false);
+        }
+    }
+
     // ── Summary aggregation ──────────────────────────────────────────────
 
     public function test_summary_counts_sales_in_date_range(): void

@@ -112,18 +112,6 @@ class UserProfileComponent extends Component
         $this->activeTab = $tab;
     }
 
-    private function layoutForUser(): string
-    {
-        $user = Auth::user();
-
-        return match(true) {
-            $user->hasRole(['Super Admin', 'Manager']) => 'layouts.admin.admin-layout',
-            $user->hasRole('Doctor')                   => 'layouts.doctor.doctor-layout',
-            $user->hasRole('Secretary')                => 'layouts.secretary.secretary-layout',
-            default                                    => 'layouts.secretary.secretary-layout',
-        };
-    }
-
     public function render()
     {
         $user        = Auth::user()->fresh();
@@ -131,7 +119,7 @@ class UserProfileComponent extends Component
         $loginLogs    = $allLoginLogs->take(8);
         $totalLogins  = $allLoginLogs->count();
         $lastLogin    = $allLoginLogs->skip(1)->first();
-        $accountAge  = $user->created_at->diffInDays(now());
+        $accountAge  = (int) $user->created_at->diffInDays(now()); // Carbon 3 returns a fraction
 
         return view('livewire.user-profile-component', [
             'user'        => $user,
@@ -140,6 +128,6 @@ class UserProfileComponent extends Component
             'totalLogins' => $totalLogins,
             'lastLogin'   => $lastLogin,
             'accountAge'  => $accountAge,
-        ])->layout($this->layoutForUser());
+        ])->layout(...\App\Support\ClinicNavigation::sharedLayout());
     }
 }

@@ -15,7 +15,7 @@ class StockMovementComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $productId = '';
     public $supplier = '';

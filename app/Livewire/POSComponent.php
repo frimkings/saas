@@ -37,7 +37,7 @@ class POSComponent extends Component
         'sellWithoutPendingDiscount' => 'sellWithoutPendingDiscount',
     ];
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $cart = [];
     public $totalAmount = 0;
@@ -2736,6 +2736,6 @@ class POSComponent extends Component
             'clinicSettings',
             'cartProducts', 'discountBlocked', 'canCheckout', 'totalPaid',
             'pendingPrescriptionCartCount', 'approvedDiscountCount', 'openVisitSale'
-        ))->layout('layouts.secretary.secretary-layout');
+        ))->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

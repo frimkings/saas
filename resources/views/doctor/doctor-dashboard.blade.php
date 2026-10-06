@@ -1,3 +1,3 @@
-<x-doctor-layout>
+<x-clinic-layout menu="doctor">
     @livewire('doctor.doctor-dashboard-component')
-</x-doctor-layout>
+</x-clinic-layout>

@@ -19,7 +19,7 @@ class ProductsComponent extends Component
 {
     use WithPagination, WithFileUploads;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // Tab Management
     public $activeTab = 'all';

@@ -11,7 +11,7 @@ class InventoryAlertsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $activeTab = 'low';
     public $expiryWindow = 90;

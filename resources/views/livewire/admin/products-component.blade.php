@@ -1,13 +1,13 @@
-<div>
+<div class="clinic-ui ui-page">
 <div>
     {{-- Header --}}
     <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
+        <div class="w-full">
+            <div class="flex flex-wrap -mx-2 mb-2">
+                <div class="w-full sm:w-6/12 px-2">
                     <h1 class="m-0">Products Management</h1>
                 </div>
-                <div class="col-sm-6">
+                <div class="w-full sm:w-6/12 px-2">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
                         <li class="breadcrumb-item active">Products</li>
@@ -18,16 +18,16 @@
     </div>
 
     <div class="content">
-        <div class="container-fluid">
+        <div class="w-full">
             {{-- Action Buttons --}}
-            <div class="mb-3 d-flex justify-content-between align-items-center">
+            <div class="mb-4 flex justify-between items-center">
                 <div>
                     @if(!$showForm)
-                        <button wire:click="showAddForm" class="btn btn-primary">
+                        <button wire:click="showAddForm" class="btn ui-button ui-button-primary">
                             <i class="fa fa-plus-circle mr-1"></i> Add New Product
                         </button>
                     @endif
-                    <button wire:click="exportCsv" class="btn btn-success"
+                    <button wire:click="exportCsv" class="btn ui-button ui-button-primary"
                             wire:loading.attr="disabled" wire:target="exportCsv">
                         <span wire:loading.remove wire:target="exportCsv">
                             <i class="fa fa-download mr-1"></i> Export CSV
@@ -36,109 +36,109 @@
                             <i class="fa fa-spinner fa-spin mr-1"></i> Exporting...
                         </span>
                     </button>
-                    <button wire:click="$toggle('showImportPanel')" class="btn btn-outline-primary">
+                    <button wire:click="$toggle('showImportPanel')" class="btn ui-button ui-button-secondary">
                         <i class="fa fa-file-import mr-1"></i> Import CSV
                     </button>
-                    <button wire:click="downloadTemplate" class="btn btn-outline-secondary">
+                    <button wire:click="downloadTemplate" class="btn ui-button ui-button-secondary">
                         <i class="fa fa-file-download mr-1"></i> Template
                     </button>
-                    <button wire:click="toggleLensCatalog" class="btn {{ $showLensCatalog ? 'btn-info' : 'btn-outline-info' }}">
+                    <button wire:click="toggleLensCatalog" class="btn ui-button {{ $showLensCatalog ? 'ui-button-primary' : 'ui-button-secondary' }}">
                         <i class="fa fa-glasses mr-1"></i> Lens Catalog
                     </button>
                 </div>
             </div>
 
             @if($showLensCatalog)
-                <div class="card card-outline card-info mb-3">
-                    <div class="card-header">
-                        <h3 class="card-title"><i class="fa fa-glasses mr-2"></i>Lens Catalog</h3>
-                        <div class="card-tools">
-                            <button type="button" class="btn btn-tool" wire:click="toggleLensCatalog"><i class="fas fa-times"></i></button>
+                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-info mb-4">
+                    <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+                        <h3 class="font-semibold"><i class="fa fa-glasses mr-2"></i>Lens Catalog</h3>
+                        <div class="ml-auto flex items-center gap-1">
+                            <button type="button" class="btn ui-button btn-tool ui-button-secondary" wire:click="toggleLensCatalog"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <form wire:submit="saveLensOption" class="row align-items-end mb-4">
-                            <div class="col-md-4">
-                                <div class="form-group mb-md-0">
-                                    <label>Lens Family <span class="text-danger">*</span></label>
-                                    <select wire:model="lensState.family" class="form-control @error('family') is-invalid @enderror">
+                    <div class="card-body p-4">
+                        <form wire:submit="saveLensOption" class="flex flex-wrap -mx-2 items-end mb-6">
+                            <div class="w-full md:w-4/12 px-2">
+                                <div class="mb-4 md:mb-0">
+                                    <label>Lens Family <span class="text-red-700">*</span></label>
+                                    <select wire:model="lensState.family" class="form-control ui-input @error('family') is-invalid @enderror">
                                         <option value="">Select family...</option>
                                         @foreach(\App\Models\LensOption::FAMILIES as $family)
                                             <option value="{{ $family }}">{{ $family }}</option>
                                         @endforeach
                                     </select>
-                                    @error('family') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                    @error('family') <div class="ui-error">{{ $message }}</div> @enderror
                                 </div>
                             </div>
-                            <div class="col-md-5">
-                                <div class="form-group mb-md-0">
-                                    <label>Display Name <span class="text-danger">*</span></label>
+                            <div class="w-full md:w-5/12 px-2">
+                                <div class="mb-4 md:mb-0">
+                                    <label>Display Name <span class="text-red-700">*</span></label>
                                     <input type="text" wire:model="lensState.display_name"
-                                           class="form-control @error('display_name') is-invalid @enderror"
+                                           class="form-control ui-input @error('display_name') is-invalid @enderror"
                                            placeholder="e.g. SV Blue Block">
-                                    @error('display_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                                    @error('display_name') <div class="ui-error">{{ $message }}</div> @enderror
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <button type="submit" class="btn btn-info">
+                            <div class="w-full md:w-3/12 px-2">
+                                <button type="submit" class="btn ui-button ui-button-primary">
                                     <i class="fa fa-save mr-1"></i>{{ $editingLensOption ? 'Update' : 'Add' }} Option
                                 </button>
                                 @if($editingLensOption)
-                                    <button type="button" wire:click="cancelLensOption" class="btn btn-default">Cancel</button>
+                                    <button type="button" wire:click="cancelLensOption" class="btn ui-button ui-button-secondary">Cancel</button>
                                 @endif
                             </div>
                         </form>
 
-                        <div class="row">
+                        <div class="flex flex-wrap -mx-2">
                             @foreach(\App\Models\LensOption::FAMILIES as $family)
-                                <div class="col-lg-4 mb-3">
-                                    <div class="card h-100 mb-0">
-                                        <div class="card-header py-2"><strong>{{ $family }}</strong></div>
-                                        <div class="list-group list-group-flush">
+                                <div class="w-full lg:w-4/12 px-2 mb-4">
+                                    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white h-full mb-0">
+                                        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2"><strong>{{ $family }}</strong></div>
+                                        <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                                             @forelse($lensOptions->where('family', $family) as $lensOption)
-                                                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                                <div class="list-group-item block w-full border-b border-slate-100 px-3 text-left flex justify-between items-center py-2">
                                                     <span>{{ $lensOption->display_name }}</span>
-                                                    <div class="btn-group btn-group-sm">
-                                                        <button type="button" wire:click="editLensOption({{ $lensOption->id }})" class="btn btn-outline-info" title="Edit">
+                                                    <div class="inline-flex flex-wrap gap-1">
+                                                        <button type="button" wire:click="editLensOption({{ $lensOption->id }})" class="btn ui-button ui-button-secondary" title="Edit">
                                                             <i class="fa fa-edit"></i>
                                                         </button>
                                                         <button type="button" wire:click="deleteLensOption({{ $lensOption->id }})"
                                                                 wire:confirm="Remove this lens option? Existing refraction records will remain unchanged."
-                                                                class="btn btn-outline-danger" title="Delete">
+                                                                class="btn ui-button ui-button-danger" title="Delete">
                                                             <i class="fa fa-trash"></i>
                                                         </button>
                                                     </div>
                                                 </div>
                                             @empty
-                                                <div class="list-group-item text-muted">No options configured.</div>
+                                                <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left text-slate-500">No options configured.</div>
                                             @endforelse
                                         </div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
-                        <small class="text-muted">Changes affect future selections only. Existing refraction values remain stored in the current lensType field.</small>
+                        <small class="text-slate-500">Changes affect future selections only. Existing refraction values remain stored in the current lensType field.</small>
                     </div>
                 </div>
             @endif
 
             @if($showImportPanel)
-                <div class="card card-outline card-primary mb-3">
-                    <div class="card-header">
-                        <h3 class="card-title">
+                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-primary mb-4">
+                    <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+                        <h3 class="font-semibold">
                             <i class="fa fa-file-import mr-2"></i>Import Products from CSV
                         </h3>
-                        <div class="card-tools">
-                            <button type="button" class="btn btn-tool" wire:click="clearImport">
+                        <div class="ml-auto flex items-center gap-1">
+                            <button type="button" class="btn ui-button btn-tool ui-button-secondary" wire:click="clearImport">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body p-4">
                         @if($importResults)
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="small-box bg-success">
+                            <div class="flex flex-wrap -mx-2">
+                                <div class="w-full md:w-4/12 px-2">
+                                    <div class="small-box bg-green-600 text-white">
                                         <div class="inner">
                                             <h3>{{ $importResults['imported'] }}</h3>
                                             <p>Imported</p>
@@ -146,8 +146,8 @@
                                         <div class="icon"><i class="fas fa-check-circle"></i></div>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="small-box bg-secondary">
+                                <div class="w-full md:w-4/12 px-2">
+                                    <div class="small-box bg-slate-500 text-white">
                                         <div class="inner">
                                             <h3>{{ $importResults['skipped'] }}</h3>
                                             <p>Skipped</p>
@@ -155,8 +155,8 @@
                                         <div class="icon"><i class="fas fa-forward"></i></div>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="small-box bg-danger">
+                                <div class="w-full md:w-4/12 px-2">
+                                    <div class="small-box bg-red-600 text-white">
                                         <div class="inner">
                                             <h3>{{ count($importResults['errors']) }}</h3>
                                             <p>Errors</p>
@@ -166,7 +166,7 @@
                                 </div>
                             </div>
                             @if(count($importResults['errors']) > 0)
-                                <div class="alert alert-warning">
+                                <div class="rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900">
                                     <strong>Rows needing attention:</strong>
                                     <ul class="mb-0 mt-2">
                                         @foreach($importResults['errors'] as $error)
@@ -175,36 +175,36 @@
                                     </ul>
                                 </div>
                             @endif
-                            <button class="btn btn-primary btn-sm" wire:click="clearImport">
+                            <button class="btn ui-button ui-button-primary ui-button-sm" wire:click="clearImport">
                                 <i class="fa fa-check mr-1"></i>Done
                             </button>
                         @else
-                            <div class="row">
-                                <div class="col-md-7">
-                                    <p class="text-muted mb-2">
+                            <div class="flex flex-wrap -mx-2">
+                                <div class="w-full md:w-7/12 px-2">
+                                    <p class="text-slate-500 mb-2">
                                         Required columns: <code>name</code>, <code>category</code>, <code>batch_number</code>,
                                         <code>quantity</code>, <code>cost_price</code>, <code>selling_price</code>,
                                         <code>manufacture_date</code>, <code>expiry_date</code>.
                                     </p>
-                                    <p class="text-muted mb-0">
+                                    <p class="text-slate-500 mb-0">
                                         Category may be the category name or ID. Dates should be <code>YYYY-MM-DD</code>.
                                         Existing product names or batch numbers are skipped with row errors.
                                     </p>
                                 </div>
-                                <div class="col-md-5">
-                                    <div class="custom-file">
+                                <div class="w-full md:w-5/12 px-2">
+                                    <div class="block">
                                         <input type="file"
-                                               class="custom-file-input @error('importFile') is-invalid @enderror"
+                                               class="block w-full text-sm @error('importFile') is-invalid @enderror"
                                                id="productImportFile"
                                                accept=".csv,text/csv,text/plain"
                                                wire:model.live="importFile">
-                                        <label class="custom-file-label" for="productImportFile">
+                                        <label class="hidden" for="productImportFile">
                                             {{ $importFile ? $importFile->getClientOriginalName() : 'Choose CSV file' }}
                                         </label>
-                                        @error('importFile') <span class="invalid-feedback d-block">{{ $message }}</span> @enderror
+                                        @error('importFile') <span class="ui-error block">{{ $message }}</span> @enderror
                                     </div>
-                                    <div class="mt-3 d-flex" style="gap:.5rem;">
-                                        <button class="btn btn-primary"
+                                    <div class="mt-4 flex" style="gap:.5rem;">
+                                        <button class="btn ui-button ui-button-primary"
                                                 wire:click="importCsv"
                                                 wire:loading.attr="disabled"
                                                 wire:target="importCsv,importFile"
@@ -216,7 +216,7 @@
                                                 <i class="fa fa-spinner fa-spin mr-1"></i>Importing...
                                             </span>
                                         </button>
-                                        <button class="btn btn-outline-secondary" wire:click="downloadTemplate">
+                                        <button class="btn ui-button ui-button-secondary" wire:click="downloadTemplate">
                                             <i class="fa fa-file-download mr-1"></i>Template
                                         </button>
                                     </div>
@@ -229,147 +229,147 @@
 
             {{-- Inline Add/Edit Form --}}
             @if($showForm)
-                <div class="card card-primary mb-3">
-                    <div class="card-header">
-                        <h3 class="card-title">
+                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-primary mb-4">
+                    <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+                        <h3 class="font-semibold">
                             <i class="fa fa-{{ $editingProduct ? 'edit' : 'plus-circle' }} mr-2"></i>
                             {{ $editingProduct ? 'Edit Product' : 'Add New Product' }}
                         </h3>
-                        <div class="card-tools">
-                            <button type="button" class="btn btn-tool" wire:click="cancelForm">
+                        <div class="ml-auto flex items-center gap-1">
+                            <button type="button" class="btn ui-button btn-tool ui-button-secondary" wire:click="cancelForm">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
                     </div>
                     
                     <form wire:submit="{{ $editingProduct ? 'updateProduct' : 'createProduct' }}">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label>Name <span class="text-danger">*</span></label>
+                        <div class="card-body p-4">
+                            <div class="flex flex-wrap -mx-2">
+                                <div class="w-full md:w-4/12 px-2">
+                                    <div class="mb-4">
+                                        <label>Name <span class="text-red-700">*</span></label>
                                         <input type="text" wire:model="state.name"
-                                               class="form-control @error('name') is-invalid @enderror"
+                                               class="form-control ui-input @error('name') is-invalid @enderror"
                                                placeholder="Product name">
-                                        @error('name') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @error('name') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
 
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label>Batch Number <span class="text-danger">*</span></label>
+                                <div class="w-full md:w-4/12 px-2">
+                                    <div class="mb-4">
+                                        <label>Batch Number <span class="text-red-700">*</span></label>
                                         <input type="text" wire:model="state.batch_number"
-                                               class="form-control @error('batch_number') is-invalid @enderror"
+                                               class="form-control ui-input @error('batch_number') is-invalid @enderror"
                                                placeholder="e.g., BTH001">
-                                        @error('batch_number') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @error('batch_number') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
 
-                                <div class="col-md-4">
-                                    <div class="form-group">
+                                <div class="w-full md:w-4/12 px-2">
+                                    <div class="mb-4">
                                         <label>Clinic Category</label>
                                         <select wire:model.live="state.category_id"
-                                                class="form-control @error('category_id') is-invalid @enderror">
+                                                class="form-control ui-input @error('category_id') is-invalid @enderror">
                                             <option value="">-- Select clinic category --</option>
                                             @foreach($categories as $cat)
                                                 <option value="{{ $cat->id }}">{{ $cat->name }}</option>
                                             @endforeach
                                         </select>
-                                        @error('category_id') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @error('category_id') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="form-group">
+                            <div class="flex flex-wrap -mx-2">
+                                <div class="w-full md:w-3/12 px-2">
+                                    <div class="mb-4">
                                         @if(empty($state['made_to_order']))
-                                            <label>Quantity <span class="text-danger">*</span></label>
+                                            <label>Quantity <span class="text-red-700">*</span></label>
                                             <input type="number" min="0" wire:model="state.quantity"
-                                                   class="form-control @error('quantity') is-invalid @enderror"
+                                                   class="form-control ui-input @error('quantity') is-invalid @enderror"
                                                    placeholder="0">
-                                            @error('quantity') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                            @error('quantity') <span class="ui-error">{{ $message }}</span> @enderror
                                         @else
                                             <label>Quantity</label>
-                                            <p class="form-control-plaintext text-muted">Not counted</p>
+                                            <p class="block w-full py-2 text-slate-500">Not counted</p>
                                         @endif
-                                        <div class="custom-control custom-checkbox mt-1">
-                                            <input type="checkbox" class="custom-control-input" id="made-to-order" wire:model.live="state.made_to_order">
-                                            <label class="custom-control-label" for="made-to-order">Made to order (not stocked)</label>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <input type="checkbox" class="rounded border-slate-300 text-teal-700" id="made-to-order" wire:model.live="state.made_to_order">
+                                            <label class="" for="made-to-order">Made to order (not stocked)</label>
                                         </div>
-                                        <small class="form-text text-muted">For lenses ordered per job from a lab. Sold and billed at these prices, never counted in stock.</small>
+                                        <small class="mt-1 block text-xs text-slate-500">For lenses ordered per job from a lab. Sold and billed at these prices, never counted in stock.</small>
                                         @if(!empty($state['made_to_order']) && $editingProduct && !$editingProduct->made_to_order && $editingProduct->quantity > 0)
-                                            <small class="form-text text-warning">Saving clears the current quantity of {{ $editingProduct->quantity }}. The old number is kept in the audit trail.</small>
+                                            <small class="mt-1 block text-xs text-amber-600">Saving clears the current quantity of {{ $editingProduct->quantity }}. The old number is kept in the audit trail.</small>
                                         @endif
                                     </div>
                                 </div>
 
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>Cost Price <span class="text-danger">*</span></label>
+                                <div class="w-full md:w-3/12 px-2">
+                                    <div class="mb-4">
+                                        <label>Cost Price <span class="text-red-700">*</span></label>
                                         <input type="number" step="0.01" min="0" wire:model.blur="state.cost_price"
-                                               class="form-control @error('cost_price') is-invalid @enderror"
+                                               class="form-control ui-input @error('cost_price') is-invalid @enderror"
                                                placeholder="0.00">
-                                        @error('cost_price') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @error('cost_price') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
 
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>Selling Price <span class="text-danger">*</span></label>
+                                <div class="w-full md:w-3/12 px-2">
+                                    <div class="mb-4">
+                                        <label>Selling Price <span class="text-red-700">*</span></label>
                                         <input type="number" step="0.01" min="0" wire:model.blur="state.selling_price"
-                                               class="form-control @error('selling_price') is-invalid @enderror"
+                                               class="form-control ui-input @error('selling_price') is-invalid @enderror"
                                                placeholder="0.00">
-                                        @error('selling_price') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                        @error('selling_price') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
 
-                                <div class="col-md-3">
-                                    <div class="form-group">
+                                <div class="w-full md:w-3/12 px-2">
+                                    <div class="mb-4">
                                         <label>Profit Margin
-                                            <small class="text-muted">(or enter to set selling price)</small>
+                                            <small class="text-slate-500">(or enter to set selling price)</small>
                                         </label>
-                                        <div class="input-group">
+                                        <div class="flex items-stretch">
                                             <input type="number" step="0.01" min="0"
                                                    wire:model.blur="state.profit_margin"
-                                                   class="form-control"
+                                                   class="form-control ui-input"
                                                    placeholder="e.g. 20">
-                                            <div class="input-group-append">
-                                                <span class="input-group-text">%</span>
+                                            <div class="flex">
+                                                <span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">%</span>
                                             </div>
                                         </div>
-                                        <small class="text-muted">Updates selling price when cost price is set.</small>
+                                        <small class="text-slate-500">Updates selling price when cost price is set.</small>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label>Manufacture Date <span class="text-danger">*</span></label>
+                            <div class="flex flex-wrap -mx-2">
+                                <div class="w-full md:w-6/12 px-2">
+                                    <div class="mb-4">
+                                        <label>Manufacture Date <span class="text-red-700">*</span></label>
                                         <input type="date" wire:model="state.manufacture_date"
-                                               class="form-control @error('manufacture_date') is-invalid @enderror">
-                                        @error('manufacture_date') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                               class="form-control ui-input @error('manufacture_date') is-invalid @enderror">
+                                        @error('manufacture_date') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
 
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label>Expiry Date <span class="text-danger">*</span></label>
+                                <div class="w-full md:w-6/12 px-2">
+                                    <div class="mb-4">
+                                        <label>Expiry Date <span class="text-red-700">*</span></label>
                                         <input type="date" wire:model="state.expiry_date"
-                                               class="form-control @error('expiry_date') is-invalid @enderror">
-                                        @error('expiry_date') <span class="invalid-feedback">{{ $message }}</span> @enderror
+                                               class="form-control ui-input @error('expiry_date') is-invalid @enderror">
+                                        @error('expiry_date') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="card-footer">
-                            <button type="submit" class="btn btn-primary">
+                        <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">
+                            <button type="submit" class="btn ui-button ui-button-primary">
                                 <i class="fa fa-save mr-1"></i>
                                 {{ $editingProduct ? 'Update Product' : 'Save Product' }}
                             </button>
-                            <button type="button" wire:click="cancelForm" class="btn btn-default">
+                            <button type="button" wire:click="cancelForm" class="btn ui-button ui-button-secondary">
                                 <i class="fa fa-times mr-1"></i> Cancel
                             </button>
                         </div>
@@ -378,62 +378,62 @@
             @endif
 
             {{-- Tabs Card --}}
-            <div class="card card-primary card-outline card-outline-tabs">
-                <div class="card-header p-0 border-bottom-0">
-                    <ul class="nav nav-tabs" role="tablist">
-                        <li class="nav-item">
-                            <a class="nav-link {{ $activeTab === 'all' ? 'active' : '' }}" 
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-primary card-outline-tabs">
+                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 p-0 border-b-0">
+                    <ul class="flex flex-wrap border-b border-slate-200" role="tablist">
+                        <li class="">
+                            <a class="block px-3 py-2 {{ $activeTab === 'all' ? 'active' : '' }}" 
                                wire:click.prevent="$set('activeTab', 'all')" 
                                href="#" role="tab">
                                 <i class="fa fa-boxes mr-1"></i>
                                 All Products
-                                <span class="badge badge-primary ml-2">{{ $stats['total'] }}</span>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 ml-2">{{ $stats['total'] }}</span>
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ $activeTab === 'low-stock' ? 'active' : '' }}" 
+                        <li class="">
+                            <a class="block px-3 py-2 {{ $activeTab === 'low-stock' ? 'active' : '' }}" 
                                wire:click.prevent="$set('activeTab', 'low-stock')" 
                                href="#" role="tab">
                                 <i class="fa fa-exclamation-triangle mr-1"></i>
                                 Low Stock
-                                <span class="badge badge-warning ml-2">{{ $stats['low_stock'] }}</span>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-2">{{ $stats['low_stock'] }}</span>
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ $activeTab === 'expiring' ? 'active' : '' }}" 
+                        <li class="">
+                            <a class="block px-3 py-2 {{ $activeTab === 'expiring' ? 'active' : '' }}" 
                                wire:click.prevent="$set('activeTab', 'expiring')" 
                                href="#" role="tab">
                                 <i class="fa fa-clock mr-1"></i>
                                 Expiring Soon (4 Months)
-                                <span class="badge badge-warning ml-2">{{ $stats['expiring'] }}</span>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-2">{{ $stats['expiring'] }}</span>
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ $activeTab === 'expired' ? 'active' : '' }}" 
+                        <li class="">
+                            <a class="block px-3 py-2 {{ $activeTab === 'expired' ? 'active' : '' }}" 
                                wire:click.prevent="$set('activeTab', 'expired')" 
                                href="#" role="tab">
                                 <i class="fa fa-times-circle mr-1"></i>
                                 Expired
-                                <span class="badge badge-danger ml-2">{{ $stats['expired'] }}</span>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800 ml-2">{{ $stats['expired'] }}</span>
                             </a>
                         </li>
                     </ul>
                 </div>
 
-                <div class="card-body">
+                <div class="card-body p-4">
                     @if(count($selectedProductIds) > 0)
-                        <div class="alert alert-info d-flex align-items-center justify-content-between">
+                        <div class="rounded-lg border px-3 py-2 text-sm border-sky-200 bg-sky-50 text-sky-900 flex items-center justify-between">
                             <div>
                                 <i class="fa fa-check-square mr-1"></i>
                                 <strong>{{ count($selectedProductIds) }}</strong> product(s) selected
                             </div>
                             <div>
-                                <button class="btn btn-sm btn-danger"
+                                <button class="btn ui-button ui-button-sm ui-button-danger"
                                         wire:click="deleteSelected"
                                         wire:confirm="Delete selected products? This cannot be undone.">
                                     <i class="fa fa-trash mr-1"></i>Delete Selected
                                 </button>
-                                <button class="btn btn-sm btn-outline-secondary" wire:click="clearSelection">
+                                <button class="btn ui-button ui-button-sm ui-button-secondary" wire:click="clearSelection">
                                     Clear
                                 </button>
                             </div>
@@ -441,35 +441,35 @@
                     @endif
 
                     {{-- Search Form --}}
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="input-group">
+                    <div class="flex flex-wrap -mx-2 mb-4">
+                        <div class="w-full md:w-6/12 px-2">
+                            <div class="flex items-stretch">
                                 <input type="text" 
                                        wire:model.live.debounce.500ms="searchTerm"
-                                       class="form-control" 
+                                       class="form-control ui-input" 
                                        placeholder="Search by name, batch number{{ $searchByCategory ? '' : ' or category' }}...">
-                                <div class="input-group-append">
-                                    <span class="input-group-text">
+                                <div class="flex">
+                                    <span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">
                                         <i class="fa fa-search"></i>
                                     </span>
                                 </div>
                             </div>
                         </div>
                         
-                        <div class="col-md-6">
-                            <div class="custom-control custom-switch d-inline-block mr-3">
+                        <div class="w-full md:w-6/12 px-2">
+                            <div class="flex items-center gap-2 inline-block mr-4">
                                 <input type="checkbox" 
-                                       class="custom-control-input" 
+                                       class="rounded border-slate-300 text-teal-700" 
                                        id="searchByCategoryToggle" 
                                        wire:model.live="searchByCategory">
-                                <label class="custom-control-label" for="searchByCategoryToggle">
+                                <label class="" for="searchByCategoryToggle">
                                     Search by Category
                                 </label>
                             </div>
 
                             @if($searchByCategory)
-                                <div class="d-inline-block" style="width: 250px;">
-                                    <select wire:model.live="selectedCategoryFilter" class="form-control form-control-sm">
+                                <div class="inline-block" style="width: 250px;">
+                                    <select wire:model.live="selectedCategoryFilter" class="form-control ui-input ui-input-sm">
                                         <option value="">-- All Categories --</option>
                                         @foreach($categories as $cat)
                                             <option value="{{ $cat->id }}">{{ $cat->name }}</option>
@@ -481,9 +481,9 @@
                     </div>
 
                     {{-- Products Table --}}
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped">
-                            <thead class="thead-light">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table">
+                            <thead class="">
                                 <tr>
                                     <th style="width: 42px;" class="text-center">
                                         <input type="checkbox"
@@ -514,7 +514,7 @@
                                         $isExpiringSoon = !$isExpired && $daysToExpiry <= 120;
                                         $isLowStock = !$product->made_to_order && $product->quantity < 10;
                                     @endphp
-                                    <tr class="{{ $isExpired ? 'table-danger' : ($isExpiringSoon ? 'table-warning' : '') }}">
+                                    <tr class="{{ $isExpired ? 'bg-red-50' : ($isExpiringSoon ? 'bg-amber-50' : '') }}">
                                         <td class="text-center">
                                             <input type="checkbox"
                                                    class="product-row-check"
@@ -526,16 +526,16 @@
                                             <strong>{{ $product->name }}</strong>
                                         </td>
                                         <td>
-                                            <span class="badge badge-info">{{ $product->category->name ?? 'N/A' }}</span>
+                                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ $product->category->name ?? 'N/A' }}</span>
                                         </td>
                                         <td>
                                             <code>{{ $product->batch_number }}</code>
                                         </td>
                                         <td class="text-center">
                                             @if($product->made_to_order)
-                                                <span class="badge badge-secondary">Made to order</span>
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">Made to order</span>
                                             @else
-                                                <span class="badge {{ $isLowStock ? 'badge-warning' : 'badge-success' }}">
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $isLowStock ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800' }}">
                                                     {{ $product->quantity }}
                                                 </span>
                                             @endif
@@ -552,32 +552,32 @@
                                         </td>
                                         <td class="text-center">
                                             @if($isExpired)
-                                                <span class="badge badge-danger">
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800">
                                                     <i class="fa fa-times-circle"></i> Expired
                                                 </span>
                                             @elseif($isExpiringSoon)
-                                                <span class="badge badge-warning">
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">
                                                     <i class="fa fa-clock"></i> {{ $daysToExpiry }}d left
                                                 </span>
                                             @elseif($isLowStock)
-                                                <span class="badge badge-warning">
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">
                                                     <i class="fa fa-exclamation-triangle"></i> Low Stock
                                                 </span>
                                             @else
-                                                <span class="badge badge-success">
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800">
                                                     <i class="fa fa-check-circle"></i> Active
                                                 </span>
                                             @endif
                                         </td>
                                         <td class="text-center">
-                                            <div class="btn-group btn-group-sm">
+                                            <div class="inline-flex flex-wrap gap-1">
                                                 <button wire:click="editProduct({{ $product->id }})" 
-                                                        class="btn btn-info" 
+                                                        class="btn ui-button ui-button-primary" 
                                                         title="Edit">
                                                     <i class="fa fa-edit"></i>
                                                 </button>
                                                 <button wire:click="confirmDelete({{ $product->id }})" 
-                                                        class="btn btn-danger" 
+                                                        class="btn ui-button ui-button-danger" 
                                                         title="Delete">
                                                     <i class="fa fa-trash"></i>
                                                 </button>
@@ -586,9 +586,9 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="12" class="text-center py-4">
-                                            <i class="fa fa-inbox fa-3x text-muted mb-3"></i>
-                                            <p class="text-muted">No products found</p>
+                                        <td colspan="12" class="text-center py-6">
+                                            <i class="fa fa-inbox fa-3x text-slate-500 mb-4"></i>
+                                            <p class="text-slate-500">No products found</p>
                                         </td>
                                     </tr>
                                 @endforelse
@@ -598,13 +598,8 @@
                 </div>
 
                 @if($products->hasPages())
-                    <div class="card-footer d-flex justify-content-between align-items-center">
-                        <div class="text-muted">
-                            Showing {{ $products->firstItem() }} to {{ $products->lastItem() }} of {{ $products->total() }} products
-                        </div>
-                        <div>
-                            {{ $products->links() }}
-                        </div>
+                    <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">
+                        {{ $products->links() }}
                     </div>
                 @endif
             </div>
@@ -613,8 +608,8 @@
 
     {{-- Loading Indicator (scoped to heavy actions only) --}}
     <div wire:loading.delay wire:target="createProduct,updateProduct,confirmProductDelete"
-         class="position-fixed" style="top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
-        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+         class="fixed" style="top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
+        <div class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-current border-r-transparent text-teal-700" role="status" style="width: 3rem; height: 3rem;">
             <span class="sr-only">Loading...</span>
         </div>
     </div>

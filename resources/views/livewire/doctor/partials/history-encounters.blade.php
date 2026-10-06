@@ -1,4 +1,4 @@
-<div class="history-surface-heading"><h3><i class="fas fa-history text-primary"></i> Past Encounters & Consultation Timeline</h3><span>{{ $patientRecords->total() }} visits found</span></div>
+<div class="history-surface-heading"><h3><i class="fas fa-history text-teal-700"></i> Past Encounters & Consultation Timeline</h3><span>{{ $patientRecords->total() }} visits found</span></div>
 <div class="history-encounters">
 @forelse($patientRecords as $record)
     <article class="history-encounter" wire:key="history-encounter-{{ $record->id }}">

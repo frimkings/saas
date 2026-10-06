@@ -50,7 +50,7 @@
                                 <td>{{ $clinicRx->user?->name ?? '—' }}</td>
                                 <td style="text-align:right">
                                     @if($ordered)<span class="oo-badge oo-b-green" title="An order already uses this refraction">Ordered · {{ $ordered->order_id }}</span>
-                                    @else<a class="oo-btn primary" href="{{ route('optical.orders.create', ['refraction_id' => $clinicRx->id]) }}">Start order</a>@endif
+                                    @else<a class="oo-btn primary" wire:navigate href="{{ route('optical.orders.create', ['refraction_id' => $clinicRx->id]) }}">Start order</a>@endif
                                 </td>
                             </tr>
                         @endforeach
@@ -86,7 +86,7 @@
                             <td class="rx-eye">{{ $eye($rx->measurements, 'os') }}</td>
                             <td onclick="event.stopPropagation()">
                                 <div class="oo-row-actions" style="grid-template-columns:auto 64px">
-                                    <a href="{{ route('optical.orders.create', ['prescription_id' => $rx->id]) }}" class="oo-btn primary">{{ $rx->orders_count ? 'New order' : 'Start order' }}</a>
+                                    <a wire:navigate href="{{ route('optical.orders.create', ['prescription_id' => $rx->id]) }}" class="oo-btn primary">{{ $rx->orders_count ? 'New order' : 'Start order' }}</a>
                                     <button type="button" class="oo-btn" wire:click="openRx({{ $rx->id }})">View</button>
                                 </div>
                             </td>
@@ -149,7 +149,7 @@
                         @php [$bl, $bc] = \App\Support\Optical\OrderPresenter::badge($order->status); @endphp
                         <div class="flex items-center justify-between gap-2" style="padding:6px 0;border-bottom:1px solid var(--clinic-line)">
                             <span><span class="oo-id">{{ $order->order_id }}</span> <span class="ui-muted text-xs">· {{ $order->created_at?->format('d M Y') }}</span></span>
-                            <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
+                            <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
                         </div>
                     @empty
                         <p class="ui-muted text-sm" style="margin:0">No orders yet.</p>
@@ -158,7 +158,7 @@
             </div>
             <footer class="oo-drawer-foot">
                 @if($viewRx->patient)<button type="button" class="oo-btn" wire:click="openExternalModal({{ $viewRx->patient_id }})">New Rx for this customer</button>@endif
-                <a href="{{ route('optical.orders.create', ['prescription_id' => $viewRx->id]) }}" class="oo-btn primary">Start order</a>
+                <a wire:navigate href="{{ route('optical.orders.create', ['prescription_id' => $viewRx->id]) }}" class="oo-btn primary">Start order</a>
             </footer>
         </aside>
     @endif

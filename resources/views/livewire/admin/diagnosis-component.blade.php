@@ -1,21 +1,21 @@
-<div data-livewire-root>
+<div class="clinic-ui ui-page" data-livewire-root>
 <div>
 
     {{-- ── Page Header ── --}}
     <div class="content-header">
-        <div class="container-fluid">
-            <div class="row align-items-center">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-flex align-items-center gap-2">
+        <div class="w-full">
+            <div class="flex flex-wrap -mx-2 items-center">
+                <div class="w-full sm:w-6/12 px-2">
+                    <h1 class="m-0 flex items-center gap-2">
                         <span class="dx-icon"><i class="fas fa-stethoscope"></i></span>
                         Diagnosis Registry
-                        <span class="badge badge-pill dx-total-badge">{{ $diagnoses->total() }}</span>
+                        <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-semibold rounded-full dx-total-badge">{{ $diagnoses->total() }}</span>
                     </h1>
-                    <p class="text-muted mb-0" style="font-size:.82rem; margin-top:.2rem;">
+                    <p class="text-slate-500 mb-0" style="font-size:.82rem; margin-top:.2rem;">
                         Manage the ophthalmic diagnosis reference list used across consultations.
                     </p>
                 </div>
-                <div class="col-sm-6">
+                <div class="w-full sm:w-6/12 px-2">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
                         <li class="breadcrumb-item active">Diagnoses</li>
@@ -26,41 +26,41 @@
     </div>
 
     <div class="content">
-        <div class="container-fluid">
+        <div class="w-full">
 
             {{-- ── Add / Edit Form ── --}}
-            <div class="card dx-form-card mb-4 {{ $isEditing ? 'dx-form-card--editing' : '' }}">
-                <div class="card-header">
-                    <h3 class="card-title">
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white dx-form-card mb-6 {{ $isEditing ? 'dx-form-card--editing' : '' }}">
+                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+                    <h3 class="font-semibold">
                         @if($isEditing)
-                            <i class="fas fa-edit mr-2 text-warning"></i>Edit Diagnosis
+                            <i class="fas fa-edit mr-2 text-amber-600"></i>Edit Diagnosis
                         @else
-                            <i class="fas fa-plus-circle mr-2 text-primary"></i>Add New Diagnosis
+                            <i class="fas fa-plus-circle mr-2 text-teal-700"></i>Add New Diagnosis
                         @endif
                     </h3>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     <form wire:submit="{{ $isEditing ? 'update' : 'store' }}">
-                        <div class="row align-items-start">
-                            <div class="col-md-8">
-                                <div class="form-group mb-0">
+                        <div class="flex flex-wrap -mx-2 items-start">
+                            <div class="w-full md:w-8/12 px-2">
+                                <div class="mb-0">
                                     <input type="text"
-                                           class="form-control form-control-lg dx-name-input @error('name') is-invalid @enderror"
+                                           class="form-control ui-input  dx-name-input @error('name') is-invalid @enderror"
                                            placeholder="e.g. Acute Angle Closure Glaucoma"
                                            wire:model="name"
                                            autofocus>
                                     @error('name')
-                                        <div class="invalid-feedback">{{ $message }}</div>
+                                        <div class="ui-error">{{ $message }}</div>
                                     @enderror
-                                    <small class="form-text text-muted">
+                                    <small class="mt-1 block text-xs text-slate-500">
                                         Use the full clinical name. Minimum 3 characters.
                                     </small>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="d-flex gap-2 mt-1">
+                            <div class="w-full md:w-4/12 px-2">
+                                <div class="flex gap-2 mt-1">
                                     <button type="submit"
-                                            class="btn btn-lg flex-grow-1 {{ $isEditing ? 'btn-warning' : 'btn-primary' }}"
+                                            class="btn ui-button  grow {{ $isEditing ? 'ui-button-secondary' : 'ui-button-primary' }}"
                                             wire:loading.attr="disabled"
                                             wire:target="{{ $isEditing ? 'update' : 'store' }}">
                                         <span wire:loading.remove wire:target="{{ $isEditing ? 'update' : 'store' }}">
@@ -73,7 +73,7 @@
                                     </button>
                                     @if($isEditing)
                                         <button type="button"
-                                                class="btn btn-lg btn-outline-secondary"
+                                                class="btn ui-button ui-button-secondary"
                                                 wire:click="resetFields">
                                             <i class="fas fa-times"></i>
                                         </button>
@@ -86,49 +86,49 @@
             </div>
 
             {{-- ── Registry Table Card ── --}}
-            <div class="card dx-table-card">
-                <div class="card-header">
-                    <div class="d-flex align-items-center">
-                        <h3 class="card-title mr-3">
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white dx-table-card">
+                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+                    <div class="flex items-center">
+                        <h3 class="font-semibold mr-4">
                             <i class="fas fa-list mr-2"></i>All Diagnoses
                         </h3>
-                        <span class="badge badge-secondary">{{ $diagnoses->total() }} total</span>
+                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $diagnoses->total() }} total</span>
                         @if(count($selectedDiagnosisIds) > 0)
-                            <span class="badge badge-primary ml-2">{{ count($selectedDiagnosisIds) }} selected</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 ml-2">{{ count($selectedDiagnosisIds) }} selected</span>
                             <button type="button"
-                                    class="btn btn-sm btn-outline-danger ml-2"
+                                    class="btn ui-button ui-button-sm ui-button-danger ml-2"
                                     wire:click="deleteSelected"
                                     wire:confirm="Delete selected diagnosis records? This cannot be undone.">
                                 <i class="fas fa-trash-alt mr-1"></i>Delete Selected
                             </button>
                             <button type="button"
-                                    class="btn btn-sm btn-link text-muted"
+                                    class="btn ui-button ui-button-sm ui-button-link text-slate-500"
                                     wire:click="clearSelection">
                                 Clear
                             </button>
                         @endif
                     </div>
-                    <div class="card-tools d-flex align-items-center" style="gap:.5rem;">
+                    <div class="ml-auto flex items-center gap-1" style="gap:.5rem;">
                         {{-- Search --}}
-                        <div class="input-group input-group-sm dx-search-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text bg-white border-right-0">
+                        <div class="flex items-stretch dx-search-group">
+                            <div class="flex">
+                                <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-white border-r-0">
                                     <span wire:loading wire:target="search">
-                                        <i class="fas fa-spinner fa-spin text-primary" style="font-size:.75rem;"></i>
+                                        <i class="fas fa-spinner fa-spin text-teal-700" style="font-size:.75rem;"></i>
                                     </span>
                                     <span wire:loading.remove wire:target="search">
-                                        <i class="fas fa-search text-muted" style="font-size:.75rem;"></i>
+                                        <i class="fas fa-search text-slate-500" style="font-size:.75rem;"></i>
                                     </span>
                                 </span>
                             </div>
                             <input type="text"
-                                   class="form-control border-left-0"
+                                   class="form-control ui-input border-l-0"
                                    placeholder="Search diagnoses…"
                                    wire:model.live.debounce.300ms="search"
                                    style="width:220px;">
                             @if($search)
-                                <div class="input-group-append">
-                                    <button class="btn btn-outline-secondary" wire:click="clearSearch" title="Clear search">
+                                <div class="flex">
+                                    <button class="btn ui-button ui-button-secondary" wire:click="clearSearch" title="Clear search">
                                         <i class="fas fa-times" style="font-size:.75rem;"></i>
                                     </button>
                                 </div>
@@ -136,7 +136,7 @@
                         </div>
 
                         {{-- Import --}}
-                        <button class="btn btn-sm {{ $showImportPanel ? 'btn-primary' : 'btn-outline-primary' }}"
+                        <button class="btn ui-button ui-button-sm {{ $showImportPanel ? 'ui-button-primary' : 'ui-button-secondary' }}"
                                 wire:click="$toggle('showImportPanel')"
                                 title="Import from CSV">
                             <i class="fas fa-file-import mr-1"></i>Import CSV
@@ -144,7 +144,7 @@
 
                         {{-- Export --}}
                         <button wire:click="export"
-                                class="btn btn-sm btn-outline-success"
+                                class="btn ui-button ui-button-sm ui-button-secondary"
                                 title="Export as CSV">
                             <i class="fas fa-download mr-1"></i>Export CSV
                         </button>
@@ -195,12 +195,12 @@
                                 </div>
                             @endif
 
-                            <div class="d-flex" style="gap:.5rem; margin-top:1rem;">
-                                <button class="btn btn-primary btn-sm"
+                            <div class="flex" style="gap:.5rem; margin-top:1rem;">
+                                <button class="btn ui-button ui-button-primary ui-button-sm"
                                         wire:click="clearImport">
                                     <i class="fas fa-check mr-1"></i>Done
                                 </button>
-                                <button class="btn btn-outline-secondary btn-sm"
+                                <button class="btn ui-button ui-button-secondary ui-button-sm"
                                         wire:click="clearImport">
                                     <i class="fas fa-redo mr-1"></i>Import Another File
                                 </button>
@@ -209,8 +209,8 @@
                     @else
                         {{-- Upload form --}}
                         <div class="dx-import-form">
-                            <div class="row align-items-start">
-                                <div class="col-md-7">
+                            <div class="flex flex-wrap -mx-2 items-start">
+                                <div class="w-full md:w-7/12 px-2">
                                     <p class="dx-import-desc">
                                         Upload a <strong>.csv</strong> file with one diagnosis name per row.
                                         Duplicate names are skipped automatically.
@@ -236,17 +236,17 @@
                                     </div>
                                 </div>
 
-                                <div class="col-md-5">
+                                <div class="w-full md:w-5/12 px-2">
                                     <div class="dx-upload-area">
                                         <label class="dx-upload-label" for="importFilePicker">
                                             <i class="fas fa-cloud-upload-alt dx-upload-icon"></i>
                                             <span class="dx-upload-text">
                                                 @if($importFile)
                                                     <strong>{{ $importFile->getClientOriginalName() }}</strong>
-                                                    <small class="d-block text-muted">{{ number_format($importFile->getSize() / 1024, 1) }} KB</small>
+                                                    <small class="block text-slate-500">{{ number_format($importFile->getSize() / 1024, 1) }} KB</small>
                                                 @else
                                                     Click to choose a CSV file
-                                                    <small class="d-block text-muted">Max 2 MB</small>
+                                                    <small class="block text-slate-500">Max 2 MB</small>
                                                 @endif
                                             </span>
                                         </label>
@@ -261,8 +261,8 @@
                                         <p class="dx-upload-error"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</p>
                                     @enderror
 
-                                    <div class="d-flex" style="gap:.5rem; margin-top:.85rem;">
-                                        <button class="btn btn-primary btn-sm flex-grow-1"
+                                    <div class="flex" style="gap:.5rem; margin-top:.85rem;">
+                                        <button class="btn ui-button ui-button-primary ui-button-sm grow"
                                                 wire:click="importCsv"
                                                 wire:loading.attr="disabled"
                                                 wire:target="importCsv"
@@ -274,13 +274,13 @@
                                                 <i class="fas fa-spinner fa-spin mr-1"></i>Importing…
                                             </span>
                                         </button>
-                                        <button class="btn btn-outline-secondary btn-sm"
+                                        <button class="btn ui-button ui-button-secondary ui-button-sm"
                                                 wire:click="downloadTemplate">
                                             <i class="fas fa-download mr-1"></i>Template
                                         </button>
                                     </div>
 
-                                    <button class="btn btn-link btn-sm text-muted p-0 mt-2"
+                                    <button class="btn ui-button ui-button-link ui-button-sm text-slate-500 p-0 mt-2"
                                             wire:click="clearImport">
                                         <i class="fas fa-times mr-1"></i>Cancel
                                     </button>
@@ -293,8 +293,8 @@
                 @endif
 
                 <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover dx-table mb-0">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table dx-table mb-0">
                             <thead>
                                 <tr>
                                     <th style="width:44px;" class="text-center">
@@ -308,9 +308,9 @@
                                         Diagnosis Name
                                         <span class="dx-sort-indicator">
                                             @if($sortField === 'name')
-                                                <i class="fas fa-sort-{{ $sortAsc ? 'up' : 'down' }} text-primary ml-1"></i>
+                                                <i class="fas fa-sort-{{ $sortAsc ? 'up' : 'down' }} text-teal-700 ml-1"></i>
                                             @else
-                                                <i class="fas fa-sort text-muted ml-1" style="opacity:.35;"></i>
+                                                <i class="fas fa-sort text-slate-500 ml-1" style="opacity:.35;"></i>
                                             @endif
                                         </span>
                                     </th>
@@ -318,9 +318,9 @@
                                         DB ID
                                         <span class="dx-sort-indicator">
                                             @if($sortField === 'id')
-                                                <i class="fas fa-sort-{{ $sortAsc ? 'up' : 'down' }} text-primary ml-1"></i>
+                                                <i class="fas fa-sort-{{ $sortAsc ? 'up' : 'down' }} text-teal-700 ml-1"></i>
                                             @else
-                                                <i class="fas fa-sort text-muted ml-1" style="opacity:.35;"></i>
+                                                <i class="fas fa-sort text-slate-500 ml-1" style="opacity:.35;"></i>
                                             @endif
                                         </span>
                                     </th>
@@ -336,46 +336,46 @@
                                                    value="{{ $diagnosis->id }}"
                                                    wire:model.live="selectedDiagnosisIds">
                                         </td>
-                                        <td class="text-center text-muted" style="font-size:.8rem;">
+                                        <td class="text-center text-slate-500" style="font-size:.8rem;">
                                             {{ ($diagnoses->currentPage() - 1) * $diagnoses->perPage() + $index + 1 }}
                                         </td>
                                         <td>
-                                            <div class="d-flex align-items-center">
+                                            <div class="flex items-center">
                                                 <span class="dx-dx-icon mr-2">
-                                                    <i class="fas fa-eye text-muted" style="font-size:.75rem;"></i>
+                                                    <i class="fas fa-eye text-slate-500" style="font-size:.75rem;"></i>
                                                 </span>
                                                 @if($inlineEditingId == $diagnosis->id)
                                                     <div class="dx-inline-edit">
                                                         <input type="text"
-                                                               class="form-control form-control-sm dx-inline-input @error('inlineName') is-invalid @enderror"
+                                                               class="form-control ui-input ui-input-sm dx-inline-input @error('inlineName') is-invalid @enderror"
                                                                wire:model="inlineName"
                                                                wire:keydown.enter="saveInlineEdit"
                                                                wire:keydown.escape="cancelInlineEdit"
                                                                autofocus>
                                                         <button type="button"
-                                                                class="btn btn-sm btn-success dx-inline-btn"
+                                                                class="btn ui-button ui-button-sm ui-button-primary dx-inline-btn"
                                                                 wire:click="saveInlineEdit"
                                                                 title="Save">
                                                             <i class="fas fa-check"></i>
                                                         </button>
                                                         <button type="button"
-                                                                class="btn btn-sm btn-outline-secondary dx-inline-btn"
+                                                                class="btn ui-button ui-button-sm ui-button-secondary dx-inline-btn"
                                                                 wire:click="cancelInlineEdit"
                                                                 title="Cancel">
                                                             <i class="fas fa-times"></i>
                                                         </button>
                                                         @error('inlineName')
-                                                            <small class="text-danger d-block">{{ $message }}</small>
+                                                            <small class="text-red-700 block">{{ $message }}</small>
                                                         @enderror
                                                     </div>
                                                 @else
-                                                    <span class="dx-name {{ $diagnosis_id == $diagnosis->id && $isEditing ? 'text-warning font-weight-bold' : '' }}"
+                                                    <span class="dx-name {{ $diagnosis_id == $diagnosis->id && $isEditing ? 'text-amber-600 font-semibold' : '' }}"
                                                           wire:dblclick="startInlineEdit({{ $diagnosis->id }})"
                                                           title="Double-click to edit inline">
                                                         {{ $diagnosis->name }}
                                                     </span>
                                                     @if($diagnosis_id == $diagnosis->id && $isEditing)
-                                                        <span class="badge badge-warning ml-2" style="font-size:.65rem;">Editing</span>
+                                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-2" style="font-size:.65rem;">Editing</span>
                                                     @endif
                                                 @endif
                                             </div>
@@ -384,12 +384,12 @@
                                             <code class="dx-id-code">{{ $diagnosis->id }}</code>
                                         </td>
                                         <td class="text-center">
-                                            <button class="btn btn-sm dx-action-btn dx-action-btn--edit"
+                                            <button class="btn ui-button ui-button-sm dx-action-btn dx-action-btn--edit ui-button-secondary"
                                                     wire:click="startInlineEdit({{ $diagnosis->id }})"
                                                     title="Edit inline">
                                                 <i class="fas fa-pencil-alt"></i>
                                             </button>
-                                            <button class="btn btn-sm dx-action-btn dx-action-btn--delete"
+                                            <button class="btn ui-button ui-button-sm dx-action-btn dx-action-btn--delete ui-button-secondary"
                                                     wire:click="delete({{ $diagnosis->id }})"
                                                     wire:confirm="Delete &quot;{{ $diagnosis->name }}&quot;? This cannot be undone."
                                                     title="Delete this diagnosis">
@@ -399,7 +399,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center py-5">
+                                        <td colspan="5" class="text-center py-12">
                                             <div class="dx-empty">
                                                 <i class="fas fa-search-minus dx-empty__icon"></i>
                                                 @if($search)
@@ -419,10 +419,7 @@
                 </div>
 
                 @if($diagnoses->hasPages())
-                    <div class="card-footer bg-white d-flex justify-content-between align-items-center">
-                        <small class="text-muted">
-                            Showing {{ $diagnoses->firstItem() }}–{{ $diagnoses->lastItem() }} of {{ $diagnoses->total() }} diagnoses
-                        </small>
+                    <div class="border-t border-slate-200 px-4 py-2 bg-white">
                         {{ $diagnoses->links() }}
                     </div>
                 @endif

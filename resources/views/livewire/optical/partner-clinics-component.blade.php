@@ -61,7 +61,7 @@
                             <td class="oo-num">@if($owed > 0)<b style="color:#b91c1c">{{ currency() }} {{ number_format($owed, 2) }}</b>@else<span class="ui-muted">0.00</span>@endif</td>
                             <td onclick="event.stopPropagation()">
                                 <div class="oo-row-actions" style="grid-template-columns:80px 64px">
-                                    <a href="{{ route('optical.partners.statement', $partner->id) }}" class="oo-btn">Account</a>
+                                    <a wire:navigate href="{{ route('optical.partners.statement', $partner->id) }}" class="oo-btn">Account</a>
                                     <button type="button" class="oo-btn" wire:click="openPartner({{ $partner->id }})">View</button>
                                 </div>
                             </td>
@@ -122,12 +122,12 @@
                         @php [$bl, $bc] = \App\Support\Optical\OrderPresenter::badge($order->status); @endphp
                         <div class="flex items-center justify-between gap-2" style="padding:6px 0;border-bottom:1px solid var(--clinic-line)">
                             <span><span class="oo-id">{{ $order->order_id }}</span> <span class="ui-muted text-xs">· {{ $order->customer_name ?: 'No wearer name' }} · {{ $order->created_at?->format('d M Y') }}</span></span>
-                            <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
+                            <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
                         </div>
                     @empty
                         <p class="ui-muted text-sm" style="margin:0">No jobs yet.</p>
                     @endforelse
-                    @if($viewOrders->count() >= 8)<p style="margin:8px 0 0"><a class="oo-link" href="{{ route('optical.orders', ['sourceFilter' => 'partner', 'partnerFilter' => $viewPartner->id]) }}">See all jobs →</a></p>@endif
+                    @if($viewOrders->count() >= 8)<p style="margin:8px 0 0"><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['sourceFilter' => 'partner', 'partnerFilter' => $viewPartner->id]) }}">See all jobs →</a></p>@endif
                 </section>
                 <section class="oo-section" style="border-top:1px solid var(--clinic-line);padding-top:14px">
                     @if($viewPartner->is_active)
@@ -139,8 +139,8 @@
             </div>
             <footer class="oo-drawer-foot">
                 <button type="button" class="oo-btn" x-on:click="openLocal($wire, {{ \Illuminate\Support\Js::from(['editingId' => $viewPartner->id, 'name' => $viewPartner->name, 'contactPerson' => $viewPartner->contact_person ?? '', 'phone' => $viewPartner->phone ?? '', 'email' => $viewPartner->email ?? '', 'address' => $viewPartner->address ?? '', 'billingTerms' => $viewPartner->billing_terms, 'notificationPhone' => $viewPartner->notification_phone ?? '', 'notifyVia' => $viewPartner->notify_via ?: 'sms', 'isActive' => (bool) $viewPartner->is_active, 'showForm' => true]) }}, $root.querySelector('[data-partner-form]'))">Edit details</button>
-                <a href="{{ route('optical.partners.statement', $viewPartner->id) }}" class="oo-btn">Account statement</a>
-                @if($viewPartner->is_active)<a href="{{ route('optical.orders.create', ['partner_id' => $viewPartner->id]) }}" class="oo-btn primary">New job</a>@endif
+                <a wire:navigate href="{{ route('optical.partners.statement', $viewPartner->id) }}" class="oo-btn">Account statement</a>
+                @if($viewPartner->is_active)<a wire:navigate href="{{ route('optical.orders.create', ['partner_id' => $viewPartner->id]) }}" class="oo-btn primary">New job</a>@endif
             </footer>
         </aside>
         </div>

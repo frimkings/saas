@@ -1,150 +1,103 @@
-<div wire:poll.30s="syncQueue">
+@php
+    $label = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500';
+    $chip = 'inline-flex items-center whitespace-nowrap rounded-full px-3 py-0.5 text-xs font-semibold';
+@endphp
+<div wire:poll.30s="syncQueue" class="clinic-ui ui-page space-y-5">
+    <div class="ui-heading">
+        <div>
+            <h1>Queue manager <span class="ml-1 rounded-full bg-teal-50 px-2 align-middle text-sm text-teal-800">{{ $patients->total() }}</span></h1>
+            <p class="ui-muted"><span class="queue-pulse mr-1" aria-hidden="true"></span>Live sync every 30 seconds</p>
+        </div>
+        <div class="ui-actions">
+            <button type="button" wire:click="exportCSV" class="ui-button ui-button-secondary"><i class="fas fa-file-csv" aria-hidden="true"></i>Export</button>
+            <button type="button" wire:click="syncQueue" class="ui-button ui-button-primary"><i class="fas fa-sync-alt" wire:loading.class="fa-spin" aria-hidden="true"></i>Sync</button>
+        </div>
+    </div>
+
+    <div class="ui-panel grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[3fr_4fr_3fr_2fr]">
+        <div>
+            <label for="queue-search" class="{{ $label }}">Search patient</label>
+            <input id="queue-search" type="search" wire:model.live.debounce.300ms="searchTerm" class="ui-input" placeholder="Name or folder #…">
+        </div>
+        <div>
+            <span class="{{ $label }}">Date range (clearance)</span>
+            <x-date-range from="fromDate" to="toDate" presets="activity" />
+        </div>
+        <div>
+            <span class="{{ $label }}">Doctor status</span>
+            <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-slate-300 text-sm font-semibold" role="group" aria-label="Doctor status">
+                <button type="button" wire:click="$set('showSeen', false)" aria-pressed="{{ ! $showSeen ? 'true' : 'false' }}"
+                        class="px-3 py-2 {{ ! $showSeen ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-red-50' }}"><i class="fas fa-clock mr-1" aria-hidden="true"></i>Unseen</button>
+                <button type="button" wire:click="$set('showSeen', true)" aria-pressed="{{ $showSeen ? 'true' : 'false' }}"
+                        class="border-l border-slate-300 px-3 py-2 {{ $showSeen ? 'bg-green-600 text-white' : 'bg-white text-green-700 hover:bg-green-50' }}"><i class="fas fa-check mr-1" aria-hidden="true"></i>Seen</button>
+            </div>
+        </div>
+        <button type="button" wire:click="resetFilters" class="ui-button ui-button-secondary w-full"><i class="fas fa-undo" aria-hidden="true"></i>Reset</button>
+    </div>
+
+    <section class="ui-panel">
+        <div class="ui-table-wrap">
+            <table class="ui-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>PX number</th>
+                        <th>Service</th>
+                        <th class="text-center">Clearance date</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody wire:loading.class="opacity-50">
+                    @forelse ($patients as $patient)
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 font-bold text-slate-600" aria-hidden="true">{{ substr($patient->patient->name ?? '?', 0, 1) }}</span>
+                                    <div>
+                                        <p class="font-semibold">{{ $patient->patient->name ?? '—' }}</p>
+                                        <p class="text-xs text-slate-500">{{ $patient->patient->contact ?? '' }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs">{{ $patient->patient->pxnumber ?? '—' }}</span></td>
+                            <td>
+                                @if($patient->service)
+                                    <span class="{{ $chip }} !rounded-md bg-blue-50 text-blue-800"><i class="fas fa-concierge-bell mr-1 text-[10px]" aria-hidden="true"></i>{{ $patient->service->name }}</span>
+                                    <p class="text-xs text-slate-500">{{ currency() }} {{ number_format($patient->service->selling_price, 2) }}</p>
+                                @else
+                                    <span class="text-slate-400">—</span>
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap text-center">{{ \Carbon\Carbon::parse($patient->clearance_date)->format('d M Y') }}</td>
+                            <td class="text-center">
+                                @if($patient->doctor_status)
+                                    <span class="{{ $chip }} bg-green-50 text-green-800 ring-1 ring-green-200">Attended</span>
+                                @else
+                                    <span class="{{ $chip }} bg-red-50 text-red-800 ring-1 ring-red-200">Awaiting</span>
+                                @endif
+                            </td>
+                            <td class="text-right">
+                                <a href="{{ route('doctor.patient-records', $patient) }}" class="ui-button ui-button-primary whitespace-nowrap">Open file <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6" class="ui-empty text-slate-500">No records found for the selected criteria.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
+            <span class="text-xs text-slate-500">Last update: {{ now()->format('h:i A') }}</span>
+            {{ $patients->links() }}
+        </div>
+    </section>
+
     <style>
-        .bg-primary-soft  { background-color: rgba(13,110,253,.08); color:#0d6efd; }
-        .bg-success-subtle { background-color:#e6fcf5; color:#087f5b; border:1px solid #c3fae8; }
-        .bg-danger-subtle  { background-color:#fff5f5; color:#c92a2a; border:1px solid #ffe3e3; }
-        .pulse-dot { width:10px; height:10px; background:#40c057; border-radius:50%; display:inline-block; animation:pulse 2s infinite; }
-        @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(64,192,87,.5);} 70%{box-shadow:0 0 0 8px rgba(64,192,87,0);} 100%{box-shadow:0 0 0 0 rgba(64,192,87,0);} }
-        .avatar-box { width:42px; height:42px; background:#f1f3f5; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#495057; }
+        .queue-pulse { width: 10px; height: 10px; background: #40c057; border-radius: 50%; display: inline-block; animation: queue-pulse 2s infinite; }
+        @keyframes queue-pulse { 0% { box-shadow: 0 0 0 0 rgba(64,192,87,.5); } 70% { box-shadow: 0 0 0 8px rgba(64,192,87,0); } 100% { box-shadow: 0 0 0 0 rgba(64,192,87,0); } }
+        @media (prefers-reduced-motion: reduce) { .queue-pulse { animation: none; } }
     </style>
-
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-4 align-items-center">
-                <div class="col-sm-6">
-                    <h1 class="m-0 fw-bold">
-                        Queue Manager
-                        <span class="badge bg-primary-soft ms-2" style="font-size:.5em;">{{ $patients->total() }}</span>
-                    </h1>
-                </div>
-                <div class="col-sm-6 text-end">
-                    <span class="small text-muted me-3"><span class="pulse-dot me-1"></span> Live Sync</span>
-                    <button wire:click="exportCSV" class="btn btn-outline-success rounded-pill px-3 me-2">
-                        <i class="fas fa-file-csv me-1"></i> Export
-                    </button>
-                    <button wire:click="syncQueue" class="btn btn-primary rounded-pill px-4 shadow-sm">
-                        <i class="fas fa-sync-alt me-1" wire:loading.class="fa-spin"></i> Sync
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="content">
-        <div class="container-fluid">
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body p-4">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted text-uppercase">Search Patient</label>
-                            <input type="text" wire:model.live.debounce.300ms="searchTerm"
-                                   class="form-control" placeholder="Name or Folder #...">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted text-uppercase">Date Range (Clearance)</label>
-                            <div class="input-group">
-                                <x-date-range from="fromDate" to="toDate" presets="activity" />
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted text-uppercase d-block text-center">Doctor Status</label>
-                            <div class="btn-group w-100 shadow-sm">
-                                <button wire:click="$set('showSeen', false)"
-                                        class="btn {{ !$showSeen ? 'btn-danger' : 'btn-outline-danger' }}">
-                                    <i class="fas fa-clock mr-1"></i>Unseen
-                                </button>
-                                <button wire:click="$set('showSeen', true)"
-                                        class="btn {{ $showSeen ? 'btn-success' : 'btn-outline-success' }}">
-                                    <i class="fas fa-check mr-1"></i>Seen
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <button wire:click="resetFilters" class="btn btn-light border w-100">
-                                <i class="fas fa-undo mr-1"></i>Reset
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card border-0 shadow-sm overflow-hidden">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="bg-light">
-                            <tr>
-                                <th class="ps-4 py-3 border-0">Patient Details</th>
-                                <th class="border-0">PX Number</th>
-                                <th class="border-0">Service</th>
-                                <th class="border-0 text-center">Clearance Date</th>
-                                <th class="border-0 text-center">Status</th>
-                                <th class="border-0 text-end pe-4">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody wire:loading.class="opacity-50">
-                            @forelse ($patients as $patient)
-                                <tr>
-                                    <td class="ps-4 py-3">
-                                        <div class="d-flex align-items-center">
-                                            <div class="avatar-box me-3">{{ substr($patient->patient->name ?? '?', 0, 1) }}</div>
-                                            <div>
-                                                <div class="fw-bold">{{ $patient->patient->name ?? '—' }}</div>
-                                                <small class="text-muted">{{ $patient->patient->contact ?? '' }}</small>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark border">
-                                            {{ $patient->patient->pxnumber ?? '—' }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        @if($patient->service)
-                                            <span class="badge" style="background:#e3f2fd;color:#1565c0;font-size:.8rem;font-weight:600;">
-                                                <i class="fas fa-concierge-bell mr-1" style="font-size:.7rem;"></i>
-                                                {{ $patient->service->name }}
-                                            </span>
-                                            <br><small class="text-muted">{{ currency() }} {{ number_format($patient->service->selling_price, 2) }}</small>
-                                        @else
-                                            <span class="text-muted small">—</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-center fw-medium">
-                                        {{ \Carbon\Carbon::parse($patient->clearance_date)->format('d M Y') }}
-                                    </td>
-                                    <td class="text-center">
-                                        @if($patient->doctor_status)
-                                            <span class="badge bg-success-subtle rounded-pill px-3">Attended</span>
-                                        @else
-                                            <span class="badge bg-danger-subtle rounded-pill px-3">Awaiting</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end pe-4">
-                                        <a href="{{ route('doctor.patient-records', $patient) }}"
-                                           class="btn btn-sm btn-dark px-3 rounded-pill shadow-sm">
-                                            Open File <i class="fas fa-chevron-right ms-1"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center py-5 text-muted">
-                                        No records found for the selected criteria.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                <div class="card-footer bg-white border-0 py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="small text-muted">Last update: {{ now()->format('h:i A') }}</span>
-                        {{ $patients->links() }}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script>
         window.addEventListener('play-notification-sound', () => {

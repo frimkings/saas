@@ -187,7 +187,7 @@
             </table>
             <table class="rp-rows mt-4">
                 <tr><td>Cash received</td><td class="n">{{ $money($cash['cashIn']) }}</td></tr>
-                <tr class="sub"><td>Expenses paid in cash <a href="{{ route('optical.expenses', ['fromDate' => $fromDate, 'toDate' => $toDate]) }}" class="ml-1 text-xs font-semibold text-teal-700 hover:underline">view</a></td><td class="n">− {{ $money($cash['cashPaidOut']) }}</td></tr>
+                <tr class="sub"><td>Expenses paid in cash <a wire:navigate href="{{ route('optical.expenses', ['fromDate' => $fromDate, 'toDate' => $toDate]) }}" class="ml-1 text-xs font-semibold text-teal-700 hover:underline">view</a></td><td class="n">− {{ $money($cash['cashPaidOut']) }}</td></tr>
                 <tr class="total"><td>Cash expected in the till <span class="block text-xs font-normal text-slate-500">Before cash refunds and any opening float</span></td><td class="n">{{ $money($cash['cashExpected']) }}</td></tr>
             </table>
             <a href="{{ route('optical.reports.export', ['report' => 'end-of-day', 'format' => 'print'] + $range) }}" target="_blank" rel="noopener" class="ui-button mt-3 inline-flex">Print end of day</a>
@@ -213,7 +213,7 @@
                 <div><h2>Owed to you, by age</h2><p class="rp-hint">Every job with a balance today, whenever it was ordered, grouped by days since ordering.</p></div>
                 <div class="flex gap-2">
                     <a href="{{ route('optical.reports.export', ['report' => 'owed', 'format' => 'print']) }}" target="_blank" rel="noopener" class="ui-button">Print</a>
-                    <a href="{{ route('optical.orders', ['statusFilter' => 'due']) }}" class="ui-button">Open in Orders</a>
+                    <a wire:navigate href="{{ route('optical.orders', ['statusFilter' => 'due']) }}" class="ui-button">Open in Orders</a>
                 </div>
             </div>
             <div class="rp-ages">
@@ -228,7 +228,7 @@
                 <tbody>
                 @forelse($owed['rows']->take(50) as $row)
                     <tr wire:key="owed-{{ $row['id'] }}">
-                        <td><a href="{{ route('optical.orders', ['searchTerm' => $row['order']]) }}" class="font-mono font-bold text-teal-800 hover:underline">{{ $row['order'] }}</a></td>
+                        <td><a wire:navigate href="{{ route('optical.orders', ['searchTerm' => $row['order']]) }}" class="font-mono font-bold text-teal-800 hover:underline">{{ $row['order'] }}</a></td>
                         <td>{{ $row['customer'] }}@if($row['partner'])<span class="ml-1 rounded bg-sky-50 px-1.5 text-[11px] font-semibold text-sky-800">Partner</span>@endif @if($row['phone'])<span class="block text-xs text-slate-500">{{ $row['phone'] }}</span>@endif</td>
                         <td class="whitespace-nowrap">{{ $row['ordered']->format('M j, Y') }}<span class="block text-xs {{ $row['days'] > 60 ? 'font-semibold text-red-700' : 'text-slate-500' }}">{{ $row['days'] }} {{ Str::plural('day', $row['days']) }} ago</span></td>
                         <td>{{ $row['status'] }}</td>

@@ -109,6 +109,6 @@ class PatientTimelineComponent extends Component
     {
         return view('livewire.doctor.patient-timeline-component', [
             'timeline' => $this->timeline,
-        ])->layout('layouts.doctor.doctor-layout');
+        ])->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

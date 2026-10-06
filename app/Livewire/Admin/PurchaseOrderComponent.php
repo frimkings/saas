@@ -18,7 +18,7 @@ class PurchaseOrderComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // Filters
     public string $search         = '';
