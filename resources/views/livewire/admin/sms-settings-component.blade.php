@@ -108,38 +108,36 @@
                                  x-on:sms-top-up-requested.window="amount = ''">
                                 {{-- The preview above follows the same rule as SmsBundle::quoteFor(); the server recalculates on submit. --}}
                                 <label class="text-sm font-semibold text-slate-500">BUY SMS CREDITS</label>
-                                <div class="flex flex-wrap -mx-2">
+                                <div class="mt-1 mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                     <template x-for="t in tiers" :key="t.id">
-                                        <div class="w-full sm:w-6/12 lg:w-4/12 px-2 mb-2">
-                                            <button type="button" class="btn ui-button w-full text-left border border-slate-200 rounded-md p-2 h-full ui-button-secondary" style="white-space: normal"
-                                                    :class="valid && tier.id === t.id ? 'border-teal-600 bg-slate-50' : 'bg-white'"
-                                                    x-on:click="amount = t.price">
-                                                <div class="flex justify-between items-center">
-                                                    <span class="text-sm text-slate-500 uppercase font-semibold" x-text="t.name"></span>
-                                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800" x-show="t.price / t.credits < worst() - 0.00001"
-                                                          x-text="'save ' + Math.round((1 - (t.price / t.credits) / worst()) * 100) + '%'"></span>
-                                                </div>
-                                                <div class="text-base font-semibold mb-0" x-text="'GHS ' + count(t.price)"></div>
-                                                <div class="text-sm" x-text="count(t.credits) + ' SMS'"></div>
-                                                <div class="text-sm text-slate-500" x-text="(t.price / t.credits).toFixed(3) + ' per SMS'"></div>
-                                            </button>
-                                        </div>
+                                        <button type="button" class="block w-full rounded-md border p-3 text-left transition hover:border-teal-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                                                :class="valid && tier.id === t.id ? 'border-teal-600 bg-teal-50' : 'border-slate-200 bg-white'"
+                                                x-on:click="amount = t.price">
+                                            <span class="flex items-center justify-between gap-2">
+                                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500" x-text="t.name"></span>
+                                                <span class="shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800" x-show="t.price / t.credits < worst() - 0.00001"
+                                                      x-text="'save ' + Math.round((1 - (t.price / t.credits) / worst()) * 100) + '%'"></span>
+                                            </span>
+                                            <span class="mt-1 block text-lg font-semibold text-slate-800" x-text="'GHS ' + count(t.price)"></span>
+                                            <span class="block text-sm text-slate-700" x-text="count(t.credits) + ' SMS'"></span>
+                                            <span class="block text-xs text-slate-500" x-text="(t.price / t.credits).toFixed(3) + ' per SMS'"></span>
+                                        </button>
                                     </template>
                                 </div>
 
                                 <label class="text-sm font-semibold text-slate-500 mt-2 mb-1" for="sms-top-up-amount">OR ENTER AN AMOUNT</label>
-                                <div class="flex items-stretch">
-                                    <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">GHS</span></div>
-                                    <input type="number" id="sms-top-up-amount" class="form-control ui-input @error('topUpAmount') is-invalid @enderror"
+                                <div class="flex h-9 w-full max-w-sm">
+                                    <span class="flex items-center rounded-l-md border border-r-0 border-slate-300 bg-slate-50 px-3 text-sm text-slate-600">GHS</span>
+                                    <input type="number" id="sms-top-up-amount"
+                                           class="min-w-0 flex-1 border px-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 @error('topUpAmount') border-red-500 @else border-slate-300 @enderror"
                                            x-model="amount" :min="min" :max="max" step="0.01" placeholder="e.g. 250"
                                            x-on:keydown.enter.prevent="submit()">
-                                    <div class="flex">
-                                        <button type="button" class="btn ui-button ui-button-primary font-semibold" :disabled="!valid" x-ref="requestButton"
-                                                data-confirm-button="Request invoice" data-confirm-danger="false"
-                                                x-on:click="submit()" wire:loading.attr="disabled" wire:target="requestTopUp">
-                                            Request invoice
-                                        </button>
-                                    </div>
+                                    <button type="button" class="whitespace-nowrap rounded-r-md bg-teal-600 px-4 text-sm font-semibold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            :disabled="!valid" x-ref="requestButton"
+                                            data-confirm-button="Request invoice" data-confirm-danger="false"
+                                            x-on:click="submit()" wire:loading.attr="disabled" wire:target="requestTopUp">
+                                        Request invoice
+                                    </button>
                                 </div>
                                 @error('topUpAmount')<div class="text-sm text-red-700 mt-1">{{ $message }}</div>@enderror
 
