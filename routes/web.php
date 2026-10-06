@@ -90,7 +90,8 @@ Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform/sms', \App\Livewire\Platform\SmsMessagingComponent::class)->name('platform.sms');
     Route::get('/platform/support', \App\Livewire\Platform\SupportSettingsComponent::class)->name('platform.support');
     Route::get('/platform/announcements', \App\Livewire\Platform\AnnouncementsComponent::class)->name('platform.announcements');
-    Route::get('/platform/subscription-analytics', \App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');
+    Route::get('/platform/usage', \App\Livewire\Platform\ClinicUsageComponent::class)->name('platform.usage');
+    Route::get('/platform/subscription-analytics',\App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');
     Route::get('/platform/subscription-analytics.csv', [\App\Http\Controllers\Platform\SubscriptionAnalyticsExportController::class,'csv'])->name('platform.subscription-analytics.csv');
     Route::get('/platform/billing-report.csv', [\App\Http\Controllers\Platform\BillingReportController::class,'csv'])->name('platform.billing-report.csv');
     Route::get('/platform/billing-report.pdf', [\App\Http\Controllers\Platform\BillingReportController::class,'pdf'])->name('platform.billing-report.pdf');

@@ -35,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Services\SubscriptionService::class);
         // Per-request lookups (clinic settings); workers and requests each start empty.
         $this->app->scoped(\App\Support\RequestMemo::class);
+        // Database time per request for Platform → Usage (MeterClinicUsage).
+        $this->app->scoped(\App\Support\Usage\UsageMeter::class);
     }
 
     /**
@@ -52,6 +54,9 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Database\Events\ConnectionEstablished::class,
             fn ($event) => $attachLicenseGuard($event->connection));
         foreach (\Illuminate\Support\Facades\DB::getConnections() as $connection) $attachLicenseGuard($connection);
+        \Illuminate\Support\Facades\DB::listen(function ($query): void {
+            if (\App\Support\Usage\UsageMeter::enabled()) app(\App\Support\Usage\UsageMeter::class)->addQuery((float) $query->time);
+        });
         // Every queued job carries the authenticated clinic/branch in its payload.
         // Workers re-authorize it before processing and always clear it afterward.
         Queue::createPayloadUsing(function (): array {

@@ -5,7 +5,7 @@
     $smsLow = (bool) (app(\App\Services\Messaging\PlatformSmsBalance::class)->last()['low'] ?? false);
     $tabs = ['dashboard' => '▥ Dashboard', 'clinics' => '✚ Clinics Directory', 'plans' => '◆ Subscription Plans', 'billing' => '▤ Invoices & Billing',
         'onboarding' => '＋ Clinic Onboarding', 'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
-    $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'imports' => ['platform.imports', '⇧ Legacy Imports'],
+    $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'usage' => ['platform.usage', '◷ Clinic Usage'],'imports' => ['platform.imports', '⇧ Legacy Imports'],
         'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'support' => ['platform.support', '☏ Support Contact']];
 @endphp
 @once

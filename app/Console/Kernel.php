@@ -82,6 +82,8 @@ class Kernel extends ConsoleKernel
 
         // Prune unbounded log tables to keep working set small
         $night($schedule->command('logs:prune'), '03:00', '06:10')->withoutOverlapping();
+        // Platform → Usage: each clinic's stored rows (skips itself when usage metering is off).
+        $night($schedule->command('usage:snapshot-storage'), '03:45', '06:20')->withoutOverlapping();
         $hosted
             ? $schedule->command('tenancy:run-scheduled visit-bills:finalize-expired')->cron(HostedSchedule::daytime('*/30'))->withoutOverlapping()
             : $schedule->command('tenancy:run-scheduled visit-bills:finalize-expired')->everyFiveMinutes()->withoutOverlapping();
