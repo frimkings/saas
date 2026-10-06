@@ -17,7 +17,7 @@ class PatientRecallComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $activeTab = 'due';
     public string $search    = '';

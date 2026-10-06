@@ -14,7 +14,7 @@
     ];
 @endphp
 
-<main class="so-page">
+<div class="so-page">
     <section class="so-topbar">
         <div>
             <div class="so-kicker">Optical dispensing</div>
@@ -75,9 +75,9 @@
             <span class="so-metric-label">Renewal due soon</span>
         </button>
     </section>
-    <div class="btn-group mb-3" role="group" aria-label="Record type">
-        <button type="button" wire:click="setRecordType('orders')" class="btn btn-sm {{ $recordType === 'orders' ? 'btn-primary' : 'btn-outline-primary' }}">Spectacle Orders</button>
-        <button type="button" wire:click="setRecordType('refractions')" class="btn btn-sm {{ $recordType === 'refractions' ? 'btn-primary' : 'btn-outline-primary' }}">Refractions Needing Order</button>
+    <div class="mb-3 inline-flex overflow-hidden rounded-md border border-teal-700 text-sm font-semibold" role="group" aria-label="Record type">
+        <button type="button" wire:click="setRecordType('orders')" aria-pressed="{{ $recordType === 'orders' ? 'true' : 'false' }}" class="px-3 py-1.5 {{ $recordType === 'orders' ? 'bg-teal-700 text-white' : 'bg-white text-teal-800 hover:bg-teal-50' }}">Spectacle Orders</button>
+        <button type="button" wire:click="setRecordType('refractions')" aria-pressed="{{ $recordType === 'refractions' ? 'true' : 'false' }}" class="border-l border-teal-700 px-3 py-1.5 {{ $recordType === 'refractions' ? 'bg-teal-700 text-white' : 'bg-white text-teal-800 hover:bg-teal-50' }}">Refractions Needing Order</button>
     </div>
 
     <section class="so-filters">
@@ -244,7 +244,7 @@
                                 <small>{{ $order->order_id }}</small>
                             @endif
                             <small>Next: {{ $this->nextRequiredAction($order) }}</small>
-                            @if(count($dispensingIssues))<small class="text-danger">{{ implode(', ', $dispensingIssues) }}</small>@endif
+                            @if(count($dispensingIssues))<small class="text-red-700">{{ implode(', ', $dispensingIssues) }}</small>@endif
                         </span>
                         <span>
                             <strong>{{ $order ? \Carbon\Carbon::parse($order->pickUpDate)->format('d M Y') : '-' }}</strong>
@@ -409,7 +409,7 @@
                                 </div>
                             @endif
                             <div><span>Lab cost</span><strong>{{ currency() }} {{ number_format($activeOrder->lab_cost ?? 0, 2) }}</strong></div>
-                            <div><span>Estimated profit</span><strong class="{{ $this->estimatedOrderProfit($activeOrder) < 0 ? 'text-danger' : 'text-success' }}">{{ currency() }} {{ number_format($this->estimatedOrderProfit($activeOrder), 2) }}</strong></div>
+                            <div><span>Estimated profit</span><strong class="{{ $this->estimatedOrderProfit($activeOrder) < 0 ? 'text-red-700' : 'text-green-700' }}">{{ currency() }} {{ number_format($this->estimatedOrderProfit($activeOrder), 2) }}</strong></div>
                         </div>
 
                         <div class="so-progress-toggle" aria-label="Spectacle order status">
@@ -461,7 +461,7 @@
                             Create Order
                         </button>
                         @if(!$activeCanCreateOrder)
-                            <small class="so-muted d-block mt-2">Part or full payment must be recorded at POS first.</small>
+                            <small class="so-muted mt-2 block">Part or full payment must be recorded at POS first.</small>
                         @endif
                     @endif
                 </section>
@@ -478,7 +478,7 @@
     @if($spectacles->hasPages())
         <div class="so-pagination">{{ $spectacles->links() }}</div>
     @endif
-</main>
+</div>
 
 @if($showPrintPreview && $printOrder)
     @php
@@ -2170,7 +2170,8 @@ function printThermalJobCard() {
     win.document.write('.th-spec-row:last-child{border-bottom:none;}');
     win.document.write('.th-notes{border:1px solid #000;padding:6px;min-height:40px;font-size:8px;margin-bottom:8px;}');
     win.document.write('.th-footer{border-top:1px dashed #000;padding-top:6px;text-align:center;font-size:7px;font-style:italic;}');
-    win.document.write('</style></head><body>');
+    // Split: NativePHP injects a script before every closing head tag, even one inside a string.
+    win.document.write('</style></' + 'head><body>');
     win.document.write(content.innerHTML);
     win.document.write('</body></html>');
     win.document.close();

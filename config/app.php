@@ -183,8 +183,6 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
-        App\Providers\SecretaryBladeComponentServiceProvider::class,
-        App\Providers\DoctorBladeComponentServiceProvider::class,
         App\Providers\AdminBladeComponentServiceProvider::class,
 
 

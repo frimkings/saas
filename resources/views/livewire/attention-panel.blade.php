@@ -1,4 +1,4 @@
-<div class="{{ $page ? 'p-3' : '' }}">
+<div class="{{ $page ? 'clinic-ui ui-page' : '' }}">
     <style>
         .att-card{background:#fff;border:1px solid #e3e8ef;border-radius:10px;box-shadow:0 1px 2px rgba(15,23,42,.04);margin-bottom:16px}
         .att-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid #eef1f5}
@@ -30,19 +30,19 @@
     </style>
 
     @if($page)
-        <h4 class="mb-1 font-weight-bold">Needs attention</h4>
-        <p class="text-muted small mb-3">What to act on today. Everyone in the {{ $line === 'optical' ? 'shop' : 'clinic' }} sees this list; marking an item done or snoozing it clears it for the whole team.</p>
+        <h4 class="mb-1 font-semibold">Needs attention</h4>
+        <p class="text-slate-500 text-sm mb-4">What to act on today. Everyone in the {{ $line === 'optical' ? 'shop' : 'clinic' }} sees this list; marking an item done or snoozing it clears it for the whole team.</p>
     @endif
 
     <div class="att-card">
         <div class="att-head">
-            <h5><i class="fas fa-bell text-warning mr-1"></i> Needs attention @if($total)<span class="att-badge">{{ $total }}</span>@endif</h5>
-            @if($compact && $total)<a href="{{ $allUrl }}" class="small">See all &rarr;</a>@endif
+            <h5><i class="fas fa-bell text-amber-600 mr-1"></i> Needs attention @if($total)<span class="att-badge">{{ $total }}</span>@endif</h5>
+            @if($compact && $total)<a href="{{ $allUrl }}" class="text-sm">See all &rarr;</a>@endif
         </div>
 
         @forelse($groups as $rule => $group)
             <div class="att-group" wire:key="att-g-{{ $rule }}">
-                <h6>{{ $group['title'] }} <span class="text-muted font-weight-normal">({{ $group['items']->count() }})</span></h6>
+                <h6>{{ $group['title'] }} <span class="text-slate-500 font-normal">({{ $group['items']->count() }})</span></h6>
                 <div class="att-hint">{{ $group['hint'] }}</div>
 
                 @foreach($perGroup ? $group['items']->take($perGroup) : $group['items'] as $item)
@@ -91,7 +91,7 @@
                 @endif
             </div>
         @empty
-            <div class="att-empty"><i class="fas fa-check-circle text-success mr-1"></i> Nothing needs attention right now.</div>
+            <div class="att-empty"><i class="fas fa-check-circle text-green-700 mr-1"></i> Nothing needs attention right now.</div>
         @endforelse
 
         @if($stale)

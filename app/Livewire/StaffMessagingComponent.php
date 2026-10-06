@@ -12,7 +12,7 @@ class StaffMessagingComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $activeView = 'inbox'; // inbox | sent | thread
     public ?int   $activeThreadId = null;
@@ -72,7 +72,12 @@ class StaffMessagingComponent extends Component
     public function sendMessage(): void
     {
         $this->validate([
-            'recipientId'    => 'required|exists:users,id',
+            // Only colleagues in this clinic; users are shared across clinics.
+            'recipientId'    => ['required', 'integer', function ($attribute, $value, $fail) {
+                if (!User::inCurrentClinic(['active'])->whereKey($value)->exists()) {
+                    $fail('Choose a colleague from this clinic.');
+                }
+            }],
             'composeSubject' => 'required|string|max:255',
             'composeBody'    => 'required|string|max:5000',
         ]);
@@ -150,22 +155,10 @@ class StaffMessagingComponent extends Component
         $this->dispatch('notify', ...['type' => 'info', 'message' => 'Thread deleted.']);
     }
 
-    private function layoutForUser(): string
-    {
-        $user = Auth::user();
-
-        return match(true) {
-            $user->hasRole(['Super Admin', 'Manager']) => 'layouts.admin.admin-layout',
-            $user->hasRole('Doctor')                   => 'layouts.doctor.doctor-layout',
-            $user->hasRole('Secretary')                => 'layouts.secretary.secretary-layout',
-            default                                    => 'layouts.secretary.secretary-layout',
-        };
-    }
-
     public function render()
     {
         $userId     = Auth::id();
-        $staffUsers = User::where('id', '!=', $userId)->orderBy('name')->get(['id', 'name']);
+        $staffUsers = User::inCurrentClinic(['active'])->where('id', '!=', $userId)->orderBy('name')->get(['id', 'name']);
 
         $unreadCount = StaffMessage::where('recipient_id', $userId)->whereNull('read_at')->count();
 
@@ -210,6 +203,6 @@ class StaffMessagingComponent extends Component
         }
 
         return view('livewire.staff-messaging-component', compact('staffUsers', 'threads', 'threadData', 'unreadCount'))
-            ->layout($this->layoutForUser());
+            ->layout(...\App\Support\ClinicNavigation::sharedLayout());
     }
 }

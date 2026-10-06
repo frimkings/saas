@@ -1,17 +1,17 @@
-<div>
-    <div class="container-fluid">
+<div class="clinic-ui ui-page">
+    <div class="w-full">
 
         {{-- Page Header --}}
-        <div class="row mb-3">
-            <div class="col-12 d-flex justify-content-between align-items-center">
+        <div class="flex flex-wrap -mx-2 mb-4">
+            <div class="w-full px-2 flex justify-between items-center">
                 <h4 class="mb-0">
                     <i class="far fa-envelope mr-2"></i>Messages
                     @if($unreadCount > 0)
-                        <span class="badge badge-danger ml-1">{{ $unreadCount }}</span>
+                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800 ml-1">{{ $unreadCount }}</span>
                     @endif
                 </h4>
-                {{-- Use wire:click so Livewire dispatches the browser event that scripts.blade.php listens for --}}
-                <button type="button" class="btn btn-primary btn-sm" wire:click="openCompose">
+                {{-- openCompose dispatches the browser event the script below listens for --}}
+                <button type="button" class="btn ui-button ui-button-primary ui-button-sm" wire:click="openCompose">
                     <i class="fas fa-plus mr-1"></i>Compose
                 </button>
             </div>
@@ -20,12 +20,12 @@
         {{-- Thread View --}}
         @if($activeView === 'thread' && $threadData)
 
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 flex justify-between items-center">
                     <div>
-                        {{-- Use button elements; wire:click on <a href="#"> can conflict with Bootstrap nav --}}
+                        
                         <button type="button" wire:click="backToInbox"
-                                class="btn btn-sm btn-outline-secondary mr-2">
+                                class="btn ui-button ui-button-sm ui-button-secondary mr-2">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                         <strong>{{ $threadData->subject }}</strong>
@@ -34,22 +34,22 @@
                         <button type="button"
                                 wire:click="deleteThread({{ $threadData->id }})"
                                 wire:confirm="Delete this entire thread?"
-                                class="btn btn-sm btn-outline-danger">
+                                class="btn ui-button ui-button-sm ui-button-danger">
                             <i class="fas fa-trash"></i>
                         </button>
                     @endif
                 </div>
 
-                <div class="card-body" style="max-height:55vh;overflow-y:auto;" id="thread-scroll">
+                <div class="card-body p-4" style="max-height:55vh;overflow-y:auto;" id="thread-scroll">
 
                     @php $uid = auth()->id(); @endphp
                     {{-- Root message --}}
-                    <div class="d-flex {{ $threadData->sender_id === $uid ? 'justify-content-end' : '' }} mb-3">
-                        <div class="rounded p-3 {{ $threadData->sender_id === $uid ? 'bg-primary text-white' : 'bg-light' }}"
+                    <div class="flex {{ $threadData->sender_id === $uid ? 'justify-end' : '' }} mb-4">
+                        <div class="rounded-md p-4 {{ $threadData->sender_id === $uid ? 'bg-teal-700 text-white text-white' : 'bg-slate-50' }}"
                              style="max-width:70%">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <small class="font-weight-bold">{{ $threadData->sender->name ?? 'Unknown' }}</small>
-                                <small class="{{ $threadData->sender_id === $uid ? 'text-white-50' : 'text-muted' }} ml-3">
+                            <div class="flex justify-between items-center mb-1">
+                                <small class="font-semibold">{{ $threadData->sender->name ?? 'Unknown' }}</small>
+                                <small class="{{ $threadData->sender_id === $uid ? 'text-white/70' : 'text-slate-500' }} ml-4">
                                     {{ $threadData->created_at->diffForHumans() }}
                                 </small>
                             </div>
@@ -59,12 +59,12 @@
 
                     {{-- Replies --}}
                     @foreach($threadData->replies->sortBy('created_at') as $reply)
-                        <div class="d-flex {{ $reply->sender_id === $uid ? 'justify-content-end' : '' }} mb-3">
-                            <div class="rounded p-3 {{ $reply->sender_id === $uid ? 'bg-primary text-white' : 'bg-light' }}"
+                        <div class="flex {{ $reply->sender_id === $uid ? 'justify-end' : '' }} mb-4">
+                            <div class="rounded-md p-4 {{ $reply->sender_id === $uid ? 'bg-teal-700 text-white text-white' : 'bg-slate-50' }}"
                                  style="max-width:70%">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <small class="font-weight-bold">{{ $reply->sender->name ?? 'Unknown' }}</small>
-                                    <small class="{{ $reply->sender_id === $uid ? 'text-white-50' : 'text-muted' }} ml-3">
+                                <div class="flex justify-between items-center mb-1">
+                                    <small class="font-semibold">{{ $reply->sender->name ?? 'Unknown' }}</small>
+                                    <small class="{{ $reply->sender_id === $uid ? 'text-white/70' : 'text-slate-500' }} ml-4">
                                         {{ $reply->created_at->diffForHumans() }}
                                     </small>
                                 </div>
@@ -76,17 +76,17 @@
                 </div>
 
                 {{-- Reply form --}}
-                <div class="card-footer">
+                <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">
                     @error('replyBody')
-                        <div class="alert alert-danger py-1 mb-2">{{ $message }}</div>
+                        <div class="rounded-lg border px-3 text-sm border-red-200 bg-red-50 text-red-800 py-1 mb-2">{{ $message }}</div>
                     @enderror
-                    <div class="input-group">
+                    <div class="flex items-stretch">
                         <textarea wire:model="replyBody"
-                                  class="form-control"
+                                  class="form-control ui-input"
                                   rows="2"
                                   placeholder="Write a reply…"></textarea>
-                        <div class="input-group-append">
-                            <button type="button" wire:click="sendReply" class="btn btn-primary">
+                        <div class="flex">
+                            <button type="button" wire:click="sendReply" class="btn ui-button ui-button-primary">
                                 <i class="fas fa-reply"></i>
                             </button>
                         </div>
@@ -97,25 +97,25 @@
         @else
 
             {{-- Inbox / Sent List --}}
-            <div class="card">
-                <div class="card-header pb-0">
-                    <ul class="nav nav-tabs card-header-tabs">
-                        <li class="nav-item">
+            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 pb-0">
+                    <ul class="flex flex-wrap border-b border-slate-200 card-header-tabs">
+                        <li class="">
                             {{-- <button> avoids Bootstrap anchor-click conflicts with Livewire --}}
                             <button type="button"
                                     wire:click="switchView('inbox')"
-                                    class="nav-link btn btn-link {{ $activeView !== 'sent' ? 'active' : '' }}"
+                                    class="block px-3 py-2 btn ui-button ui-button-link {{ $activeView !== 'sent' ? 'active' : '' }}"
                                     style="border-radius:0">
                                 <i class="fas fa-inbox mr-1"></i>Inbox
                                 @if($unreadCount > 0)
-                                    <span class="badge badge-danger ml-1">{{ $unreadCount }}</span>
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800 ml-1">{{ $unreadCount }}</span>
                                 @endif
                             </button>
                         </li>
-                        <li class="nav-item">
+                        <li class="">
                             <button type="button"
                                     wire:click="switchView('sent')"
-                                    class="nav-link btn btn-link {{ $activeView === 'sent' ? 'active' : '' }}"
+                                    class="block px-3 py-2 btn ui-button ui-button-link {{ $activeView === 'sent' ? 'active' : '' }}"
                                     style="border-radius:0">
                                 <i class="fas fa-paper-plane mr-1"></i>Sent
                             </button>
@@ -124,14 +124,14 @@
                     <div class="mt-2 mb-2">
                         <input wire:model.live.debounce.300ms="search"
                                type="search"
-                               class="form-control form-control-sm"
+                               class="form-control ui-input ui-input-sm"
                                placeholder="Search messages…">
                     </div>
                 </div>
 
                 <div class="card-body p-0">
                     @if($threads && $threads->count() > 0)
-                        <div class="list-group list-group-flush">
+                        <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                             @foreach($threads as $thread)
                                 @php
                                     $isMyUnread = $thread->read_at === null && $thread->recipient_id === auth()->id();
@@ -141,34 +141,34 @@
                                     $other   = $activeView === 'sent' ? $thread->recipient : $thread->sender;
                                     $latestDate = ($latestReply ?? $thread)->created_at;
                                 @endphp
-                                <div class="list-group-item list-group-item-action {{ $isMyUnread ? 'font-weight-bold' : '' }}"
+                                <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-slate-50 {{ $isMyUnread ? 'font-semibold' : '' }}"
                                      style="cursor:pointer{{ $isMyUnread ? ';background:#f4f6fa' : '' }}"
                                      wire:click="openThread({{ $thread->id }})">
-                                    <div class="d-flex justify-content-between">
+                                    <div class="flex justify-between">
                                         <span>
                                             @if($isMyUnread)
-                                                <span class="text-primary mr-1" style="font-size:.55rem;vertical-align:middle">&#9679;</span>
+                                                <span class="text-teal-700 mr-1" style="font-size:.55rem;vertical-align:middle">&#9679;</span>
                                             @endif
                                             {{ $other->name ?? 'Unknown' }}
                                         </span>
-                                        <small class="text-muted">{{ $latestDate->diffForHumans() }}</small>
+                                        <small class="text-slate-500">{{ $latestDate->diffForHumans() }}</small>
                                     </div>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="{{ $isMyUnread ? '' : 'text-muted' }}">{{ $thread->subject }}</small>
+                                    <div class="flex justify-between items-center">
+                                        <small class="{{ $isMyUnread ? '' : 'text-slate-500' }}">{{ $thread->subject }}</small>
                                         @if($replyCount > 0)
-                                            <span class="badge badge-secondary badge-sm">
+                                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 badge-sm">
                                                 {{ $replyCount }} {{ $replyCount === 1 ? 'reply' : 'replies' }}
                                             </span>
                                         @endif
                                     </div>
-                                    <small class="text-muted d-block text-truncate">{{ $preview }}</small>
+                                    <small class="text-slate-500 block truncate">{{ $preview }}</small>
                                 </div>
                             @endforeach
                         </div>
-                        <div class="p-3">{{ $threads->links() }}</div>
+                        <div class="p-4">{{ $threads->links() }}</div>
                     @else
-                        <div class="text-center text-muted py-5">
-                            <i class="far fa-envelope-open fa-3x mb-3"></i>
+                        <div class="text-center text-slate-500 py-12">
+                            <i class="far fa-envelope-open fa-3x mb-4"></i>
                             <p class="mb-0">No messages found.</p>
                         </div>
                     @endif
@@ -180,54 +180,51 @@
     </div>
 
     {{-- Compose Modal — opened via browser event from scripts.blade.php listener pattern --}}
-    <div class="modal fade" id="composeModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-pen mr-2"></i>New Message</h5>
-                    <button type="button" class="close" data-dismiss="modal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
+    {{-- Compose: shown and hidden from the component's browser events (script below). --}}
+    <div id="composeModal" wire:ignore.self class="fixed inset-0 z-[1060] hidden items-center justify-center bg-slate-900/50 p-4" onclick="if (event.target === this) window.staffCompose(false)">
+        <div class="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="compose-title">
+            <div class="ui-panel-heading">
+                <h2 id="compose-title"><i class="fas fa-pen mr-2 text-teal-700" aria-hidden="true"></i>New message</h2>
+                <button type="button" class="ui-button ui-button-secondary" onclick="window.staffCompose(false)" aria-label="Close dialog">Close</button>
+            </div>
+            <div class="p-4">
+                    <div class="mb-4">
                         <label>To</label>
                         <select wire:model.live="recipientId"
-                                class="form-control @error('recipientId') is-invalid @enderror">
+                                class="form-control ui-input @error('recipientId') is-invalid @enderror">
                             <option value="">Select recipient…</option>
                             @foreach($staffUsers as $staff)
                                 <option value="{{ $staff->id }}">{{ $staff->name }}</option>
                             @endforeach
                         </select>
                         @error('recipientId')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="ui-error">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="form-group">
+                    <div class="mb-4">
                         <label>Subject</label>
                         <input wire:model="composeSubject"
                                type="text"
-                               class="form-control @error('composeSubject') is-invalid @enderror"
+                               class="form-control ui-input @error('composeSubject') is-invalid @enderror"
                                placeholder="Subject">
                         @error('composeSubject')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="ui-error">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="form-group">
+                    <div class="mb-4">
                         <label>Message</label>
                         <textarea wire:model="composeBody"
-                                  class="form-control @error('composeBody') is-invalid @enderror"
+                                  class="form-control ui-input @error('composeBody') is-invalid @enderror"
                                   rows="5"
                                   placeholder="Write your message…"></textarea>
                         @error('composeBody')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="ui-error">{{ $message }}</div>
                         @enderror
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="button" wire:click="sendMessage" class="btn btn-primary">
-                        <i class="fas fa-paper-plane mr-1"></i>Send
-                    </button>
-                </div>
+            <div class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2">
+                <button type="button" class="ui-button ui-button-secondary" onclick="window.staffCompose(false)">Cancel</button>
+                <button type="button" wire:click="sendMessage" class="ui-button ui-button-primary"><i class="fas fa-paper-plane" aria-hidden="true"></i>Send</button>
             </div>
         </div>
     </div>
@@ -241,15 +238,16 @@
             if (window._staffMsgListenersRegistered) return;
             window._staffMsgListenersRegistered = true;
 
-            // Livewire dispatches 'show-composeModal-form' from openCompose()
-            window.addEventListener('show-composeModal-form', function () {
-                $('#composeModal').modal('show');
-            });
-
-            // Livewire dispatches 'close-compose-modal' after sendMessage()
-            window.addEventListener('close-compose-modal', function () {
-                $('#composeModal').modal('hide');
-            });
+            window.staffCompose = function (open) {
+                var dialog = document.getElementById('composeModal');
+                if (!dialog) return;
+                dialog.classList.toggle('hidden', !open);
+                dialog.classList.toggle('flex', open);
+            };
+            // Livewire dispatches 'show-composeModal-form' from openCompose(), 'close-compose-modal' after sendMessage()
+            window.addEventListener('show-composeModal-form', function () { window.staffCompose(true); });
+            window.addEventListener('close-compose-modal', function () { window.staffCompose(false); });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.staffCompose(false); });
         })();
 
         // Scroll thread to bottom whenever Livewire updates the DOM

@@ -13,7 +13,7 @@ class ClearanceRevokeApprovalsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $activeTab  = 'pending';
     public string $search     = '';

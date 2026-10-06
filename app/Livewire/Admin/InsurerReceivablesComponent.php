@@ -16,7 +16,7 @@ class InsurerReceivablesComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public string $insurerFilter = '';
     public string $search        = '';

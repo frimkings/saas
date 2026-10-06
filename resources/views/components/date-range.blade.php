@@ -40,6 +40,7 @@
 .drp-trigger:hover{border-color:var(--drp-edge)}.drp-trigger:focus-visible{outline:2px solid var(--drp-edge);outline-offset:1px}
 .drp-trigger svg{flex:none;opacity:.7;transition:transform .15s}.drp-trigger[aria-expanded="true"] svg{transform:rotate(180deg)}
 .drp-trigger .is-placeholder{color:var(--drp-muted)}
+.drp.w-full .drp-trigger{width:100%}
 .drp-panel{position:fixed;top:0;left:0;z-index:1100;display:flex;background:var(--drp-bg);color:var(--drp-text);border:1px solid var(--drp-line);border-radius:14px;box-shadow:var(--drp-shadow);padding:12px;gap:8px}
 .drp-presets{display:flex;flex-direction:column;gap:2px;min-width:132px;padding-right:8px;border-right:1px solid var(--drp-line)}
 .drp-presets button{background:none;border:0;color:var(--drp-text);text-align:left;padding:8px 10px;border-radius:8px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}

@@ -1,11 +1,11 @@
-<div class="container-fluid py-3">
+<div class="clinic-ui ui-page">
     <section class="content-header">
-        <div class="d-flex flex-wrap align-items-center justify-content-between">
+        <div class="flex flex-wrap items-center justify-between">
             <div>
-                <h1 class="m-0"><i class="fas fa-heartbeat mr-2 text-success"></i>Offline Health Dashboard</h1>
-                <p class="text-muted mb-0">Local status for scheduler, backups, mail, reports, SMS, and WhatsApp.</p>
+                <h1 class="m-0"><i class="fas fa-heartbeat mr-2 text-green-700"></i>Offline Health Dashboard</h1>
+                <p class="text-slate-500 mb-0">Local status for scheduler, backups, mail, reports, SMS, and WhatsApp.</p>
             </div>
-            <button type="button" class="btn btn-primary font-weight-bold mt-2 mt-md-0" wire:click="refreshChecks">
+            <button type="button" class="btn ui-button ui-button-primary font-semibold mt-2 md:mt-0" wire:click="refreshChecks">
                 <i class="fas fa-sync-alt mr-1"></i> Run Checks Now
             </button>
         </div>
@@ -13,15 +13,15 @@
 
     <section class="content">
         <div>
-            <div class="alert alert-info border-0 shadow-sm">
+            <div class="rounded-lg border px-3 py-2 text-sm border-sky-200 bg-sky-50 text-sky-900 border-0 shadow-sm">
                 <i class="fas fa-info-circle mr-2"></i>
                 This page uses only local database and filesystem signals. If the internet is down, pending reports remain in the outbox and retry when connectivity returns.
                 @if($lastDashboardCheck)
-                    <span class="ml-2 text-nowrap">Last manual check: <strong>{{ $lastDashboardCheck->format('d M Y, h:i A') }}</strong></span>
+                    <span class="ml-2 whitespace-nowrap">Last manual check: <strong>{{ $lastDashboardCheck->format('d M Y, h:i A') }}</strong></span>
                 @endif
             </div>
 
-            <div class="row">
+            <div class="flex flex-wrap -mx-2">
                 @foreach($cards as $card)
                     @php
                         $tone = [
@@ -31,20 +31,20 @@
                             'disabled' => ['class' => 'secondary', 'label' => 'Disabled'],
                         ][$card['state']] ?? ['class' => 'secondary', 'label' => ucfirst($card['state'])];
                     @endphp
-                    <div class="col-xl-4 col-lg-6 col-md-6 mb-3">
-                        <div class="card h-100 shadow-sm border-0 ohd-card ohd-card--{{ $tone['class'] }}">
-                            <div class="card-body">
-                                <div class="d-flex align-items-start justify-content-between mb-3">
-                                    <div class="d-flex align-items-center">
+                    <div class="w-full xl:w-4/12 lg:w-6/12 md:w-6/12 px-2 mb-4">
+                        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white h-full shadow-sm border-0 ohd-card ohd-card--{{ $tone['class'] }}">
+                            <div class="card-body p-4">
+                                <div class="flex items-start justify-between mb-4">
+                                    <div class="flex items-center">
                                         <span class="ohd-icon bg-{{ $tone['class'] }}"><i class="fas {{ $card['icon'] }}"></i></span>
                                         <div>
-                                            <div class="font-weight-bold">{{ $card['title'] }}</div>
-                                            <div class="text-muted small">{{ $card['summary'] }}</div>
+                                            <div class="font-semibold">{{ $card['title'] }}</div>
+                                            <div class="text-slate-500 text-sm">{{ $card['summary'] }}</div>
                                         </div>
                                     </div>
-                                    <span class="badge badge-{{ $tone['class'] }} px-2 py-1">{{ $tone['label'] }}</span>
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $tone['class'] }} px-2 py-1">{{ $tone['label'] }}</span>
                                 </div>
-                                <p class="small text-muted mb-3">{{ $card['detail'] }}</p>
+                                <p class="text-sm text-slate-500 mb-4">{{ $card['detail'] }}</p>
                                 @if(!empty($card['metrics']))
                                     <div class="ohd-metrics">
                                         @foreach($card['metrics'] as $label => $value)
@@ -61,15 +61,15 @@
                 @endforeach
             </div>
 
-            <div class="row">
-                <div class="col-lg-7 mb-3">
-                    <div class="card shadow-sm border-0">
-                        <div class="card-header bg-white d-flex align-items-center justify-content-between">
-                            <span class="font-weight-bold"><i class="fas fa-paper-plane mr-1 text-primary"></i>Recent Report Deliveries</span>
-                            <a href="{{ route('admin.settings', ['tab' => 'report']) }}" class="btn btn-sm btn-outline-primary">Open Outbox</a>
+            <div class="flex flex-wrap -mx-2">
+                <div class="w-full lg:w-7/12 px-2 mb-4">
+                    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
+                        <div class="card-header border-b border-slate-200 px-4 py-2 bg-white flex items-center justify-between">
+                            <span class="font-semibold"><i class="fas fa-paper-plane mr-1 text-teal-700"></i>Recent Report Deliveries</span>
+                            <a href="{{ route('admin.settings', ['tab' => 'report']) }}" class="btn ui-button ui-button-sm ui-button-secondary">Open Outbox</a>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0">
+                        <div class="ui-table-wrap">
+                            <table class="table ui-table ui-table-sm mb-0">
                                 <thead>
                                     <tr>
                                         <th>Subject</th>
@@ -83,7 +83,7 @@
                                         <tr>
                                             <td>{{ \Illuminate\Support\Str::limit($delivery->subject, 42) }}</td>
                                             <td>
-                                                <span class="badge badge-{{ $delivery->status === 'sent' ? 'success' : ($delivery->status === 'failed' ? 'danger' : 'warning') }}">
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $delivery->status === 'sent' ? 'success' : ($delivery->status === 'failed' ? 'danger' : 'warning') }}">
                                                     {{ ucfirst($delivery->status) }}
                                                 </span>
                                             </td>
@@ -91,7 +91,7 @@
                                             <td>{{ optional($delivery->last_attempt_at ?? $delivery->sent_at ?? $delivery->created_at)->format('d M, h:i A') }}</td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="4" class="text-center text-muted py-4">No report deliveries recorded.</td></tr>
+                                        <tr><td colspan="4" class="text-center text-slate-500 py-6">No report deliveries recorded.</td></tr>
                                     @endforelse
                                 </tbody>
                             </table>
@@ -99,23 +99,23 @@
                     </div>
                 </div>
 
-                <div class="col-lg-5 mb-3">
-                    <div class="card shadow-sm border-0">
-                        <div class="card-header bg-white d-flex align-items-center justify-content-between">
-                            <span class="font-weight-bold"><i class="fas fa-comment-slash mr-1 text-danger"></i>Failed Messages</span>
-                            <a href="{{ route('admin.sms-logs') }}" class="btn btn-sm btn-outline-secondary">SMS Logs</a>
+                <div class="w-full lg:w-5/12 px-2 mb-4">
+                    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
+                        <div class="card-header border-b border-slate-200 px-4 py-2 bg-white flex items-center justify-between">
+                            <span class="font-semibold"><i class="fas fa-comment-slash mr-1 text-red-700"></i>Failed Messages</span>
+                            <a href="{{ route('admin.sms-logs') }}" class="btn ui-button ui-button-sm ui-button-secondary">SMS Logs</a>
                         </div>
-                        <div class="list-group list-group-flush">
+                        <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                             @forelse($recentFailedMessages as $log)
-                                <div class="list-group-item">
-                                    <div class="d-flex justify-content-between">
+                                <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left">
+                                    <div class="flex justify-between">
                                         <strong>{{ strtoupper($log->channel ?? 'sms') }} to {{ $log->recipient }}</strong>
-                                        <span class="text-muted small">{{ $log->created_at->format('d M, h:i A') }}</span>
+                                        <span class="text-slate-500 text-sm">{{ $log->created_at->format('d M, h:i A') }}</span>
                                     </div>
-                                    <div class="text-muted small">{{ \Illuminate\Support\Str::limit($log->error ?? 'Failed without provider details.', 95) }}</div>
+                                    <div class="text-slate-500 text-sm">{{ \Illuminate\Support\Str::limit($log->error ?? 'Failed without provider details.', 95) }}</div>
                                 </div>
                             @empty
-                                <div class="list-group-item text-center text-muted py-4">No failed messages recorded.</div>
+                                <div class="list-group-item block w-full border-b border-slate-100 px-3 text-left text-center text-slate-500 py-6">No failed messages recorded.</div>
                             @endforelse
                         </div>
                     </div>

@@ -20,7 +20,7 @@ class InsurerPaymentsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     #[Url(as: 'insurer', except: '')]
     public string $insurerFilter = '';

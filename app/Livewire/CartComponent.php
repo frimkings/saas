@@ -107,7 +107,7 @@ class CartComponent extends Component
         return view('livewire.cart-component', [
             'productsList' => Product::orderBy('name')->get(['id', 'name', 'quantity', 'made_to_order']),
             'cartItems' => $this->cartItems,
-        ]) ->layout('layouts.secretary.secretary-layout');
+        ]) ->layout(...\App\Support\ClinicNavigation::sharedLayout());
     }
 }
 

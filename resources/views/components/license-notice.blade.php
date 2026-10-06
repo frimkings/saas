@@ -22,8 +22,10 @@
     }
 @endphp
 @if($attentionSummary)
-    <div x-data="{ open: true }" x-show="open" style="position:fixed;inset:0;z-index:1060;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px"
-         x-on:keydown.escape.window="open = false" role="dialog" aria-modal="true" aria-labelledby="attention-summary-title">
+    {{-- x-show sits on a wrapper: Alpine resets the inline display of the element it toggles, which would undo the centring flex. --}}
+    <div x-data="{ open: true }" x-show="open" x-on:keydown.escape.window="open = false">
+    <div style="position:fixed;inset:0;z-index:1060;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px"
+         role="dialog" aria-modal="true" aria-labelledby="attention-summary-title">
         <div style="background:#fff;border-radius:12px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(15,23,42,.3);overflow:hidden" x-on:click.outside="open = false">
             <div style="padding:16px 20px;border-bottom:1px solid #eef1f5">
                 <h5 id="attention-summary-title" style="margin:0;font-weight:700;color:#0f172a"><i class="fas fa-sun" style="color:#f59e0b"></i> Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 17 ? 'afternoon' : 'evening') }}, {{ \Illuminate\Support\Str::before(auth()->user()->name, ' ') }}</h5>
@@ -43,6 +45,7 @@
                 <a href="{{ $attentionSummary['line'] === 'optical' ? route('optical.attention') : route('attention') }}" style="background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px;text-decoration:none;font-weight:600">See the list</a>
             </div>
         </div>
+    </div>
     </div>
 @endif
 {{-- A platform announcement for this clinic's Super Admins, until they dismiss it. --}}

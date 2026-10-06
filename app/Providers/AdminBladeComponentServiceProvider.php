@@ -16,6 +16,7 @@ class AdminBladeComponentServiceProvider extends ServiceProvider
     {
         //
 
+        Blade::component('layouts.clinic', 'clinic-layout');
         Blade::component('layouts.admin.admin-layout', 'admin-layout');
 
     }

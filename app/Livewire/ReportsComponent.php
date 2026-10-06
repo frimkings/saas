@@ -27,6 +27,7 @@ class ReportsComponent extends Component
     public $searchQuery = '';
     public $perPage = 25;
     public $showRefunded = false;
+    public string $refundMode = 'exclude'; // exclude | include | only (the 'trash' tab)
     public $activeTab = 'today'; // today, week, month, range, history, trash
 
     /* Analytics view */
@@ -50,7 +51,7 @@ class ReportsComponent extends Component
     /* Refund Details */
     public $viewingRefundSale = null;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     protected $rules = [
         'refundReason' => 'required|string|min:10|max:500',
@@ -130,6 +131,36 @@ class ReportsComponent extends Component
         }
     }
 
+    /** The period picker sets the dates; "today" keeps its own chart window, anything else is a custom range. */
+    protected function syncTabWithDates(): void
+    {
+        if ($this->activeTab === 'trash') {
+            return;
+        }
+        $today = now()->format('Y-m-d');
+        $this->activeTab = ($this->fromDate === $today && $this->toDate === $today) ? 'today' : 'range';
+    }
+
+    /** The Refunds filter: leave refunds out, include them, or show refunded transactions only. */
+    public function updatedRefundMode($mode): void
+    {
+        $mode = in_array($mode, ['exclude', 'include', 'only'], true) ? $mode : 'exclude';
+        $this->refundMode = $mode;
+
+        if ($mode === 'only') {
+            $this->switchTab('trash');
+            return;
+        }
+
+        $this->showRefunded = $mode === 'include';
+        if ($this->activeTab === 'trash') {
+            $this->switchTab('today');
+            return;
+        }
+        $this->resetPage();
+        $this->dispatchChart();
+    }
+
     /* ---------------- UPDATED LISTENERS ---------------- */
 
     public function updatedFromDate()
@@ -137,6 +168,7 @@ class ReportsComponent extends Component
         if ($this->fromDate > $this->toDate) {
             $this->toDate = $this->fromDate;
         }
+        $this->syncTabWithDates();
         $this->resetPage();
         $this->dispatchChart();
     }
@@ -146,6 +178,7 @@ class ReportsComponent extends Component
         if ($this->toDate < $this->fromDate) {
             $this->fromDate = $this->toDate;
         }
+        $this->syncTabWithDates();
         $this->resetPage();
         $this->dispatchChart();
     }
@@ -191,8 +224,12 @@ class ReportsComponent extends Component
 
     /* ---------------- BASE QUERY ---------------- */
 
-    protected function salesBaseQuery()
+    /** Every figure on the page starts here, so cards, chart and exports agree. Dates default to the picked period. */
+    protected function salesBaseQuery($from = null, $to = null)
     {
+        $from = $from ?? $this->fromDate . ' 00:00:00';
+        $to   = $to   ?? $this->toDate   . ' 23:59:59';
+
         return Sales::where('business_line', 'clinic')
             ->when($this->activeTab === 'trash', function ($q) {
                 $q->where('is_refunded', true);
@@ -201,10 +238,7 @@ class ReportsComponent extends Component
                     $q->where('is_refunded', false);
                 }
             })
-            ->whereBetween('created_at', [
-                $this->fromDate . ' 00:00:00',
-                $this->toDate   . ' 23:59:59',
-            ])
+            ->whereBetween('created_at', [$from, $to])
             ->when($this->searchQuery, function ($q) {
                 $q->where(function ($query) {
                     $query->where('transaction_id', 'like', '%' . $this->searchQuery . '%')
@@ -244,57 +278,88 @@ class ReportsComponent extends Component
 
     public function getSummaryProperty()
     {
-        $cacheKey = \App\Support\Tenancy\TenantCache::key('reports_summary_' . md5(
-            auth()->id() . $this->activeTab . $this->fromDate . $this->toDate .
-            ($this->showRefunded ? '1' : '0') . $this->paymentStatus .
-            $this->purchaseType . $this->insuranceFilter . $this->searchQuery
-        ), true);
+        return Cache::remember($this->summaryCacheKey(), now()->addMinutes(5), fn () =>
+            $this->summaryFor($this->fromDate, $this->toDate) + ['computed_at' => now()->format('H:i')]);
+    }
 
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () {
-            $agg = $this->salesBaseQuery()
-                ->selectRaw('
-                    COUNT(*) as count,
-                    COALESCE(SUM(total_amount), 0) as total_sales,
-                    COALESCE(SUM(profit), 0)       as profit,
-                    COALESCE(AVG(total_amount), 0) as avg_transaction
-                ')
-                ->first();
+    /** The same figures for the period just before this one, for the "vs previous" line on each card. */
+    public function getPreviousSummaryProperty(): ?array
+    {
+        $previous = $this->previousPeriod();
+        if (!$previous) {
+            return null;
+        }
 
-            $costOfSales = $this->constrainJoinedSales(SaleItem::join('sales', 'sale_items.sale_id', '=', 'sales.id'))
-                ->join('products', function ($join) {
-                    $join->on('sale_items.product_id', '=', 'products.id')
-                        ->on('sale_items.clinic_id', '=', 'products.clinic_id');
-                })
-                ->when($this->activeTab === 'trash', fn ($q) => $q->where('sales.is_refunded', true),
-                       fn ($q) => $this->showRefunded ? $q : $q->where('sales.is_refunded', false))
-                ->whereBetween('sales.created_at', [
-                    $this->fromDate . ' 00:00:00',
-                    $this->toDate   . ' 23:59:59',
-                ])
-                ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('sales.patient_id'))
-                ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('sales.patient_id'))
-                ->when($this->insuranceFilter === 'insured', fn ($q) => $q->where('sales.insurer_amount', '>', 0))
-                ->when($this->insuranceFilter === 'uninsured', fn ($q) => $q->where('sales.insurer_amount', '<=', 0))
-                ->whereNull('sale_items.deleted_at')
-                ->whereNull('sales.deleted_at')
-                ->sum(DB::raw('sale_items.dispensed_quantity * COALESCE(sale_items.unit_cost, products.cost_price, 0)'));
+        return Cache::remember($this->summaryCacheKey('prev'), now()->addMinutes(5), fn () =>
+            $this->summaryFor($previous[0], $previous[1]) + ['label' => $previous[2]]);
+    }
 
-            $count      = (int) $agg->count;
-            $totalSales = (float) $agg->total_sales;
-            $profit     = (float) $agg->profit;
-            $cost       = (float) $costOfSales;
-            $gross      = $totalSales - $cost;
+    /** [from, to, label] for the period before the picked one; whole months compare with the month before. */
+    public function previousPeriod(): ?array
+    {
+        if ($this->activeTab === 'trash' || !$this->fromDate || !$this->toDate) {
+            return null;
+        }
+        $from = Carbon::parse($this->fromDate)->startOfDay();
+        $to   = Carbon::parse($this->toDate)->startOfDay();
+        $days = (int) $from->diffInDays($to) + 1;
 
-            return [
-                'count'           => $count,
-                'total_sales'     => $totalSales,
-                'cost_of_sales'   => $cost,
-                'gross_profit'    => $gross,
-                'profit'          => $profit,
-                'avg_transaction' => (float) $agg->avg_transaction,
-                'margin'          => $totalSales > 0 ? ($gross / $totalSales) * 100 : 0,
-            ];
-        });
+        if ($from->isSameDay($from->copy()->startOfMonth()) && $to->isSameDay($to->copy()->endOfMonth())) {
+            $months = ($to->year - $from->year) * 12 + $to->month - $from->month + 1;
+            $prevFrom = $from->copy()->subMonthsNoOverflow($months);
+            $prevTo   = $from->copy()->subDay();
+            $label = $months === 1 ? 'vs ' . $prevFrom->format('M') : 'vs previous ' . $months . ' months';
+        } else {
+            $prevTo   = $from->copy()->subDay();
+            $prevFrom = $prevTo->copy()->subDays($days - 1);
+            $label = match (true) {
+                $days === 1 && $from->isToday() => 'vs yesterday',
+                $days === 1 => 'vs day before',
+                $days === 7 => 'vs previous week',
+                default => 'vs previous ' . $days . ' days',
+            };
+        }
+
+        return [$prevFrom->format('Y-m-d'), $prevTo->format('Y-m-d'), $label];
+    }
+
+    protected function summaryFor(string $from, string $to): array
+    {
+        $base = fn () => $this->salesBaseQuery($from . ' 00:00:00', $to . ' 23:59:59');
+
+        $agg = $base()
+            ->selectRaw('
+                COUNT(*) as count,
+                COALESCE(SUM(total_amount), 0) as total_sales,
+                COALESCE(SUM(profit), 0)       as profit,
+                COALESCE(AVG(total_amount), 0) as avg_transaction
+            ')
+            ->first();
+
+        $costOfSales = $this->constrainJoinedSales(SaleItem::join('sales', 'sale_items.sale_id', '=', 'sales.id'))
+            ->join('products', function ($join) {
+                $join->on('sale_items.product_id', '=', 'products.id')
+                    ->on('sale_items.clinic_id', '=', 'products.clinic_id');
+            })
+            ->whereIn('sale_items.sale_id', $base()->select('sales.id'))
+            ->whereNull('sale_items.deleted_at')
+            ->whereNull('sales.deleted_at')
+            ->sum(DB::raw('sale_items.dispensed_quantity * COALESCE(sale_items.unit_cost, products.cost_price, 0)'));
+
+        $count      = (int) $agg->count;
+        $totalSales = (float) $agg->total_sales;
+        $cost       = (float) $costOfSales;
+        $gross      = $totalSales - $cost;
+
+        return [
+            'count'           => $count,
+            'total_sales'     => $totalSales,
+            'cost_of_sales'   => $cost,
+            'gross_profit'    => $gross,
+            'profit'          => (float) $agg->profit,
+            'avg_transaction' => (float) $agg->avg_transaction,
+            'margin'          => $totalSales > 0 ? ($gross / $totalSales) * 100 : 0,
+        ];
     }
 
     /* ---------------- INSURANCE ---------------- */
@@ -493,6 +558,7 @@ class ReportsComponent extends Component
     {
         $this->searchQuery   = '';
         $this->showRefunded  = false;
+        $this->refundMode    = $this->activeTab === 'trash' ? 'only' : 'exclude';
         $this->paymentStatus = '';
         $this->purchaseType  = '';
         $this->insuranceFilter = '';
@@ -508,8 +574,28 @@ class ReportsComponent extends Component
         ]);
     }
 
+    /** Summary figures are kept for 5 minutes; Refresh drops them so a sale just made shows at once. */
+    protected function filterFingerprint(): string
+    {
+        return $this->activeTab . '|' . $this->fromDate . '|' . $this->toDate . '|' . ($this->showRefunded ? '1' : '0') . '|' .
+            $this->paymentStatus . '|' . $this->purchaseType . '|' . $this->insuranceFilter . '|' . $this->searchQuery;
+    }
+
+    protected function summaryCacheKey(string $which = 'current'): string
+    {
+        return \App\Support\Tenancy\TenantCache::key('reports_summary_' . $which . '_' . md5(auth()->id() . '|' . $this->filterFingerprint()), true);
+    }
+
+    protected function chartCacheKey(): string
+    {
+        return \App\Support\Tenancy\TenantCache::key('reports_chart_' . md5($this->chartPeriod . '|' . $this->filterFingerprint()), true);
+    }
+
     public function refreshData()
     {
+        Cache::forget($this->summaryCacheKey());
+        Cache::forget($this->summaryCacheKey('prev'));
+        Cache::forget($this->chartCacheKey());
         $this->resetPage();
         $this->dispatchChart();
 
@@ -568,10 +654,7 @@ class ReportsComponent extends Component
             $this->chartPeriod = 'daily';
         }
 
-        $cacheKey = \App\Support\Tenancy\TenantCache::key('reports_chart_' . md5(
-            $this->chartPeriod . $this->activeTab . $this->fromDate . $this->toDate .
-            ($this->showRefunded ? '1' : '0') . $this->purchaseType
-        ), true);
+        $cacheKey = $this->chartCacheKey();
 
         return Cache::remember($cacheKey, now()->addMinutes(5), function () {
 
@@ -597,11 +680,7 @@ class ReportsComponent extends Component
         $labels = $revenue = $profit = [];
 
         if ($this->chartPeriod === 'daily') {
-            $rows = Sales::where('business_line', 'clinic')
-                ->where('is_refunded', false)
-                ->whereBetween('created_at', [$start, $end])
-                ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('patient_id'))
-                ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('patient_id'))
+            $rows = $this->salesBaseQuery($start, $end)
                 ->select(DB::raw('DATE(created_at) as period'), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -618,11 +697,7 @@ class ReportsComponent extends Component
             }
 
         } elseif ($this->chartPeriod === 'weekly') {
-            $rows = Sales::where('business_line', 'clinic')
-                ->where('is_refunded', false)
-                ->whereBetween('created_at', [$start, $end])
-                ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('patient_id'))
-                ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('patient_id'))
+            $rows = $this->salesBaseQuery($start, $end)
                 ->select(DB::raw('YEARWEEK(created_at, 3) as period'), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -640,11 +715,7 @@ class ReportsComponent extends Component
             }
 
         } elseif ($this->chartPeriod === 'monthly') {
-            $rows = Sales::where('business_line', 'clinic')
-                ->where('is_refunded', false)
-                ->whereBetween('created_at', [$start, $end])
-                ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('patient_id'))
-                ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('patient_id'))
+            $rows = $this->salesBaseQuery($start, $end)
                 ->select(DB::raw("DATE_FORMAT(created_at,'%Y-%m') as period"), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -662,11 +733,7 @@ class ReportsComponent extends Component
 
         } else {
             // yearly
-            $rows = Sales::where('business_line', 'clinic')
-                ->where('is_refunded', false)
-                ->whereBetween('created_at', [$start, $end])
-                ->when($this->purchaseType === 'patient', fn ($q) => $q->whereNotNull('patient_id'))
-                ->when($this->purchaseType === 'direct', fn ($q) => $q->whereNull('patient_id'))
+            $rows = $this->salesBaseQuery($start, $end)
                 ->select(DB::raw('YEAR(created_at) as period'), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -813,6 +880,7 @@ class ReportsComponent extends Component
         return view('livewire.reports-component', [
             'sales'           => $this->salesQuery()->latest()->paginate($this->perPage),
             'summary'         => $this->summary,
+            'previous'        => $this->previousSummary,
             'insurance'       => $this->insuranceSummary,
             'salesByItems'    => $this->analyticsView === 'items'      ? $this->salesByItems    : collect(),
             'salesByCategory' => $this->analyticsView === 'categories' ? $this->salesByCategory : collect(),

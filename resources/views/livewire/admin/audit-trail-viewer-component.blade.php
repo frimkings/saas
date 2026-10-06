@@ -1,57 +1,54 @@
-<div class="content p-3">
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+<div class="clinic-ui ui-page">
+    <div class="w-full">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h3 class="mb-0 text-primary font-weight-bold">Audit Trail</h3>
-                <small class="text-muted text-uppercase font-weight-bold">System activity and change history</small>
+                <h1 class="!mb-0 text-xl font-semibold text-slate-900">Audit Trail</h1>
+                <p class="!mb-0 text-sm text-slate-500">Activity and changes in this clinic. Views and exports are kept for 30 days, changes for a year.</p>
             </div>
-            <button class="btn btn-success" wire:click="exportCsv">
-                <i class="fas fa-file-csv mr-1"></i>Export CSV
+            <button type="button" class="ui-button ui-button-secondary" wire:click="exportCsv">
+                <i class="fas fa-file-csv" aria-hidden="true"></i>Export CSV
             </button>
         </div>
 
-        <ul class="nav nav-tabs mb-0">
-            <li class="nav-item">
-                <a href="#" wire:click.prevent="$set('showArchive', false)"
-                   class="nav-link {{ !$showArchive ? 'active font-weight-bold' : 'text-muted' }}">
-                    <i class="fas fa-list mr-1"></i> Active
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#" wire:click.prevent="$set('showArchive', true)"
-                   class="nav-link {{ $showArchive ? 'active font-weight-bold' : 'text-muted' }}">
-                    <i class="fas fa-archive mr-1"></i> Archived
-                </a>
-            </li>
-        </ul>
+        @php
+            $fl = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500';
+            $fs = 'ui-input !py-1.5 !text-sm';
+        @endphp
 
-        <div class="card shadow-sm border-0 mb-3" style="border-top-left-radius:0">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3 mb-2"><label class="small font-weight-bold text-muted">Search</label><input class="form-control" wire:model.live.debounce.400ms="search" placeholder="Event, user, patient..."></div>
-                    <div class="col-md-2 mb-2"><label class="small font-weight-bold text-muted">Event</label><select class="form-control" wire:model.live="event"><option value="">All</option>@foreach($events as $eventName)<option value="{{ $eventName }}">{{ ucwords(str_replace(['.','_'], [' — ', ' '], $eventName)) }}</option>@endforeach</select></div>
-                    <div class="col-md-3 mb-2">
-                        <label class="small font-weight-bold text-muted" for="audit-user-search">User</label>
-                        <input id="audit-user-search" type="search" class="form-control mb-1"
-                               wire:model.live.debounce.250ms="userSearch" placeholder="Search users..."
-                               autocomplete="off" aria-label="Search users">
-                        <select class="form-control" wire:model.live="userId" aria-label="Filter audit trail by user">
-                            <option value="">All users</option>
-                            @foreach($users as $user)
-                                <option value="{{ $user->id }}">{{ $user->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-2"><label class="small font-weight-bold text-muted d-block">Date</label><x-date-range from="fromDate" to="toDate" presets="activity" clearable /></div>
-                </div>
-                <button class="btn btn-light border btn-sm" wire:click="resetFilters"><i class="fas fa-undo mr-1"></i>Reset</button>
+        <div class="mb-4 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-nowrap">
+            <div class="min-w-[10rem] flex-[2]">
+                <label for="audit-search" class="{{ $fl }}">Search</label>
+                <input id="audit-search" type="search" class="{{ $fs }}" wire:model.live.debounce.400ms="search" placeholder="Event, user, patient…">
             </div>
+            <div class="min-w-[9rem] flex-1">
+                <label for="audit-event" class="{{ $fl }}">Event</label>
+                <select id="audit-event" class="{{ $fs }}" wire:model.live="event">
+                    <option value="">All events</option>
+                    @foreach($events as $eventName)
+                        <option value="{{ $eventName }}">{{ ucwords(str_replace(['.', '_'], [' — ', ' '], $eventName)) }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="min-w-[9rem] flex-1">
+                <label for="audit-user" class="{{ $fl }}">User</label>
+                <select id="audit-user" class="{{ $fs }}" wire:model.live="userId">
+                    <option value="">All users</option>
+                    @foreach($users as $user)
+                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="w-56 shrink-0">
+                <span class="{{ $fl }}">Date</span>
+                <x-date-range from="fromDate" to="toDate" presets="activity" clearable class="w-full" />
+            </div>
+            <button type="button" class="ui-button ui-button-secondary shrink-0 !px-2.5 !py-1.5" wire:click="resetFilters" title="Reset filters" aria-label="Reset filters"><i class="fas fa-undo" aria-hidden="true"></i></button>
         </div>
 
-        <div class="card shadow-sm border-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="thead-light"><tr><th>Event</th><th>Description</th><th>User / Patient</th><th>IP</th><th class="text-right">Time</th></tr></thead>
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="ui-table-wrap">
+                <table class="table ui-table mb-0">
+                    <thead class=""><tr><th>Event</th><th>Description</th><th>User / Patient</th><th>IP</th><th class="text-right">Time</th></tr></thead>
                     <tbody>
                         @forelse($audits as $audit)
                             @php
@@ -66,8 +63,8 @@
                             @endphp
                             <tr>
                                 <td>
-                                    <span class="badge {{ $eventBadge }}">{{ $this->formatEventLabel($audit->event) }}</span>
-                                    <div class="small text-muted mt-1">{{ $audit->event }}</div>
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $eventBadge }}">{{ $this->formatEventLabel($audit->event) }}</span>
+                                    <div class="text-sm text-slate-500 mt-1">{{ $audit->event }}</div>
                                 </td>
                                 <td>
                                     <strong>{{ $audit->description }}</strong>
@@ -75,25 +72,25 @@
                                     @if(count($changes))
                                         <div class="mt-2">
                                             @foreach($changes as $change)
-                                                <span class="badge badge-light border text-muted mr-1 mb-1">{{ $change }}</span>
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-500 mr-1 mb-1">{{ $change }}</span>
                                             @endforeach
                                         </div>
                                     @endif
                                 </td>
                                 <td>
                                     <div>{{ $audit->user->name ?? 'System' }}</div>
-                                    <small class="text-muted">{{ $audit->patient ? $audit->patient->name.' | '.$audit->patient->pxnumber : 'No patient' }}</small>
+                                    <small class="text-slate-500">{{ $audit->patient ? $audit->patient->name.' | '.$audit->patient->pxnumber : 'No patient' }}</small>
                                 </td>
                                 <td><code>{{ $audit->ip_address }}</code></td>
                                 <td class="text-right">{{ $audit->created_at->format('M d, Y h:i A') }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-4">No audit events found.</td></tr>
+                            <tr><td colspan="5" class="text-center text-slate-500 py-6">No audit events found.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-            <div class="card-footer bg-white">{{ $audits->links() }}</div>
+            <div class="border-t border-slate-200 px-4 py-2 bg-white">{{ $audits->links() }}</div>
         </div>
     </div>
 </div>

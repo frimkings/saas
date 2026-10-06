@@ -27,6 +27,9 @@
         </div>
         <h3>Sales Report: {{ $from }} - {{ $to }}</h3>
         <p class="muted">Generated: {{ $generated_at }}</p>
+        @if(!empty($applied))
+            <p class="muted">Filters: {{ implode(' · ', $applied) }}</p>
+        @endif
     </div>
 
     <table>
@@ -49,6 +52,9 @@
                 </tr>
             @endforeach
         </tbody>
+        <tfoot>
+            <tr><th colspan="2" style="text-align:right;">{{ $sales->count() }} {{ \Illuminate\Support\Str::plural('transaction', $sales->count()) }} · Total</th><th>{{ number_format($sales->sum('total_amount'), 2) }}</th><th></th></tr>
+        </tfoot>
     </table>
 </body>
 </html>

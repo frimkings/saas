@@ -14,7 +14,7 @@ class DiscountApprovalsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $search       = '';
     public $dateFrom     = '';

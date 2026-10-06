@@ -403,7 +403,7 @@ class RolePermissionManagerComponent extends Component
             'permissionUsage' => $permissionUsage,
             'rolePermissionPreview' => $rolePermissionPreview,
             'managingRole' => $managingRole,
-            'assignableUsers' => User::with('roles')->orderBy('name')->get(),
+            'assignableUsers' => User::inCurrentClinic()->with('roles')->orderBy('name')->get(),
         ])->layout('layouts.admin.admin-layout');
     }
 

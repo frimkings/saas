@@ -1,3 +1,3 @@
-<x-secretary-layout>
+<x-clinic-layout>
     @livewire('secretary.secretary-dashboard-component')
-</x-secretary-layout>
+</x-clinic-layout>

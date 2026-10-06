@@ -13,7 +13,7 @@ class DiagnosisComponent extends Component
 {
     use WithPagination, WithFileUploads;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $name, $diagnosis_id;
     public $isEditing = false;

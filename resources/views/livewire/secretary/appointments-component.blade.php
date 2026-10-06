@@ -1,252 +1,221 @@
+@php
+    $statusTone = [
+        'Pending' => 'bg-slate-100 text-slate-700', 'Confirmed' => 'bg-blue-100 text-blue-800', 'Arrived' => 'bg-green-100 text-green-800',
+        'With Doctor' => 'bg-sky-100 text-sky-800', 'Called' => 'bg-cyan-100 text-cyan-800', 'Rescheduled' => 'bg-amber-100 text-amber-800',
+        'Couldnt Answer' => 'bg-orange-100 text-orange-800', 'Missed' => 'bg-red-100 text-red-800', 'Seen' => 'bg-slate-700 text-white',
+        'Done' => 'bg-slate-700 text-white', 'Cancelled' => 'border border-slate-200 bg-white text-slate-500',
+    ];
+    $missTone = ['success' => 'bg-green-100 text-green-800', 'warning' => 'bg-amber-100 text-amber-800', 'danger' => 'bg-red-100 text-red-800'];
+    $badge = 'inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold';
+    $label = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500';
+    $input = 'ui-input';
+    $small = 'ui-input !py-1.5 !text-sm';
+    $iconButton = 'inline-flex h-8 min-w-[2rem] items-center justify-center rounded-md border bg-white px-2 text-xs no-underline hover:bg-slate-50 disabled:opacity-50';
+    $segment = fn (bool $on) => $on ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50';
+    $search = fn ($width = 'max-w-xs') => '<input wire:model.live.debounce.300ms="search" type="search" class="'.$small.' '.$width.'" placeholder="Search patient…" aria-label="Search patient">';
+@endphp
 <div data-livewire-root>
-<div class="appt-page bg-light min-vh-100">
+<div class="clinic-ui ui-page space-y-5">
 
     @if($confirmationWhatsAppUrl)
-    <div class="alert alert-success border-0 shadow-sm d-flex align-items-center justify-content-between flex-wrap mb-0 rounded-0" style="gap:.5rem">
-        <span><i class="fab fa-whatsapp mr-1"></i>
-            @switch($confirmationKind)
-                @case('rescheduled') Appointment moved. Send {{ $confirmationPatientName }} the new time on WhatsApp. @break
-                @case('cancelled') Appointment cancelled. Let {{ $confirmationPatientName }} know on WhatsApp. @break
-                @default Booking saved. Send {{ $confirmationPatientName }} the confirmation on WhatsApp.
-            @endswitch
-        </span>
-        <span class="d-flex" style="gap:.5rem">
-            <a href="{{ $confirmationWhatsAppUrl }}" target="_blank" rel="noopener" wire:click="dismissConfirmationWhatsApp"
-               class="btn btn-success btn-sm font-weight-bold"><i class="fab fa-whatsapp mr-1"></i> Open WhatsApp</a>
-            <button type="button" wire:click="dismissConfirmationWhatsApp" class="btn btn-outline-secondary btn-sm">Dismiss</button>
-        </span>
-    </div>
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900" role="status">
+            <span><i class="fab fa-whatsapp mr-1" aria-hidden="true"></i>
+                @switch($confirmationKind)
+                    @case('rescheduled') Appointment moved. Send {{ $confirmationPatientName }} the new time on WhatsApp. @break
+                    @case('cancelled') Appointment cancelled. Let {{ $confirmationPatientName }} know on WhatsApp. @break
+                    @default Booking saved. Send {{ $confirmationPatientName }} the confirmation on WhatsApp.
+                @endswitch
+            </span>
+            <span class="flex gap-2">
+                <a href="{{ $confirmationWhatsAppUrl }}" target="_blank" rel="noopener" wire:click="dismissConfirmationWhatsApp" class="ui-button ui-button-primary"><i class="fab fa-whatsapp" aria-hidden="true"></i>Open WhatsApp</a>
+                <button type="button" wire:click="dismissConfirmationWhatsApp" class="ui-button ui-button-secondary">Dismiss</button>
+            </span>
+        </div>
     @endif
 
-    {{-- ===== PAGE HEADER ===== --}}
-    <div class="appt-header">
-        <div class="appt-header-inner container-fluid">
-            <div>
-                <div class="appt-header-kicker">Clinic Registry</div>
-                <h1 class="appt-header-title">Appointments</h1>
-            </div>
-            <div class="appt-header-actions">
-                <button wire:click="openWalkInModal" class="btn btn-success btn-sm font-weight-bold shadow-sm">
-                    <i class="fas fa-walking mr-1"></i> Walk-in
-                </button>
-                <button wire:click="openNewAppointmentModal" class="btn btn-primary btn-sm font-weight-bold shadow-sm">
-                    <i class="fas fa-plus mr-1"></i> New Appointment
-                </button>
-                <button wire:click="exportReport" class="btn btn-light btn-sm" title="Export CSV">
-                    <i class="fas fa-download"></i>
-                </button>
-                <button onclick="window.print()" class="btn btn-light btn-sm" title="Print">
-                    <i class="fas fa-print"></i>
-                </button>
-                <button wire:click="$set('activeFilter','settings')" class="btn btn-light btn-sm" title="Settings">
-                    <i class="fas fa-cog"></i>
-                </button>
-            </div>
+    <div class="ui-heading">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Clinic registry</p>
+            <h1>Appointments</h1>
+        </div>
+        <div class="ui-actions">
+            <button type="button" wire:click="openWalkInModal" class="ui-button ui-button-secondary"><i class="fas fa-walking" aria-hidden="true"></i>Walk-in</button>
+            <button type="button" wire:click="openNewAppointmentModal" class="ui-button ui-button-primary"><i class="fas fa-plus" aria-hidden="true"></i>New appointment</button>
+            <button type="button" wire:click="exportReport" class="ui-button ui-button-secondary" title="Export CSV" aria-label="Export CSV"><i class="fas fa-download" aria-hidden="true"></i></button>
+            <button type="button" onclick="window.print()" class="ui-button ui-button-secondary" title="Print" aria-label="Print"><i class="fas fa-print" aria-hidden="true"></i></button>
+            <button type="button" wire:click="$set('activeFilter','settings')" class="ui-button ui-button-secondary" title="Settings" aria-label="Appointment settings"><i class="fas fa-cog" aria-hidden="true"></i></button>
         </div>
     </div>
 
-    <div class="container-fluid py-3">
-
-        {{-- ===== TODAY SUMMARY CARDS ===== --}}
-        <div class="appt-summary-row mb-3">
-            @foreach([
-                ['label'=>'Booked Today',   'value'=>$statusSummary['Booked']??0,       'icon'=>'fa-calendar-check',  'color'=>'primary'],
-                ['label'=>'Arrived',        'value'=>$statusSummary['Arrived']??0,      'icon'=>'fa-user-check',      'color'=>'success'],
-                ['label'=>'With Doctor',    'value'=>$statusSummary['With Doctor']??0,  'icon'=>'fa-stethoscope',     'color'=>'info'],
-                ['label'=>'Seen Today',     'value'=>$statusSummary['Seen']??0,         'icon'=>'fa-check-double',    'color'=>'secondary'],
-                ['label'=>'Missed Today',   'value'=>$statusSummary['Missed']??0,       'icon'=>'fa-user-times',      'color'=>'warning'],
-                ['label'=>'Daily Limit',    'value'=>($statusSummary['Booked']??0).'/'.$dailyAppointmentLimit, 'icon'=>'fa-layer-group', 'color'=>'dark'],
-            ] as $s)
-            <div class="appt-summary-card">
-                <div class="appt-summary-icon text-{{ $s['color'] }}"><i class="fas {{ $s['icon'] }}"></i></div>
+    {{-- Today at a glance --}}
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        @foreach([
+            ['Booked today', $statusSummary['Booked'] ?? 0, 'fa-calendar-check', 'text-blue-600'],
+            ['Arrived', $statusSummary['Arrived'] ?? 0, 'fa-user-check', 'text-green-600'],
+            ['With doctor', $statusSummary['With Doctor'] ?? 0, 'fa-stethoscope', 'text-sky-600'],
+            ['Seen today', $statusSummary['Seen'] ?? 0, 'fa-check-double', 'text-slate-500'],
+            ['Missed today', $statusSummary['Missed'] ?? 0, 'fa-user-times', 'text-amber-500'],
+            ['Daily limit', ($statusSummary['Booked'] ?? 0).'/'.$dailyAppointmentLimit, 'fa-layer-group', 'text-slate-800'],
+        ] as [$summaryLabel, $value, $icon, $colour])
+            <div class="ui-panel flex items-center gap-3 px-3 py-2">
+                <i class="fas {{ $icon }} {{ $colour }} w-6 text-center text-lg" aria-hidden="true"></i>
                 <div>
-                    <div class="appt-summary-value">{{ $s['value'] }}</div>
-                    <div class="appt-summary-label">{{ $s['label'] }}</div>
+                    <p class="text-lg font-semibold leading-tight text-slate-900">{{ $value }}</p>
+                    <p class="text-xs font-semibold text-slate-500">{{ $summaryLabel }}</p>
                 </div>
             </div>
+        @endforeach
+    </div>
+
+    {{-- Bulk actions --}}
+    @if(count($selectedAppointments) > 0)
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800 px-4 py-2 text-white shadow" role="region" aria-label="Selected appointments">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="mr-2 font-semibold"><i class="fas fa-check-double mr-1 text-teal-300" aria-hidden="true"></i>{{ count($selectedAppointments) }} selected</span>
+                @if($activeFilter === 'missed')
+                    <button type="button" wire:click="prepareBulkFollowUp" wire:loading.attr="disabled" wire:target="prepareBulkFollowUp" class="ui-button ui-button-primary"><i class="fas fa-sms" aria-hidden="true"></i>Send follow-up SMS</button>
+                    <button type="button" wire:click="bulkMarkAsSeen" class="ui-button ui-button-secondary">Mark resolved</button>
+                @else
+                    <button type="button" wire:click="bulkMarkAsSeen" class="ui-button ui-button-secondary">Mark seen</button>
+                    <button type="button" wire:click="bulkMarkRemindersSent" class="ui-button ui-button-secondary">Mark reminders sent</button>
+                @endif
+                <button type="button" wire:click="bulkDelete" wire:confirm="Move selected to trash?" class="ui-button ui-button-danger">Trash</button>
+            </div>
+            <button type="button" wire:click="resetSelection" class="px-2 text-white/80 hover:text-white" aria-label="Clear selection"><i class="fas fa-times" aria-hidden="true"></i></button>
+        </div>
+    @endif
+
+    {{-- Bulk follow-up confirmation (missed tab) --}}
+    @if($bulkFollowUpPlan)
+        <section class="ui-panel border-teal-300 p-4" role="dialog" aria-labelledby="bulk-follow-up-title">
+            <h2 id="bulk-follow-up-title" class="mb-2 font-semibold"><i class="fas fa-sms mr-1 text-teal-700" aria-hidden="true"></i>
+                Send the missed-appointment follow-up to {{ count($bulkFollowUpPlan['send']) }} {{ Str::plural('patient', count($bulkFollowUpPlan['send'])) }}?</h2>
+            @if($bulkFollowUpPlan['preview'])
+                <p class="mb-1 text-xs text-slate-500">Preview ({{ $bulkFollowUpPlan['send'][0]['name'] }}):</p>
+                <div class="mb-2 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm">{{ $bulkFollowUpPlan['preview'] }}</div>
+            @endif
+            <ul class="mb-3 space-y-1 text-sm">
+                @if(count($bulkFollowUpPlan['send']))
+                    <li class="text-green-700"><i class="fas fa-check mr-1" aria-hidden="true"></i>{{ count($bulkFollowUpPlan['send']) }} will be texted · about {{ $bulkFollowUpPlan['credits'] }} SMS {{ Str::plural('credit', $bulkFollowUpPlan['credits']) }}@if($bulkFollowUpPlan['creditsLeft'] !== null) ({{ number_format($bulkFollowUpPlan['creditsLeft']) }} left)@endif</li>
+                @endif
+                @foreach($bulkFollowUpPlan['skipped'] as $skip)
+                    <li class="text-amber-700"><i class="fas fa-minus-circle mr-1" aria-hidden="true"></i>Skipped: {{ $skip['name'] }} — {{ $skip['reason'] }}</li>
+                @endforeach
+                @if($bulkFollowUpPlan['leftOver'])
+                    <li class="text-amber-700"><i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i>{{ $bulkFollowUpPlan['leftOver'] }} more not sent this time (at most {{ \App\Livewire\Secretary\AppointmentsComponent::BULK_FOLLOW_UP_LIMIT }} per batch, and no more than your credits cover). Send them in another batch.</li>
+                @endif
+                @unless($bulkFollowUpPlan['available'])
+                    <li class="text-red-700"><i class="fas fa-exclamation-circle mr-1" aria-hidden="true"></i>{{ $bulkFollowUpPlan['reason'] }}</li>
+                @endunless
+            </ul>
+            <div class="flex justify-end gap-2">
+                <button type="button" wire:click="cancelBulkFollowUp" class="ui-button ui-button-secondary">Cancel</button>
+                @if($bulkFollowUpPlan['available'] && count($bulkFollowUpPlan['send']))
+                    <button type="button" wire:click="sendBulkFollowUp" wire:loading.attr="disabled" wire:target="sendBulkFollowUp" class="ui-button ui-button-primary">
+                        <span wire:loading.remove wire:target="sendBulkFollowUp">Send {{ count($bulkFollowUpPlan['send']) }} SMS</span>
+                        <span wire:loading wire:target="sendBulkFollowUp">Sending…</span>
+                    </button>
+                @endif
+            </div>
+        </section>
+    @endif
+
+    <section class="ui-panel">
+        {{-- Tabs --}}
+        <div class="flex overflow-x-auto border-b border-slate-200" role="tablist" aria-label="Appointment lists">
+            @foreach([
+                'schedule' => ['Schedule', 'fa-calendar-alt'],
+                'queue' => ['Waiting room', 'fa-users'],
+                'history' => ['History', 'fa-history'],
+                'missed' => ['Missed', 'fa-user-times'],
+                'trash' => ['Trash', 'fa-trash-alt'],
+            ] as $key => [$tabLabel, $icon])
+                <button type="button" role="tab" aria-selected="{{ $activeFilter === $key ? 'true' : 'false' }}" wire:click="$set('activeFilter','{{ $key }}')"
+                        @class(['flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold',
+                                'border-slate-900 text-slate-900' => $activeFilter === $key,
+                                'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700' => $activeFilter !== $key])>
+                    <i class="fas {{ $icon }}" aria-hidden="true"></i>{{ $tabLabel }}
+                    <span @class(['min-w-[1.25rem] rounded-full px-1.5 text-center text-xs',
+                                  'bg-slate-900 text-white' => $activeFilter === $key,
+                                  'bg-slate-100 text-slate-700' => $activeFilter !== $key])>{{ $this->counts[$key] ?? 0 }}</span>
+                </button>
             @endforeach
         </div>
 
-        {{-- ===== BULK ACTION BAR ===== --}}
-        @if(count($selectedAppointments) > 0)
-        <div class="alert alert-dark shadow border-0 d-flex justify-content-between align-items-center mb-3 py-2 px-3">
-            <div class="d-flex align-items-center flex-wrap gap-2">
-                <span class="font-weight-bold mr-3"><i class="fas fa-check-double mr-1"></i>{{ count($selectedAppointments) }} selected</span>
-                @if($activeFilter === 'missed')
-                    <button wire:click="prepareBulkFollowUp" wire:loading.attr="disabled" wire:target="prepareBulkFollowUp" class="btn btn-primary btn-sm font-weight-bold mr-1"><i class="fas fa-sms mr-1"></i>Send follow-up SMS</button>
-                    <button wire:click="bulkMarkAsSeen" class="btn btn-success btn-sm font-weight-bold mr-1">Mark resolved</button>
-                @else
-                    <button wire:click="bulkMarkAsSeen" class="btn btn-success btn-sm font-weight-bold mr-1">Mark Seen</button>
-                    <button wire:click="bulkMarkRemindersSent" class="btn btn-info btn-sm font-weight-bold mr-1">Mark Reminders Sent</button>
-                @endif
-                <button wire:click="bulkDelete" wire:confirm="Move selected to trash?" class="btn btn-danger btn-sm font-weight-bold">Trash</button>
-            </div>
-            <button wire:click="resetSelection" class="btn btn-link text-white font-weight-bold p-0"><i class="fas fa-times"></i></button>
-        </div>
-        @endif
-
-        {{-- ===== BULK FOLLOW-UP CONFIRM (missed tab) ===== --}}
-        @if($bulkFollowUpPlan)
-        <div class="card border-primary shadow-sm mb-3" role="dialog" aria-label="Confirm follow-up SMS">
-            <div class="card-body">
-                <h6 class="font-weight-bold mb-2"><i class="fas fa-sms text-primary mr-1"></i>
-                    Send the missed-appointment follow-up to {{ count($bulkFollowUpPlan['send']) }} {{ Str::plural('patient', count($bulkFollowUpPlan['send'])) }}?</h6>
-                @if($bulkFollowUpPlan['preview'])
-                    <div class="small text-muted mb-1">Preview ({{ $bulkFollowUpPlan['send'][0]['name'] }}):</div>
-                    <div class="border rounded bg-light p-2 small mb-2" style="white-space:pre-wrap">{{ $bulkFollowUpPlan['preview'] }}</div>
-                @endif
-                <ul class="list-unstyled small mb-2">
-                    @if(count($bulkFollowUpPlan['send']))
-                        <li class="text-success"><i class="fas fa-check mr-1"></i>{{ count($bulkFollowUpPlan['send']) }} will be texted · about {{ $bulkFollowUpPlan['credits'] }} SMS {{ Str::plural('credit', $bulkFollowUpPlan['credits']) }}@if($bulkFollowUpPlan['creditsLeft'] !== null) ({{ number_format($bulkFollowUpPlan['creditsLeft']) }} left)@endif</li>
-                    @endif
-                    @foreach($bulkFollowUpPlan['skipped'] as $skip)
-                        <li class="text-warning"><i class="fas fa-minus-circle mr-1"></i>Skipped: {{ $skip['name'] }} — {{ $skip['reason'] }}</li>
-                    @endforeach
-                    @if($bulkFollowUpPlan['leftOver'])
-                        <li class="text-warning"><i class="fas fa-exclamation-triangle mr-1"></i>{{ $bulkFollowUpPlan['leftOver'] }} more not sent this time (at most {{ \App\Livewire\Secretary\AppointmentsComponent::BULK_FOLLOW_UP_LIMIT }} per batch, and no more than your credits cover). Send them in another batch.</li>
-                    @endif
-                    @unless($bulkFollowUpPlan['available'])
-                        <li class="text-danger"><i class="fas fa-exclamation-circle mr-1"></i>{{ $bulkFollowUpPlan['reason'] }}</li>
-                    @endunless
-                </ul>
-                <div class="d-flex justify-content-end" style="gap:.5rem">
-                    <button type="button" wire:click="cancelBulkFollowUp" class="btn btn-sm btn-outline-secondary">Cancel</button>
-                    @if($bulkFollowUpPlan['available'] && count($bulkFollowUpPlan['send']))
-                        <button type="button" wire:click="sendBulkFollowUp" wire:loading.attr="disabled" wire:target="sendBulkFollowUp" class="btn btn-sm btn-primary font-weight-bold">
-                            <span wire:loading.remove wire:target="sendBulkFollowUp">Send {{ count($bulkFollowUpPlan['send']) }} SMS</span>
-                            <span wire:loading wire:target="sendBulkFollowUp">Sending…</span>
-                        </button>
-                    @endif
+        {{-- ============================= SETTINGS ============================= --}}
+        @if($activeFilter === 'settings')
+            <div class="space-y-4 p-5">
+                <h2 class="text-base font-semibold"><i class="fas fa-cog mr-2 text-slate-400" aria-hidden="true"></i>Appointment settings</h2>
+                <div>
+                    <p class="{{ $label }}">Location link</p>
+                    <p class="text-sm text-slate-600">
+                        Set with the clinic's other links in
+                        @if(auth()->user()?->hasRole('Super Admin'))
+                            <a href="{{ route('admin.settings', ['tab' => 'links']) }}" class="text-teal-700 underline">Settings &rarr; Clinic Links</a>;
+                        @else
+                            Settings &rarr; Clinic Links;
+                        @endif
+                        messages insert it with <code>[MAP_LINK]</code>.
+                    </p>
                 </div>
-            </div>
-        </div>
-        @endif
-
-        {{-- ===== MAIN CARD ===== --}}
-        <div class="card shadow-sm border-0">
-
-            {{-- TAB BAR --}}
-            <div class="card-header bg-white p-0 border-bottom">
-                <ul class="nav appt-tabs">
-                    @foreach([
-                        'schedule' => ['label'=>'Schedule',     'icon'=>'fa-calendar-alt'],
-                        'queue'    => ['label'=>'Waiting Room', 'icon'=>'fa-users'],
-                        'history'  => ['label'=>'History',      'icon'=>'fa-history'],
-                        'missed'   => ['label'=>'Missed',       'icon'=>'fa-user-times'],
-                        'trash'    => ['label'=>'Trash',        'icon'=>'fa-trash-alt'],
-                    ] as $key => $tab)
-                    <li class="nav-item">
-                        <a wire:click.prevent="$set('activeFilter','{{ $key }}')"
-                           class="nav-link appt-tab-link {{ $activeFilter===$key ? 'active' : '' }}">
-                            <i class="fas {{ $tab['icon'] }} mr-1"></i>{{ $tab['label'] }}
-                            <span class="appt-tab-badge {{ $activeFilter===$key ? 'active' : '' }}">{{ $this->counts[$key]??0 }}</span>
-                        </a>
-                    </li>
-                    @endforeach
-                </ul>
-            </div>
-
-            {{-- ============================= SETTINGS ============================= --}}
-            @if($activeFilter === 'settings')
-            <div class="card-body p-4">
-                <h5 class="font-weight-bold mb-4"><i class="fas fa-cog mr-2 text-muted"></i>Appointment Settings</h5>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="appt-label">Location Link</label>
-                        <div class="small text-muted">
-                            Set with the clinic's other links in
-                            @if(auth()->user()?->hasRole('Super Admin'))
-                                <a href="{{ route('admin.settings', ['tab' => 'links']) }}">Settings &rarr; Clinic Links</a>;
-                            @else
-                                Settings &rarr; Clinic Links;
-                            @endif
-                            messages insert it with <code>[MAP_LINK]</code>.
-                        </div>
-                    </div>
-                    <div class="col-12 mb-3">
-                        <small class="text-muted">
-                            Reminder, confirmation and follow-up wording (for both SMS and WhatsApp) comes from the
-                            @role('Super Admin')
-                                <a href="{{ route('admin.messages') }}">SMS Templates</a>.
-                            @else
-                                SMS Templates in Settings.
-                            @endrole
-                            Links (location, WhatsApp, review, social) come from Settings &rarr; Clinic Links.
-                        </small>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="appt-label">Daily Appointment Limit</label>
-                        <input type="number" min="1" wire:model.live.debounce.400ms="dailyAppointmentLimit" class="form-control">
-                    </div>
+                <p class="text-sm text-slate-600">
+                    Reminder, confirmation and follow-up wording (for both SMS and WhatsApp) comes from the
+                    @role('Super Admin')
+                        <a href="{{ route('admin.messages') }}" class="text-teal-700 underline">SMS Templates</a>.
+                    @else
+                        SMS Templates in Settings.
+                    @endrole
+                    Links (location, WhatsApp, review, social) come from Settings &rarr; Clinic Links.
+                </p>
+                <div class="max-w-xs">
+                    <label for="appt-daily-limit" class="{{ $label }}">Daily appointment limit</label>
+                    <input id="appt-daily-limit" type="number" min="1" wire:model.live.debounce.400ms="dailyAppointmentLimit" class="{{ $input }}">
                 </div>
             </div>
 
-            {{-- ============================= SCHEDULE ============================= --}}
-            @elseif($activeFilter === 'schedule')
+        {{-- ============================= SCHEDULE ============================= --}}
+        @elseif($activeFilter === 'schedule')
+            <div class="space-y-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="inline-flex overflow-hidden rounded-md border border-slate-300 text-sm" role="group" aria-label="Schedule view">
+                        @foreach(['list' => ['List', 'fa-list'], 'calendar' => ['Calendar', 'fa-calendar-alt'], 'day' => ['Day', 'fa-clock'], 'range' => ['Range', 'fa-filter']] as $view => [$viewLabel, $icon])
+                            <button type="button" wire:click="$set('scheduleView','{{ $view }}')" aria-pressed="{{ $scheduleView === $view ? 'true' : 'false' }}"
+                                    class="border-l px-3 py-1.5 first:border-l-0 {{ $segment($scheduleView === $view) }}"><i class="fas {{ $icon }} mr-1" aria-hidden="true"></i>{{ $viewLabel }}</button>
+                        @endforeach
+                    </div>
 
-                {{-- Toolbar --}}
-                <div class="appt-toolbar">
-                    <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button wire:click="$set('scheduleView','list')"
-                                    class="btn {{ $scheduleView==='list' ? 'btn-dark' : 'btn-outline-secondary' }}">
-                                <i class="fas fa-list mr-1"></i>List
-                            </button>
-                            <button wire:click="$set('scheduleView','calendar')"
-                                    class="btn {{ $scheduleView==='calendar' ? 'btn-dark' : 'btn-outline-secondary' }}">
-                                <i class="fas fa-calendar-alt mr-1"></i>Calendar
-                            </button>
-                            <button wire:click="$set('scheduleView','day')"
-                                    class="btn {{ $scheduleView==='day' ? 'btn-dark' : 'btn-outline-secondary' }}">
-                                <i class="fas fa-clock mr-1"></i>Day
-                            </button>
-                            <button wire:click="$set('scheduleView','range')"
-                                    class="btn {{ $scheduleView==='range' ? 'btn-dark' : 'btn-outline-secondary' }}">
-                                <i class="fas fa-filter mr-1"></i>Range
-                            </button>
+                    @if($scheduleView === 'calendar' || $scheduleView === 'day')
+                        <div class="inline-flex overflow-hidden rounded-md border border-slate-300 text-sm" role="group" aria-label="Move through dates">
+                            <button type="button" wire:click="{{ $scheduleView === 'calendar' ? 'previousCalendarWeek' : 'previousScheduleDay' }}" class="bg-white px-3 py-1.5 hover:bg-slate-50" aria-label="Previous"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+                            <button type="button" wire:click="{{ $scheduleView === 'calendar' ? 'goToCurrentCalendarWeek' : 'goToTodaySchedule' }}" class="border-x border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50">Today</button>
+                            <button type="button" wire:click="{{ $scheduleView === 'calendar' ? 'nextCalendarWeek' : 'nextScheduleDay' }}" class="bg-white px-3 py-1.5 hover:bg-slate-50" aria-label="Next"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
                         </div>
-
-                        @if($scheduleView === 'calendar' || $scheduleView === 'day')
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button wire:click="{{ $scheduleView==='calendar' ? 'previousCalendarWeek' : 'previousScheduleDay' }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-chevron-left"></i>
-                            </button>
-                            <button wire:click="{{ $scheduleView==='calendar' ? 'goToCurrentCalendarWeek' : 'goToTodaySchedule' }}" class="btn btn-outline-secondary">Today</button>
-                            <button wire:click="{{ $scheduleView==='calendar' ? 'nextCalendarWeek' : 'nextScheduleDay' }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
-                        <span class="font-weight-bold text-dark small">
-                            @if($scheduleView==='calendar')
+                        <span class="text-sm font-semibold text-slate-800">
+                            @if($scheduleView === 'calendar')
                                 {{ \Carbon\Carbon::parse($calendarStartDate)->format('F Y') }}
                             @else
                                 {{ \Carbon\Carbon::parse($selectedScheduleDate)->format('l, M d Y') }}
                             @endif
                         </span>
-                        @endif
-                    </div>
-
-                    @if($scheduleView === 'list')
-                    <div class="d-flex align-items-center flex-wrap mt-2" style="gap:.4rem">
-                        @foreach(['today'=>'Today','tomorrow'=>'Tomorrow','this_week'=>'This Week','next_30'=>'Next 30 Days'] as $val=>$label)
-                        <button wire:click="setQuickFilter('{{ $val }}')"
-                                class="btn btn-sm {{ $quickFilter===$val ? 'btn-dark' : 'btn-outline-secondary' }} appt-chip">
-                            {{ $label }}
-                        </button>
-                        @endforeach
-                        <div class="ml-2">
-                            <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm"
-                                   placeholder="Search patient…" style="min-width:180px">
-                        </div>
-                    </div>
                     @endif
+                </div>
 
-                    @if($scheduleView === 'range')
-                    <div class="d-flex flex-wrap align-items-end mt-2" style="gap:.5rem">
-                        <div><label class="appt-label mb-0 d-block">Dates</label><x-date-range from="startDate" to="endDate" presets="upcoming" /></div>
+                @if($scheduleView === 'list')
+                    <div class="flex flex-wrap items-center gap-2">
+                        @foreach(['today' => 'Today', 'tomorrow' => 'Tomorrow', 'this_week' => 'This week', 'next_30' => 'Next 30 days'] as $val => $chip)
+                            <button type="button" wire:click="setQuickFilter('{{ $val }}')" aria-pressed="{{ $quickFilter === $val ? 'true' : 'false' }}"
+                                    class="rounded-full border px-3 py-1 text-xs font-semibold {{ $segment($quickFilter === $val) }}">{{ $chip }}</button>
+                        @endforeach
+                        {!! $search('min-w-[180px] max-w-xs') !!}
+                    </div>
+                @endif
+
+                @if($scheduleView === 'range')
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div><span class="{{ $label }}">Dates</span><x-date-range from="startDate" to="endDate" presets="upcoming" /></div>
                         <div>
-                            <label class="appt-label mb-0">Status</label>
-                            <select wire:model.live="statusFilter" class="form-control form-control-sm">
+                            <label for="appt-status-filter" class="{{ $label }}">Status</label>
+                            <select id="appt-status-filter" wire:model.live="statusFilter" class="{{ $small }}">
                                 <option value="All">All</option>
                                 <option>Pending</option>
                                 <option>Confirmed</option>
@@ -260,139 +229,120 @@
                                 <option>Cancelled</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="appt-label mb-0">Patient</label>
-                            <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search…">
-                        </div>
+                        <div><span class="{{ $label }}">Patient</span>{!! $search() !!}</div>
                     </div>
-                    @endif
-                </div>
+                @endif
+            </div>
 
-                {{-- STATUS LEGEND --}}
-                @if($scheduleView !== 'range')
-                <div class="appt-legend px-3 pb-2 d-flex flex-wrap" style="gap:.35rem">
-                    @foreach([
-                        ['Pending','secondary'],['Confirmed','primary'],['Arrived','success'],
-                        ['With Doctor','info'],['Called','cyan'],['Rescheduled','warning'],
-                        ['No Answer','orange'],['Missed','danger'],['Seen','dark'],['Cancelled','light'],
-                    ] as $ls)
-                    <span class="badge appt-legend-badge badge-{{ $ls[1] }}">{{ $ls[0] }}</span>
+            @if($scheduleView !== 'range')
+                <div class="flex flex-wrap gap-1.5 border-b border-slate-200 px-4 py-2" aria-label="Status colours">
+                    @foreach(['Pending', 'Confirmed', 'Arrived', 'With Doctor', 'Called', 'Rescheduled', 'Couldnt Answer' => 'No Answer', 'Missed', 'Seen', 'Cancelled'] as $status => $legend)
+                        @php $status = is_int($status) ? $legend : $status; @endphp
+                        <span class="{{ $badge }} {{ $statusTone[$status] }}">{{ $legend }}</span>
                     @endforeach
                 </div>
-                @endif
+            @endif
 
-                {{-- ---- CALENDAR VIEW ---- --}}
-                @if($scheduleView === 'calendar')
-                <div class="appointment-calendar"
-                     ondragover="event.preventDefault()"
-                     ondrop="handleCalendarDrop(event)">
+            {{-- ---- CALENDAR VIEW ---- --}}
+            @if($scheduleView === 'calendar')
+                <div class="appointment-calendar" ondragover="event.preventDefault()" ondrop="handleCalendarDrop(event)">
                     <div class="calendar-month-grid">
-                        @foreach(['Mon','Tue','Wed','Thu','Fri'] as $wd)
-                        <div class="calendar-weekday">{{ $wd }}</div>
+                        @foreach(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as $wd)
+                            <div class="calendar-weekday">{{ $wd }}</div>
                         @endforeach
 
                         @foreach($calendarWeeks as $week)
                             @foreach($week as $day)
-                            @php
-                                $dateKey       = $day->format('Y-m-d');
-                                $dayAppointments = $calendarAppointments->get($dateKey, collect());
-                                $isToday       = $day->isToday();
-                                $isCurrentMonth= $day->month === \Carbon\Carbon::parse($calendarStartDate)->month;
-                                $isPastDate    = $day->lt(now()->startOfDay());
-                                $showMax       = 3;
-                                $overflow      = max(0, $dayAppointments->count() - $showMax);
-                            @endphp
-                            <div class="calendar-day {{ !$isCurrentMonth ? 'is-muted' : '' }} {{ $isToday ? 'is-today' : '' }} {{ $isPastDate ? 'is-past' : '' }}"
-                                 data-date="{{ $dateKey }}"
-                                 ondragover="event.preventDefault(); this.classList.add('drag-over')"
-                                 ondragleave="this.classList.remove('drag-over')"
-                                 ondrop="this.classList.remove('drag-over'); handleCalendarDrop(event, '{{ $dateKey }}')">
-                                <div class="calendar-day-number {{ $isToday ? 'today-number' : '' }}">{{ $day->format('j') }}</div>
-                                @if(!$isPastDate)
-                                <button wire:click="bookOnCalendarDate('{{ $dateKey }}')" class="calendar-day-hit" title="Book on {{ $day->format('M d') }}"></button>
-                                @endif
-                                <div class="calendar-day-stack">
-                                    @foreach($dayAppointments->take($showMax) as $app)
-                                    @php
-                                        $chipColor = [
-                                            'Arrived'=>'green','Done'=>'green','Confirmed'=>'blue',
-                                            'With Doctor'=>'blue','Called'=>'cyan',
-                                            'Couldnt Answer'=>'orange','Rescheduled'=>'orange',
-                                        ][$app->status] ?? (['yellow','rose','mint','sky'][$loop->index % 4]);
-                                        $patientContact = (string)($app->patient->contact??'');
-                                        $waUrl = $this->reminderWhatsAppUrl($app);
-                                    @endphp
-                                    <div class="calendar-appointment calendar-chip-{{ $chipColor }}"
-                                         draggable="true"
-                                         ondragstart="event.dataTransfer.setData('appointmentId','{{ $app->id }}'); event.dataTransfer.effectAllowed='move'">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div class="calendar-patient">{{ $app->patient->name }}</div>
-                                            <span class="calendar-time-badge">{{ $app->scheduled_at->format('h:i A') }}</span>
-                                        </div>
-                                        <div class="calendar-reason">{{ Str::limit($app->title, 18) }}</div>
-                                        <div class="calendar-contact-actions">
-                                            @if($patientContact)
-                                            <a href="tel:{{ $patientContact }}" class="calendar-action calendar-action-call" onclick="event.stopPropagation()"><i class="fas fa-phone-alt"></i></a>
-                                            @endif
-                                            @if($waUrl)
-                                            <a href="{{ $waUrl }}" wire:click="markReminderSent({{ $app->id }},'whatsapp')" target="_blank" class="calendar-action calendar-action-whatsapp" onclick="event.stopPropagation()"><i class="fab fa-whatsapp"></i></a>
-                                            @endif
-                                            <button wire:click="editAppointment({{ $app->id }})" class="calendar-action calendar-action-edit" onclick="event.stopPropagation()"><i class="fas fa-pen"></i></button>
-                                        </div>
-                                    </div>
-                                    @endforeach
-                                    @if($overflow > 0)
-                                    <div class="calendar-overflow">+{{ $overflow }} more</div>
+                                @php
+                                    $dateKey = $day->format('Y-m-d');
+                                    $dayAppointments = $calendarAppointments->get($dateKey, collect());
+                                    $isToday = $day->isToday();
+                                    $isCurrentMonth = $day->month === \Carbon\Carbon::parse($calendarStartDate)->month;
+                                    $isPastDate = $day->lt(now()->startOfDay());
+                                    $showMax = 3;
+                                    $overflow = max(0, $dayAppointments->count() - $showMax);
+                                @endphp
+                                <div class="calendar-day {{ !$isCurrentMonth ? 'is-muted' : '' }} {{ $isToday ? 'is-today' : '' }} {{ $isPastDate ? 'is-past' : '' }}"
+                                     data-date="{{ $dateKey }}"
+                                     ondragover="event.preventDefault(); this.classList.add('drag-over')"
+                                     ondragleave="this.classList.remove('drag-over')"
+                                     ondrop="this.classList.remove('drag-over'); handleCalendarDrop(event, '{{ $dateKey }}')">
+                                    <div class="calendar-day-number {{ $isToday ? 'today-number' : '' }}">{{ $day->format('j') }}</div>
+                                    @if(!$isPastDate)
+                                        <button type="button" wire:click="bookOnCalendarDate('{{ $dateKey }}')" class="calendar-day-hit" title="Book on {{ $day->format('M d') }}" aria-label="Book on {{ $day->format('M d') }}"></button>
                                     @endif
+                                    <div class="calendar-day-stack">
+                                        @foreach($dayAppointments->take($showMax) as $app)
+                                            @php
+                                                $chipColor = [
+                                                    'Arrived' => 'green', 'Done' => 'green', 'Confirmed' => 'blue',
+                                                    'With Doctor' => 'blue', 'Called' => 'cyan',
+                                                    'Couldnt Answer' => 'orange', 'Rescheduled' => 'orange',
+                                                ][$app->status] ?? (['yellow', 'rose', 'mint', 'sky'][$loop->index % 4]);
+                                                $patientContact = (string) ($app->patient->contact ?? '');
+                                                $waUrl = $this->reminderWhatsAppUrl($app);
+                                            @endphp
+                                            <div class="calendar-appointment calendar-chip-{{ $chipColor }}" draggable="true"
+                                                 ondragstart="event.dataTransfer.setData('appointmentId','{{ $app->id }}'); event.dataTransfer.effectAllowed='move'">
+                                                <div class="flex items-start justify-between gap-1">
+                                                    <div class="calendar-patient">{{ $app->patient->name }}</div>
+                                                    <span class="calendar-time-badge">{{ $app->scheduled_at->format('h:i A') }}</span>
+                                                </div>
+                                                <div class="calendar-reason">{{ Str::limit($app->title, 18) }}</div>
+                                                <div class="calendar-contact-actions">
+                                                    @if($patientContact)
+                                                        <a href="tel:{{ $patientContact }}" class="calendar-action calendar-action-call" onclick="event.stopPropagation()" aria-label="Call {{ $app->patient->name }}"><i class="fas fa-phone-alt" aria-hidden="true"></i></a>
+                                                    @endif
+                                                    @if($waUrl)
+                                                        <a href="{{ $waUrl }}" wire:click="markReminderSent({{ $app->id }},'whatsapp')" target="_blank" class="calendar-action calendar-action-whatsapp" onclick="event.stopPropagation()" aria-label="WhatsApp reminder to {{ $app->patient->name }}"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
+                                                    @endif
+                                                    <button type="button" wire:click="editAppointment({{ $app->id }})" class="calendar-action calendar-action-edit" onclick="event.stopPropagation()" aria-label="Edit appointment"><i class="fas fa-pen" aria-hidden="true"></i></button>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        @if($overflow > 0)
+                                            <div class="calendar-overflow">+{{ $overflow }} more</div>
+                                        @endif
+                                    </div>
                                 </div>
-                            </div>
                             @endforeach
                         @endforeach
                     </div>
                 </div>
 
-                {{-- ---- DAY VIEW ---- --}}
-                @elseif($scheduleView === 'day')
-                <div class="day-view-grid px-3 pb-3">
+            {{-- ---- DAY VIEW ---- --}}
+            @elseif($scheduleView === 'day')
+                <div class="px-4 pb-4 pt-2">
                     @foreach($dayTimeSlots as $slot)
-                    @php
-                        $slotKey  = $slot->format('H:00');
-                        $slotApps = $dayAppointments->get($slotKey, collect());
-                    @endphp
-                    <div class="day-slot {{ $slot->isCurrentHour() ? 'day-slot-now' : '' }}">
-                        <div class="day-slot-label">{{ $slot->format('g A') }}</div>
-                        <div class="day-slot-body">
-                            @forelse($slotApps as $app)
-                            @php
-                                $statusColor=['Arrived'=>'success','Confirmed'=>'primary','With Doctor'=>'info','Pending'=>'secondary','Rescheduled'=>'warning','Seen'=>'dark','Missed'=>'danger','Cancelled'=>'light'][$app->status]??'secondary';
-                            @endphp
-                            <div class="day-event border-left border-{{ $statusColor }} pl-2 mb-1">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="font-weight-bold small">{{ $app->patient->name }}</div>
-                                        <div class="text-muted" style="font-size:.75rem">{{ $app->title }} · {{ $app->scheduled_at->format('h:i A') }}</div>
+                        @php $slotApps = $dayAppointments->get($slot->format('H:00'), collect()); @endphp
+                        <div @class(['grid min-h-[52px] grid-cols-[52px_1fr] items-start border-b border-slate-100 py-1.5', 'bg-amber-50' => $slot->isCurrentHour()])>
+                            <div class="pt-1 text-xs font-semibold text-slate-400">{{ $slot->format('g A') }}</div>
+                            <div class="space-y-1 pl-2">
+                                @foreach($slotApps as $app)
+                                    <div class="flex items-start justify-between gap-2 rounded border-l-4 border-slate-300 bg-slate-50 px-2 py-1">
+                                        <div>
+                                            <p class="text-sm font-semibold">{{ $app->patient->name }}</p>
+                                            <p class="text-xs text-slate-500">{{ $app->title }} · {{ $app->scheduled_at->format('h:i A') }}</p>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <span class="{{ $badge }} {{ $statusTone[$app->status] ?? $statusTone['Pending'] }}">{{ $app->status }}</span>
+                                            <button type="button" wire:click="editAppointment({{ $app->id }})" class="{{ $iconButton }} border-slate-300 text-slate-600" aria-label="Edit appointment"><i class="fas fa-pen" aria-hidden="true"></i></button>
+                                        </div>
                                     </div>
-                                    <div class="d-flex" style="gap:.25rem">
-                                        <span class="badge badge-{{ $statusColor }}">{{ $app->status }}</span>
-                                        <button wire:click="editAppointment({{ $app->id }})" class="btn btn-xs btn-outline-secondary"><i class="fas fa-pen"></i></button>
-                                    </div>
-                                </div>
+                                @endforeach
                             </div>
-                            @empty
-                            @endforelse
                         </div>
-                    </div>
                     @endforeach
                 </div>
 
-                {{-- ---- LIST / RANGE VIEW ---- --}}
-                @else
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 appt-table">
-                        <thead class="thead-light">
+            {{-- ---- LIST / RANGE VIEW ---- --}}
+            @else
+                <div class="ui-table-wrap">
+                    <table class="ui-table">
+                        <thead>
                             <tr>
-                                <th style="width:36px"><input type="checkbox" wire:model.live="selectAll"></th>
-                                <th>Time &amp; Date</th>
+                                <th class="w-9"><input type="checkbox" wire:model.live="selectAll" class="rounded border-slate-300 text-teal-700" aria-label="Select all"></th>
+                                <th>Time &amp; date</th>
                                 <th>Patient</th>
                                 <th>Reason</th>
                                 <th>Reminder</th>
@@ -402,187 +352,154 @@
                         </thead>
                         <tbody>
                             @forelse($appointments as $app)
-                            @php
-                                $statusColor=['Arrived'=>'success','Confirmed'=>'primary','With Doctor'=>'info','Pending'=>'secondary','Called'=>'warning','Rescheduled'=>'warning','Seen'=>'dark','Missed'=>'danger','Cancelled'=>'light'][$app->status]??'secondary';
-                                $missStats=$noShowStats[$app->patient_id]??['missed'=>0,'total'=>0,'rate'=>0,'class'=>'success'];
-                            @endphp
-                            <tr>
-                                <td class="align-middle"><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}"></td>
-                                <td class="align-middle">
-                                    <div class="font-weight-bold small">{{ $app->scheduled_at->format('h:i A') }}</div>
-                                    <div class="text-muted" style="font-size:.75rem">{{ $app->scheduled_at->format('M d, Y') }}</div>
-                                    <div class="text-muted" style="font-size:.7rem">{{ $app->scheduled_at->diffForHumans() }}</div>
-                                </td>
-                                <td class="align-middle">
-                                    <div class="font-weight-bold">{{ $app->patient->name }}</div>
-                                    <div class="text-muted small">{{ $app->patient->pxnumber }}</div>
-                                    @if($missStats['total'] > 0)
-                                    <span class="badge badge-{{ $missStats['class'] }}" style="font-size:.65rem">
-                                        {{ $missStats['missed'] }}/{{ $missStats['total'] }} missed
-                                    </span>
-                                    @endif
-                                </td>
-                                <td class="align-middle">
-                                    <div class="small">{{ $app->title }}</div>
-                                    <div class="text-muted small"><i class="fas fa-user-md mr-1"></i>{{ $app->doctor->name ?? 'Unassigned' }} &middot; {{ $app->duration_minutes ?? 30 }} min</div>
-                                    @if($app->recall_category)
-                                    <span class="badge badge-light border" style="font-size:.65rem">{{ $app->recall_category }}</span>
-                                    @endif
-                                </td>
-                                <td class="align-middle">
-                                    @php
-                                        $patientContact=(string)($app->patient->contact??'');
-                                        $waUrl = $this->reminderWhatsAppUrl($app);
-                                    @endphp
-                                    <div class="d-flex flex-wrap" style="gap:.25rem">
-                                        @if($patientContact)
-                                        <a href="tel:{{ $patientContact }}" class="btn btn-xs btn-outline-success" title="Call"><i class="fas fa-phone-alt"></i></a>
-                                        <a href="{{ $waUrl ?? '#' }}"
-                                           wire:click="markReminderSent({{ $app->id }},'whatsapp')"
-                                           target="_blank" class="btn btn-xs btn-outline-success" title="WhatsApp"><i class="fab fa-whatsapp"></i></a>
-                                        <button wire:click="sendSmsNow({{ $app->id }})" class="btn btn-xs btn-outline-primary" title="Send SMS"
-                                                wire:loading.attr="disabled" wire:target="sendSmsNow({{ $app->id }})">
-                                            <span wire:loading.remove wire:target="sendSmsNow({{ $app->id }})"><i class="fas fa-sms"></i></span>
-                                            <span wire:loading wire:target="sendSmsNow({{ $app->id }})"><i class="fas fa-circle-notch fa-spin"></i></span>
-                                        </button>
-                                        @else
-                                        <span class="text-muted small font-italic">No contact</span>
+                                @php
+                                    $missStats = $noShowStats[$app->patient_id] ?? ['missed' => 0, 'total' => 0, 'rate' => 0, 'class' => 'success'];
+                                    $patientContact = (string) ($app->patient->contact ?? '');
+                                    $waUrl = $this->reminderWhatsAppUrl($app);
+                                    $reminderSent = ($app->reminder_status ?? 'not_sent') === 'sent';
+                                @endphp
+                                <tr>
+                                    <td><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}" class="rounded border-slate-300 text-teal-700" aria-label="Select {{ $app->patient->name }}"></td>
+                                    <td class="whitespace-nowrap">
+                                        <p class="font-semibold">{{ $app->scheduled_at->format('h:i A') }}</p>
+                                        <p class="text-xs text-slate-500">{{ $app->scheduled_at->format('M d, Y') }}</p>
+                                        <p class="text-xs text-slate-400">{{ $app->scheduled_at->diffForHumans() }}</p>
+                                    </td>
+                                    <td>
+                                        <p class="font-semibold">{{ $app->patient->name }}</p>
+                                        <p class="text-xs text-slate-500">{{ $app->patient->pxnumber }}</p>
+                                        @if($missStats['total'] > 0)
+                                            <span class="{{ $badge }} {{ $missTone[$missStats['class']] ?? $missTone['success'] }} mt-1">{{ $missStats['missed'] }}/{{ $missStats['total'] }} missed</span>
                                         @endif
-                                    </div>
-                                    <div class="mt-1">
-                                        <span class="badge badge-{{ ($app->reminder_status??'not_sent')==='sent' ? 'success' : 'light border' }}" style="font-size:.65rem">
-                                            <i class="fas fa-{{ ($app->reminder_status??'not_sent')==='sent' ? 'check' : 'clock' }} mr-1"></i>
-                                            {{ ($app->reminder_status??'not_sent')==='sent' ? 'Reminder sent' : 'Not sent' }}
+                                    </td>
+                                    <td>
+                                        <p>{{ $app->title }}</p>
+                                        <p class="text-xs text-slate-500"><i class="fas fa-user-md mr-1" aria-hidden="true"></i>{{ $app->doctor->name ?? 'Unassigned' }} &middot; {{ $app->duration_minutes ?? 30 }} min</p>
+                                        @if($app->recall_category)
+                                            <span class="{{ $badge }} mt-1 border border-slate-200 bg-white text-slate-600">{{ $app->recall_category }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <div class="flex flex-wrap gap-1">
+                                            @if($patientContact)
+                                                <a href="tel:{{ $patientContact }}" class="{{ $iconButton }} border-green-300 text-green-700" title="Call" aria-label="Call {{ $app->patient->name }}"><i class="fas fa-phone-alt" aria-hidden="true"></i></a>
+                                                <a href="{{ $waUrl ?? '#' }}" wire:click="markReminderSent({{ $app->id }},'whatsapp')" target="_blank" class="{{ $iconButton }} border-green-300 text-green-700" title="WhatsApp" aria-label="WhatsApp {{ $app->patient->name }}"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
+                                                <button type="button" wire:click="sendSmsNow({{ $app->id }})" class="{{ $iconButton }} border-blue-300 text-blue-700" title="Send SMS" aria-label="Send SMS to {{ $app->patient->name }}"
+                                                        wire:loading.attr="disabled" wire:target="sendSmsNow({{ $app->id }})">
+                                                    <span wire:loading.remove wire:target="sendSmsNow({{ $app->id }})"><i class="fas fa-sms" aria-hidden="true"></i></span>
+                                                    <span wire:loading wire:target="sendSmsNow({{ $app->id }})"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i></span>
+                                                </button>
+                                            @else
+                                                <span class="text-xs italic text-slate-400">No contact</span>
+                                            @endif
+                                        </div>
+                                        <span class="{{ $badge }} mt-1 {{ $reminderSent ? 'bg-green-100 text-green-800' : 'border border-slate-200 bg-white text-slate-500' }}">
+                                            <i class="fas fa-{{ $reminderSent ? 'check' : 'clock' }} mr-1" aria-hidden="true"></i>{{ $reminderSent ? 'Reminder sent' : 'Not sent' }}
                                         </span>
-                                    </div>
-                                </td>
-                                <td class="align-middle">
-                                    <span class="badge badge-{{ $statusColor }} appt-status-badge">{{ $app->status }}</span>
-                                </td>
-                                <td class="align-middle text-right" style="white-space:nowrap">
-                                    @if($app->status === 'Pending')
-                                    <button wire:click="confirmAppointment({{ $app->id }})" class="btn btn-xs btn-outline-primary mr-1" title="Confirm"><i class="fas fa-check"></i></button>
-                                    @endif
-                                    <button wire:click="editAppointment({{ $app->id }})" class="btn btn-xs btn-outline-secondary mr-1" title="Edit"><i class="fas fa-pen"></i></button>
-                                    @if(!in_array($app->status, ['Seen','Cancelled','Missed']))
-                                    <button wire:click="openCancelModal({{ $app->id }})" class="btn btn-xs btn-outline-danger" title="Cancel"><i class="fas fa-times"></i></button>
-                                    @endif
-                                </td>
-                            </tr>
+                                    </td>
+                                    <td><span class="{{ $badge }} {{ $statusTone[$app->status] ?? $statusTone['Pending'] }}">{{ $app->status }}</span></td>
+                                    <td>
+                                        <div class="flex justify-end gap-1">
+                                            @if($app->status === 'Pending')
+                                                <button type="button" wire:click="confirmAppointment({{ $app->id }})" class="{{ $iconButton }} border-blue-300 text-blue-700" title="Confirm" aria-label="Confirm appointment"><i class="fas fa-check" aria-hidden="true"></i></button>
+                                            @endif
+                                            <button type="button" wire:click="editAppointment({{ $app->id }})" class="{{ $iconButton }} border-slate-300 text-slate-600" title="Edit" aria-label="Edit appointment"><i class="fas fa-pen" aria-hidden="true"></i></button>
+                                            @if(!in_array($app->status, ['Seen', 'Cancelled', 'Missed']))
+                                                <button type="button" wire:click="openCancelModal({{ $app->id }})" class="{{ $iconButton }} border-red-300 text-red-700" title="Cancel" aria-label="Cancel appointment"><i class="fas fa-times" aria-hidden="true"></i></button>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
                             @empty
-                            <tr>
-                                <td colspan="7" class="text-center py-5">
-                                    <i class="fas fa-calendar-times fa-3x text-muted mb-3 d-block"></i>
-                                    <p class="text-muted mb-0">No appointments found
-                                    @if($quickFilter) for "{{ ucwords(str_replace('_',' ',$quickFilter)) }}"@endif.
-                                    </p>
-                                    <button wire:click="openNewAppointmentModal" class="btn btn-sm btn-primary mt-3">
-                                        <i class="fas fa-plus mr-1"></i> Book One
-                                    </button>
-                                </td>
-                            </tr>
+                                <tr>
+                                    <td colspan="7" class="ui-empty">
+                                        <i class="fas fa-calendar-times mb-3 block text-4xl text-slate-300" aria-hidden="true"></i>
+                                        <p class="text-slate-500">No appointments found{{ $quickFilter ? ' for "'.ucwords(str_replace('_', ' ', $quickFilter)).'"' : '' }}.</p>
+                                        <button type="button" wire:click="openNewAppointmentModal" class="ui-button ui-button-primary mt-3"><i class="fas fa-plus" aria-hidden="true"></i>Book one</button>
+                                    </td>
+                                </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
                 @if($appointments->hasPages())
-                <div class="card-footer bg-white py-2">{{ $appointments->links() }}</div>
+                    <div class="border-t border-slate-200 px-4 py-2">{{ $appointments->links() }}</div>
                 @endif
-                @endif
+            @endif
 
-            {{-- ============================= WAITING ROOM ============================= --}}
-            @elseif($activeFilter === 'queue')
-            <div class="appt-toolbar">
-                <div class="d-flex align-items-center justify-content-between w-100 flex-wrap" style="gap:.5rem">
-                    <div>
-                        <span class="font-weight-bold">Today's Waiting Room</span>
-                        <span class="text-muted small ml-2">{{ now()->format('l, M d Y') }}</span>
-                    </div>
-                    <div class="d-flex" style="gap:.4rem">
-                        <button wire:click="exportReport" class="btn btn-sm btn-outline-secondary"><i class="fas fa-download mr-1"></i>Export</button>
-                        <button wire:click="closeClinicDay"
-                                wire:confirm="Move all unfinished appointments to tomorrow?"
-                                class="btn btn-sm btn-outline-warning font-weight-bold">
-                            <i class="fas fa-moon mr-1"></i>Close Day
-                        </button>
+        {{-- ============================= WAITING ROOM ============================= --}}
+        @elseif($activeFilter === 'queue')
+            <div class="space-y-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p><span class="font-semibold">Today's waiting room</span> <span class="ml-2 text-sm text-slate-500">{{ now()->format('l, M d Y') }}</span></p>
+                    <div class="flex gap-2">
+                        <button type="button" wire:click="exportReport" class="ui-button ui-button-secondary"><i class="fas fa-download" aria-hidden="true"></i>Export</button>
+                        <button type="button" wire:click="closeClinicDay" wire:confirm="Move all unfinished appointments to tomorrow?" class="ui-button ui-button-secondary"><i class="fas fa-moon" aria-hidden="true"></i>Close day</button>
                     </div>
                 </div>
-                <div class="mt-2">
-                    <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search patient…" style="max-width:260px">
-                </div>
+                {!! $search() !!}
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 appt-table">
-                    <thead class="thead-light">
+            <div class="ui-table-wrap">
+                <table class="ui-table">
+                    <thead>
                         <tr>
-                            <th style="width:36px"><input type="checkbox" wire:model.live="selectAll"></th>
+                            <th class="w-9"><input type="checkbox" wire:model.live="selectAll" class="rounded border-slate-300 text-teal-700" aria-label="Select all"></th>
                             <th>Time</th>
                             <th>Patient</th>
                             <th>Reason</th>
-                            <th>Queue Actions</th>
+                            <th>Queue actions</th>
                             <th>Status</th>
                             <th class="text-right">Edit</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($appointments as $app)
-                        @php
-                            $statusColor=['Arrived'=>'success','With Doctor'=>'info','Pending'=>'secondary','Called'=>'warning','Done'=>'dark'][$app->status]??'secondary';
-                        @endphp
-                        <tr class="{{ $app->status==='Arrived' ? 'table-success' : ($app->status==='With Doctor' ? 'table-info' : '') }}" style="opacity:{{ $app->status==='Done' ? '.6' : '1' }}">
-                            <td class="align-middle"><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}"></td>
-                            <td class="align-middle">
-                                <div class="font-weight-bold small">{{ $app->scheduled_at->format('h:i A') }}</div>
-                            </td>
-                            <td class="align-middle">
-                                <div class="font-weight-bold">{{ $app->patient->name }}</div>
-                                <div class="text-muted small">{{ $app->patient->contact ?? '—' }}</div>
-                            </td>
-                            <td class="align-middle small">{{ $app->title }}</td>
-                            <td class="align-middle">
-                                <div class="btn-group btn-group-sm">
-                                    <button wire:click="advanceQueueStatus({{ $app->id }},'Arrived')" class="btn btn-outline-success font-weight-bold">Arrived</button>
-                                    <button wire:click="advanceQueueStatus({{ $app->id }},'With Doctor')" class="btn btn-outline-info font-weight-bold">Doctor</button>
-                                    <button wire:click="advanceQueueStatus({{ $app->id }},'Done')" class="btn btn-outline-dark font-weight-bold">Done</button>
-                                </div>
-                            </td>
-                            <td class="align-middle">
-                                <span class="badge badge-{{ $statusColor }} appt-status-badge">{{ $app->status }}</span>
-                            </td>
-                            <td class="align-middle text-right">
-                                <button wire:click="editAppointment({{ $app->id }})" class="btn btn-xs btn-outline-secondary"><i class="fas fa-pen"></i></button>
-                            </td>
-                        </tr>
+                            <tr @class(['bg-green-50' => $app->status === 'Arrived', 'bg-sky-50' => $app->status === 'With Doctor', 'opacity-60' => $app->status === 'Done'])>
+                                <td><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}" class="rounded border-slate-300 text-teal-700" aria-label="Select {{ $app->patient->name }}"></td>
+                                <td class="whitespace-nowrap font-semibold">{{ $app->scheduled_at->format('h:i A') }}</td>
+                                <td>
+                                    <p class="font-semibold">{{ $app->patient->name }}</p>
+                                    <p class="text-xs text-slate-500">{{ $app->patient->contact ?? '—' }}</p>
+                                </td>
+                                <td>{{ $app->title }}</td>
+                                <td>
+                                    <div class="inline-flex overflow-hidden rounded-md border border-slate-300 text-xs font-semibold" role="group" aria-label="Move {{ $app->patient->name }} through the queue">
+                                        <button type="button" wire:click="advanceQueueStatus({{ $app->id }},'Arrived')" class="bg-white px-2.5 py-1.5 text-green-700 hover:bg-green-50">Arrived</button>
+                                        <button type="button" wire:click="advanceQueueStatus({{ $app->id }},'With Doctor')" class="border-x border-slate-300 bg-white px-2.5 py-1.5 text-sky-700 hover:bg-sky-50">Doctor</button>
+                                        <button type="button" wire:click="advanceQueueStatus({{ $app->id }},'Done')" class="bg-white px-2.5 py-1.5 text-slate-700 hover:bg-slate-100">Done</button>
+                                    </div>
+                                </td>
+                                <td><span class="{{ $badge }} {{ $statusTone[$app->status] ?? $statusTone['Pending'] }}">{{ $app->status }}</span></td>
+                                <td class="text-right"><button type="button" wire:click="editAppointment({{ $app->id }})" class="{{ $iconButton }} border-slate-300 text-slate-600" aria-label="Edit appointment"><i class="fas fa-pen" aria-hidden="true"></i></button></td>
+                            </tr>
                         @empty
-                        <tr>
-                            <td colspan="7" class="text-center py-5">
-                                <i class="fas fa-couch fa-3x text-muted mb-3 d-block"></i>
-                                <p class="text-muted mb-2">Waiting room is empty.</p>
-                                <button wire:click="openWalkInModal" class="btn btn-sm btn-success"><i class="fas fa-walking mr-1"></i>Add Walk-in</button>
-                            </td>
-                        </tr>
+                            <tr>
+                                <td colspan="7" class="ui-empty">
+                                    <i class="fas fa-couch mb-3 block text-4xl text-slate-300" aria-hidden="true"></i>
+                                    <p class="mb-2 text-slate-500">Waiting room is empty.</p>
+                                    <button type="button" wire:click="openWalkInModal" class="ui-button ui-button-primary"><i class="fas fa-walking" aria-hidden="true"></i>Add walk-in</button>
+                                </td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             @if($appointments->hasPages())
-            <div class="card-footer bg-white py-2">{{ $appointments->links() }}</div>
+                <div class="border-t border-slate-200 px-4 py-2">{{ $appointments->links() }}</div>
             @endif
 
-            {{-- ============================= HISTORY ============================= --}}
-            @elseif($activeFilter === 'history')
-            <div class="appt-toolbar">
-                <div class="d-flex align-items-center justify-content-between w-100">
-                    <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search patient…" style="max-width:260px">
-                    <button wire:click="exportReport" class="btn btn-sm btn-outline-secondary"><i class="fas fa-download mr-1"></i>Export</button>
-                </div>
+        {{-- ============================= HISTORY ============================= --}}
+        @elseif($activeFilter === 'history')
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                {!! $search() !!}
+                <button type="button" wire:click="exportReport" class="ui-button ui-button-secondary"><i class="fas fa-download" aria-hidden="true"></i>Export</button>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 appt-table">
-                    <thead class="thead-light">
+            <div class="ui-table-wrap">
+                <table class="ui-table">
+                    <thead>
                         <tr>
-                            <th style="width:36px"><input type="checkbox" wire:model.live="selectAll"></th>
-                            <th>Date &amp; Time</th>
+                            <th class="w-9"><input type="checkbox" wire:model.live="selectAll" class="rounded border-slate-300 text-teal-700" aria-label="Select all"></th>
+                            <th>Date &amp; time</th>
                             <th>Patient</th>
                             <th>Reason</th>
                             <th>Outcome</th>
@@ -591,56 +508,51 @@
                     </thead>
                     <tbody>
                         @forelse($appointments as $app)
-                        @php $isCancelled = $app->status === 'Cancelled'; @endphp
-                        <tr class="{{ $isCancelled ? '' : 'table-success' }}" style="{{ $isCancelled ? 'opacity:.7' : '' }}">
-                            <td class="align-middle"><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}"></td>
-                            <td class="align-middle">
-                                <div class="font-weight-bold small">{{ $app->scheduled_at->format('M d, Y') }}</div>
-                                <div class="text-muted" style="font-size:.75rem">{{ $app->scheduled_at->format('h:i A') }}</div>
-                            </td>
-                            <td class="align-middle">
-                                <div class="font-weight-bold">{{ $app->patient->name }}</div>
-                                <div class="text-muted small">{{ $app->patient->pxnumber }}</div>
-                            </td>
-                            <td class="align-middle small">{{ $app->title }}</td>
-                            <td class="align-middle">
-                                <span class="badge badge-{{ $isCancelled ? 'secondary' : 'success' }}">{{ $app->status }}</span>
-                            </td>
-                            <td class="align-middle text-right">
-                                <button wire:click="editAppointment({{ $app->id }})" class="btn btn-xs btn-outline-secondary"><i class="fas fa-pen"></i></button>
-                            </td>
-                        </tr>
+                            @php $isCancelled = $app->status === 'Cancelled'; @endphp
+                            <tr @class(['opacity-70' => $isCancelled])>
+                                <td><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}" class="rounded border-slate-300 text-teal-700" aria-label="Select {{ $app->patient->name }}"></td>
+                                <td class="whitespace-nowrap">
+                                    <p class="font-semibold">{{ $app->scheduled_at->format('M d, Y') }}</p>
+                                    <p class="text-xs text-slate-500">{{ $app->scheduled_at->format('h:i A') }}</p>
+                                </td>
+                                <td>
+                                    <p class="font-semibold">{{ $app->patient->name }}</p>
+                                    <p class="text-xs text-slate-500">{{ $app->patient->pxnumber }}</p>
+                                </td>
+                                <td>{{ $app->title }}</td>
+                                <td><span class="{{ $badge }} {{ $isCancelled ? 'bg-slate-100 text-slate-600' : 'bg-green-100 text-green-800' }}">{{ $app->status }}</span></td>
+                                <td class="text-right"><button type="button" wire:click="editAppointment({{ $app->id }})" class="{{ $iconButton }} border-slate-300 text-slate-600" aria-label="Edit appointment"><i class="fas fa-pen" aria-hidden="true"></i></button></td>
+                            </tr>
                         @empty
-                        <tr><td colspan="6" class="text-center py-5 text-muted"><i class="fas fa-history fa-3x mb-3 d-block"></i>No history yet.</td></tr>
+                            <tr><td colspan="6" class="ui-empty text-slate-500"><i class="fas fa-history mb-3 block text-4xl text-slate-300" aria-hidden="true"></i>No history yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             @if($appointments->hasPages())
-            <div class="card-footer bg-white py-2">{{ $appointments->links() }}</div>
+                <div class="border-t border-slate-200 px-4 py-2">{{ $appointments->links() }}</div>
             @endif
 
-            {{-- ============================= MISSED ============================= --}}
-            @elseif($activeFilter === 'missed')
-            <div class="appt-toolbar">
-                <div class="d-flex align-items-center justify-content-between w-100 flex-wrap" style="gap:.5rem">
-                    <div class="d-flex align-items-center flex-wrap" style="gap:.5rem">
-                        <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search patient…" style="max-width:260px">
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Show missed appointments">
-                            @foreach(['all' => 'All', 'not_followed' => 'Not followed up', 'recent' => 'Last 7 days'] as $view => $label)
-                                <button type="button" wire:click="$set('missedView', '{{ $view }}')" class="btn {{ $missedView === $view ? 'btn-secondary' : 'btn-outline-secondary' }}">{{ $label }}</button>
-                            @endforeach
-                        </div>
+        {{-- ============================= MISSED ============================= --}}
+        @elseif($activeFilter === 'missed')
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    {!! $search() !!}
+                    <div class="inline-flex overflow-hidden rounded-md border border-slate-300 text-sm" role="group" aria-label="Show missed appointments">
+                        @foreach(['all' => 'All', 'not_followed' => 'Not followed up', 'recent' => 'Last 7 days'] as $view => $viewLabel)
+                            <button type="button" wire:click="$set('missedView', '{{ $view }}')" aria-pressed="{{ $missedView === $view ? 'true' : 'false' }}"
+                                    class="border-l px-3 py-1.5 first:border-l-0 {{ $segment($missedView === $view) }}">{{ $viewLabel }}</button>
+                        @endforeach
                     </div>
-                    <button wire:click="exportReport" class="btn btn-sm btn-outline-secondary"><i class="fas fa-download mr-1"></i>Export</button>
                 </div>
+                <button type="button" wire:click="exportReport" class="ui-button ui-button-secondary"><i class="fas fa-download" aria-hidden="true"></i>Export</button>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 appt-table">
-                    <thead class="thead-light">
+            <div class="ui-table-wrap">
+                <table class="ui-table">
+                    <thead>
                         <tr>
-                            <th style="width:36px"><input type="checkbox" wire:model.live="selectAll"></th>
-                            <th>Missed On</th>
+                            <th class="w-9"><input type="checkbox" wire:model.live="selectAll" class="rounded border-slate-300 text-teal-700" aria-label="Select all"></th>
+                            <th>Missed on</th>
                             <th>Patient</th>
                             <th>Reason</th>
                             <th>Follow-up</th>
@@ -649,79 +561,75 @@
                     </thead>
                     <tbody>
                         @forelse($appointments as $app)
-                        <tr>
-                            <td class="align-middle"><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}"></td>
-                            <td class="align-middle">
-                                <div class="font-weight-bold small text-danger">{{ $app->scheduled_at->format('M d, Y') }}</div>
-                                <div class="text-muted" style="font-size:.75rem">{{ $app->scheduled_at->diffForHumans() }}</div>
-                            </td>
-                            <td class="align-middle">
-                                <div class="font-weight-bold">{{ $app->patient->name }}</div>
-                                <div class="text-muted small">{{ $app->patient->contact ?? '—' }}</div>
-                            </td>
-                            <td class="align-middle small">{{ $app->title }}</td>
-                            <td class="align-middle">
-                                {{-- Inline reschedule panel --}}
-                                @if($missedActionId === $app->id)
-                                <div class="d-flex align-items-end flex-wrap" style="gap:.35rem">
-                                    <div>
-                                        <label class="appt-label mb-0">Date</label>
-                                        <input type="date" wire:model.live="rescheduleDate" class="form-control form-control-sm" style="width:130px">
-                                        @error('rescheduleDate') <div class="text-danger" style="font-size:.7rem">{{ $message }}</div> @enderror
-                                    </div>
-                                    <div>
-                                        <label class="appt-label mb-0">Time</label>
-                                        <input type="time" wire:model.live="rescheduleTime" class="form-control form-control-sm" style="width:100px">
-                                    </div>
-                                    <button wire:click="rescheduleMissed" class="btn btn-sm btn-primary font-weight-bold">Confirm</button>
-                                    <button wire:click="closeMissedAction" class="btn btn-sm btn-outline-secondary">Cancel</button>
-                                </div>
-                                @else
-                                <div class="d-flex flex-wrap align-items-center" style="gap:.3rem">
-                                    @if($app->missed_followup_sent_at)
-                                    <span class="badge badge-light border text-success mr-1" title="Follow-up SMS sent"><i class="fas fa-check mr-1"></i>SMS sent {{ $app->missed_followup_sent_at->format('M d') }}</span>
+                            <tr>
+                                <td><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}" class="rounded border-slate-300 text-teal-700" aria-label="Select {{ $app->patient->name }}"></td>
+                                <td class="whitespace-nowrap">
+                                    <p class="font-semibold text-red-700">{{ $app->scheduled_at->format('M d, Y') }}</p>
+                                    <p class="text-xs text-slate-500">{{ $app->scheduled_at->diffForHumans() }}</p>
+                                </td>
+                                <td>
+                                    <p class="font-semibold">{{ $app->patient->name }}</p>
+                                    <p class="text-xs text-slate-500">{{ $app->patient->contact ?? '—' }}</p>
+                                </td>
+                                <td>{{ $app->title }}</td>
+                                <td>
+                                    @if($missedActionId === $app->id)
+                                        {{-- Inline reschedule --}}
+                                        <div class="flex flex-wrap items-end gap-2">
+                                            <div>
+                                                <label for="reschedule-date-{{ $app->id }}" class="{{ $label }}">Date</label>
+                                                <input id="reschedule-date-{{ $app->id }}" type="date" wire:model.live="rescheduleDate" class="{{ $small }} !w-36">
+                                                @error('rescheduleDate')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                                            </div>
+                                            <div>
+                                                <label for="reschedule-time-{{ $app->id }}" class="{{ $label }}">Time</label>
+                                                <input id="reschedule-time-{{ $app->id }}" type="time" wire:model.live="rescheduleTime" class="{{ $small }} !w-28">
+                                            </div>
+                                            <button type="button" wire:click="rescheduleMissed" class="ui-button ui-button-primary">Confirm</button>
+                                            <button type="button" wire:click="closeMissedAction" class="ui-button ui-button-secondary">Cancel</button>
+                                        </div>
+                                    @else
+                                        <div class="flex flex-wrap items-center gap-1">
+                                            @if($app->missed_followup_sent_at)
+                                                <span class="{{ $badge }} mr-1 border border-green-200 bg-white text-green-700" title="Follow-up SMS sent"><i class="fas fa-check mr-1" aria-hidden="true"></i>SMS sent {{ $app->missed_followup_sent_at->format('M d') }}</span>
+                                            @endif
+                                            @if($app->patient->contact)
+                                                <a href="tel:{{ $app->patient->contact }}" class="{{ $iconButton }} border-green-300 text-green-700" title="Call" aria-label="Call {{ $app->patient->name }}"><i class="fas fa-phone-alt" aria-hidden="true"></i></a>
+                                                @if($followUpUrl = $this->missedFollowUpWhatsAppUrl($app))
+                                                    <a href="{{ $followUpUrl }}" target="_blank" rel="noopener" class="{{ $iconButton }} border-green-300 text-green-700" title="Send follow-up on WhatsApp" aria-label="Send {{ $app->patient->name }} a follow-up on WhatsApp"><i class="fab fa-whatsapp" aria-hidden="true"></i></a>
+                                                @endif
+                                                <button type="button" wire:click="sendMissedFollowUpSms({{ $app->id }})" class="{{ $iconButton }} border-blue-300 text-blue-700" title="Send follow-up SMS" aria-label="Send {{ $app->patient->name }} a follow-up SMS"><i class="fas fa-sms" aria-hidden="true"></i></button>
+                                            @endif
+                                            <button type="button" wire:click="openMissedAction({{ $app->id }})" class="{{ $iconButton }} border-amber-300 text-amber-700" title="Reschedule" aria-label="Reschedule"><i class="fas fa-calendar-plus" aria-hidden="true"></i></button>
+                                            <button type="button" wire:click="resolveMissed({{ $app->id }})" class="{{ $iconButton }} border-slate-300 text-slate-700" title="Mark resolved" aria-label="Mark resolved"><i class="fas fa-check" aria-hidden="true"></i></button>
+                                        </div>
                                     @endif
-                                    @if($app->patient->contact)
-                                    <a href="tel:{{ $app->patient->contact }}" class="btn btn-xs btn-outline-success" title="Call"><i class="fas fa-phone-alt"></i></a>
-                                    @if($followUpUrl = $this->missedFollowUpWhatsAppUrl($app))
-                                    <a href="{{ $followUpUrl }}" target="_blank" rel="noopener" class="btn btn-xs btn-outline-success" title="Send follow-up on WhatsApp"><i class="fab fa-whatsapp"></i></a>
-                                    @endif
-                                    <button wire:click="sendMissedFollowUpSms({{ $app->id }})" class="btn btn-xs btn-outline-primary" title="Send follow-up SMS"><i class="fas fa-sms"></i></button>
-                                    @endif
-                                    <button wire:click="openMissedAction({{ $app->id }})" class="btn btn-xs btn-outline-warning" title="Reschedule"><i class="fas fa-calendar-plus"></i></button>
-                                    <button wire:click="resolveMissed({{ $app->id }})" class="btn btn-xs btn-outline-dark" title="Mark Resolved"><i class="fas fa-check"></i></button>
-                                </div>
-                                @endif
-                            </td>
-                            <td class="align-middle text-right">
-                                <button wire:click="editAppointment({{ $app->id }})" class="btn btn-xs btn-outline-secondary"><i class="fas fa-pen"></i></button>
-                            </td>
-                        </tr>
+                                </td>
+                                <td class="text-right"><button type="button" wire:click="editAppointment({{ $app->id }})" class="{{ $iconButton }} border-slate-300 text-slate-600" aria-label="Edit appointment"><i class="fas fa-pen" aria-hidden="true"></i></button></td>
+                            </tr>
                         @empty
-                        <tr>
-                            <td colspan="6" class="text-center py-5">
-                                <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
-                                <p class="text-muted mb-0">No missed appointments. Great work!</p>
-                            </td>
-                        </tr>
+                            <tr>
+                                <td colspan="6" class="ui-empty">
+                                    <i class="fas fa-check-circle mb-3 block text-4xl text-green-500" aria-hidden="true"></i>
+                                    <p class="text-slate-500">No missed appointments. Great work!</p>
+                                </td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             @if($appointments->hasPages())
-            <div class="card-footer bg-white py-2">{{ $appointments->links() }}</div>
+                <div class="border-t border-slate-200 px-4 py-2">{{ $appointments->links() }}</div>
             @endif
 
-            {{-- ============================= TRASH ============================= --}}
-            @elseif($activeFilter === 'trash')
-            <div class="appt-toolbar">
-                <input wire:model.live.debounce.300ms="search" type="text" class="form-control form-control-sm" placeholder="Search patient…" style="max-width:260px">
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 appt-table">
-                    <thead class="thead-light">
+        {{-- ============================= TRASH ============================= --}}
+        @elseif($activeFilter === 'trash')
+            <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">{!! $search() !!}</div>
+            <div class="ui-table-wrap">
+                <table class="ui-table">
+                    <thead>
                         <tr>
-                            <th style="width:36px"><input type="checkbox" wire:model.live="selectAll"></th>
+                            <th class="w-9"><input type="checkbox" wire:model.live="selectAll" class="rounded border-slate-300 text-teal-700" aria-label="Select all"></th>
                             <th>Date</th>
                             <th>Patient</th>
                             <th>Reason</th>
@@ -730,207 +638,168 @@
                     </thead>
                     <tbody>
                         @forelse($appointments as $app)
-                        <tr style="opacity:.7">
-                            <td class="align-middle"><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}"></td>
-                            <td class="align-middle small">{{ $app->scheduled_at->format('M d, Y') }}</td>
-                            <td class="align-middle"><div class="font-weight-bold">{{ $app->patient->name }}</div></td>
-                            <td class="align-middle small">{{ $app->title }}</td>
-                            <td class="align-middle text-right">
-                                <button wire:click="restoreAppointment({{ $app->id }})" class="btn btn-xs btn-success font-weight-bold">
-                                    <i class="fas fa-undo mr-1"></i>Restore
-                                </button>
-                            </td>
-                        </tr>
+                            <tr class="opacity-70">
+                                <td><input type="checkbox" wire:model.live="selectedAppointments" value="{{ $app->id }}" class="rounded border-slate-300 text-teal-700" aria-label="Select {{ $app->patient->name }}"></td>
+                                <td class="whitespace-nowrap">{{ $app->scheduled_at->format('M d, Y') }}</td>
+                                <td class="font-semibold">{{ $app->patient->name }}</td>
+                                <td>{{ $app->title }}</td>
+                                <td class="text-right"><button type="button" wire:click="restoreAppointment({{ $app->id }})" class="ui-button ui-button-secondary"><i class="fas fa-undo" aria-hidden="true"></i>Restore</button></td>
+                            </tr>
                         @empty
-                        <tr><td colspan="5" class="text-center py-5 text-muted"><i class="fas fa-trash-alt fa-3x mb-3 d-block"></i>Trash is empty.</td></tr>
+                            <tr><td colspan="5" class="ui-empty text-slate-500"><i class="fas fa-trash-alt mb-3 block text-4xl text-slate-300" aria-hidden="true"></i>Trash is empty.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             @if($appointments->hasPages())
-            <div class="card-footer bg-white py-2">{{ $appointments->links() }}</div>
+                <div class="border-t border-slate-200 px-4 py-2">{{ $appointments->links() }}</div>
             @endif
+        @endif
+    </section>
 
-            @endif {{-- end activeFilter --}}
-
-        </div> {{-- end .card --}}
-    </div> {{-- end .container-fluid --}}
-
-    {{-- ===== APPOINTMENT MODAL ===== --}}
+    {{-- ===== APPOINTMENT DIALOG ===== --}}
     @if($isEditModalOpen)
-    <div class="modal d-block appt-modal-backdrop" wire:click.self="closeModal">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:540px">
-            <div class="modal-content shadow-lg border-0 rounded-lg overflow-hidden">
-                <div class="modal-header bg-white border-bottom py-3 px-4">
-                    <h5 class="modal-title font-weight-bold mb-0">
-                        <i class="fas fa-calendar-plus mr-2 text-primary"></i>
-                        {{ $editingAppointmentId ? 'Edit Appointment' : ($newAppointmentStatus==='Arrived' ? 'Walk-in Visit' : 'New Appointment') }}
-                    </h5>
-                    <button type="button" class="close" wire:click="closeModal"><span>&times;</span></button>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" wire:click.self="closeModal" x-data x-on:keydown.escape.window="$wire.closeModal()">
+            <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="appt-dialog-title">
+                <div class="ui-panel-heading">
+                    <h2 id="appt-dialog-title"><i class="fas fa-calendar-plus mr-2 text-teal-700" aria-hidden="true"></i>{{ $editingAppointmentId ? 'Edit appointment' : ($newAppointmentStatus === 'Arrived' ? 'Walk-in visit' : 'New appointment') }}</h2>
+                    <button type="button" class="ui-button ui-button-secondary" wire:click="closeModal" aria-label="Close dialog">Close</button>
                 </div>
-                <form wire:submit="saveAppointment">
-                    <div class="modal-body px-4 py-3" style="max-height:calc(100vh - 180px); overflow-y:auto">
-
-                        {{-- SECTION: Patient --}}
-                        <div class="appt-modal-section-label">Patient</div>
-                        <div class="form-group position-relative">
-                            @if($selectedPatientName)
-                            <div class="d-flex align-items-center justify-content-between bg-light border rounded px-3 py-2">
-                                <span class="font-weight-bold"><i class="fas fa-user-circle mr-2 text-primary"></i>{{ $selectedPatientName }}</span>
-                                <button type="button" wire:click="clearSelectedPatient" class="btn btn-sm btn-link text-danger p-0"><i class="fas fa-times"></i></button>
-                            </div>
-                            @else
-                            <input type="text" wire:model.live.debounce.300ms="patientSearch"
-                                   class="form-control" placeholder="Search by name, phone, or PX number…">
-                            @if(!empty($searchablePatients))
-                            <div class="list-group position-absolute w-100 shadow-lg mt-1" style="z-index:1100; max-height:200px; overflow-y:auto">
-                                @foreach($searchablePatients as $p)
-                                <button type="button" wire:click="selectPatient({{ $p->id }},'{{ addslashes($p->name) }}')"
-                                        class="list-group-item list-group-item-action py-2">
-                                    <div class="font-weight-bold">{{ $p->name }}</div>
-                                    <div class="text-muted small">{{ $p->pxnumber }} · {{ $p->contact ?? 'No contact' }}
-                                        @if($p->dob) · Age {{ \Carbon\Carbon::parse($p->dob)->age }} @endif
+                <form wire:submit="saveAppointment" class="flex min-h-0 flex-col">
+                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                        <fieldset class="space-y-2">
+                            <legend class="mb-2 w-full border-b border-slate-100 pb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Patient</legend>
+                            <div class="relative">
+                                @if($selectedPatientName)
+                                    <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <span class="font-semibold"><i class="fas fa-user-circle mr-2 text-teal-700" aria-hidden="true"></i>{{ $selectedPatientName }}</span>
+                                        <button type="button" wire:click="clearSelectedPatient" class="text-red-700" aria-label="Choose a different patient"><i class="fas fa-times" aria-hidden="true"></i></button>
                                     </div>
-                                </button>
-                                @endforeach
+                                @else
+                                    <input type="search" wire:model.live.debounce.300ms="patientSearch" class="{{ $input }}" placeholder="Search by name, phone, or PX number…" aria-label="Search patient" autocomplete="off">
+                                    @if(!empty($searchablePatients))
+                                        <div class="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                                            @foreach($searchablePatients as $p)
+                                                <button type="button" wire:click="selectPatient({{ $p->id }},'{{ addslashes($p->name) }}')" class="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-slate-50">
+                                                    <span class="block font-semibold">{{ $p->name }}</span>
+                                                    <span class="block text-xs text-slate-500">{{ $p->pxnumber }} · {{ $p->contact ?? 'No contact' }}@if($p->dob) · Age {{ \Carbon\Carbon::parse($p->dob)->age }}@endif</span>
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                @endif
+                                @error('patient_id')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                             </div>
-                            @endif
-                            @endif
-                            @error('patient_id') <span class="text-danger small">{{ $message }}</span> @enderror
-                        </div>
+                        </fieldset>
 
-                        {{-- SECTION: Visit Details --}}
-                        <div class="appt-modal-section-label mt-3">Visit Details</div>
-                        <div class="form-group">
-                            <label class="appt-label">Reason</label>
-                            <select wire:model.live="title" class="form-control">
-                                <option value="">— Select reason —</option>
-                                @foreach($appointmentReasons as $reason)
-                                <option value="{{ $reason }}">{{ $reason }}</option>
-                                @endforeach
-                            </select>
-                            @error('title') <span class="text-danger small">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="form-group">
-                            <label class="appt-label">Recall Category</label>
-                            <select wire:model.live="recall_category" class="form-control">
-                                <option value="">Use reason</option>
-                                @foreach($recallCategories as $cat)
-                                <option value="{{ $cat }}">{{ $cat }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="appt-label">Notes</label>
-                            <textarea wire:model.live.debounce.400ms="notes" rows="2" class="form-control"></textarea>
-                        </div>
+                        <fieldset class="space-y-3">
+                            <legend class="mb-2 w-full border-b border-slate-100 pb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Visit details</legend>
+                            <div>
+                                <label for="appt-title" class="{{ $label }}">Reason</label>
+                                <select id="appt-title" wire:model.live="title" class="{{ $input }}" aria-invalid="{{ $errors->has('title') ? 'true' : 'false' }}">
+                                    <option value="">— Select reason —</option>
+                                    @foreach($appointmentReasons as $reason)<option value="{{ $reason }}">{{ $reason }}</option>@endforeach
+                                </select>
+                                @error('title')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label for="appt-recall" class="{{ $label }}">Recall category</label>
+                                <select id="appt-recall" wire:model.live="recall_category" class="{{ $input }}">
+                                    <option value="">Use reason</option>
+                                    @foreach($recallCategories as $cat)<option value="{{ $cat }}">{{ $cat }}</option>@endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label for="appt-notes" class="{{ $label }}">Notes</label>
+                                <textarea id="appt-notes" wire:model.live.debounce.400ms="notes" rows="2" class="{{ $input }}"></textarea>
+                            </div>
+                        </fieldset>
 
-                        {{-- SECTION: Reminder --}}
-                        <div class="appt-modal-section-label mt-3">Reminder</div>
-                        <div class="form-group">
-                            <label class="appt-label">Channel</label>
-                            <select wire:model.live="reminder_channel" class="form-control">
+                        <fieldset>
+                            <legend class="mb-2 w-full border-b border-slate-100 pb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Reminder</legend>
+                            <label for="appt-channel" class="{{ $label }}">Channel</label>
+                            <select id="appt-channel" wire:model.live="reminder_channel" class="{{ $input }}">
                                 <option value="whatsapp">WhatsApp</option>
                                 <option value="sms">SMS</option>
                                 <option value="both">SMS + WhatsApp</option>
                                 <option value="none">No reminder</option>
                             </select>
-                        </div>
+                        </fieldset>
 
-                        {{-- SECTION: Schedule --}}
-                        <div class="appt-modal-section-label mt-3">Schedule</div>
-                        <div class="form-group">
-                            <label class="appt-label">Date &amp; Time</label>
-                            <input type="datetime-local" wire:model.live="scheduled_at"
-                                   min="{{ now()->format('Y-m-d\TH:i') }}" class="form-control">
-                            @error('scheduled_at') <span class="text-danger small">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="row">
-                            <div class="col-md-7 form-group mb-0">
-                                <label class="appt-label">Doctor</label>
-                                <select wire:model.live="doctor_id" class="form-control">
-                                    <option value="">Unassigned</option>
-                                    @foreach($doctors as $doctor)
-                                        <option value="{{ $doctor->id }}">{{ $doctor->name }}</option>
-                                    @endforeach
-                                </select>
-                                @error('doctor_id') <span class="text-danger small">{{ $message }}</span> @enderror
+                        <fieldset class="space-y-3">
+                            <legend class="mb-2 w-full border-b border-slate-100 pb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Schedule</legend>
+                            <div>
+                                <label for="appt-when" class="{{ $label }}">Date &amp; time</label>
+                                <input id="appt-when" type="datetime-local" wire:model.live="scheduled_at" min="{{ now()->format('Y-m-d\TH:i') }}" class="{{ $input }}" aria-invalid="{{ $errors->has('scheduled_at') ? 'true' : 'false' }}">
+                                @error('scheduled_at')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                             </div>
-                            <div class="col-md-5 form-group mb-0">
-                                <label class="appt-label">Duration</label>
-                                <select wire:model.live="duration_minutes" class="form-control">
-                                    @foreach([15,30,45,60,90,120] as $minutes)
-                                        <option value="{{ $minutes }}">{{ $minutes }} minutes</option>
-                                    @endforeach
-                                </select>
+                            <div class="grid gap-3 sm:grid-cols-[7fr_5fr]">
+                                <div>
+                                    <label for="appt-doctor" class="{{ $label }}">Doctor</label>
+                                    <select id="appt-doctor" wire:model.live="doctor_id" class="{{ $input }}" aria-invalid="{{ $errors->has('doctor_id') ? 'true' : 'false' }}">
+                                        <option value="">Unassigned</option>
+                                        @foreach($doctors as $doctor)<option value="{{ $doctor->id }}">{{ $doctor->name }}</option>@endforeach
+                                    </select>
+                                    @error('doctor_id')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                                </div>
+                                <div>
+                                    <label for="appt-duration" class="{{ $label }}">Duration</label>
+                                    <select id="appt-duration" wire:model.live="duration_minutes" class="{{ $input }}">
+                                        @foreach([15, 30, 45, 60, 90, 120] as $minutes)<option value="{{ $minutes }}">{{ $minutes }} minutes</option>@endforeach
+                                    </select>
+                                </div>
                             </div>
-                        </div>
+                        </fieldset>
                     </div>
-                    <div class="modal-footer bg-light px-4 py-3">
-                        <button type="button" wire:click="closeModal" class="btn btn-outline-secondary">Discard</button>
-                        <button type="submit" class="btn btn-primary font-weight-bold px-4">
-                            <i class="fas fa-save mr-1"></i>
-                            {{ $editingAppointmentId ? 'Save Changes' : ($newAppointmentStatus==='Arrived' ? 'Add to Waiting Room' : 'Save Appointment') }}
-                        </button>
+                    <div class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                        <button type="button" wire:click="closeModal" class="ui-button ui-button-secondary">Discard</button>
+                        <button type="submit" class="ui-button ui-button-primary"><i class="fas fa-save" aria-hidden="true"></i>{{ $editingAppointmentId ? 'Save changes' : ($newAppointmentStatus === 'Arrived' ? 'Add to waiting room' : 'Save appointment') }}</button>
                     </div>
                 </form>
             </div>
         </div>
-    </div>
     @endif
 
-    {{-- ===== CANCEL MODAL ===== --}}
+    {{-- ===== CANCEL DIALOG ===== --}}
     @if($isCancelModalOpen)
-    <div class="modal d-block appt-modal-backdrop">
-        <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
-            <div class="modal-content shadow-lg border-0 rounded-lg overflow-hidden">
-                <div class="modal-header bg-danger text-white py-3 px-4">
-                    <h5 class="modal-title font-weight-bold mb-0"><i class="fas fa-times-circle mr-2"></i>Cancel Appointment</h5>
-                    <button type="button" class="close text-white" wire:click="closeCancelModal"><span>&times;</span></button>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" x-data x-on:keydown.escape.window="$wire.closeCancelModal()">
+            <div class="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="cancel-dialog-title">
+                <div class="ui-panel-heading bg-red-50">
+                    <h2 id="cancel-dialog-title" class="text-red-800"><i class="fas fa-times-circle mr-2" aria-hidden="true"></i>Cancel appointment</h2>
+                    <button type="button" class="ui-button ui-button-secondary" wire:click="closeCancelModal" aria-label="Close dialog">Close</button>
                 </div>
-                <div class="modal-body px-4 py-3">
-                    <div class="form-group mb-0">
-                        <label class="appt-label">Reason <span class="text-muted font-weight-normal">(optional)</span></label>
-                        <textarea wire:model.live.debounce.400ms="cancelReason" rows="3" class="form-control" placeholder="e.g. Patient requested cancellation…"></textarea>
-                    </div>
+                <div class="px-5 py-4">
+                    <label for="cancel-reason" class="{{ $label }}">Reason <span class="font-normal normal-case">(optional)</span></label>
+                    <textarea id="cancel-reason" wire:model.live.debounce.400ms="cancelReason" rows="3" class="{{ $input }}" placeholder="e.g. Patient requested cancellation…"></textarea>
                 </div>
-                <div class="modal-footer bg-light px-4 py-3">
-                    <button type="button" wire:click="closeCancelModal" class="btn btn-outline-secondary">Back</button>
-                    <button type="button" wire:click="confirmCancelAppointment" class="btn btn-danger font-weight-bold">Confirm Cancel</button>
+                <div class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                    <button type="button" wire:click="closeCancelModal" class="ui-button ui-button-secondary">Back</button>
+                    <button type="button" wire:click="confirmCancelAppointment" class="ui-button ui-button-danger">Confirm cancel</button>
                 </div>
             </div>
         </div>
-    </div>
     @endif
 
-    {{-- ===== REMINDER PREVIEW MODAL ===== --}}
+    {{-- ===== REMINDER PREVIEW DIALOG ===== --}}
     @if($showReminderPreview)
-    <div class="modal d-block appt-modal-backdrop">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow-lg border-0 rounded-lg overflow-hidden">
-                <div class="modal-header bg-white border-bottom py-3 px-4">
-                    <h5 class="modal-title font-weight-bold mb-0"><i class="fab fa-whatsapp mr-2 text-success"></i>Reminder Preview</h5>
-                    <button type="button" class="close" wire:click="closeReminderPreview"><span>&times;</span></button>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" x-data x-on:keydown.escape.window="$wire.closeReminderPreview()">
+            <div class="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="preview-dialog-title">
+                <div class="ui-panel-heading">
+                    <h2 id="preview-dialog-title"><i class="fab fa-whatsapp mr-2 text-green-600" aria-hidden="true"></i>Reminder preview</h2>
+                    <button type="button" class="ui-button ui-button-secondary" wire:click="closeReminderPreview" aria-label="Close dialog">Close</button>
                 </div>
-                <div class="modal-body px-4 py-3">
-                    <textarea id="reminderPreviewMessage" class="form-control" rows="7" readonly>{{ $previewReminderMessage }}</textarea>
-                    <small class="text-muted d-block mt-2">Copy into WhatsApp Web, or open directly.</small>
+                <div class="px-5 py-4">
+                    <textarea id="reminderPreviewMessage" class="{{ $input }}" rows="7" readonly aria-label="Reminder message">{{ $previewReminderMessage }}</textarea>
+                    <p class="mt-2 text-xs text-slate-500">Copy into WhatsApp Web, or open directly.</p>
                 </div>
-                <div class="modal-footer bg-light px-4 py-3">
-                    <button type="button" class="btn btn-outline-secondary"
-                            onclick="navigator.clipboard.writeText(document.getElementById('reminderPreviewMessage').value)">
-                        <i class="fas fa-copy mr-1"></i>Copy
-                    </button>
-                    <a href="{{ $this->previewWhatsAppUrl }}" target="_blank" class="btn btn-success">
-                        <i class="fab fa-whatsapp mr-1"></i>Open WhatsApp
-                    </a>
-                    <button type="button" class="btn btn-primary" wire:click="markPreviewReminderSent">Mark Sent</button>
+                <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                    <button type="button" class="ui-button ui-button-secondary" onclick="navigator.clipboard.writeText(document.getElementById('reminderPreviewMessage').value)"><i class="fas fa-copy" aria-hidden="true"></i>Copy</button>
+                    <a href="{{ $this->previewWhatsAppUrl }}" target="_blank" class="ui-button ui-button-secondary"><i class="fab fa-whatsapp" aria-hidden="true"></i>Open WhatsApp</a>
+                    <button type="button" class="ui-button ui-button-primary" wire:click="markPreviewReminderSent">Mark sent</button>
                 </div>
             </div>
         </div>
-    </div>
     @endif
-
 </div>
 
 <script>
@@ -944,61 +813,9 @@ function handleCalendarDrop(event, newDate) {
 </script>
 
 <style>
-/* ===== PAGE LAYOUT ===== */
-.appt-page { font-family: inherit; }
-
-/* Header */
-.appt-header { background: #fff; border-bottom: 1px solid #edf0f4; padding: .9rem 0; position: sticky; top: 0; z-index: 100; }
-.appt-header-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
-.appt-header-kicker { font-size: .7rem; font-weight: 800; text-transform: uppercase; color: #9ca3af; letter-spacing: .05em; }
-.appt-header-title { font-size: 1.35rem; font-weight: 800; color: #1f2937; margin: 0; }
-.appt-header-actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
-
-/* Summary cards */
-.appt-summary-row { display: flex; flex-wrap: wrap; gap: .5rem; }
-.appt-summary-card { background: #fff; border: 1px solid #edf0f4; border-radius: 8px; padding: .6rem .9rem; display: flex; align-items: center; gap: .6rem; min-width: 120px; box-shadow: 0 1px 4px rgba(15,23,42,.04); }
-.appt-summary-icon { font-size: 1.1rem; width: 28px; text-align: center; }
-.appt-summary-value { font-size: 1.1rem; font-weight: 800; color: #1f2937; line-height: 1.1; }
-.appt-summary-label { font-size: .68rem; color: #6b7280; font-weight: 600; }
-
-/* Tabs */
-.appt-tabs { border-bottom: none; }
-.appt-tab-link { display: flex; align-items: center; gap: .3rem; padding: .75rem 1rem; border: none; border-bottom: 3px solid transparent; color: #6b7280; font-size: .82rem; font-weight: 600; transition: all .2s; cursor: pointer; white-space: nowrap; }
-.appt-tab-link:hover { color: #374151; border-bottom-color: #d1d5db; }
-.appt-tab-link.active { color: #111827; border-bottom-color: #111827; }
-.appt-tab-badge { background: #f3f4f6; color: #374151; border-radius: 999px; font-size: .65rem; font-weight: 700; padding: .12em .45em; min-width: 18px; text-align: center; }
-.appt-tab-badge.active { background: #111827; color: #fff; }
-
-/* Toolbar */
-.appt-toolbar { padding: .75rem 1rem; background: #fafafa; border-bottom: 1px solid #edf0f4; }
-
-/* Quick filter chips */
-.appt-chip { border-radius: 999px; font-size: .75rem; padding: .28rem .75rem; }
-
-/* Legend */
-.appt-legend { padding-top: .4rem; border-bottom: 1px solid #edf0f4; background: #fff; }
-.appt-legend-badge { font-size: .68rem; font-weight: 600; opacity: .85; }
-
-/* Table */
-.appt-table th { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; white-space: nowrap; }
-.appt-table td { vertical-align: middle; font-size: .85rem; }
-.appt-status-badge { font-size: .72rem; padding: .28em .55em; font-weight: 700; }
-
-/* Modal backdrop */
-.appt-modal-backdrop { background: rgba(0,0,0,.55); }
-
-/* Modal section label */
-.appt-modal-section-label { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin-bottom: .4rem; border-bottom: 1px solid #f3f4f6; padding-bottom: .3rem; }
-
-/* Form label utility */
-.appt-label { font-size: .72rem; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .25rem; display: block; }
-
-/* btn-xs */
-.btn-xs { font-size: .7rem; padding: .25rem .5rem; border-radius: 4px; }
-
-/* ===== CALENDAR ===== */
-.appointment-calendar { background: #fff; padding: 0 1rem 1.5rem; }
-.calendar-month-grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); border-top: 1px solid #edf0f4; border-left: 1px solid #edf0f4; overflow-x: auto; }
+/* Week calendar: drag an appointment chip onto another day to move it. */
+.appointment-calendar { background: #fff; padding: 0 1rem 1.5rem; overflow-x: auto; }
+.calendar-month-grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); border-top: 1px solid #edf0f4; border-left: 1px solid #edf0f4; }
 .calendar-weekday { padding: .6rem .75rem; color: #667085; font-size: .7rem; font-weight: 800; border-right: 1px solid #edf0f4; border-bottom: 1px solid #edf0f4; text-align: center; text-transform: uppercase; }
 .calendar-day { position: relative; min-width: 140px; min-height: 128px; padding: 1.5rem .6rem .6rem; border-right: 1px solid #edf0f4; border-bottom: 1px solid #edf0f4; background: #fff; transition: background .15s; }
 .calendar-day.is-muted { background: #fafafa; }
@@ -1007,7 +824,7 @@ function handleCalendarDrop(event, newDate) {
 .calendar-day.is-past { background: #f9fafb; pointer-events: none; opacity: .7; }
 .calendar-day.drag-over { background: #eff6ff !important; outline: 2px dashed #3b82f6; }
 .calendar-day-number { position: absolute; top: .5rem; left: .65rem; font-size: .72rem; font-weight: 800; color: #667085; z-index: 2; }
-.calendar-day-number.today-number { background: #1d4ed8; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .65rem; }
+.calendar-day-number.today-number { background: #087e83; color: #fff; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .65rem; }
 .calendar-day-hit { position: absolute; inset: 0; width: 100%; border: 0; background: transparent; cursor: copy; z-index: 1; }
 .calendar-day-stack { position: relative; z-index: 2; display: flex; flex-direction: column; gap: .35rem; pointer-events: none; }
 .calendar-appointment { border-radius: 5px; padding: .3rem .45rem; border: 1px solid transparent; box-shadow: 0 2px 6px rgba(15,23,42,.06); pointer-events: auto; cursor: grab; }
@@ -1017,33 +834,15 @@ function handleCalendarDrop(event, newDate) {
 .calendar-time-badge { font-size: .58rem; font-weight: 700; color: #475467; white-space: nowrap; }
 .calendar-contact-actions { display: flex; flex-wrap: wrap; gap: .2rem; margin-top: .3rem; }
 .calendar-action { display: inline-flex; align-items: center; justify-content: center; min-height: 20px; width: 22px; border-radius: 4px; background: #fff; font-size: .65rem; border: 1px solid transparent; cursor: pointer; text-decoration: none !important; }
-.calendar-action-call { color: #16a34a; border-color: #16a34a; }
-.calendar-action-whatsapp { color: #16a34a; border-color: #16a34a; }
+.calendar-action-call, .calendar-action-whatsapp { color: #16a34a; border-color: #16a34a; }
 .calendar-action-edit { color: #6b7280; border-color: #d1d5db; }
 .calendar-overflow { font-size: .65rem; font-weight: 700; color: #6b7280; text-align: center; margin-top: .2rem; cursor: pointer; }
-/* Calendar chip colours */
 .calendar-chip-yellow { background: #fef9c3; border-color: #facc15; }
-.calendar-chip-rose   { background: #ffe4e6; border-color: #fb7185; }
-.calendar-chip-mint,
-.calendar-chip-green  { background: #dcfce7; border-color: #4ade80; }
-.calendar-chip-sky,
-.calendar-chip-blue,
-.calendar-chip-cyan   { background: #dbeafe; border-color: #60a5fa; }
+.calendar-chip-rose { background: #ffe4e6; border-color: #fb7185; }
+.calendar-chip-mint, .calendar-chip-green { background: #dcfce7; border-color: #4ade80; }
+.calendar-chip-sky, .calendar-chip-blue, .calendar-chip-cyan { background: #dbeafe; border-color: #60a5fa; }
 .calendar-chip-orange { background: #ffedd5; border-color: #fb923c; }
-
-/* ===== DAY VIEW ===== */
-.day-view-grid { padding-top: .75rem; }
-.day-slot { display: grid; grid-template-columns: 52px 1fr; border-bottom: 1px solid #f3f4f6; min-height: 52px; align-items: start; padding: .35rem 0; }
-.day-slot-now { background: #fefce8; }
-.day-slot-label { font-size: .72rem; font-weight: 700; color: #9ca3af; padding-top: .2rem; }
-.day-slot-body { padding-left: .5rem; }
-.day-event { background: #f9fafb; border-radius: 4px; padding: .3rem .5rem; }
-
-/* Responsive */
 @media (max-width: 767px) {
-    .appt-summary-row { gap: .35rem; }
-    .appt-summary-card { min-width: calc(50% - .35rem); }
-    .appt-header-title { font-size: 1.1rem; }
     .calendar-month-grid { grid-template-columns: repeat(5, minmax(120px, 1fr)); }
     .calendar-day, .calendar-weekday { min-width: 120px; }
 }

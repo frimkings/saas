@@ -332,33 +332,33 @@
                 @endphp
                 <div class="tab-content-wrapper">
                     {{-- Consultation Form (NEW or EDIT) - ALWAYS ACCESSIBLE --}}
-                    <div class="consultation-titlebar d-none">
+                    <div class="consultation-titlebar hidden">
                         <div>
-                            <h5 class="mb-1 text-primary font-weight-bold">
+                            <h5 class="mb-1 text-teal-700 font-semibold">
                                 <i class="fas fa-stethoscope"></i>
                                 {{ $isEditMode ? 'Edit Consultation Record' : 'New Consultation Record' }}
                             </h5>
                             @if($isEditMode && $consultation)
-                                <small class="text-muted">
+                                <small class="text-slate-500">
                                     Created by {{ $consultation->user->name ?? 'N/A' }} on {{ $consultation->created_at->format('d M Y h:i A') }}
                                 </small>
                             @else
-                                <small class="text-muted">Capture complaint, exam findings, diagnosis, and management plan.</small>
+                                <small class="text-slate-500">Capture complaint, exam findings, diagnosis, and management plan.</small>
                             @endif
                         </div>
-                        <button wire:click="cancelAndGoBack" class="btn btn-light">
+                        <button wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary">
                             <i class="fas fa-arrow-left"></i> Cancel
                         </button>
                     </div>
 
                     @if($consultationFieldsLocked)
-                        <div class="consultation-lock-panel mb-3">
-                            <div class="d-flex align-items-start">
+                        <div class="consultation-lock-panel mb-4">
+                            <div class="flex items-start">
                                 <div class="consultation-lock-icon">
                                     <i class="fas fa-lock"></i>
                                 </div>
                                 <div>
-                                    <div class="font-weight-bold">Limited editing mode</div>
+                                    <div class="font-semibold">Limited editing mode</div>
                                     <div>{{ $consultationEditLockReason }}</div>
                                     <small>Original clinical fields stay unchanged. Add a signed clinical addendum instead.</small>
                                 </div>
@@ -371,19 +371,19 @@
                     @endphp
 
                     @if(!empty($urgentReferralReasons))
-                        <div class="urgent-referral-panel mb-3">
-                            <div class="d-flex justify-content-between align-items-start flex-wrap">
+                        <div class="urgent-referral-panel mb-4">
+                            <div class="flex justify-between items-start flex-wrap">
                                 <div class="mb-2">
-                                    <div class="font-weight-bold">
+                                    <div class="font-semibold">
                                         <i class="fas fa-exclamation-triangle"></i> Urgent referral red flag detected
                                     </div>
-                                    <div class="small">Detected: {{ implode(', ', $urgentReferralReasons) }}</div>
+                                    <div class="text-sm">Detected: {{ implode(', ', $urgentReferralReasons) }}</div>
                                 </div>
                                 <button type="button"
                                     wire:click="createUrgentReferralDraft"
                                     wire:loading.attr="disabled"
                                     wire:target="createUrgentReferralDraft"
-                                    class="btn btn-danger btn-sm">
+                                    class="btn ui-button ui-button-danger ui-button-sm">
                                     <span wire:loading.remove wire:target="createUrgentReferralDraft">
                                         <i class="fas fa-paper-plane"></i> Create Urgent Referral Draft
                                     </span>
@@ -410,33 +410,33 @@
                             <strong x-show="dirty" x-cloak><i class="fas fa-circle"></i> Unsaved changes</strong>
                         </nav>
                         {{-- Chief Complaint & History --}}
-                        <div id="consultation-section-history" class="card border mb-3 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}">
-                            <div class="card-header bg-light">
-                                <h6 class="mb-0 font-weight-bold">
+                        <div id="consultation-section-history" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}">
+                            <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50">
+                                <h6 class="mb-0 font-semibold">
                                     Patient History
                                     @if($consultationFieldsLocked)
-                                        <span class="badge badge-secondary ml-2"><i class="fas fa-lock"></i> Locked</span>
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 ml-2"><i class="fas fa-lock"></i> Locked</span>
                                     @endif
                                 </h6>
                             </div>
-                            <div class="card-body">
-                                <div class="row consultation-history-grid">
-                                    <div class="col-md-6 mb-3 order-1 consultation-history-chief">
-                                        <label class="font-weight-bold">Chief Complaint <span
-                                                class="text-danger">*</span></label>
+                            <div class="card-body p-4">
+                                <div class="flex flex-wrap -mx-2 consultation-history-grid">
+                                    <div class="w-full md:w-6/12 px-2 mb-4 order-1 consultation-history-chief">
+                                        <label class="font-semibold">Chief Complaint <span
+                                                class="text-red-700">*</span></label>
                                         <textarea id="consultation-chief-complaint" wire:model="state.chiefComplaint" aria-describedby="chief-complaint-error"
-                                            class="form-control {{ $historyHasErrors ? 'is-invalid' : '' }}"
+                                            class="form-control ui-input {{ $historyHasErrors ? 'is-invalid' : '' }}"
                                             rows="3" placeholder="Enter patient's main complaint"
                                             {{ $consultationFieldsLocked ? 'disabled' : '' }}></textarea>
-                                        @if($historyHasErrors)<div id="chief-complaint-error" class="invalid-feedback d-block"><i class="fas fa-exclamation-circle mr-1"></i>{{ $errors->first('chiefComplaint') ?: $errors->first('state.chiefComplaint') }}</div>@endif
+                                        @if($historyHasErrors)<div id="chief-complaint-error" class="ui-error block"><i class="fas fa-exclamation-circle mr-1"></i>{{ $errors->first('chiefComplaint') ?: $errors->first('state.chiefComplaint') }}</div>@endif
                                     </div>
-                                    <div class="col-md-6 mb-3 order-3 consultation-history-other">
-                                        <label class="font-weight-bold">Other History</label>
-                                        <textarea wire:model="state.others" class="form-control" rows="3"
+                                    <div class="w-full md:w-6/12 px-2 mb-4 order-3 consultation-history-other">
+                                        <label class="font-semibold">Other History</label>
+                                        <textarea wire:model="state.others" class="form-control ui-input" rows="3"
                                             placeholder="Additional medical history"
                                             {{ $consultationFieldsLocked ? 'disabled' : '' }}></textarea>
                                     </div>
-                                    <div class="col-md-6 mb-3 order-2 consultation-history-odq" wire:ignore>
+                                    <div class="w-full md:w-6/12 px-2 mb-4 order-2 consultation-history-odq" wire:ignore>
                                         @php
                                             $odqOptions = [
                                                 'Discharge',
@@ -460,11 +460,11 @@
                                             $odqDetailKeys = $allOdqOptions->mapWithKeys(fn($option) => [$option => md5(mb_strtolower($option))]);
                                         @endphp
                                         <div x-data="{selected:$wire.entangle('state.odq'),details:$wire.entangle('state.odq_details'),options:@js($allOdqOptions->all()),keys:@js($odqDetailKeys->all()),custom:'',locked:@js($consultationFieldsLocked),init(){if(!Array.isArray(this.selected))this.selected=[];if(!this.details||Array.isArray(this.details))this.details={};this.selected.forEach(s=>this.ensure(s))},key(s){return this.keys[s]||('custom_'+encodeURIComponent(s.toLowerCase()).replaceAll('.','%2E'))},ensure(s){const k=this.key(s);if(!this.details[k])this.details[k]={symptom:s,severity:'',eye:''};this.details[k].symptom=s},toggle(s,on){if(on){if(!this.selected.includes(s))this.selected.push(s);this.ensure(s)}else this.selected=this.selected.filter(v=>v!==s)},add(){const s=this.custom.trim();if(!s||s.length>100)return;const found=this.options.find(v=>v.toLowerCase()===s.toLowerCase());const value=found||s;if(!found)this.options.push(value);if(!this.selected.includes(value))this.selected.push(value);this.ensure(value);this.custom=''}}" x-cloak>
-                                            <label class="font-weight-bold">Ocular Symptoms <span class="text-muted font-weight-normal">(ODQ)</span></label>
+                                            <label class="font-semibold">Ocular Symptoms <span class="text-slate-500 font-normal">(ODQ)</span></label>
                                             <div class="odq-chip-picker"><template x-for="option in options" :key="option"><label class="odq-chip" :class="{'is-selected':selected.includes(option)}"><input type="checkbox" :checked="selected.includes(option)" @change="toggle(option,$event.target.checked)" :disabled="locked"><span x-text="option"></span></label></template></div>
-                                            <div class="odq-detail-list mt-2" x-show="selected.length"><template x-for="symptom in selected" :key="key(symptom)"><div class="odq-detail-row"><strong x-text="symptom"></strong><select x-model="details[key(symptom)].severity" class="form-control form-control-sm" :disabled="locked"><option value="">No grade</option><option value="+">+ Mild</option><option value="++">++ Moderate</option><option value="+++">+++ Severe</option></select><select x-model="details[key(symptom)].eye" class="form-control form-control-sm" :disabled="locked"><option value="">Eye not specified</option><option value="OD">OD — Right</option><option value="OS">OS — Left</option><option value="OU">OU — Both</option></select></div></template></div>
-                                            <div class="input-group input-group-sm mt-2 odq-custom-entry" x-show="!locked"><input type="text" x-model="custom" @keydown.enter.prevent="add()" class="form-control" maxlength="100" placeholder="Add another ocular symptom"><div class="input-group-append"><button type="button" @click="add()" class="btn btn-outline-primary"><i class="fas fa-plus mr-1"></i>Add</button></div></div>
-                                            <small class="text-muted">Select symptoms, then optionally record severity and eye. Changes save with the consultation.</small>
+                                            <div class="odq-detail-list mt-2" x-show="selected.length"><template x-for="symptom in selected" :key="key(symptom)"><div class="odq-detail-row"><strong x-text="symptom"></strong><select x-model="details[key(symptom)].severity" class="form-control ui-input ui-input-sm" :disabled="locked"><option value="">No grade</option><option value="+">+ Mild</option><option value="++">++ Moderate</option><option value="+++">+++ Severe</option></select><select x-model="details[key(symptom)].eye" class="form-control ui-input ui-input-sm" :disabled="locked"><option value="">Eye not specified</option><option value="OD">OD — Right</option><option value="OS">OS — Left</option><option value="OU">OU — Both</option></select></div></template></div>
+                                            <div class="flex items-stretch mt-2 odq-custom-entry" x-show="!locked"><input type="text" x-model="custom" @keydown.enter.prevent="add()" class="form-control ui-input" maxlength="100" placeholder="Add another ocular symptom"><div class="flex"><button type="button" @click="add()" class="btn ui-button ui-button-secondary"><i class="fas fa-plus mr-1"></i>Add</button></div></div>
+                                            <small class="text-slate-500">Select symptoms, then optionally record severity and eye. Changes save with the consultation.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -472,51 +472,51 @@
                         </div>
 
                         {{-- Examination --}}
-                        <div class="row consultation-exam-management">
-                        <div class="col-lg-6">
-                        <div id="consultation-section-examination" class="card border mb-3 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}" x-data="{
+                        <div class="flex flex-wrap -mx-2 consultation-exam-management">
+                        <div class="w-full lg:w-6/12 px-2">
+                        <div id="consultation-section-examination" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}" x-data="{
                             exam: $wire.entangle('state'), normals:{lids:'Normal',conjunctiva:'White and quiet',cornea:'Clear',iris:'Normal pattern',pupil:'Round, regular and reactive',ac:'Deep and quiet',lens:'Clear',vitreous:'Clear',fundus:'Normal'},
                             suffixes(eye){return eye==='od'?['OD']:(eye==='os'?['OS']:['OD','OS'])}, fill(eye){this.suffixes(eye).forEach(s=>Object.entries(this.normals).forEach(([k,v])=>{const key=k+s;if(!String(this.exam[key]||'').trim())this.exam[key]=v}))}, clear(eye){this.suffixes(eye).forEach(s=>Object.keys(this.normals).forEach(k=>this.exam[k+s]=''))},
                             findingClass(key){const value=String(this.exam[key]??'').trim();if(!value)return '';const base=key.replace(/OD$|OS$/,'');return this.normals[base]&&value.toLowerCase()===this.normals[base].toLowerCase()?'exam-field--normal':'exam-field--recorded'}
                         }">
-                            <div class="card-header bg-light d-flex align-items-center justify-content-between flex-wrap">
-                                <h6 class="mb-0 font-weight-bold">
+                            <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50 flex items-center justify-between flex-wrap">
+                                <h6 class="mb-0 font-semibold">
                                     Examination
                                     @if($consultationFieldsLocked)
-                                        <span class="badge badge-secondary ml-2"><i class="fas fa-lock"></i> Locked</span>
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 ml-2"><i class="fas fa-lock"></i> Locked</span>
                                     @endif
                                 </h6>
                                 @unless($consultationFieldsLocked)
-                                    <div class="d-flex flex-wrap mt-1 mt-sm-0" style="gap:.5rem;">
-                                        <div class="btn-group btn-group-sm" role="group" aria-label="Fill normal examination findings">
-                                            <button type="button" class="btn exam-action exam-action--ou"
+                                    <div class="flex flex-wrap mt-1 sm:mt-0" style="gap:.5rem;">
+                                        <div class="inline-flex flex-wrap gap-1" role="group" aria-label="Fill normal examination findings">
+                                            <button type="button" class="btn ui-button exam-action exam-action--ou ui-button-secondary"
                                                 @click="fill('both')" title="Fill empty normal findings for both eyes">
                                                 <i class="fas fa-check-double mr-1"></i> Fill Normal
                                             </button>
-                                            <button type="button" class="btn exam-action exam-action--od"
+                                            <button type="button" class="btn ui-button exam-action exam-action--od ui-button-secondary"
                                                 @click="fill('od')" title="Fill empty normal findings for the right eye">OD</button>
-                                            <button type="button" class="btn exam-action exam-action--os"
+                                            <button type="button" class="btn ui-button exam-action exam-action--os ui-button-secondary"
                                                 @click="fill('os')" title="Fill empty normal findings for the left eye">OS</button>
                                         </div>
-                                        <div class="btn-group btn-group-sm" role="group" aria-label="Clear examination findings">
-                                            <button type="button" class="btn btn-outline-danger"
+                                        <div class="inline-flex flex-wrap gap-1" role="group" aria-label="Clear examination findings">
+                                            <button type="button" class="btn ui-button ui-button-danger"
                                                 @click="appConfirm('Clear examination findings for both eyes?').then(ok => ok && clear('both'))" title="Clear descriptive findings for both eyes">
                                                 <i class="fas fa-eraser mr-1"></i> Clear
                                             </button>
-                                            <button type="button" class="btn btn-outline-danger"
+                                            <button type="button" class="btn ui-button ui-button-danger"
                                                 @click="appConfirm('Clear OD examination findings?').then(ok => ok && clear('od'))" title="Clear descriptive findings for the right eye">OD</button>
-                                            <button type="button" class="btn btn-outline-danger"
+                                            <button type="button" class="btn ui-button ui-button-danger"
                                                 @click="appConfirm('Clear OS examination findings?').then(ok => ok && clear('os'))" title="Clear descriptive findings for the left eye">OS</button>
                                         </div>
                                     </div>
                                 @endunless
                             </div>
-                            <div class="card-body">
+                            <div class="card-body p-4">
                                 <div class="examination-legend"><span><i class="exam-legend-dot exam-legend-dot--od"></i> OD — Right</span><span><i class="exam-legend-dot exam-legend-dot--os"></i> OS — Left</span><span><i class="exam-legend-dot exam-legend-dot--normal"></i> Normal preset</span><span><i class="exam-legend-dot exam-legend-dot--attention"></i> Review finding</span><span><i class="exam-legend-dot exam-legend-dot--urgent"></i> Validation/urgent</span></div>
-                                <div class="row mb-2 font-weight-bold examination-eye-headings">
-                                    <div class="col-md-2"></div>
-                                    <div class="col-md-5 text-center examination-eye-heading examination-eye-heading--od">● OD — Right Eye</div>
-                                    <div class="col-md-5 text-center examination-eye-heading examination-eye-heading--os">● OS — Left Eye</div>
+                                <div class="flex flex-wrap -mx-2 mb-2 font-semibold examination-eye-headings">
+                                    <div class="w-full md:w-2/12 px-2"></div>
+                                    <div class="w-full md:w-5/12 px-2 text-center examination-eye-heading examination-eye-heading--od">● OD — Right Eye</div>
+                                    <div class="w-full md:w-5/12 px-2 text-center examination-eye-heading examination-eye-heading--os">● OS — Left Eye</div>
                                 </div>
 
                                 @php
@@ -552,23 +552,23 @@
                                 @endphp
                                 @foreach($examMap as $odKey => $osKey)
                                     @if(isset($examGroups[$odKey]))<div class="examination-group-heading"><strong>{{ $examGroups[$odKey][0] }}</strong><span>{{ $examGroups[$odKey][1] }}</span></div>@endif
-                                    <div class="row mb-2">
-                                        <div class="col-md-2 text-right d-flex align-items-center justify-content-end">
-                                            <small class="font-weight-bold">{{ $examLabels[$odKey] }}</small>
+                                    <div class="flex flex-wrap -mx-2 mb-2">
+                                        <div class="w-full md:w-2/12 px-2 text-right flex items-center justify-end">
+                                            <small class="font-semibold">{{ $examLabels[$odKey] }}</small>
                                         </div>
 
                                         {{-- Right Eye (OD) --}}
-                                        <div class="col-md-5 examination-eye-cell examination-eye-cell--od">
+                                        <div class="w-full md:w-5/12 px-2 examination-eye-cell examination-eye-cell--od">
                                             @if(Str::contains($odKey, 'IOP'))
                                                 <input type="number" step="0.1" min="0" max="80"
                                                     id="consultation-iop-od"
                                                     x-model="exam['{{ $odKey }}']" :class="findingClass('{{ $odKey }}')"
-                                                    class="form-control form-control-sm {{ ($odKey === 'IOPOD' && $examinationHasErrors) ? 'is-invalid' : '' }}"
+                                                    class="form-control ui-input ui-input-sm {{ ($odKey === 'IOPOD' && $examinationHasErrors) ? 'is-invalid' : '' }}"
                                                     placeholder="mmHg"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @elseif(Str::startsWith($odKey, 'va'))
                                                 <select x-model="exam['{{ $odKey }}']" :class="findingClass('{{ $odKey }}')"
-                                                    class="form-control form-control-sm"
+                                                    class="form-control ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                                     <option value="">— select —</option>
                                                     @foreach(\App\Livewire\Doctor\PatientRecordsComponent::vaLogMarTable($vaNotation) as $label => $logmar)
@@ -577,23 +577,23 @@
                                                 </select>
                                             @else
                                                 <input type="text" x-model="exam['{{ $odKey }}']" :class="findingClass('{{ $odKey }}')"
-                                                    class="form-control form-control-sm"
+                                                    class="form-control ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @endif
                                         </div>
 
                                         {{-- Left Eye (OS) --}}
-                                        <div class="col-md-5 examination-eye-cell examination-eye-cell--os">
+                                        <div class="w-full md:w-5/12 px-2 examination-eye-cell examination-eye-cell--os">
                                             @if(Str::contains($osKey, 'IOP'))
                                                 <input type="number" step="0.1" min="0" max="80"
                                                     id="consultation-iop-os"
                                                     x-model="exam['{{ $osKey }}']" :class="findingClass('{{ $osKey }}')"
-                                                    class="form-control form-control-sm {{ ($osKey === 'IOPOS' && $examinationHasErrors) ? 'is-invalid' : '' }}"
+                                                    class="form-control ui-input ui-input-sm {{ ($osKey === 'IOPOS' && $examinationHasErrors) ? 'is-invalid' : '' }}"
                                                     placeholder="mmHg"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @elseif(Str::startsWith($osKey, 'va'))
                                                 <select x-model="exam['{{ $osKey }}']" :class="findingClass('{{ $osKey }}')"
-                                                    class="form-control form-control-sm"
+                                                    class="form-control ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                                     <option value="">— select —</option>
                                                     @foreach(\App\Livewire\Doctor\PatientRecordsComponent::vaLogMarTable($vaNotation) as $label => $logmar)
@@ -602,7 +602,7 @@
                                                 </select>
                                             @else
                                                 <input type="text" x-model="exam['{{ $osKey }}']" :class="findingClass('{{ $osKey }}')"
-                                                    class="form-control form-control-sm"
+                                                    class="form-control ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @endif
                                         </div>
@@ -612,30 +612,30 @@
                         </div>
 
                         </div>
-                        <div class="col-lg-6">
-<div id="consultation-section-management" class="card border mb-3 consultation-section">
-    <div class="card-header bg-light">
-        <h6 class="mb-0 font-weight-bold">Diagnosis & Management</h6>
+                        <div class="w-full lg:w-6/12 px-2">
+<div id="consultation-section-management" class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4 consultation-section">
+    <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50">
+        <h6 class="mb-0 font-semibold">Diagnosis & Management</h6>
     </div>
-    <div class="card-body">
-        <div class="row">
+    <div class="card-body p-4">
+        <div class="flex flex-wrap -mx-2">
 
             {{-- Diagnosis Search, Selected Tags & Clinical Notes --}}
-            <div class="col-12">
+            <div class="w-full px-2">
                 {{-- Diagnosis Section --}}
-                <div id="consultation-diagnosis-picker" class="mb-3 {{ $managementHasErrors ? 'consultation-field-error' : '' }} {{ $consultationFieldsLocked ? 'consultation-section-locked rounded p-2' : '' }}" x-data="{selected:$wire.entangle('selectedDiagnoses'),open:true,add(id,name){if(!this.selected.some(d=>Number(d.id)===Number(id)))this.selected.push({id:id,name:name});this.open=false},remove(i){this.selected.splice(i,1)}}">
-                    <label class="font-weight-bold">
-                        Final Diagnoses <span class="text-danger">*</span>
+                <div id="consultation-diagnosis-picker" class="mb-4 {{ $managementHasErrors ? 'consultation-field-error' : '' }} {{ $consultationFieldsLocked ? 'consultation-section-locked rounded-md p-2' : '' }}" x-data="{selected:$wire.entangle('selectedDiagnoses'),open:true,add(id,name){if(!this.selected.some(d=>Number(d.id)===Number(id)))this.selected.push({id:id,name:name});this.open=false},remove(i){this.selected.splice(i,1)}}">
+                    <label class="font-semibold">
+                        Final Diagnoses <span class="text-red-700">*</span>
                         @if($consultationFieldsLocked)
-                            <span class="badge badge-secondary ml-2"><i class="fas fa-lock"></i> Locked</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 ml-2"><i class="fas fa-lock"></i> Locked</span>
                         @endif
                     </label>
 
-                    <div class="input-group mb-2">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
+                    <div class="flex items-stretch mb-2">
+                        <div class="flex">
+                            <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-white"><i class="fas fa-search"></i></span>
                         </div>
-                        <input type="text" class="form-control" placeholder="Search for a diagnosis..."
+                        <input type="text" class="form-control ui-input" placeholder="Search for a diagnosis..."
                             wire:model.live.debounce.400ms="diagnosisSearch"
                             @input="open=true"
                             {{ $consultationFieldsLocked ? 'disabled' : '' }}>
@@ -643,40 +643,40 @@
 
                     {{-- Search Results Dropdown (Floating) --}}
                     @if(!empty($diagnosisSearch) && !$consultationFieldsLocked)
-                        <div x-show="open" class="list-group position-absolute w-100 shadow-lg"
+                        <div x-show="open" class="overflow-hidden rounded-md border border-slate-200 bg-white absolute w-full shadow-lg"
                             style="z-index: 1000; max-height: 200px; overflow-y: auto; left: 15px; width: calc(100% - 30px);">
                             @forelse($this->diagnosisResults as $diag)
                                 <button type="button"
                                     @click="add({{ $diag->id }}, @js($diag->name))"
-                                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                                    class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-slate-50 flex justify-between items-center"
                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                     {{ $diag->name }}
-                                    <i class="fas fa-plus-circle text-success"></i>
+                                    <i class="fas fa-plus-circle text-green-700"></i>
                                 </button>
                             @empty
-                                <div class="list-group-item text-muted">No diagnosis found.</div>
+                                <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left text-slate-500">No diagnosis found.</div>
                             @endforelse
                         </div>
                     @endif
 
                     {{-- Selected Diagnoses Tags Area --}}
-                    <div class="mt-2 d-flex flex-wrap" style="gap: 5px;">
-                        <template x-for="(diag,index) in selected" :key="diag.id"><span class="badge badge-info p-2 shadow-sm"><i class="fas fa-stethoscope mr-1"></i><span x-text="diag.name"></span><button type="button" @click="remove(index)" class="btn btn-xs text-white ml-2 p-0" style="line-height:1" {{ $consultationFieldsLocked ? 'disabled' : '' }}><i class="fas fa-times-circle"></i></button></span></template>
+                    <div class="mt-2 flex flex-wrap" style="gap: 5px;">
+                        <template x-for="(diag,index) in selected" :key="diag.id"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 p-2 shadow-sm"><i class="fas fa-stethoscope mr-1"></i><span x-text="diag.name"></span><button type="button" @click="remove(index)" class="btn ui-button ui-button-sm text-white ml-2 p-0 ui-button-secondary" style="line-height:1" {{ $consultationFieldsLocked ? 'disabled' : '' }}><i class="fas fa-times-circle"></i></button></span></template>
                     </div>
                     @if($managementHasErrors)<small class="consultation-inline-error"><i class="fas fa-exclamation-circle mr-1"></i>{{ $errors->first('diagnoses') ?: $errors->first('selectedDiagnoses') }}</small>@endif
                 </div>
 
                 {{-- Clinical Notes - Under Diagnosis --}}
-                <div class="form-group mb-0 clinical-notes-active">
-                    <label class="font-weight-bold">
+                <div class="mb-0 clinical-notes-active">
+                    <label class="font-semibold">
                         Clinical Notes
                         @if($consultationFieldsLocked)
-                            <span class="badge badge-info ml-2"><i class="fas fa-plus-circle"></i> Addendum</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 ml-2"><i class="fas fa-plus-circle"></i> Addendum</span>
                         @endif
                     </label>
                     @if($consultationFieldsLocked)
                         @if($consultation && $consultation->addenda->count() > 0)
-                            <div class="clinical-addenda-list mb-3">
+                            <div class="clinical-addenda-list mb-4">
                                 @foreach($this->groupedClinicalAddenda as $addendumGroup)
                                     <div class="clinical-addendum-item">
                                         <div class="clinical-addendum-item__meta">
@@ -699,73 +699,73 @@
                         @endif
 
                         <textarea wire:model="clinicalAddendum"
-                            class="form-control clinical-notes-textarea @error('clinicalAddendum') is-invalid @enderror"
+                            class="form-control ui-input clinical-notes-textarea @error('clinicalAddendum') is-invalid @enderror"
                             rows="5" placeholder="Add a signed addendum, management update, or follow-up note..."></textarea>
-                        @error('clinicalAddendum') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        <small class="text-success">Stored separately with the author and timestamp; the original note cannot be overwritten.</small>
+                        @error('clinicalAddendum') <div class="ui-error">{{ $message }}</div> @enderror
+                        <small class="text-green-700">Stored separately with the author and timestamp; the original note cannot be overwritten.</small>
                     @else
-                        <textarea wire:model="state.notes" class="form-control clinical-notes-textarea" rows="8"
+                        <textarea wire:model="state.notes" class="form-control ui-input clinical-notes-textarea" rows="8"
                             placeholder="Enter additional clinical observations, management plans, or notes..."></textarea>
                     @endif
                 </div>
             </div>
 
             {{-- Next Visit Date & Appointment Booking --}}
-            <div class="col-12">
+            <div class="w-full px-2">
              
 
                 {{-- ⭐ APPOINTMENT BOOKING SECTION - Right Column ⭐ --}}
-                <div class="card border mb-3">
-                    <div class="card-header bg-light py-2">
-                        <h6 class="mb-0 font-weight-bold">
-                            <i class="fas fa-calendar-check text-primary"></i> Upcoming Appointment
+                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4">
+                    <div class="card-header border-b border-slate-200 px-4 bg-slate-50 py-2">
+                        <h6 class="mb-0 font-semibold">
+                            <i class="fas fa-calendar-check text-teal-700"></i> Upcoming Appointment
                         </h6>
                     </div>
-                    <div class="card-body py-3">
+                    <div class="card-body p-4 py-4">
                         @if($upcomingAppointment)
-                            <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex justify-between items-start">
                                 <div>
-                                    <div class="font-weight-bold text-dark">{{ $upcomingAppointment->title }}</div>
-                                    <div class="small text-muted">
+                                    <div class="font-semibold text-slate-900">{{ $upcomingAppointment->title }}</div>
+                                    <div class="text-sm text-slate-500">
                                         {{ $upcomingAppointment->scheduled_at->format('M d, Y') }} at {{ $upcomingAppointment->scheduled_at->format('h:i A') }}
                                     </div>
                                     @if($upcomingAppointment->notes)
-                                        <div class="small text-muted mt-2">{{ $upcomingAppointment->notes }}</div>
+                                        <div class="text-sm text-slate-500 mt-2">{{ $upcomingAppointment->notes }}</div>
                                     @endif
                                 </div>
-                                <span class="badge badge-info">{{ $upcomingAppointment->status }}</span>
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ $upcomingAppointment->status }}</span>
                             </div>
                         @else
-                            <div class="text-muted small">No upcoming appointment booked for this patient.</div>
+                            <div class="text-slate-500 text-sm">No upcoming appointment booked for this patient.</div>
                         @endif
                     </div>
                 </div>
 
                 {{-- Next routine eye exam: the recall SMS goes out ahead of it (when the clinic switches it on) --}}
-                <div class="card border mb-3">
-                    <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0 font-weight-bold"><i class="fas fa-calendar-alt text-primary"></i> Next Routine Eye Exam</h6>
+                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4">
+                    <div class="card-header border-b border-slate-200 px-4 bg-slate-50 py-2 flex justify-between items-center">
+                        <h6 class="mb-0 font-semibold"><i class="fas fa-calendar-alt text-teal-700"></i> Next Routine Eye Exam</h6>
                         @if($patient->next_exam_due_on)
-                            <span class="badge badge-info">Due {{ $patient->next_exam_due_on->format('d M Y') }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">Due {{ $patient->next_exam_due_on->format('d M Y') }}</span>
                         @endif
                     </div>
-                    <div class="card-body py-3">
-                        <div class="d-flex flex-wrap align-items-center">
+                    <div class="card-body p-4 py-4">
+                        <div class="flex flex-wrap items-center">
                             <input type="date" wire:model="nextExamDueOn" min="{{ today()->addDay()->toDateString() }}"
-                                   class="form-control form-control-sm mr-2 mb-2 @error('nextExamDueOn') is-invalid @enderror" style="max-width:170px" aria-label="Next eye exam due">
-                            <button type="button" wire:click="saveNextExamDue" class="btn btn-sm btn-primary mr-2 mb-2"><i class="fas fa-save"></i> Save</button>
-                            <span class="small text-muted mr-2 mb-2">or in</span>
+                                   class="form-control ui-input ui-input-sm mr-2 mb-2 @error('nextExamDueOn') is-invalid @enderror" style="max-width:170px" aria-label="Next eye exam due">
+                            <button type="button" wire:click="saveNextExamDue" class="btn ui-button ui-button-sm ui-button-primary mr-2 mb-2"><i class="fas fa-save"></i> Save</button>
+                            <span class="text-sm text-slate-500 mr-2 mb-2">or in</span>
                             @foreach([6 => '6 months', 12 => '1 year', 24 => '2 years'] as $months => $label)
-                                <button type="button" wire:click="setNextExamIn({{ $months }})" class="btn btn-sm btn-outline-secondary mr-1 mb-2">{{ $label }}</button>
+                                <button type="button" wire:click="setNextExamIn({{ $months }})" class="btn ui-button ui-button-sm ui-button-secondary mr-1 mb-2">{{ $label }}</button>
                             @endforeach
                             @if($patient->next_exam_due_on)
-                                <button type="button" wire:click="clearNextExamDue" class="btn btn-sm btn-link text-danger mb-2">Clear</button>
+                                <button type="button" wire:click="clearNextExamDue" class="btn ui-button ui-button-sm ui-button-link text-red-700 mb-2">Clear</button>
                             @endif
                         </div>
-                        @error('nextExamDueOn') <div class="text-danger small">{{ $message }}</div> @enderror
-                        <div class="small text-muted">
+                        @error('nextExamDueOn') <div class="text-red-700 text-sm">{{ $message }}</div> @enderror
+                        <div class="text-sm text-slate-500">
                             @if($patient->next_exam_due_on && $patient->clinical_recall_sent_for?->equalTo($patient->next_exam_due_on))
-                                <i class="fas fa-check text-success"></i> Recall text sent for this date.
+                                <i class="fas fa-check text-green-700"></i> Recall text sent for this date.
                             @else
                                 The patient is texted before this date if the clinic has "Eye Exam Due" switched on in SMS templates, unless they are already booked.
                             @endif
@@ -773,14 +773,14 @@
                     </div>
                 </div>
 
-                <div class="border-top pt-3" x-data="{showAppointment:@js($showAppointmentSection)}">
+                <div class="border-t border-slate-200 pt-4" x-data="{showAppointment:@js($showAppointmentSection)}">
                     <div class="mb-2">
-                        <button type="button" @click="showAppointment=!showAppointment" :class="showAppointment?'btn-warning':'btn-outline-primary'" class="btn btn-sm btn-block font-weight-bold shadow-sm">
+                        <button type="button" @click="showAppointment=!showAppointment" :class="showAppointment?'ui-button-secondary':'ui-button-secondary'" class="btn ui-button ui-button-sm w-full font-semibold shadow-sm ui-button-secondary">
                             <i class="fas" :class="showAppointment?'fa-minus-circle':'fa-calendar-plus'"></i><span x-text="showAppointment?'Hide Appointment Form':'Schedule Follow-up Appointment'"></span>
                         </button>
                     </div>
 
-                        <template x-if="showAppointment"><div class="border rounded p-3 bg-light" style="animation:slideDown .3s ease-out;">
+                        <template x-if="showAppointment"><div class="border border-slate-200 rounded-md p-4 bg-slate-50" style="animation:slideDown .3s ease-out;">
                                 @include('components.appointment-quick-followup')
                         </div></template>
                 </div>
@@ -790,9 +790,9 @@
     </div>
 </div>
 
-                        <div id="consultation-section-review" class="card border mb-3 consultation-review consultation-section" x-data="{ state:$wire.entangle('state'), diagnoses:$wire.entangle('selectedDiagnoses'), filled(v){return String(v??'').trim().length>0}, get historyReady(){return this.filled(this.state.chiefComplaint)}, get examinationReady(){return ['vaOD6m','vaOS6m','lidsOD','lidsOS','corneaOD','corneaOS','IOPOD','IOPOS'].some(k=>this.filled(this.state[k]))}, get diagnosisReady(){return Array.isArray(this.diagnoses)&&this.diagnoses.length>0}, get ready(){return this.historyReady&&this.diagnosisReady} }">
-                            <div class="card-header bg-light d-flex justify-content-between align-items-center"><h6 class="mb-0 font-weight-bold"><i class="fas fa-clipboard-check text-primary mr-1"></i> Clinical Review</h6><span class="badge" :class="ready?'badge-success':'badge-warning'" x-text="ready?'Ready to save':'Needs attention'"></span></div>
-                            <div class="card-body py-3"><div class="consultation-review-grid">
+                        <div id="consultation-section-review" class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4 consultation-review consultation-section" x-data="{ state:$wire.entangle('state'), diagnoses:$wire.entangle('selectedDiagnoses'), filled(v){return String(v??'').trim().length>0}, get historyReady(){return this.filled(this.state.chiefComplaint)}, get examinationReady(){return ['vaOD6m','vaOS6m','lidsOD','lidsOS','corneaOD','corneaOS','IOPOD','IOPOS'].some(k=>this.filled(this.state[k]))}, get diagnosisReady(){return Array.isArray(this.diagnoses)&&this.diagnoses.length>0}, get ready(){return this.historyReady&&this.diagnosisReady} }">
+                            <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50 flex justify-between items-center"><h6 class="mb-0 font-semibold"><i class="fas fa-clipboard-check text-teal-700 mr-1"></i> Clinical Review</h6><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" :class="ready?'bg-green-100 text-green-800':'bg-amber-100 text-amber-800'" x-text="ready?'Ready to save':'Needs attention'"></span></div>
+                            <div class="card-body p-4 py-4"><div class="consultation-review-grid">
                                 <a href="#consultation-section-history" :class="historyReady?'is-complete':'is-missing'"><i class="fas" :class="historyReady?'fa-check-circle':'fa-exclamation-circle'"></i><span><strong>History</strong><small x-text="historyReady?'Chief complaint recorded':'Chief complaint required'"></small></span></a>
                                 <a href="#consultation-section-examination" :class="examinationReady?'is-complete':'is-optional'"><i class="fas" :class="examinationReady?'fa-check-circle':'fa-info-circle'"></i><span><strong>Examination</strong><small x-text="examinationReady?'Findings recorded':'No findings recorded'"></small></span></a>
                                 <a href="#consultation-section-management" :class="diagnosisReady?'is-complete':'is-missing'"><i class="fas" :class="diagnosisReady?'fa-check-circle':'fa-exclamation-circle'"></i><span><strong>Diagnosis & Plan</strong><small x-text="diagnosisReady?diagnoses.length+' selected':'Diagnosis required'"></small></span></a>
@@ -821,10 +821,10 @@
                             </aside>
                         @endif
                         <div class="consultation-actions text-right">
-                            <button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack" class="btn btn-secondary px-4">
+                            <button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary px-6">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
-                            <button type="submit" class="btn {{ $consultationFieldsLocked ? 'btn-success' : 'btn-primary' }} px-5" wire:loading.attr="disabled">
+                            <button type="submit" class="btn ui-button {{ $consultationFieldsLocked ? 'ui-button-primary' : 'ui-button-primary' }} px-12" wire:loading.attr="disabled">
                                 <span wire:loading.remove
                                     wire:target="{{ $isEditMode ? 'updateConsultation' : 'createConsultation' }}">
                                     <i class="fas fa-save"></i>
@@ -845,65 +845,65 @@
 @if($activeTab === 'prescription')
     <div class="tab-content-wrapper">
         {{-- Compact Header --}}
-        <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="flex justify-between items-center mb-2">
             <div>
-                <h6 class="mb-0 text-primary font-weight-bold">
+                <h6 class="mb-0 text-teal-700 font-semibold">
                     <i class="fas fa-prescription"></i> Prescription Management
                 </h6>
                 @if($consultationID)
-                    <small class="text-success" style="font-size: 11px;">
+                    <small class="text-green-700" style="font-size: 11px;">
                         <i class="fas fa-check-circle"></i> Linked to Consultation #{{ $consultationID }}
                     </small>
                 @else
-                    <small class="text-muted" style="font-size: 11px;">
+                    <small class="text-slate-500" style="font-size: 11px;">
                         <i class="fas fa-info-circle"></i> Create or select a consultation to link prescription
                     </small>
                 @endif
             </div>
             @if(count($productsList) > 0 && $consultationID)
                 <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
-                    class="btn btn-xs btn-outline-danger">
+                    class="btn ui-button ui-button-sm ui-button-danger">
                     <i class="fas fa-trash"></i> Clear All
                 </button>
             @endif
         </div>
 
         {{-- 2-COLUMN LAYOUT: Compact Search Left, List Right --}}
-        <div class="row">
+        <div class="flex flex-wrap -mx-2">
             {{-- LEFT COLUMN: Compact Search Bar (25%) --}}
-            <div class="col-md-3">
-                <div class="card border shadow-xs sticky-top" style="top: 10px;">
-                    <div class="card-header bg-primary text-white py-1 px-3">
-                        <h6 class="mb-0 font-weight-bold" style="font-size: 13px;">
+            <div class="w-full md:w-3/12 px-2">
+                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 shadow-xs sticky top-0 z-20" style="top: 10px;">
+                    <div class="card-header border-b border-slate-200 bg-teal-700 text-white py-1 px-4">
+                        <h6 class="mb-0 font-semibold" style="font-size: 13px;">
                             <i class="fas fa-search"></i> Quick Add Product
                         </h6>
                     </div>
                     <div class="card-body p-2">
                         {{-- Product Search --}}
-                        <div class="position-relative mb-2">
+                        <div class="relative mb-2">
                             <input type="text" wire:model.live.debounce.400ms="productSearch"
-                                class="form-control form-control-sm" placeholder="Type product name..."
+                                class="form-control ui-input ui-input-sm" placeholder="Type product name..."
                                 autocomplete="off">
-                            <i class="fas fa-search position-absolute"
+                            <i class="fas fa-search absolute"
                                 style="right: 10px; top: 8px; color: #999; font-size: 12px;"></i>
 
                             {{-- Search Results --}}
                             @if($productSearch && strlen($productSearch) >= 2)
                                 <div class="search-results-dropdown">
                                     @if($searchResults->count() > 0)
-                                        <ul class="list-group shadow-sm">
+                                        <ul class="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
                                             @foreach($searchResults as $product)
-                                                <li class="list-group-item list-group-item-action py-1 px-2"
+                                                <li class="list-group-item block w-full border-b border-slate-100 text-left hover:bg-slate-50 py-1 px-2"
                                                     wire:click="selectProduct({{ $product->id }})" style="cursor: pointer;">
-                                                    <div class="d-flex justify-content-between align-items-center">
-                                                        <div class="flex-grow-1">
-                                                            <strong class="d-block" style="font-size: 12px;">{{ $product->name }}</strong>
-                                                            <small class="text-muted" style="font-size: 10px;">
+                                                    <div class="flex justify-between items-center">
+                                                        <div class="grow">
+                                                            <strong class="block" style="font-size: 12px;">{{ $product->name }}</strong>
+                                                            <small class="text-slate-500" style="font-size: 10px;">
                                                                 <i class="fas fa-warehouse"></i> Stock:
                                                                 <strong>{{ $product->made_to_order ? 'Made to order' : $product->quantity }}</strong>
                                                             </small>
                                                         </div>
-                                                        <span class="badge badge-primary badge-pill px-2 py-1" style="font-size: 10px;">
+                                                        <span class="inline-flex items-center text-xs font-semibold bg-teal-100 text-teal-800 rounded-full px-2 py-1" style="font-size: 10px;">
                                                             {{ currency() }} {{ number_format($product->selling_price, 2) }}
                                                         </span>
                                                     </div>
@@ -912,7 +912,7 @@
                                         </ul>
                                     @else
                                         <div class="search-no-results">
-                                            <p class="text-muted mb-0 text-center py-2" style="font-size: 12px;">
+                                            <p class="text-slate-500 mb-0 text-center py-2" style="font-size: 12px;">
                                                 <i class="fas fa-search"></i> No products found
                                             </p>
                                         </div>
@@ -922,20 +922,20 @@
                         </div>
 
                         {{-- Compact Hint --}}
-                        <small class="text-muted d-block text-center" style="font-size: 10px;">
-                            <i class="fas fa-lightbulb text-warning"></i> Search &amp; click to add product
+                        <small class="text-slate-500 block text-center" style="font-size: 10px;">
+                            <i class="fas fa-lightbulb text-amber-600"></i> Search &amp; click to add product
                         </small>
                     </div>
                 </div>
             </div>
 
             {{-- RIGHT COLUMN: Products List with Eye & Frequency (75%) --}}
-            <div class="col-md-9">
-                <div class="card border shadow-sm">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap">
-                        <h6 class="mb-0 font-weight-bold">
+            <div class="w-full md:w-9/12 px-2">
+                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 shadow-sm">
+                    <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50 flex justify-between items-center flex-wrap">
+                        <h6 class="mb-0 font-semibold">
                             <i class="fas fa-list-alt"></i> Prescription Items
-                            <span class="badge badge-primary ml-2">{{ count($productsList) }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 ml-2">{{ count($productsList) }}</span>
                         </h6>
 
                         @if(count($productsList) > 0)
@@ -954,31 +954,31 @@
                                     })->count();
                                 @endphp
 
-                                <span class="badge badge-success px-2 py-1">
+                                <span class="inline-flex items-center rounded text-xs font-semibold bg-green-100 text-green-800 px-2 py-1">
                                     <i class="fas fa-check"></i> {{ $dispensedCount }} Dispensed
                                 </span>
-                                <span class="badge badge-warning px-2 py-1 ml-1">
+                                <span class="inline-flex items-center rounded text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-1 ml-1">
                                     <i class="fas fa-clock"></i> {{ $pendingCount }} Pending
                                 </span>
                                 @if($heldCount > 0)
-                                    <span class="badge badge-info px-2 py-1 ml-1">
+                                    <span class="inline-flex items-center rounded text-xs font-semibold bg-sky-100 text-sky-800 px-2 py-1 ml-1">
                                         <i class="fas fa-pause-circle"></i> {{ $heldCount }} On Hold
                                     </span>
                                 @endif
                                 @if($refundedCount > 0)
-                                    <span class="badge badge-danger px-2 py-1 ml-1">
+                                    <span class="inline-flex items-center rounded text-xs font-semibold bg-red-100 text-red-800 px-2 py-1 ml-1">
                                         <i class="fas fa-undo"></i> {{ $refundedCount }} Refunded
                                     </span>
                                 @endif
                                 @if($missingData > 0)
-                                    <span class="badge badge-danger px-2 py-1 ml-1">
+                                    <span class="inline-flex items-center rounded text-xs font-semibold bg-red-100 text-red-800 px-2 py-1 ml-1">
                                         <i class="fas fa-exclamation-triangle"></i> {{ $missingData }} Incomplete
                                     </span>
                                 @endif
 
                                 {{-- Refresh button --}}
                                 <button wire:click="refreshPrescriptionStatus"
-                                    class="btn btn-sm btn-outline-info ml-1" title="Refresh status"
+                                    class="btn ui-button ui-button-sm ui-button-secondary ml-1" title="Refresh status"
                                     wire:loading.attr="disabled">
                                     <span wire:loading.remove wire:target="refreshPrescriptionStatus">
                                         <i class="fas fa-sync-alt"></i>
@@ -992,16 +992,16 @@
                     </div>
                           <div class="card-body p-0">
                         @if(count($productsList) > 0)
-                            <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
-                                <table class="table table-sm table-hover mb-0" style="font-size: 12px;">
-                                    <thead class="thead-light sticky-top" style="top: 0; z-index: 10;">
+                            <div class="ui-table-wrap" style="max-height: 260px; overflow-y: auto;">
+                                <table class="table ui-table ui-table-sm mb-0" style="font-size: 12px;">
+                                    <thead class="sticky top-0 z-20" style="top: 0; z-index: 10;">
                                         <tr>
                                             <th width="3%" class="py-1">#</th>
                                             <th width="26%" class="py-1">Product</th>
                                             <th width="6%" class="py-1">Qty</th>
-                                            <th width="14%" class="py-1">Eye <small class="text-muted">(Drugs)</small></th>
-                                            <th width="17%" class="py-1">Frequency <small class="text-muted">(Drugs)</small></th>
-                                            <th width="15%" class="py-1">Duration <small class="text-muted">(Drugs)</small></th>
+                                            <th width="14%" class="py-1">Eye <small class="text-slate-500">(Drugs)</small></th>
+                                            <th width="17%" class="py-1">Frequency <small class="text-slate-500">(Drugs)</small></th>
+                                            <th width="15%" class="py-1">Duration <small class="text-slate-500">(Drugs)</small></th>
                                             <th width="10%" class="py-1">Price</th>
                                             <th width="16%" class="py-1">Total</th>
                                             <th width="5%" class="py-1 text-center">Action</th>
@@ -1024,9 +1024,9 @@
                                                 
                                                 {{-- PRODUCT NAME --}}
                                                 <td class="py-1 px-2 align-middle">
-                                                    <strong class="{{ $isLocked ? 'text-muted' : '' }} d-block" style="font-size: 12px; line-height: 1.1;">{{ $item['name'] }}</strong>
+                                                    <strong class="{{ $isLocked ? 'text-slate-500' : '' }} block" style="font-size: 12px; line-height: 1.1;">{{ $item['name'] }}</strong>
                                                     @if($item['category_name'] ?? false)
-                                                        <span class="badge badge-light border" style="font-size: 9px; padding: 1px 4px;">{{ $item['category_name'] }}</span>
+                                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200" style="font-size: 9px; padding: 1px 4px;">{{ $item['category_name'] }}</span>
                                                     @endif
                                                 </td>
                                                 
@@ -1036,10 +1036,10 @@
                                                         <input type="number"
                                                             wire:model.blur="productsList.{{ $index }}.quantity"
                                                             wire:change="updateProductQuantity({{ $index }}, $event.target.value)"
-                                                            class="form-control form-control-sm text-center py-0 px-1" min="1"
-                                                            style="width: 44px; height: 24px; font-size: 11px;">
+                                                            class="form-control ui-input ui-input-sm text-center" min="1"
+                                                            style="width: 48px;">
                                                     @else
-                                                        <span class="badge badge-secondary px-1 py-0.5" style="font-size: 10px;">
+                                                        <span class="inline-flex items-center rounded text-xs font-semibold bg-slate-100 text-slate-700 px-1 py-0.5" style="font-size: 10px;">
                                                             {{ $item['quantity'] }}
                                                         </span>
                                                     @endif
@@ -1048,9 +1048,9 @@
                                                 {{-- ⭐ EYE LATERALITY COLUMN --}}
                                                 <td class="py-1 px-1 align-middle">
                                                     @if(!$isDrug)
-                                                        <small class="text-muted" style="font-size: 10px;">Not applicable</small>
+                                                        <small class="text-slate-500" style="font-size: 10px;">Not applicable</small>
                                                     @elseif(!$isLocked)
-                                                        <select class="form-control form-control-sm py-0 px-1" style="height: 24px; font-size: 11px;"
+                                                        <select class="form-control ui-input ui-input-sm" style="min-width: 112px;"
                                                                 wire:change="updateEye({{ $index }}, $event.target.value)">
                                                             <option value="">-- Eye --</option>
                                                             @foreach(\App\Enums\EyeLaterality::cases() as $eye)
@@ -1065,21 +1065,21 @@
                                                                 $eyeEnum = \App\Enums\EyeLaterality::tryFrom($item['eye']);
                                                             @endphp
                                                             @if($eyeEnum)
-                                                                <span class="badge {{ $eyeEnum->badgeClass() }} px-1.5 py-0.5" style="font-size: 10px;">
+                                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $eyeEnum->badgeClass() }} px-1.5 py-0.5" style="font-size: 10px;">
                                                                     {{ $eyeEnum->abbreviation() }}
                                                                 </span>
                                                             @else
-                                                                <small class="text-muted" style="font-size: 10px;">{{ $item['eye'] }}</small>
+                                                                <small class="text-slate-500" style="font-size: 10px;">{{ $item['eye'] }}</small>
                                                             @endif
                                                         @else
                                                             @if(!$isLocked)
                                                                 <button type="button" 
                                                                         wire:click="editFrequency({{ $index }})"
-                                                                        class="btn btn-xs btn-warning py-0 px-1" style="font-size: 10px;">
+                                                                        class="btn ui-button ui-button-sm ui-button-secondary py-0 px-1" style="font-size: 10px;">
                                                                     <i class="fas fa-eye"></i> Set
                                                                 </button>
                                                             @else
-                                                                <small class="text-muted fst-italic" style="font-size: 10px;">N/A</small>
+                                                                <small class="text-slate-500 fst-italic" style="font-size: 10px;">N/A</small>
                                                             @endif
                                                         @endif
                                                     @endif
@@ -1088,10 +1088,10 @@
                                                 {{-- ⭐ FREQUENCY COLUMN --}}
                                                 <td class="py-1 px-1 align-middle">
                                                     @if(!$isDrug)
-                                                        <small class="text-muted" style="font-size: 10px;">Not applicable</small>
+                                                        <small class="text-slate-500" style="font-size: 10px;">Not applicable</small>
                                                     @elseif(!$isLocked)
-                                                        <div class="d-flex align-items-center">
-                                                            <select class="form-control form-control-sm mr-1 py-0 px-1" style="height: 24px; font-size: 11px;"
+                                                        <div class="flex items-center">
+                                                            <select class="form-control ui-input ui-input-sm mr-1" style="min-width: 110px;"
                                                                     wire:change="updateFrequency({{ $index }}, $event.target.value)">
                                                                 <option value="">-- Select --</option>
                                                                 @foreach(\App\Enums\ProductFrequency::options() as $value => $label)
@@ -1102,7 +1102,7 @@
                                                             </select>
                                                             <button type="button" 
                                                                     wire:click="cancelFrequencyEdit"
-                                                                    class="btn btn-xs btn-outline-secondary py-0 px-1">
+                                                                    class="btn ui-button ui-button-sm ui-button-secondary py-0 px-1">
                                                                 <i class="fas fa-times"></i>
                                                             </button>
                                                         </div>
@@ -1112,21 +1112,21 @@
                                                                 $freqEnum = \App\Enums\ProductFrequency::tryFrom($item['frequency']);
                                                             @endphp
                                                             @if($freqEnum)
-                                                                <span class="badge {{ $freqEnum->badgeClass() }} px-1.5 py-0.5" style="font-size: 10px;">
+                                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $freqEnum->badgeClass() }} px-1.5 py-0.5" style="font-size: 10px;">
                                                                     {{ $freqEnum->abbreviation() }}
                                                                 </span>
                                                             @else
-                                                                <small class="text-muted" style="font-size: 10px;">{{ $item['frequency'] }}</small>
+                                                                <small class="text-slate-500" style="font-size: 10px;">{{ $item['frequency'] }}</small>
                                                             @endif
                                                         @else
                                                             @if(!$isLocked)
                                                                 <button type="button" 
                                                                         wire:click="editFrequency({{ $index }})"
-                                                                        class="btn btn-xs btn-warning py-0 px-1" style="font-size: 10px;">
+                                                                        class="btn ui-button ui-button-sm ui-button-secondary py-0 px-1" style="font-size: 10px;">
                                                                     <i class="fas fa-plus-circle"></i> Set
                                                                 </button>
                                                             @else
-                                                                <small class="text-muted fst-italic" style="font-size: 10px;">Not set</small>
+                                                                <small class="text-slate-500 fst-italic" style="font-size: 10px;">Not set</small>
                                                             @endif
                                                         @endif
                                                     @endif
@@ -1135,24 +1135,24 @@
                                                 {{-- TREATMENT DURATION --}}
                                                 <td class="py-1 px-1 align-middle">
                                                     @if(!$isDrug)
-                                                        <small class="text-muted" style="font-size: 10px;">Not applicable</small>
+                                                        <small class="text-slate-500" style="font-size: 10px;">Not applicable</small>
                                                     @elseif($isLocked)
-                                                        <small class="text-muted" style="font-size: 10px;">
+                                                        <small class="text-slate-500" style="font-size: 10px;">
                                                             {{ ($item['duration_unit'] ?? null) === 'until_finished'
                                                                 ? 'Until finished'
                                                                 : (($item['duration_value'] ?? null) ? $item['duration_value'].' '.($item['duration_unit'] ?? 'days') : 'Not set') }}
                                                         </small>
                                                     @else
-                                                        <div class="d-flex align-items-center" style="gap: 3px;">
+                                                        <div class="flex items-center" style="gap: 3px;">
                                                             @if(($item['duration_unit'] ?? 'days') !== 'until_finished')
                                                                 <input type="number" min="1"
                                                                     wire:model.blur="productsList.{{ $index }}.duration_value"
-                                                                    class="form-control form-control-sm text-center px-1"
-                                                                    style="width: 45px; height: 24px; font-size: 11px;">
+                                                                    class="form-control ui-input ui-input-sm text-center"
+                                                                    style="width: 48px;">
                                                             @endif
                                                             <select wire:model.live="productsList.{{ $index }}.duration_unit"
-                                                                class="form-control form-control-sm px-1"
-                                                                style="height: 24px; font-size: 10px; min-width: 76px;">
+                                                                class="form-control ui-input ui-input-sm"
+                                                                style="min-width: 84px;">
                                                                 <option value="days">Days</option>
                                                                 <option value="weeks">Weeks</option>
                                                                 <option value="months">Months</option>
@@ -1162,19 +1162,19 @@
                                                     @endif
                                                 </td>
                                                 
-                                                <td class="py-1 px-1 align-middle"><small class="font-weight-bold" style="font-size: 11px;">{{ currency() }} {{ number_format($item['price'], 2) }}</small></td>
+                                                <td class="py-1 px-1 align-middle"><small class="font-semibold" style="font-size: 11px;">{{ currency() }} {{ number_format($item['price'], 2) }}</small></td>
                                                 <td class="py-1 px-1 align-middle">
                                                     @if($isLocked)
                                                         @if($isRefunded)
-                                                            <span class="badge badge-danger px-1.5 py-0.5" style="font-size: 9px;"><i class="fas fa-undo"></i> Refunded</span>
+                                                            <span class="inline-flex items-center rounded text-xs font-semibold bg-red-100 text-red-800 px-1.5 py-0.5" style="font-size: 9px;"><i class="fas fa-undo"></i> Refunded</span>
                                                         @elseif($isDispensed)
-                                                            <span class="badge badge-success px-1.5 py-0.5" style="font-size: 9px;"><i class="fas fa-check-circle"></i> Paid / Dispensed</span>
+                                                            <span class="inline-flex items-center rounded text-xs font-semibold bg-green-100 text-green-800 px-1.5 py-0.5" style="font-size: 9px;"><i class="fas fa-check-circle"></i> Paid / Dispensed</span>
                                                         @elseif($isPurchased)
-                                                            <span class="badge badge-info px-1.5 py-0.5" style="font-size: 9px;"><i class="fas fa-pause-circle"></i> On Hold</span>
+                                                            <span class="inline-flex items-center rounded text-xs font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.5" style="font-size: 9px;"><i class="fas fa-pause-circle"></i> On Hold</span>
                                                         @endif
-                                                        <small class="d-block text-muted" style="font-size: 9px;">({{ currency() }} {{ number_format($item['total'] ?? 0, 2) }})</small>
+                                                        <small class="block text-slate-500" style="font-size: 9px;">({{ currency() }} {{ number_format($item['total'] ?? 0, 2) }})</small>
                                                     @else
-                                                        <strong class="text-primary font-weight-bold" style="font-size: 12px;">{{ currency() }} {{ number_format($billableLineTotal, 2) }}</strong>
+                                                        <strong class="text-teal-700 font-semibold" style="font-size: 12px;">{{ currency() }} {{ number_format($billableLineTotal, 2) }}</strong>
                                                     @endif
                                                 </td>
                                                 
@@ -1182,22 +1182,22 @@
                                                 <td class="text-center py-1 px-1 align-middle">
                                                     @if(!$isLocked)
                                                         <button wire:click="removeProduct({{ $index }})"
-                                                            class="btn btn-xs btn-outline-danger py-0 px-1"
+                                                            class="btn ui-button ui-button-sm ui-button-danger py-0 px-1"
                                                             wire:confirm="Remove this product?" title="Remove item">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     @else
-                                                        <i class="fas fa-lock text-muted" style="font-size: 11px;" title="{{ $isRefunded ? 'Refunded' : ($isDispensed ? 'Dispensed' : 'On hold') }}"></i>
+                                                        <i class="fas fa-lock text-slate-500" style="font-size: 11px;" title="{{ $isRefunded ? 'Refunded' : ($isDispensed ? 'Dispensed' : 'On hold') }}"></i>
                                                     @endif
                                                 </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
-                                    <tfoot class="bg-light sticky-bottom" style="bottom: 0;">
+                                    <tfoot class="bg-slate-50 sticky-bottom" style="bottom: 0;">
                                         <tr>
                                             <th colspan="7" class="text-right py-1 align-middle" style="font-size: 11px;">New Prescription Total:</th>
                                             <th colspan="2" class="py-1 align-middle">
-                                                <strong class="text-success font-weight-bold" style="font-size: 13px;">
+                                                <strong class="text-green-700 font-semibold" style="font-size: 13px;">
                                                     {{ currency() }} {{ number_format($this->calculateTotal(), 2) }}
                                                 </strong>
                                             </th>
@@ -1206,10 +1206,10 @@
                                 </table>
                             </div>
                         @else
-                            <div class="text-center py-3">
-                                <i class="fas fa-prescription-bottle fa-2x text-muted mb-2"></i>
-                                <h6 class="text-muted mb-1" style="font-size: 13px;">No prescription items yet</h6>
-                                <p class="text-muted mb-0" style="font-size: 11px;">Search for products on the left and click to add</p>
+                            <div class="text-center py-4">
+                                <i class="fas fa-prescription-bottle fa-2x text-slate-500 mb-2"></i>
+                                <h6 class="text-slate-500 mb-1" style="font-size: 13px;">No prescription items yet</h6>
+                                <p class="text-slate-500 mb-0" style="font-size: 11px;">Search for products on the left and click to add</p>
                             </div>
                         @endif
                     </div>
@@ -1217,12 +1217,12 @@
 
                 {{-- Compact Action Buttons --}}
                 @if(count($productsList) > 0)
-                    <div class="mt-2 d-flex justify-content-between align-items-center bg-white p-2 border rounded shadow-xs">
+                    <div class="mt-2 flex justify-between items-center bg-white p-2 border border-slate-200 rounded-md shadow-xs">
                         <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
-                            class="btn btn-xs btn-outline-danger font-weight-bold">
+                            class="btn ui-button ui-button-sm ui-button-danger font-semibold">
                             <i class="fas fa-trash mr-1"></i> Clear Unsaved Items
                         </button>
-                        <button wire:click="savePrescription" class="btn btn-sm btn-success px-4 font-weight-bold shadow-xs"
+                        <button wire:click="savePrescription" class="btn ui-button ui-button-sm ui-button-primary px-6 font-semibold shadow-xs"
                             wire:loading.attr="disabled">
                             <span wire:loading.remove wire:target="savePrescription">
                                 <i class="fas fa-paper-plane mr-1"></i> Save &amp; Send to Pharmacy / Cashier
@@ -1242,17 +1242,17 @@
             {{-- TAB 4: REFRACTION --}}
             @if($activeTab === 'refraction')
                 <div class="tab-content-wrapper">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h5 class="mb-0 text-primary font-weight-bold">
+                    <div class="flex justify-between items-center mb-6">
+                        <h5 class="mb-0 text-teal-700 font-semibold">
                             <i class="fas fa-glasses"></i> Refraction Details
                         </h5>
-                        <button wire:click="cancelAndGoBack" class="btn btn-light">
+                        <button wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                     </div>
 
                     @if(!$consultationID)
-                        <div class="alert alert-info">
+                        <div class="rounded-lg border px-3 py-2 text-sm border-sky-200 bg-sky-50 text-sky-900">
                             <i class="fas fa-info-circle"></i>
                             <strong>Tip:</strong> Select a consultation from history to load or save refraction data.
                         </div>
@@ -1262,7 +1262,7 @@
                         @include('livewire.doctor.partials.structured-refraction-fields')
 
                         @if($errors->any())
-                            <div class="alert alert-danger" role="alert">
+                            <div class="rounded-lg border px-3 py-2 text-sm border-red-200 bg-red-50 text-red-800" role="alert">
                                 <strong>Refraction was not saved. Please correct:</strong>
                                 <ul class="mb-0">
                                     @foreach($errors->all() as $message)
@@ -1274,21 +1274,21 @@
                         <div class="text-right">
                             @if($consultationID)
                                 <button type="button" wire:click="resetRefractionChanges"
-                                    class="btn btn-outline-secondary px-4"
+                                    class="btn ui-button ui-button-secondary px-6"
                                     wire:confirm="Discard unsaved refraction changes and reload the saved values?">
                                     <i class="fas fa-undo"></i> Reset Changes
                                 </button>
                             @endif
-                            <button type="button" wire:click="cancelAndGoBack" class="btn btn-secondary px-4">
+                            <button type="button" wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary px-6">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
                             @if($consultationID)
-                                <button type="submit" class="btn btn-primary px-5" wire:loading.attr="disabled" wire:target="saveRefraction">
+                                <button type="submit" class="btn ui-button ui-button-primary px-12" wire:loading.attr="disabled" wire:target="saveRefraction">
                                     <span wire:loading.remove wire:target="saveRefraction"><i class="fas fa-save"></i> Save Refraction</span>
                                     <span wire:loading wire:target="saveRefraction"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
                                 </button>
                             @else
-                                <button type="button" disabled class="btn btn-secondary px-5" title="Select a consultation first">
+                                <button type="button" disabled class="btn ui-button ui-button-secondary px-12" title="Select a consultation first">
                                     <i class="fas fa-save"></i> Save Refraction
                                 </button>
                             @endif
@@ -1300,77 +1300,77 @@
             {{-- TAB 5: BILLS --}}
             @if($activeTab === 'bills')
                 <div class="tab-content-wrapper">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="flex justify-between items-center mb-4">
                         <div>
-                            <h5 class="mb-1 text-primary font-weight-bold">
+                            <h5 class="mb-1 text-teal-700 font-semibold">
                                 <i class="fas fa-file-medical"></i> Clinical Documents
                             </h5>
-                            <small class="text-muted">Upload and review fundus photos, OCT, visual fields, referral letters, and reports.</small>
+                            <small class="text-slate-500">Upload and review fundus photos, OCT, visual fields, referral letters, and reports.</small>
                         </div>
-                        <span class="badge badge-secondary px-3 py-2">{{ $patientDocumentCount }} files</span>
+                        <span class="inline-flex items-center rounded text-xs font-semibold bg-slate-100 text-slate-700 px-4 py-2">{{ $patientDocumentCount }} files</span>
                     </div>
 
-                    <div class="row">
-                        <div class="col-lg-5 mb-3">
-                            <div class="card border h-100">
-                                <div class="card-header bg-light py-2">
-                                    <h6 class="mb-0 font-weight-bold">
-                                        <i class="fas fa-paperclip text-primary"></i> Attach Clinical Document 
+                    <div class="flex flex-wrap -mx-2">
+                        <div class="w-full lg:w-5/12 px-2 mb-4">
+                            <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 h-full">
+                                <div class="card-header border-b border-slate-200 px-4 bg-slate-50 py-2">
+                                    <h6 class="mb-0 font-semibold">
+                                        <i class="fas fa-paperclip text-teal-700"></i> Attach Clinical Document 
                                     </h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="card-body p-4">
                                     <form wire:submit="uploadPatientDocument">
-                                        <div class="form-row">
-                                            <div class="col-md-6 mb-3">
-                                                <label class="font-weight-bold small">Document Type</label>
-                                                <select wire:model.live="documentType" class="form-control form-control-sm">
+                                        <div class="flex flex-wrap -mx-2">
+                                            <div class="w-full md:w-6/12 px-2 mb-4">
+                                                <label class="font-semibold text-sm">Document Type</label>
+                                                <select wire:model.live="documentType" class="form-control ui-input ui-input-sm">
                                                     <option value="fundus_photo">Fundus Photo</option>
                                                     <option value="oct">OCT</option>
                                                     <option value="visual_field">Visual Field</option>
                                                     <option value="referral_letter">Referral Letter</option>
                                                     <option value="other">Other</option>
                                                 </select>
-                                                @error('documentType') <small class="text-danger">{{ $message }}</small> @enderror
+                                                @error('documentType') <small class="text-red-700">{{ $message }}</small> @enderror
                                             </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label class="font-weight-bold small">Visit</label>
-                                                <select wire:model.live="documentConsultationId" class="form-control form-control-sm">
+                                            <div class="w-full md:w-6/12 px-2 mb-4">
+                                                <label class="font-semibold text-sm">Visit</label>
+                                                <select wire:model.live="documentConsultationId" class="form-control ui-input ui-input-sm">
                                                     <option value="">General patient file</option>
                                                     @foreach($patientRecords as $record)
                                                         <option value="{{ $record->id }}">{{ $record->created_at->format('d M Y') }}</option>
                                                     @endforeach
                                                 </select>
-                                                @error('documentConsultationId') <small class="text-danger">{{ $message }}</small> @enderror
+                                                @error('documentConsultationId') <small class="text-red-700">{{ $message }}</small> @enderror
                                             </div>
                                         </div>
 
-                                        <div class="mb-3">
-                                            <label class="font-weight-bold small">Title</label>
-                                            <input type="text" wire:model="documentTitle" class="form-control form-control-sm"
+                                        <div class="mb-4">
+                                            <label class="font-semibold text-sm">Title</label>
+                                            <input type="text" wire:model="documentTitle" class="form-control ui-input ui-input-sm"
                                                 placeholder="e.g. Left eye OCT macula">
-                                            @error('documentTitle') <small class="text-danger">{{ $message }}</small> @enderror
+                                            @error('documentTitle') <small class="text-red-700">{{ $message }}</small> @enderror
                                         </div>
 
-                                        <div class="mb-3">
-                                            <label class="font-weight-bold small">File</label>
+                                        <div class="mb-4">
+                                            <label class="font-semibold text-sm">File</label>
                                             <input type="file"
                                                 wire:model.live="documentFiles"
                                                 wire:key="patient-document-upload-{{ $documentUploadKey }}"
-                                                class="form-control form-control-sm"
+                                                class="form-control ui-input ui-input-sm"
                                                 accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
                                                 multiple>
-                                            <small class="text-muted">Select one or more JPG, PNG, PDF, DOC, DOCX files. Max 10MB each, 10 files per upload.</small>
-                                            @error('documentFiles') <div><small class="text-danger">{{ $message }}</small></div> @enderror
-                                            @error('documentFiles.*') <div><small class="text-danger">{{ $message }}</small></div> @enderror
+                                            <small class="text-slate-500">Select one or more JPG, PNG, PDF, DOC, DOCX files. Max 10MB each, 10 files per upload.</small>
+                                            @error('documentFiles') <div><small class="text-red-700">{{ $message }}</small></div> @enderror
+                                            @error('documentFiles.*') <div><small class="text-red-700">{{ $message }}</small></div> @enderror
                                         </div>
 
-                                        <div class="mb-3">
-                                            <label class="font-weight-bold small">Notes</label>
-                                            <textarea wire:model="documentNotes" class="form-control form-control-sm" rows="2"></textarea>
-                                            @error('documentNotes') <small class="text-danger">{{ $message }}</small> @enderror
+                                        <div class="mb-4">
+                                            <label class="font-semibold text-sm">Notes</label>
+                                            <textarea wire:model="documentNotes" class="form-control ui-input ui-input-sm" rows="2"></textarea>
+                                            @error('documentNotes') <small class="text-red-700">{{ $message }}</small> @enderror
                                         </div>
 
-                                        <button type="submit" class="btn btn-primary btn-sm"
+                                        <button type="submit" class="btn ui-button ui-button-primary ui-button-sm"
                                             wire:loading.attr="disabled" wire:target="uploadPatientDocument,documentFiles">
                                             <span wire:loading.remove wire:target="uploadPatientDocument,documentFiles">
                                                 <i class="fas fa-upload"></i> Upload
@@ -1384,18 +1384,18 @@
                             </div>
                         </div>
 
-                        <div class="col-lg-7 mb-3">
-                            <div class="card border h-100">
-                                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-                                    <h6 class="mb-0 font-weight-bold">
-                                        <i class="fas fa-folder-open text-success"></i> Attached Images & Documents
+                        <div class="w-full lg:w-7/12 px-2 mb-4">
+                            <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 h-full">
+                                <div class="card-header border-b border-slate-200 px-4 bg-slate-50 flex justify-between items-center py-2">
+                                    <h6 class="mb-0 font-semibold">
+                                        <i class="fas fa-folder-open text-green-700"></i> Attached Images & Documents
                                     </h6>
-                                    <span class="badge badge-secondary">{{ $patientDocumentCount }}</span>
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $patientDocumentCount }}</span>
                                 </div>
                                 <div class="card-body p-0">
-                                    <div class="table-responsive">
-                                        <table class="table table-sm table-hover mb-0">
-                                            <thead class="thead-light">
+                                    <div class="ui-table-wrap">
+                                        <table class="table ui-table ui-table-sm mb-0">
+                                            <thead class="">
                                                 <tr>
                                                     <th>Type</th>
                                                     <th>Title</th>
@@ -1407,32 +1407,32 @@
                                             <tbody>
                                                 @forelse($patientDocuments as $document)
                                                     <tr>
-                                                        <td><span class="badge badge-info">{{ ucwords(str_replace('_', ' ', $document->document_type)) }}</span></td>
+                                                        <td><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ ucwords(str_replace('_', ' ', $document->document_type)) }}</span></td>
                                                         <td>
-                                                            <a href="{{ $document->url }}" target="_blank" class="font-weight-bold">
+                                                            <a href="{{ $document->url }}" target="_blank" class="font-semibold">
                                                                 {{ $document->title }}
                                                             </a>
-                                                            <small class="d-block text-muted">{{ $document->original_name }}</small>
+                                                            <small class="block text-slate-500">{{ $document->original_name }}</small>
                                                         </td>
                                                         <td>
                                                             {{ optional($document->consultation)->created_at ? $document->consultation->created_at->format('d M Y') : 'General' }}
                                                         </td>
                                                         <td>
                                                             <small>{{ $document->created_at->format('d M Y') }}</small>
-                                                            <small class="d-block text-muted">{{ $document->uploadedBy->name ?? 'System' }}</small>
+                                                            <small class="block text-slate-500">{{ $document->uploadedBy->name ?? 'System' }}</small>
                                                         </td>
                                                         <td class="text-center">
-                                                            <a href="{{ $document->url }}" target="_blank" class="btn btn-xs btn-outline-primary">
+                                                            <a href="{{ $document->url }}" target="_blank" class="btn ui-button ui-button-sm ui-button-secondary">
                                                                 <i class="fas fa-eye"></i>
                                                             </a>
                                                             @if(auth()->user()->hasRole('Super Admin'))
                                                                 <button wire:click="deletePatientDocument({{ $document->id }})"
                                                                     wire:confirm="Delete this document?"
-                                                                    class="btn btn-xs btn-outline-danger">
+                                                                    class="btn ui-button ui-button-sm ui-button-danger">
                                                                     <i class="fas fa-trash"></i>
                                                                 </button>
                                                             @else
-                                                                <button type="button" class="btn btn-xs btn-outline-secondary" disabled
+                                                                <button type="button" class="btn ui-button ui-button-sm ui-button-secondary" disabled
                                                                     title="Only Super Admin can delete uploads">
                                                                     <i class="fas fa-lock"></i>
                                                                 </button>
@@ -1441,7 +1441,7 @@
                                                     </tr>
                                                 @empty
                                                     <tr>
-                                                        <td colspan="5" class="text-center text-muted py-4">
+                                                        <td colspan="5" class="text-center text-slate-500 py-6">
                                                             No attached documents yet.
                                                         </td>
                                                     </tr>
@@ -1451,7 +1451,7 @@
                                     </div>
                                 </div>
                                 @if($patientDocuments->hasPages())
-                                    <div class="card-footer bg-white py-2">{{ $patientDocuments->links() }}</div>
+                                    <div class="border-t border-slate-200 px-4 bg-white py-2">{{ $patientDocuments->links() }}</div>
                                 @endif
                             </div>
                         </div>

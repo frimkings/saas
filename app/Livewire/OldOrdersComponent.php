@@ -50,6 +50,6 @@ class OldOrdersComponent extends Component
             'orders'    => $orders,
             'staleDays' => AttentionItems::thresholds()['stale_days'],
             'backUrl'   => $this->line === AttentionItems::OPTICAL ? route('optical.attention') : route('attention'),
-        ])->layout(AttentionPanelComponent::layoutFor($this->line));
+        ])->layout(...AttentionPanelComponent::layoutFor($this->line));
     }
 }

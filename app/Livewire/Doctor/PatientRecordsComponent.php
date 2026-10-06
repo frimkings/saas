@@ -36,7 +36,7 @@ class PatientRecordsComponent extends Component
     use WithFileUploads;
     use HasAppointmentBooking;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // Active Tab Management
     public $activeTab = 'history';
@@ -65,6 +65,8 @@ class PatientRecordsComponent extends Component
     public $selectedProductId;
     public $productQuantity;
     public $lensProducts = [];
+    /** The lens product chosen in the refraction form, so a new choice replaces it. */
+    public $refractionLensProductId = null;
     public $productPrice;
     public $productsList = [];
     
@@ -352,6 +354,7 @@ public $isEditingAppointment = false;
         $this->clinicalAddendum = '';
         $this->resetValidation();
         $this->productsList = [];
+        $this->refractionLensProductId = null;
         $this->resetProductForm();
         $this->showAppointmentSection = false;
         $this->resetAppointmentForm();
@@ -2372,12 +2375,61 @@ public function deleteAppointment($appointmentId)
 
     public function selectLensProduct($productId)
     {
-        $product = Product::find($productId);
-        
-        if ($product) {
-            $this->selectProduct($productId);
-            $this->dispatch('notify', ...['type' => 'success', 'message' => 'Lens product added to prescription list.']);
+        // The refraction picks one lens: choosing another swaps the earlier pick instead of adding a second line.
+        $previousId = $this->refractionLensProductId;
+        if ($previousId && (string) $previousId === (string) $productId) {
+            return;
         }
+
+        $product = $productId ? Product::find($productId) : null;
+        if ($productId && !$product) {
+            return;
+        }
+
+        if ($previousId) {
+            $this->releaseRefractionLens($previousId);
+        }
+        $this->refractionLensProductId = null;
+
+        if (!$product) {
+            $this->dispatch('notify', ...['type' => 'info', 'message' => 'Lens product removed from prescription list.']);
+            return;
+        }
+
+        $countBefore = $this->refractionLensQuantity($product->id);
+        $this->selectProduct($product->id);
+        if ($this->refractionLensQuantity($product->id) > $countBefore) {
+            $this->refractionLensProductId = $product->id;
+            $this->dispatch('notify', ...['type' => 'success', 'message' => $previousId
+                ? 'Lens product changed in prescription list.'
+                : 'Lens product added to prescription list.']);
+        }
+    }
+
+    /** Takes one unit of the earlier refraction lens off its open (unsold) line, removing the line at zero. */
+    private function releaseRefractionLens($productId): void
+    {
+        foreach ($this->productsList as $index => $item) {
+            if ($item['product_id'] != $productId || $this->isLockedPrescriptionItem($item)) {
+                continue;
+            }
+            $quantity = (int) $item['quantity'] - 1;
+            if ($quantity < 1) {
+                unset($this->productsList[$index]);
+                $this->productsList = array_values($this->productsList);
+            } else {
+                $this->productsList[$index]['quantity'] = $quantity;
+                $this->productsList[$index]['total'] = $quantity * $item['price'];
+            }
+            return;
+        }
+    }
+
+    private function refractionLensQuantity($productId): int
+    {
+        return (int) collect($this->productsList)
+            ->filter(fn ($item) => $item['product_id'] == $productId && !$this->isLockedPrescriptionItem($item))
+            ->sum('quantity');
     }
     
     public function render()
@@ -2470,6 +2522,6 @@ public function deleteAppointment($appointmentId)
         }
 
         return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit'))
-            ->layout('layouts.doctor.doctor-layout');
+            ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

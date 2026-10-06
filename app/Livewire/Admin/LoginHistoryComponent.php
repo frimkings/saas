@@ -3,7 +3,6 @@
 namespace App\Livewire\Admin;
 
 use App\Models\LoginLog;
-use App\Models\LoginLogArchive;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Response;
@@ -14,9 +13,8 @@ class LoginHistoryComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
-    public bool $showArchive = false;
     public $search = '';
     public $userId = '';
     public $fromDate;
@@ -55,16 +53,6 @@ class LoginHistoryComponent extends Component
     public function updatingFromDate() { $this->resetPage(); }
     public function updatingToDate() { $this->resetPage(); }
 
-    public function toggleArchive(): void
-    {
-        $this->showArchive = !$this->showArchive;
-        $this->search   = '';
-        $this->userId   = '';
-        $this->fromDate = '';
-        $this->toDate   = '';
-        $this->resetPage();
-    }
-
     public function resetFilters()
     {
         $this->search = '';
@@ -76,7 +64,7 @@ class LoginHistoryComponent extends Component
     public function exportCsv()
     {
         $query    = $this->query();
-        $filename = 'login_history_' . ($this->showArchive ? 'archive_' : '') . now()->format('Y-m-d_His') . '.csv';
+        $filename = 'login_history_' . now()->format('Y-m-d_His') . '.csv';
 
         $callback = function () use ($query) {
             $file = fopen('php://output', 'w');
@@ -100,9 +88,8 @@ class LoginHistoryComponent extends Component
 
     private function query()
     {
-        $model = $this->showArchive ? new LoginLogArchive : new LoginLog;
-
-        return $model::with('user')
+        // Kept for 30 days (logs:prune), so there is no archive to browse.
+        return LoginLog::with('user')
             ->when($this->search, function ($query) {
                 $search = '%' . $this->search . '%';
                 $query->where(function ($q) use ($search) {
@@ -124,8 +111,8 @@ class LoginHistoryComponent extends Component
     {
         return view('livewire.admin.login-history-component', [
             'logs'        => $this->query()->paginate(20),
-            'users'       => User::orderBy('name')->get(['id', 'name', 'email']),
-            'showArchive' => $this->showArchive,
+            'users'       => User::whereIn('id', LoginLog::query()->select('user_id'))
+                ->orderBy('name')->get(['id', 'name', 'email']),
         ])->layout('layouts.admin.admin-layout');
     }
 }

@@ -1,16 +1,16 @@
-<div class="container-fluid py-4 clinical-task-center">
-    <div class="d-flex align-items-center justify-content-between mb-4">
+<div class="clinic-ui ui-page clinical-task-center">
+    <div class="flex items-center justify-between mb-6">
         <div>
-            <h2 class="mb-1"><i class="fas fa-clipboard-check mr-2 text-primary"></i>Clinical Task Center</h2>
-            <p class="text-muted mb-0">One queue for patient care, billing, inventory, communication, and approval work that needs attention.</p>
+            <h2 class="mb-1"><i class="fas fa-clipboard-check mr-2 text-teal-700"></i>Clinical Task Center</h2>
+            <p class="text-slate-500 mb-0">One queue for patient care, billing, inventory, communication, and approval work that needs attention.</p>
         </div>
-        <button type="button" class="btn btn-primary font-weight-bold" wire:click="refreshTasks" wire:loading.attr="disabled">
+        <button type="button" class="btn ui-button ui-button-primary font-semibold" wire:click="refreshTasks" wire:loading.attr="disabled">
             <span wire:loading.remove wire:target="refreshTasks"><i class="fas fa-sync-alt mr-1"></i> Refresh</span>
             <span wire:loading wire:target="refreshTasks"><i class="fas fa-spinner fa-spin mr-1"></i> Refreshing...</span>
         </button>
     </div>
 
-    <div class="task-summary-grid mb-4">
+    <div class="task-summary-grid mb-6">
         @foreach($summaryCards as $card)
             <a href="{{ $card['route'] }}" class="task-summary-card task-summary-card--{{ $card['tone'] }}">
                 <div class="task-summary-card__icon"><i class="fas {{ $card['icon'] }}"></i></div>
@@ -23,11 +23,11 @@
         @endforeach
     </div>
 
-    <div class="row">
-        <div class="col-xl-4 col-lg-6 mb-4">
+    <div class="flex flex-wrap -mx-2">
+        <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-user-clock text-primary mr-1"></i> Patients Awaiting</div>
+                    <div><i class="fas fa-user-clock text-teal-700 mr-1"></i> Patients Awaiting</div>
                     <a href="{{ route('doctor.patient-awaiting') }}">Open</a>
                 </div>
                 <div class="task-panel__body">
@@ -37,7 +37,7 @@
                                 <div class="task-row__title">{{ $clearance->patient->name ?? 'Unknown patient' }}</div>
                                 <div class="task-row__meta">{{ $clearance->patient->pxnumber ?? 'No PX' }} | {{ $clearance->service->name ?? 'Service not set' }}</div>
                             </div>
-                            <span class="badge badge-primary">Ready</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800">Ready</span>
                         </div>
                     @empty
                         <div class="task-empty">No paid patients waiting for consultation.</div>
@@ -46,10 +46,10 @@
             </div>
         </div>
 
-        <div class="col-xl-4 col-lg-6 mb-4">
+        <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-calendar-times text-danger mr-1"></i> Overdue Appointments</div>
+                    <div><i class="fas fa-calendar-times text-red-700 mr-1"></i> Overdue Appointments</div>
                     <a href="{{ route('secretary.appointments') }}">Open</a>
                 </div>
                 <div class="task-panel__body">
@@ -59,7 +59,7 @@
                                 <div class="task-row__title">{{ $appointment->patient->name ?? 'Unknown patient' }}</div>
                                 <div class="task-row__meta">{{ $appointment->scheduled_at?->format('d M Y h:i A') }} | {{ $appointment->title }}</div>
                             </div>
-                            <span class="badge badge-danger">{{ $appointment->status }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800">{{ $appointment->status }}</span>
                         </div>
                     @empty
                         <div class="task-empty">No overdue appointment queue.</div>
@@ -68,10 +68,10 @@
             </div>
         </div>
 
-        <div class="col-xl-4 col-lg-6 mb-4">
+        <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-prescription-bottle-alt text-info mr-1"></i> Pending Prescriptions</div>
+                    <div><i class="fas fa-prescription-bottle-alt text-sky-700 mr-1"></i> Pending Prescriptions</div>
                     <a href="{{ route('cashier.seller-desk') }}">Open POS</a>
                 </div>
                 <div class="task-panel__body">
@@ -81,7 +81,7 @@
                                 <div class="task-row__title">{{ $item->patient->name ?? 'Unknown patient' }}</div>
                                 <div class="task-row__meta">{{ $item->product->name ?? 'Unknown item' }} x {{ $item->quantity }} | {{ $item->consultation->doctor->name ?? 'Doctor N/A' }}</div>
                             </div>
-                            <span class="badge badge-info">{{ currency() }}{{ number_format((float) $item->total, 2) }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ currency() }}{{ number_format((float) $item->total, 2) }}</span>
                         </div>
                     @empty
                         <div class="task-empty">No pending prescription items.</div>
@@ -90,10 +90,10 @@
             </div>
         </div>
 
-        <div class="col-xl-4 col-lg-6 mb-4">
+        <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-check-double text-warning mr-1"></i> Approvals</div>
+                    <div><i class="fas fa-check-double text-amber-600 mr-1"></i> Approvals</div>
                     <a href="{{ route('admin.approvals') }}">Open</a>
                 </div>
                 <div class="task-panel__body task-chip-list">
@@ -106,10 +106,10 @@
             </div>
         </div>
 
-        <div class="col-xl-4 col-lg-6 mb-4">
+        <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-box-open text-purple mr-1"></i> Inventory Alerts</div>
+                    <div><i class="fas fa-box-open text-violet-700 mr-1"></i> Inventory Alerts</div>
                     <a href="{{ route('admin.inventory-alerts') }}">Open</a>
                 </div>
                 <div class="task-panel__body task-chip-list">
@@ -121,10 +121,10 @@
             </div>
         </div>
 
-        <div class="col-xl-4 col-lg-6 mb-4">
+        <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-file-invoice-dollar text-secondary mr-1"></i> Outstanding Balances</div>
+                    <div><i class="fas fa-file-invoice-dollar text-slate-500 mr-1"></i> Outstanding Balances</div>
                     <a href="{{ route('cashier.outstanding-balances') }}">Open</a>
                 </div>
                 <div class="task-panel__body">
@@ -134,7 +134,7 @@
                                 <div class="task-row__title">{{ $sale->patient->name ?? 'Unknown patient' }}</div>
                                 <div class="task-row__meta">{{ $sale->transaction_id }} | {{ ucfirst($sale->payment_status) }}</div>
                             </div>
-                            <span class="badge badge-secondary">{{ currency() }}{{ number_format(max(0, (float) $sale->total_amount - (float) $sale->amount_paid), 2) }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ currency() }}{{ number_format(max(0, (float) $sale->total_amount - (float) $sale->amount_paid), 2) }}</span>
                         </div>
                     @empty
                         <div class="task-empty">No outstanding balances.</div>
@@ -143,7 +143,7 @@
             </div>
         </div>
 
-        <div class="col-xl-6 mb-4">
+        <div class="w-full xl:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
                     <div><i class="fas fa-paper-plane text-teal mr-1"></i> Report Delivery Outbox</div>
@@ -156,7 +156,7 @@
                                 <div class="task-row__title">{{ $delivery->subject }}</div>
                                 <div class="task-row__meta">{{ $delivery->last_attempt_at ? $delivery->last_attempt_at->format('d M h:i A') : 'Not tried yet' }} | {{ \Illuminate\Support\Str::limit($delivery->last_error ?? 'Waiting to send', 70) }}</div>
                             </div>
-                            <span class="badge badge-{{ $delivery->status === 'failed' ? 'danger' : 'warning' }}">{{ ucfirst($delivery->status) }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $delivery->status === 'failed' ? 'danger' : 'warning' }}">{{ ucfirst($delivery->status) }}</span>
                         </div>
                     @empty
                         <div class="task-empty">No pending report deliveries.</div>
@@ -165,10 +165,10 @@
             </div>
         </div>
 
-        <div class="col-xl-6 mb-4">
+        <div class="w-full xl:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
-                    <div><i class="fas fa-comment-slash text-dark mr-1"></i> Failed SMS / Messages</div>
+                    <div><i class="fas fa-comment-slash text-slate-900 mr-1"></i> Failed SMS / Messages</div>
                     <a href="{{ route('admin.sms-logs') }}">Open</a>
                 </div>
                 <div class="task-panel__body">
@@ -178,7 +178,7 @@
                                 <div class="task-row__title">{{ $log->patient->name ?? $log->recipient }}</div>
                                 <div class="task-row__meta">{{ strtoupper($log->channel ?? 'sms') }} | {{ \Illuminate\Support\Str::limit($log->error ?? 'Failed', 80) }}</div>
                             </div>
-                            <span class="badge badge-dark">{{ $log->created_at->format('d M') }}</span>
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-800 text-white">{{ $log->created_at->format('d M') }}</span>
                         </div>
                     @empty
                         <div class="task-empty">No failed SMS messages.</div>

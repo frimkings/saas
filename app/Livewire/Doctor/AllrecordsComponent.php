@@ -14,7 +14,7 @@ class AllrecordsComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     // VA values ordered best → worst
     public const VA_ORDER = [
@@ -233,6 +233,6 @@ class AllrecordsComponent extends Component
         $vaOptions  = self::VA_ORDER;
 
         return view('livewire.doctor.allrecords-component', compact('allrecords', 'diagnoses', 'vaOptions'))
-            ->layout('layouts.doctor.doctor-layout');
+            ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

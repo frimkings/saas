@@ -66,7 +66,7 @@
     .history-charts-grid { grid-template-columns:1fr; }
     .history-prototype .kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
-.refraction-comparison > [class*='col-'] { min-width:0; display:flex; flex-direction:column; }
+.refraction-comparison > * { min-width:0; display:flex; flex-direction:column; }
 .emr-root .refraction-dispensing { background:#fffbeb; border:1px solid #fcd34d; border-top:4px solid #b45309; }
 .emr-root .refraction-dispensing > .card-header { background:#fef3c7 !important; color:#92400e; border-bottom:1px solid #fcd34d; }
 .emr-root .refraction-verification { background:#fff7ed; color:#9a3412; border:1px solid #fdba74; border-left:4px solid #c2410c; }
@@ -76,7 +76,7 @@
 .emr-root .refraction-comparison-card > .card-header { background:transparent !important; border-color:var(--rx-line); }
 .refraction-comparison-title { color:var(--rx-accent); font-weight:700; margin:0 0 8px; }
 .refraction-comparison-title small { display:block !important; margin-top:6px; }
-.refraction-comparison-card .card-header > .d-flex { flex-wrap:wrap; }
+.refraction-comparison-card .card-header > .flex { flex-wrap:wrap; }
 .refraction-comparison-panel { display:block; }
 .refraction-comparison-card table, .refraction-comparison-card tbody { display:block; border:0; }
 .refraction-comparison-card thead { display:none; }
@@ -428,7 +428,7 @@
 .odq-detail-row strong { color:#334155; font-size:12px; }
 .odq-custom-entry { max-width:520px; }
 .emr-root .consultation-history-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-areas:'chief odq' 'other odq'; column-gap:15px; margin-left:0; margin-right:0; align-items:start; }
-.emr-root .consultation-history-grid > [class*='col-'] { max-width:none; min-width:0; padding-left:0; padding-right:0; width:auto; }
+.emr-root .consultation-history-grid > * { max-width:none; min-width:0; padding-left:0; padding-right:0; width:auto; }
 .consultation-history-chief { grid-area:chief; }
 .consultation-history-other { grid-area:other; }
 .consultation-history-odq { grid-area:odq; }
@@ -442,11 +442,11 @@
 .consultation-review-grid a span { display:flex; flex-direction:column; } .consultation-review-grid a strong { font-size:11px; } .consultation-review-grid a small { color:#64748b; font-size:9px; }
 .consultation-review-grid a.is-complete { background:#f0fdf4; border-color:#86efac; color:#15803d; } .consultation-review-grid a.is-missing { background:#fff7ed; border-color:#fdba74; color:#c2410c; }
 .consultation-section { scroll-margin-top: 124px; }
-.consultation-exam-management > [class*='col-'] { min-width:0; }
+.consultation-exam-management > [class*='w-'] { min-width:0; }
 @media (min-width: 992px) {
     .consultation-exam-management #consultation-section-examination > .card-body { padding:12px; }
-    .consultation-exam-management #consultation-section-examination .col-md-2 { flex:0 0 25%; max-width:25%; }
-    .consultation-exam-management #consultation-section-examination .col-md-5 { flex:0 0 37.5%; max-width:37.5%; }
+    .consultation-exam-management #consultation-section-examination .md\:w-2\/12 { width:25%; }
+    .consultation-exam-management #consultation-section-examination .md\:w-5\/12 { width:37.5%; }
 }
 /* Clinical colour system: eye identity, finding status, then urgency. */
 .tab-content-wrapper { --eye-od:#2563eb; --eye-od-soft:#eff6ff; --eye-od-line:#bfdbfe; --eye-os:#0f766e; --eye-os-soft:#f0fdfa; --eye-os-line:#99f6e4; --clinical-normal:#15803d; --clinical-normal-soft:#f0fdf4; --clinical-review:#b45309; --clinical-review-soft:#fffbeb; --clinical-urgent:#be123c; --clinical-ink:#334155; }
@@ -569,3 +569,9 @@
 .prescription-row--dispensed input,
 .prescription-row--dispensed select,
 .prescription-row--dispensed button { pointer-events: none; }
+
+/* Heading and label sizes the page had from Bootstrap; :where keeps them below any class rule. */
+:where(.emr-root) h4 { font-size: 1.125rem; font-weight: 600; }
+:where(.emr-root) h5 { font-size: 1rem; font-weight: 600; }
+:where(.emr-root) h6 { font-size: .875rem; font-weight: 600; }
+:where(.emr-root) label { display: inline-block; margin-bottom: .35rem; }

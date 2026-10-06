@@ -211,7 +211,7 @@ class AdminDashboardComponent extends Component
             ->get();
 
         // ── Row 7 ────────────────────────────────────────────────────────
-        $this->totalActiveUsers = User::where('is_active', true)->count();
+        $this->totalActiveUsers = User::inCurrentClinic(['active'])->where('is_active', true)->count();
     }
 
     public function render()

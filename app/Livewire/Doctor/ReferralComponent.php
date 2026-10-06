@@ -63,7 +63,7 @@ class ReferralComponent extends Component
     public $excuseToDate   = '';
     public $excuseNotes    = '';
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     protected function rules(): array
     {
@@ -187,7 +187,6 @@ class ReferralComponent extends Component
         }
         $this->editingId  = null;
         $this->showModal  = true;
-        $this->dispatch('init-diagnosis-select2', ...['selected' => []]);
     }
 
     public function openEdit($id)
@@ -236,7 +235,6 @@ class ReferralComponent extends Component
         $this->excuseNotes    = $r->excuse_notes ?? Referral::defaultExcuseNotes();
 
         $this->showModal = true;
-        $this->dispatch('init-diagnosis-select2', ...['selected' => $this->selectedDiagnoses]);
     }
 
     public function closeModal()
@@ -351,6 +349,6 @@ class ReferralComponent extends Component
         return view('livewire.doctor.referral-component', [
             'referrals' => $this->referrals,
             'diagnoses' => Diagnosis::orderBy('name')->get(['id', 'name']),
-        ])->layout('layouts.doctor.doctor-layout');
+        ])->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

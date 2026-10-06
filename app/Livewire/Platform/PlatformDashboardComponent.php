@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role;
 
 class PlatformDashboardComponent extends Component
 {
- use WithPagination; protected $paginationTheme='bootstrap';
+ use WithPagination; protected $paginationTheme='tailwind';
  #[Url(history: true, except: 'dashboard')]
  public string $tab='dashboard';
  public string $search='',$planFilter='',$statusFilter='',$deploymentFilter='',$limitFilter='',$productFilter=''; public ?int $selectedClinicId=null;

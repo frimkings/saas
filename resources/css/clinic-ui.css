@@ -18,7 +18,9 @@
 .clinic-ui .ui-panel-heading { @apply flex flex-wrap items-center justify-between gap-3 p-4 border-0 border-b border-solid border-slate-200; }
 .clinic-ui .ui-button { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-solid no-underline; padding: 9px 12px; font: inherit; }
 .clinic-ui .ui-button:hover { @apply no-underline; }
-.clinic-ui .ui-button:focus-visible, .clinic-ui .ui-input:focus-visible { outline: 3px solid #0d9488; outline-offset: 2px; }
+.clinic-ui .ui-button:focus-visible { outline: 3px solid #0d9488; outline-offset: 2px; }
+/* Inputs: one soft ring (the forms plugin would add a second, blue one under an outline). */
+.clinic-ui .ui-input:focus { outline: none; border-color: var(--clinic-accent); box-shadow: 0 0 0 3px rgb(8 126 131 / 18%); }
 .clinic-ui .ui-button:disabled { @apply opacity-50 cursor-not-allowed; }
 .clinic-ui .ui-button-primary { @apply text-white hover:bg-teal-800; background-color: var(--clinic-accent); border-color: var(--clinic-accent); }
 .clinic-ui .ui-button-secondary { @apply bg-white border-slate-300 text-slate-700 hover:bg-slate-50; }
@@ -114,3 +116,113 @@
 
 /* A form opened in the browser (openLocal) hides errors from an earlier attempt until it is saved again. */
 .is-fresh p[class~="text-red-600"], .is-fresh p[class~="text-red-700"], .is-fresh .ui-error, .is-fresh .pc-err, .is-fresh [role="alert"] { display: none; }
+
+/* Clinic layout notices (subscription, licence, announcements): their markup uses Bootstrap-style
+   alert class names, styled here. */
+.app-notices .alert { margin: 12px 16px 0; padding: 10px 14px; border-radius: 8px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; font-size: 13px; }
+.app-notices .alert-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.app-notices .alert-danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.app-notices .alert-link { font-weight: 600; text-decoration: underline; margin-left: 4px; }
+.app-notices .alert .fas { margin-right: 4px; }
+@media (min-width: 768px) { .app-notices .alert { margin: 12px 24px 0; } }
+/* Empty-state icons sit above their message (Font Awesome would keep them inline). */
+.clinic-ui .ui-empty > i { display: block; }
+
+/* Helpers for screens converted from Bootstrap (bs2tw): small buttons and inputs, link buttons, compact tables. */
+.clinic-ui .ui-button-sm { padding: 4px 9px; font-size: 12px; gap: 4px; }
+.clinic-ui .ui-button-link { @apply border-transparent bg-transparent text-teal-700 underline hover:text-teal-900; padding-left: 0; padding-right: 0; }
+.clinic-ui .ui-input-sm { padding: 6px 8px; font-size: 13px; }
+.clinic-ui .ui-input.is-invalid { @apply border-red-600; }
+.clinic-ui .ui-table-sm th, .clinic-ui .ui-table-sm td { @apply px-2 py-1.5; }
+
+/* Heading and label sizes Bootstrap pages relied on; :where keeps them below every class rule. */
+:where(.clinic-ui) h3 { font-size: 1.25rem; font-weight: 600; }
+:where(.clinic-ui) h4 { font-size: 1.125rem; font-weight: 600; }
+:where(.clinic-ui) h5 { font-size: 1rem; font-weight: 600; }
+:where(.clinic-ui) h6 { font-size: .875rem; font-weight: 600; }
+:where(.clinic-ui) label { display: inline-block; margin-bottom: .35rem; }
+/* A page component embedded in another page (approval queues, settings tabs) adds no second padding. */
+.clinic-ui.ui-page .clinic-ui.ui-page { padding: 0; background: transparent; }
+/* Bootstrap collapse and dropdown markup on converted screens, opened by layouts/partials/ui-toggles. */
+.clinic-ui .collapse:not(.show) { display: none; }
+.clinic-ui .dropdown { position: relative; }
+.clinic-ui .dropdown-menu { display: none; position: absolute; top: 100%; left: 0; z-index: 40; min-width: 10rem; margin-top: 4px; padding: 4px 0; @apply rounded-lg border border-slate-200 bg-white text-sm shadow-lg; }
+.clinic-ui .dropdown-menu.show { display: block; }
+.clinic-ui .dropdown-menu-right { left: auto; right: 0; }
+.clinic-ui .dropdown-item { display: block; width: 100%; padding: 6px 14px; text-align: left; white-space: nowrap; @apply text-slate-700 no-underline hover:bg-slate-50; }
+.clinic-ui .dropdown-divider { margin: 4px 0; @apply border-t border-slate-100; }
+.clinic-ui .dropdown-toggle::after { content: ''; display: inline-block; margin-left: 6px; vertical-align: 2px; border-top: 4px solid currentColor; border-left: 4px solid transparent; border-right: 4px solid transparent; }
+/* Room for the dropdown arrow the forms plugin draws on selects. */
+.clinic-ui select.ui-input { padding-right: 2.25rem; }
+/* Bootstrap breadcrumbs kept on converted pages. */
+.clinic-ui .breadcrumb { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.clinic-ui .breadcrumb-item + .breadcrumb-item::before { content: '/'; padding-right: 4px; color: #94a3b8; }
+.clinic-ui .breadcrumb-item.active { color: #64748b; }
+.clinic-ui .breadcrumb a { color: var(--clinic-accent); }
+/* Radios stay round even when a converted class list gives them rounded corners. */
+.clinic-ui input[type="radio"] { border-radius: 9999px; }
+
+/* AdminLTE stat widgets still used on converted admin screens (info-box, small-box) and coloured card accents. */
+.clinic-ui .info-box { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 10px; @apply rounded-xl border border-slate-200 bg-white; }
+.clinic-ui .info-box-icon { display: flex; align-items: center; justify-content: center; flex: none; width: 52px; height: 52px; font-size: 1.35rem; @apply rounded-lg; }
+.clinic-ui .info-box-content { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.clinic-ui .info-box-text { font-size: 12px; @apply truncate text-slate-500; }
+.clinic-ui .info-box-number { font-size: 1.1rem; font-weight: 700; @apply text-slate-900; }
+.clinic-ui .small-box { position: relative; overflow: hidden; padding: 14px 16px; @apply rounded-xl; }
+.clinic-ui .small-box .inner h3 { margin: 0; font-size: 1.75rem; font-weight: 700; }
+.clinic-ui .small-box .inner p { margin: 2px 0 0; font-size: 13px; }
+.clinic-ui .small-box .icon { position: absolute; top: 10px; right: 14px; font-size: 2.6rem; opacity: .25; }
+.clinic-ui .small-box-footer { display: block; margin: 10px -16px -14px; padding: 4px; text-align: center; font-size: 12px; background: rgb(0 0 0 / 10%); color: inherit; }
+.clinic-ui .card-primary:not(.card-outline) > .card-header, .clinic-ui .card-primary.card-outline { border-top: 3px solid #0f766e; }
+.clinic-ui .card-info.card-outline, .clinic-ui .card-info > .card-header { border-top: 3px solid #0284c7; }
+.clinic-ui .card-success.card-outline, .clinic-ui .card-success > .card-header { border-top: 3px solid #16a34a; }
+.clinic-ui .card-warning.card-outline, .clinic-ui .card-warning > .card-header { border-top: 3px solid #d97706; }
+.clinic-ui .card-secondary.card-outline, .clinic-ui .card-secondary > .card-header { border-top: 3px solid #64748b; }
+
+/* Platform console and chooser pages: Bootstrap's base type they were laid out with (Tailwind resets it);
+   :where keeps these below every class or inline style. */
+:where(.platform-ui) { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.5; }
+:where(.platform-ui) h1, :where(.platform-ui) h2, :where(.platform-ui) h3, :where(.platform-ui) h4, :where(.platform-ui) h5, :where(.platform-ui) h6 { margin: 0 0 .5rem; font-weight: 500; line-height: 1.2; }
+:where(.platform-ui) h1 { font-size: 2.5rem; } :where(.platform-ui) h2 { font-size: 2rem; } :where(.platform-ui) h3 { font-size: 1.75rem; }
+:where(.platform-ui) h4 { font-size: 1.5rem; } :where(.platform-ui) h5 { font-size: 1.25rem; } :where(.platform-ui) h6 { font-size: 1rem; }
+:where(.platform-ui) p { margin: 0 0 1rem; }
+:where(.platform-ui) label { display: inline-block; margin-bottom: .5rem; }
+:where(.platform-ui) b, :where(.platform-ui) strong { font-weight: bolder; }
+:where(.platform-ui) select, :where(.platform-ui) textarea { font-size: inherit; line-height: inherit; }
+/* Full-screen overlays sit inside space-y-* stacks; keep them pinned to the top of the viewport. */
+.clinic-ui [class~="fixed"][class~="inset-0"] { margin-top: 0; }
+/* Prescription items: compact inputs that still show their text. */
+.clinic-ui .prescription-row .ui-input { height: 28px; padding: 2px 6px; font-size: 12px; line-height: 1.4; }
+.clinic-ui .prescription-row select.ui-input { padding-right: 1.5rem; background-position: right 0.25rem center; background-size: 1.1em 1.1em; }
+/* Bootstrap colour names still built dynamically in views (badge-{{ $tone }}, text-{{ $tone }}, ...).
+   Bootstrap is gone, so they map onto the clinic palette here. */
+.clinic-ui .badge { display: inline-flex; align-items: center; border-radius: 0.25rem; padding: 0.125rem 0.375rem; font-size: 0.75rem; font-weight: 600; line-height: 1.25; }
+.clinic-ui .badge-primary { background: #ccfbf1; color: #115e59; }
+.clinic-ui .badge-secondary { background: #f1f5f9; color: #334155; }
+.clinic-ui .badge-success { background: #dcfce7; color: #166534; }
+.clinic-ui .badge-danger { background: #fee2e2; color: #991b1b; }
+.clinic-ui .badge-warning { background: #fef3c7; color: #92400e; }
+.clinic-ui .badge-info { background: #e0f2fe; color: #075985; }
+.clinic-ui .badge-light { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.clinic-ui .badge-dark { background: #334155; color: #fff; }
+.clinic-ui .text-primary { color: #0f766e; }
+.clinic-ui .text-secondary { color: #64748b; }
+.clinic-ui .text-success { color: #15803d; }
+.clinic-ui .text-danger { color: #b91c1c; }
+.clinic-ui .text-warning { color: #b45309; }
+.clinic-ui .text-info { color: #0369a1; }
+.clinic-ui .text-light { color: #94a3b8; }
+.clinic-ui .text-dark { color: #1e293b; }
+.clinic-ui .bg-primary { background-color: #087e83; }
+.clinic-ui .bg-secondary { background-color: #64748b; }
+.clinic-ui .bg-success { background-color: #16a34a; }
+.clinic-ui .bg-danger { background-color: #dc2626; }
+.clinic-ui .bg-warning { background-color: #f59e0b; }
+.clinic-ui .bg-info { background-color: #0284c7; }
+.clinic-ui .bg-light { background-color: #f8fafc; }
+.clinic-ui .bg-dark { background-color: #1e293b; }
+.clinic-ui .alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.clinic-ui .alert-danger { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.clinic-ui .alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.clinic-ui .alert-info { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
+.clinic-ui .alert-secondary { background: #f8fafc; border-color: #e2e8f0; color: #334155; }

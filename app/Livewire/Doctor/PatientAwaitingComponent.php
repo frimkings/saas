@@ -12,7 +12,7 @@ class PatientAwaitingComponent extends Component
 {
     use WithPagination;
 
-    protected $paginationTheme = 'bootstrap';
+    protected $paginationTheme = 'tailwind';
 
     public $searchTerm = '';
     public $showSeen   = false;
@@ -117,6 +117,6 @@ class PatientAwaitingComponent extends Component
         $patients = $this->buildQuery()->latest('created_at')->paginate(10);
 
         return view('livewire.doctor.patient-awaiting-component', compact('patients'))
-            ->layout('layouts.doctor.doctor-layout');
+            ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }
