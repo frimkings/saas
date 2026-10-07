@@ -47,8 +47,8 @@
 <body>
     <main class="error-card">
         <div class="code">404</div>
-        <h1>Page not found</h1>
-        <p>The page may have moved or is no longer available. Your data has not been affected.</p>
+        <h1>{{ $heading ?? 'Page not found' }}</h1>
+        <p>{{ $detail ?? 'The page may have moved or is no longer available. Your data has not been affected.' }}</p>
 
         <div class="actions">
             <button class="button button-secondary" type="button" onclick="goBack()">Go Back</button>

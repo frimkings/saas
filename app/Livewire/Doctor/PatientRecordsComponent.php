@@ -389,9 +389,21 @@ public $isEditingAppointment = false;
         ]);
 
         $uploadedCount = 0;
+        $failedNames = [];
 
         foreach ($this->documentFiles as $index => $file) {
-            $path = $file->store(\App\Support\Tenancy\TenantStorage::patientDocuments($this->patient), 'local');
+            $disk = PatientDocument::uploadDisk();
+            // A bucket that can't be reached returns false (or throws): never save a record without its file.
+            try {
+                $path = $file->store(\App\Support\Tenancy\TenantStorage::patientDocuments($this->patient), $disk);
+            } catch (\Throwable $e) {
+                report($e);
+                $path = false;
+            }
+            if (!$path) {
+                $failedNames[] = $file->getClientOriginalName();
+                continue;
+            }
             $baseTitle = $this->documentTitle ?: $this->documentTypeLabel($this->documentType);
             $title = count($this->documentFiles) > 1
                 ? $baseTitle . ' ' . ($index + 1)
@@ -405,7 +417,7 @@ public $isEditingAppointment = false;
                 'title' => $title,
                 'notes' => $this->documentNotes ?: null,
                 'file_path' => $path,
-                'storage_disk' => 'local',
+                'storage_disk' => $disk,
                 'original_name' => $file->getClientOriginalName(),
                 'mime_type' => $file->getMimeType(),
                 'file_size' => $file->getSize(),
@@ -428,6 +440,12 @@ public $isEditingAppointment = false;
         $this->documentType = 'fundus_photo';
         $this->documentUploadKey++;
         $this->resetValidation(['documentFiles', 'documentFiles.*', 'documentType', 'documentTitle', 'documentNotes', 'documentConsultationId']);
+
+        if ($failedNames) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => ($uploadedCount ? $uploadedCount . ' document(s) uploaded, but ' : '')
+                . 'these could not be saved: ' . implode(', ', $failedNames) . '. Please try again; if it keeps failing, tell your administrator.']);
+            return;
+        }
 
         $this->dispatch('notify', ...['type' => 'success', 'message' => $uploadedCount . ' document(s) uploaded successfully.']);
     }

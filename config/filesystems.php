@@ -16,6 +16,12 @@ return [
     'default' => env('FILESYSTEM_DRIVER', 'local'),
 
     /*
+    | Patient documents (fundus photos, OCT, letters). Empty: the private "documents" bucket
+    | when Laravel Cloud has attached one, otherwise the local disk (App\Models\PatientDocument).
+    */
+    'patient_documents_disk' => env('PATIENT_DOCUMENTS_DISK'),
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
