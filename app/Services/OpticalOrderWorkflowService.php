@@ -134,6 +134,7 @@ class OpticalOrderWorkflowService
             if ($order->isQuoteExpired() && $reprice === null) {
                 throw ValidationException::withMessages(['quote' => 'This quotation expired on '.$order->quote_valid_until->format('d M Y').'. Keep the quoted prices or re-price it at current prices.']);
             }
+            $quoted = ['order_id' => $order->order_id, 'total' => $order->total];
             if ($reprice) $this->reprice($order);
             if (round($deposit, 2) < $this->minimumDeposit($order)) {
                 throw ValidationException::withMessages(['paid_amount' => 'A deposit of '.currency().' '.number_format($this->minimumDeposit($order), 2).' is required to place this order.']);
@@ -173,6 +174,8 @@ class OpticalOrderWorkflowService
             $order->stock_reserved_at = ($order->frameProduct || $order->lensProduct || $order->frameOpticalProduct || $order->lensOpticalProduct) ? now() : null;
             $order->save();
             app(OpticalLensAvailabilityService::class)->reserveForOrder($order);
+            AuditTrail::record('optical.quotation_converted', "Quotation {$quoted['order_id']} converted to order {$order->order_id}".($reprice ? ' at current prices' : ''),
+                $order, $quoted + ['status' => 'Quotation'], ['order_id' => $order->order_id, 'status' => 'Pending', 'total' => $order->total, 'repriced' => (bool) $reprice], $order->patient_id);
             return $deposit > 0 ? $this->recordPayment($order->id, $deposit, $method, 'Optical order deposit') : $order;
         });
     }
@@ -223,6 +226,8 @@ class OpticalOrderWorkflowService
             $sale->amount_paid = $order->paid_amount;
             $sale->payment_status = $sale->amount_paid >= $sale->total_amount ? 'paid' : 'partial';
             $sale->save();
+            AuditTrail::record('optical.payment_recorded', 'Payment of '.currency().' '.number_format($amount, 2)." ({$method}) on order {$order->order_id}",
+                $order, ['paid_amount' => round($order->paid_amount - $amount, 2)], ['paid_amount' => $order->paid_amount, 'amount' => $amount, 'payment_method' => $method], $order->patient_id);
             return $order;
         });
     }
@@ -238,6 +243,7 @@ class OpticalOrderWorkflowService
             if ((float) $order->paid_amount > 0) {
                 throw ValidationException::withMessages(['order' => 'Refund the payment before cancelling this order.']);
             }
+            $was = $order->status;
             $this->returnStock($order);
             $order->status = 'Cancelled';
             $order->status_changed_at = now();
@@ -248,6 +254,8 @@ class OpticalOrderWorkflowService
                 $sale->items()->delete();
                 $sale->delete();
             }
+            AuditTrail::record('optical.order_cancelled', "Optical order {$order->order_id} cancelled (".currency().' '.number_format($order->total, 2).', nothing paid)',
+                $order, ['status' => $was], ['status' => 'Cancelled', 'total' => $order->total], $order->patient_id, true);
             return $order;
         });
     }

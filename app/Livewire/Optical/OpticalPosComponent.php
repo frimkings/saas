@@ -119,6 +119,11 @@ class OpticalPosComponent extends Component
                 'payment_method' => $this->paymentMethod,
                 'collected_by' => auth()->id(),
             ]);
+            \App\Models\AuditTrail::record('optical.pos_sale', 'Retail sale '.$sale->transaction_id.' of '.currency().' '.number_format($total, 2)." ({$this->paymentMethod}) to {$sale->customer_name}"
+                .($discount > 0 ? ', discount '.currency().' '.number_format($discount, 2) : ''), $sale, [], [
+                    'total_amount' => $total, 'discount_amount' => $discount, 'payment_method' => $this->paymentMethod,
+                    'items' => array_map(fn ($line) => $line[1].' x '.$line[0]->name, $lines),
+                ]);
             return $sale->id;
         });
         $this->reset(['cart', 'customerName', 'customerPhone', 'discount']);

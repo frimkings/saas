@@ -79,7 +79,9 @@ class PartnerClinicsComponent extends Component
     public function restore(int $id): void
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        OpticalPartnerClinic::findOrFail($id)->update(['is_active' => true]);
+        $partner = OpticalPartnerClinic::findOrFail($id);
+        $partner->is_active = true;
+        \App\Models\AuditTrail::recordSave($partner, 'optical.partner_clinic', 'partner clinic '.$partner->name.' (restored)');
         session()->flash('success', 'Partner clinic restored for new orders.');
     }
 
@@ -134,7 +136,8 @@ class PartnerClinicsComponent extends Component
             'address' => trim($this->address) ?: null, 'billing_terms' => $this->billingTerms,
             'notification_phone' => trim($this->notificationPhone) ?: null, 'notify_via' => $this->notifyVia,
             'is_active' => $this->isActive,
-        ])->save();
+        ]);
+        \App\Models\AuditTrail::recordSave($partner, 'optical.partner_clinic', 'partner clinic '.$partner->name);
         $this->showForm = false;
         $this->viewPartnerId = $partner->id;
         session()->flash('success', 'Partner clinic saved.');
@@ -143,7 +146,9 @@ class PartnerClinicsComponent extends Component
     public function archive(int $id): void
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        OpticalPartnerClinic::findOrFail($id)->update(['is_active' => false]);
+        $partner = OpticalPartnerClinic::findOrFail($id);
+        $partner->is_active = false;
+        \App\Models\AuditTrail::recordSave($partner, 'optical.partner_clinic', 'partner clinic '.$partner->name.' (archived)');
         session()->flash('success', 'Partner clinic archived. Existing orders remain available.');
     }
 

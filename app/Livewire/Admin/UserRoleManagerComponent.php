@@ -378,6 +378,9 @@ class UserRoleManagerComponent extends Component
         return $user;
         });
         $rolesAfter = collect($rolesByBranch)->flatten()->unique()->values()->all();
+        AuditTrail::record($isNew ? 'staff.added' : 'staff.updated', ($isNew ? 'Added staff member ' : 'Updated staff member ').$user->name.' ('.implode(', ', $rolesAfter).')',
+            $user, $isNew ? [] : ['roles' => $rolesBefore], ['roles' => $rolesAfter, 'status' => $this->membershipStatus, 'branches' => array_map('intval', $this->selectedBranchIds)]
+                + ($this->password && ! $isNew ? ['password' => 'changed'] : []), null, true);
         if ($isNew) {
             app(\App\Services\OwnerAlerts::class)->staffAdded($user, $rolesAfter);
         } elseif (\App\Services\OwnerAlerts::grantsAdmin($rolesBefore, $rolesAfter)) {
@@ -399,6 +402,8 @@ class UserRoleManagerComponent extends Component
         $clinic = $this->currentClinic();
         $status = DB::table('clinic_user')->where('clinic_id', $clinic->id)->where('user_id', $user->id)->value('status') === 'active' ? 'inactive' : 'active';
         $this->setMembershipStatus($user, $status);
+        AuditTrail::record($status === 'active' ? 'staff.reactivated' : 'staff.deactivated', ($status === 'active' ? 'Reactivated' : 'Deactivated').' staff member '.$user->name,
+            $user, ['status' => $status === 'active' ? 'inactive' : 'active'], ['status' => $status], null, true);
         $this->dispatch('notify', ...['type' => 'success', 'message' => $status === 'active'
             ? 'Staff member reactivated in this clinic.'
             : 'Staff member deactivated in this clinic. Their access to other clinics is unchanged.']);
@@ -464,6 +469,7 @@ class UserRoleManagerComponent extends Component
             DB::table('clinic_user')->where('clinic_id', $this->currentClinic()->id)->where('user_id', $user->id)->update(['is_default' => false]);
         });
         app(ClinicMembershipManager::class)->ensureDefault($user);
+        AuditTrail::record('staff.removed', 'Removed staff member '.$user->name.' from this clinic', $user, [], ['status' => 'left'], null, true);
         app(\App\Services\OwnerAlerts::class)->staffRemoved($user);
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Staff member removed from this clinic. Their records here are kept.']);
     }
@@ -516,9 +522,9 @@ class UserRoleManagerComponent extends Component
             'newPassword.same' => 'Passwords do not match.',
         ]);
 
-        $this->managedUser((int) $this->resetUserId)->update([
-            'password' => Hash::make($this->newPassword),
-        ]);
+        $user = $this->managedUser((int) $this->resetUserId);
+        $user->update(['password' => Hash::make($this->newPassword)]);
+        AuditTrail::record('staff.password_reset', 'Reset the password of staff member '.$user->name, $user, [], [], null, true);
 
         $this->dispatch('notify', ...['type' => 'success', 'message' => "Password for {$this->resetUserName} has been reset successfully."]);
         $this->closeResetModal();

@@ -67,6 +67,10 @@
                             <a href="{{ route('optical.stock') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.stock') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Stock Restocking &amp; Batches</a>
                         </div>
                         <a href="{{ route('optical.settings') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.settings') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Settings</a>
+                        @if(\App\Services\LicenseService::has(\App\Support\Feature::AUDIT_TRAIL))
+                            <a href="{{ route('optical.audit-trail') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.audit-trail') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Audit Trail</a>
+                            <a href="{{ route('optical.login-history') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.login-history') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Login History</a>
+                        @endif
                     @endhasanyrole
                     @if(\App\Support\OpticalNavigation::canManageStaff())
                         {{-- Staff are managed on the shared staff screen; it links back here. --}}

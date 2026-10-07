@@ -466,7 +466,7 @@ class OpticalCatalogueComponent extends Component
         $service->requires_rx = $this->serviceRequiresRx;
         $service->requires_frame = $this->serviceRequiresFrame;
         $service->is_active = $this->serviceActive;
-        $service->save();
+        \App\Models\AuditTrail::recordSave($service, 'optical.service', 'optical service '.$service->name);
         $this->showServiceForm = false;
         session()->flash('success', 'Optical service saved. Existing order prices remain unchanged.');
     }

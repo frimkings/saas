@@ -92,6 +92,7 @@ class OpticalProductsComponent extends Component
         $this->assertManager();
         $this->validate(['importFile' => 'required|file|mimes:csv,txt|max:4096']);
         $count = app(OpticalProductCsvService::class)->import($this->importFile->getRealPath());
+        \App\Models\AuditTrail::record('optical.products_imported', "Imported or updated {$count} optical product(s) from a CSV file", null, [], ['count' => $count]);
         $this->reset('importFile');
         $this->showImport = false;
         $this->resetPage();
@@ -167,7 +168,7 @@ class OpticalProductsComponent extends Component
                 'selling_price' => round((float) $this->sellingPrice, 2),
                 'is_active' => $this->active,
             ]);
-            $product->save();
+            \App\Models\AuditTrail::recordSave($product, 'optical.product', 'optical product '.$product->name.' ('.$product->sku.')');
             app(OpticalProductInventoryService::class)->setBalance(
                 $product, (int) $this->quantity, (int) $this->reorderLevel,
                 $this->editingId ? 'Product stock correction' : 'Initial optical stock'
@@ -185,6 +186,8 @@ class OpticalProductsComponent extends Component
             throw ValidationException::withMessages(['product' => 'Set stock to zero in every branch before archiving this product.']);
         }
         $product->delete();
+        \App\Models\AuditTrail::record('optical.product_archived', 'Archived optical product '.$product->name.' ('.$product->sku.')', $product,
+            $product->only(['name', 'sku', 'cost_price', 'selling_price']), []);
         session()->flash('success', 'Optical product archived.');
     }
 

@@ -273,6 +273,9 @@ Route::get('/optical/reports', \App\Livewire\Optical\OpticalReportsComponent::cl
 Route::get('/optical/reports/{report}/{format}', \App\Http\Controllers\OpticalReportExportController::class)
     ->whereIn('report', array_keys(\App\Http\Controllers\OpticalReportExportController::REPORTS))->whereIn('format', ['print', 'pdf', 'csv'])->name('optical.reports.export');
 Route::get('/optical/settings', \App\Livewire\Optical\OpticalSettingsComponent::class)->middleware('role:Manager|Super Admin')->name('optical.settings');
+// The shared audit screens, shown in the optical layout.
+Route::get('/optical/audit-trail', AuditTrailViewerComponent::class)->middleware(['role:Manager|Super Admin', 'feature:audit_trail'])->name('optical.audit-trail');
+Route::get('/optical/login-history', LoginHistoryComponent::class)->middleware(['role:Manager|Super Admin', 'feature:audit_trail'])->name('optical.login-history');
 });
 
 //admin

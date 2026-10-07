@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditTrail;
 use App\Models\LensOrder;
 use App\Models\OpticalCategory;
 use App\Models\OpticalProduct;
@@ -38,6 +39,7 @@ class OpticalOrderService
             if ($order->status !== 'Quotation') {
                 throw ValidationException::withMessages(['order' => 'Only quotations can be edited.']);
             }
+            $before = $this->auditedPrices($order);
             $patient = ! empty($data['patient_id']) ? Patient::findOrFail($data['patient_id']) : null;
             $prescription = $this->needsPrescription($data, $services) && $patient ? $this->prescription($patient, $data) : null;
             if ($this->needsPrescription($data, $services) && ! $patient) $this->validateManualMeasurements($data['measurements'] ?? []);
@@ -97,8 +99,18 @@ class OpticalOrderService
             $this->storeServices($order, $services);
             $order->lensLines()->delete();
             if ($lensOption) app(OpticalLensAvailabilityService::class)->writeLensLines($order, $lensOption, false);
+            AuditTrail::record('optical.quotation_edited', "Quotation {$order->order_id} edited for {$order->display_customer_name}",
+                $order, $before, $this->auditedPrices($order), $order->patient_id);
             return $order;
         });
+    }
+
+    /** The money on an order, as recorded in the audit trail. */
+    private function auditedPrices(LensOrder $order): array
+    {
+        return ['frame_price' => round((float) $order->frame_price, 2), 'lens_price' => round((float) $order->lens_price, 2),
+            'glazing_fee' => round((float) $order->glazing_fee, 2), 'service_total' => round((float) $order->service_total, 2),
+            'discount_amount' => round((float) $order->discount_amount, 2), 'total' => round($order->total, 2)];
     }
 
     public function create(array $data, bool $quotation = false): LensOrder
@@ -232,6 +244,14 @@ class OpticalOrderService
             if ($lensOption && $quotation) app(OpticalLensAvailabilityService::class)->writeLensLines($order, $lensOption, false);
             if (! $quotation) app(OpticalLensAvailabilityService::class)->reserveForOrder($order);
             if ($remake && $remake['remake_charge'] === 'free') $order->lensLines()->update(['unit_price' => 0]);
+            if ((float) $order->discount_amount > 0) {
+                AuditTrail::record('optical.discount_given', 'Discount of '.currency().' '.number_format((float) $order->discount_amount, 2)." on {$order->order_id} for {$order->display_customer_name}",
+                    $order, [], $this->auditedPrices($order), $order->patient_id);
+            }
+            if ($paid > 0) {
+                AuditTrail::record('optical.payment_recorded', 'Deposit of '.currency().' '.number_format($paid, 2).' ('.($data['payment_method'] ?? 'cash').") on new order {$order->order_id}",
+                    $order, [], ['paid_amount' => $paid, 'payment_method' => $data['payment_method'] ?? 'cash'], $order->patient_id);
+            }
             return $order;
         });
     }

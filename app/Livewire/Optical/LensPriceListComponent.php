@@ -82,6 +82,8 @@ class LensPriceListComponent extends Component
 
         $service = app(OpticalLensPriceList::class);
         $changed = DB::transaction(function () use ($range, $service) {
+            $describe = fn ($list) => $list ? ['pair_price' => round((float) $list->pair_price, 2), 'exceptions' => $list->rules->map(fn ($rule) => $this->ruleLabel($rule))->all()] : [];
+            $before = $describe($range['list']);
             $list = OpticalLensPrice::updateOrCreate(['range_key' => $range['key']], [
                 'specs' => $range['specs'], 'pair_price' => round((float) $this->pairPrice, 2), 'updated_by' => auth()->id(),
             ]);
@@ -94,11 +96,22 @@ class LensPriceListComponent extends Component
                 ]);
             }
             $service->forget();
-            return $service->apply($list->fresh('rules'));
+            $changed = $service->apply($list->fresh('rules'));
+            \App\Models\AuditTrail::record('optical.lens_price_list_saved', 'Lens price list for '.implode(' ', array_filter([$range['specs']['range'] ?? '', $range['specs']['design'] ?? '', $range['specs']['index'] ?? '', $range['specs']['coating'] ?? '']))
+                ." set, {$changed} lens ".($changed === 1 ? 'power' : 'powers').' repriced', $list, $before, $describe($list->fresh('rules')) + ['powers_repriced' => $changed]);
+            return $changed;
         });
 
         $this->cancel();
         session()->flash('lens_price_message', "Saved. {$changed} lens ".($changed === 1 ? 'power' : 'powers').' repriced. Orders and quotes already created keep their prices.');
+    }
+
+    /** An exception as staff read it, e.g. "SPH 4.00+ / power 2.00+: 300.00". */
+    private function ruleLabel($rule): string
+    {
+        $from = array_filter([$rule->min_sphere !== null ? 'SPH '.number_format((float) $rule->min_sphere, 2).'+' : null,
+            $rule->min_power !== null ? 'power '.number_format((float) $rule->min_power, 2).'+' : null]);
+        return implode(' / ', $from).': '.number_format((float) $rule->pair_price, 2);
     }
 
     /** Stock lens ranges with their price list, if any. */

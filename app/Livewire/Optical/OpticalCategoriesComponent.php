@@ -74,7 +74,7 @@ class OpticalCategoriesComponent extends Component
             'is_active' => $this->active,
             'default_markup' => $this->markup === '' ? null : round((float) $this->markup, 2),
         ]);
-        $category->save();
+        \App\Models\AuditTrail::recordSave($category, 'optical.category', 'optical category '.$category->name);
         $this->showForm = false;
         session()->flash('success', 'Optical category saved. Existing order details and product prices are unchanged.');
     }
@@ -85,7 +85,7 @@ class OpticalCategoriesComponent extends Component
         app(ClinicAccessService::class)->assertWritable('optical');
         $category = OpticalCategory::findOrFail($id);
         $category->is_active = ! $category->is_active;
-        $category->save();
+        \App\Models\AuditTrail::recordSave($category, 'optical.category', 'optical category '.$category->name.($category->is_active ? ' (reactivated)' : ' (deactivated)'));
     }
 
     public function delete(int $id): void
@@ -97,6 +97,7 @@ class OpticalCategoriesComponent extends Component
             throw ValidationException::withMessages(['category' => 'Reassign the mapped products before deleting this category.']);
         }
         $category->delete();
+        \App\Models\AuditTrail::record('optical.category_archived', 'Archived optical category '.$category->name, $category, $category->only(['code', 'name']), []);
         session()->flash('success', 'Optical category archived.');
     }
 

@@ -108,6 +108,12 @@ class ExpensesComponent extends Component
         return $this->businessLine === Expense::OPTICAL;
     }
 
+    /** Optical expense events carry the optical prefix, so the audit trail can show the optical side alone. */
+    private function auditEvent(string $event): string
+    {
+        return ($this->isOptical() ? 'optical.' : '').$event;
+    }
+
     /** Expenses of this screen's business line only. */
     private function lineExpenses()
     {
@@ -186,7 +192,7 @@ class ExpensesComponent extends Component
         $recurring = $this->lineRecurring()->where('is_active', true)->findOrFail($id);
         $skipped = $recurring->next_due_date->format('d M Y');
         $recurring->advance();
-        AuditTrail::record('expense.recurring_skipped', "Skipped {$recurring->description} due {$skipped}", $recurring, force: true);
+        AuditTrail::record($this->auditEvent('expense.recurring_skipped'), "Skipped {$recurring->description} due {$skipped}", $recurring, force: true);
         $this->dispatch('notify', ...['type' => 'success', 'message' => "Skipped. {$recurring->description} is next due {$recurring->next_due_date->format('d M Y')}."]);
     }
 
@@ -196,7 +202,7 @@ class ExpensesComponent extends Component
         $this->assertWritable();
         $recurring = $this->lineRecurring()->findOrFail($id);
         $recurring->update(['is_active' => false]);
-        AuditTrail::record('expense.recurring_stopped', "Stopped repeating {$recurring->description}", $recurring, force: true);
+        AuditTrail::record($this->auditEvent('expense.recurring_stopped'), "Stopped repeating {$recurring->description}", $recurring, force: true);
         $this->dispatch('notify', ...['type' => 'success', 'message' => "{$recurring->description} will no longer repeat. Expenses already recorded are kept."]);
     }
 
@@ -272,7 +278,7 @@ class ExpensesComponent extends Component
             }
             $old = $expense->only(array_keys($data));
             $expense->update($data);
-            AuditTrail::record('expense.updated', "Updated expense: {$expense->description} (" . currency() . " {$expense->amount})", $expense, $old, $data);
+            AuditTrail::record($this->auditEvent('expense.updated'), "Updated expense: {$expense->description} (" . currency() . " {$expense->amount})", $expense, $old, $data);
             $this->dispatch('notify', ...['type' => 'success', 'message' => 'Expense updated.']);
         } else {
             if ($this->receiptFile) {
@@ -295,7 +301,7 @@ class ExpensesComponent extends Component
                 }
                 return Expense::create($data + ['business_line' => $this->businessLine, 'recurring_expense_id' => $recurring?->id]);
             });
-            AuditTrail::record('expense.created', "Recorded expense: {$expense->description} (" . currency() . " {$expense->amount})", $expense, [], $data);
+            AuditTrail::record($this->auditEvent('expense.created'), "Recorded expense: {$expense->description} (" . currency() . " {$expense->amount})", $expense, [], $data);
             $this->dispatch('notify', ...['type' => 'success', 'message' => $message]);
         }
 
@@ -311,7 +317,7 @@ class ExpensesComponent extends Component
             Storage::disk('public')->delete($expense->receipt_path);
         }
         $expense->update(['receipt_path' => null]);
-        AuditTrail::record('expense.receipt_deleted', "Removed receipt from: {$expense->description}", $expense, force: true);
+        AuditTrail::record($this->auditEvent('expense.receipt_deleted'), "Removed receipt from: {$expense->description}", $expense, force: true);
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Receipt removed.']);
     }
 
@@ -335,7 +341,7 @@ class ExpensesComponent extends Component
             $this->dispatch('notify', ...['type' => 'error', 'message' => $message]);
             return;
         }
-        AuditTrail::record('expense.deleted', "Deleted expense: {$expense->description} (" . currency() . " {$expense->amount})", $expense, $expense->toArray(), []);
+        AuditTrail::record($this->auditEvent('expense.deleted'), "Deleted expense: {$expense->description} (" . currency() . " {$expense->amount})", $expense, $expense->toArray(), []);
         $expense->delete();
         if ($this->expenseId === $id) {
             $this->showModal = false;
