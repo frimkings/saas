@@ -197,8 +197,9 @@ class RefundApprovalsComponent extends Component
                 if ($lockedSale->is_refunded) {
                     throw new \RuntimeException('This sale has already been refunded.');
                 }
-                if ($lockedSale->bill_status === 'open') {
-                    throw new \RuntimeException('Open visit bills cannot be refunded. Finalize the bill first.');
+                // Requests now close a paid visit bill when made; older requests may still be open.
+                if (!$lockedSale->finalizeForRefund()) {
+                    throw new \RuntimeException('This bill still has a balance owing. Settle it under Outstanding Balances first.');
                 }
                 if ($lockedLog->status !== RefundLog::STATUS_APPROVED) {
                     throw new \RuntimeException('This refund is no longer in approved status.');

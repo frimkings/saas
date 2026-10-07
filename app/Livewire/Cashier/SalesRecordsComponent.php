@@ -333,7 +333,6 @@ class SalesRecordsComponent extends Component
         );
 
         abort_if($sale->is_refunded, 422, 'This sale has already been refunded.');
-        abort_if($sale->bill_status === 'open', 422, 'Open visit bills must be finalized before a refund can be requested.');
 
         $alreadyPending = RefundLog::where('sale_id', $saleId)
             ->whereIn('status', [RefundLog::STATUS_PENDING, RefundLog::STATUS_APPROVED])
@@ -343,6 +342,15 @@ class SalesRecordsComponent extends Component
             $this->dispatch('notify', ...[
                 'type'    => 'warning',
                 'message' => 'A refund request for this sale is already awaiting approval.',
+            ]);
+            return;
+        }
+
+        // Today's consultation fee is an open visit bill until the end of the day.
+        if (!$sale->finalizeForRefund()) {
+            $this->dispatch('notify', ...[
+                'type'    => 'warning',
+                'message' => 'This bill still has a balance owing. Settle it under Outstanding Balances before requesting a refund.',
             ]);
             return;
         }

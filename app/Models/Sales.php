@@ -135,6 +135,33 @@ public function isOpenVisitBill(): bool
         && (!$this->expires_at || $this->expires_at->isFuture());
 }
 
+/**
+ * A refund needs a closed bill. A fully paid open visit bill (e.g. today's consultation fee,
+ * which stays open until the end of the day) is closed now, as the till does before a separate
+ * sale; later items for the visit start a new bill. Returns false while a balance is still owed.
+ */
+public function finalizeForRefund(): bool
+{
+    if ($this->bill_status !== 'open') {
+        return true;
+    }
+    if ($this->payment_status !== 'paid') {
+        return false;
+    }
+
+    $old = $this->only(['bill_status', 'bill_version', 'finalized_at']);
+    $this->update([
+        'bill_status' => 'finalized',
+        'finalized_at' => now(),
+        'finalized_by' => auth()->id(),
+        'bill_version' => (int) $this->bill_version + 1,
+    ]);
+    AuditTrail::record('visit_bill.finalized_for_refund', "Visit bill {$this->transaction_id} finalized for a refund request",
+        $this, $old, $this->only(['bill_status', 'bill_version', 'finalized_at', 'finalized_by']), $this->patient_id, true);
+
+    return true;
+}
+
 public function adjustments()
 {
     return $this->hasMany(SaleAdjustment::class, 'sale_id');

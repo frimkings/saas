@@ -2,8 +2,11 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\AuditTrail;
 use App\Models\CashierPatientClearance;
 use App\Models\ClearanceRevokeLog;
+use App\Models\RefundLog;
+use App\Models\Sales;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -79,13 +82,15 @@ class ClearanceRevokeApprovalsComponent extends Component
             return;
         }
 
-        DB::transaction(function () use ($log, $clearance) {
+        $refundNote = DB::transaction(function () use ($log, $clearance) {
             $log->update([
                 'status'      => ClearanceRevokeLog::STATUS_APPROVED,
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
             ]);
             $clearance->delete();
+
+            return $this->requestFeeRefund($log, $clearance);
         });
 
         if ($log->requested_by) {
@@ -101,7 +106,54 @@ class ClearanceRevokeApprovalsComponent extends Component
             );
         }
 
-        $this->dispatch('notify', ...['type' => 'success', 'message' => 'Clearance revoked and requester notified.']);
+        $this->dispatch('notify', ...['type' => 'success', 'message' => 'Clearance revoked and requester notified.'.($refundNote ? ' '.$refundNote : '')]);
+    }
+
+    /**
+     * A revoked clearance's fee is refunded through the normal refund approvals: this raises the
+     * request (pending, in the requester's name) for the clearance service line only, since later
+     * items of the visit can sit on the same bill. Returns a note for the approver, or null.
+     */
+    private function requestFeeRefund(ClearanceRevokeLog $log, CashierPatientClearance $clearance): ?string
+    {
+        $sale = $clearance->sale_id ? Sales::with('items')->lockForUpdate()->find($clearance->sale_id) : null;
+        if (!$sale || $sale->is_refunded) {
+            return null;
+        }
+        if (RefundLog::where('sale_id', $sale->id)->whereIn('status', [RefundLog::STATUS_PENDING, RefundLog::STATUS_APPROVED])->exists()) {
+            return 'A refund for this payment was already requested.';
+        }
+
+        $feeItems = $sale->items->filter(fn ($item) => (int) $item->product_id === (int) $clearance->service_id
+            && $item->notes === 'Clearance Service' && $item->dispensed_quantity > $item->refunded_quantity);
+        if ($feeItems->isEmpty()) {
+            return null;
+        }
+        if (!$sale->finalizeForRefund()) {
+            return 'The fee was not refunded automatically: the bill still has a balance owing.';
+        }
+
+        $reason = 'Clearance revoked: '.trim((string) $log->reason);
+        $refund = RefundLog::create([
+            'sale_id'       => $sale->id,
+            'sale_item_ids' => $feeItems->pluck('id')->values()->all(),
+            'status'        => RefundLog::STATUS_PENDING,
+            'initiated_by'  => $log->requested_by ?? auth()->id(),
+            'request_type'  => RefundLog::TYPE_REFUND,
+            'reason_code'   => 'service_cancelled',
+            'reason'        => mb_substr($reason, 0, 500),
+            'initiated_at'  => now(),
+        ]);
+        AuditTrail::record('refund.requested', "Refund requested for sale {$sale->transaction_id} after its clearance was revoked",
+            $sale, [], ['request_type' => RefundLog::TYPE_REFUND, 'reason_code' => 'service_cancelled', 'reason' => $refund->reason,
+                'sale_item_ids' => $refund->sale_item_ids, 'clearance_revoke_log_id' => $log->id], $sale->patient_id, true);
+        NotificationService::sendToRoles(['Manager', 'Super Admin'], 'refund_requested', 'Refund Request Submitted',
+            "The consultation fee for transaction #{$sale->transaction_id} awaits refund approval (clearance revoked).",
+            'fas fa-undo', 'text-warning', route('admin.refund-approvals'));
+
+        $amount = $feeItems->sum(fn ($item) => (float) $item->subtotal);
+
+        return 'A refund request for the '.currency().' '.number_format($amount, 2).' fee is waiting under Approvals → Refunds.';
     }
 
     public function openRejectModal(int $id): void

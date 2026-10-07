@@ -779,8 +779,6 @@ class ReportsComponent extends Component
     public function showRefundModal($saleId)
     {
         $sale = Sales::where('business_line', 'clinic')->with('items.product')->findOrFail($saleId);
-        abort_if($sale->bill_status === 'open', 422, 'Open visit bills must be finalized before a refund can be requested.');
-
         $alreadyPending = RefundLog::where('sale_id', $saleId)
             ->whereIn('status', [RefundLog::STATUS_PENDING, RefundLog::STATUS_APPROVED])
             ->exists();
@@ -789,6 +787,15 @@ class ReportsComponent extends Component
             $this->dispatch('notify', ...[
                 'type'    => 'warning',
                 'message' => 'A refund request for this sale is already awaiting approval.',
+            ]);
+            return;
+        }
+
+        // Today's consultation fee is an open visit bill until the end of the day.
+        if (!$sale->finalizeForRefund()) {
+            $this->dispatch('notify', ...[
+                'type'    => 'warning',
+                'message' => 'This bill still has a balance owing. Settle it under Outstanding Balances before requesting a refund.',
             ]);
             return;
         }
