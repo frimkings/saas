@@ -123,6 +123,29 @@ class SaleItem extends Model
     }
 
     /**
+     * Held for a part payment: ordered (prescribed) but not handed over yet. Its stored
+     * subtotal is 0 until the balance is paid (OutstandingBalancesComponent fills it in).
+     */
+    public function getIsOnHoldAttribute(): bool
+    {
+        return (int) $this->dispensed_quantity === 0 && (int) $this->prescribed_quantity > 0;
+    }
+
+    /** Quantity to show on receipts and records: what was sold, including items on hold. */
+    public function getShownQuantityAttribute(): int
+    {
+        return $this->is_on_hold ? (int) $this->prescribed_quantity : (int) $this->dispensed_quantity;
+    }
+
+    /** Line amount to show: an on-hold item is still part of the sale's total. */
+    public function getShownSubtotalAttribute(): float
+    {
+        return $this->is_on_hold
+            ? round((int) $this->prescribed_quantity * (float) $this->selling_price, 2)
+            : (float) $this->subtotal;
+    }
+
+    /**
      * Boot method to auto-calculate subtotal
      */
     protected function unitCostSources(): array

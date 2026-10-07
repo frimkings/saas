@@ -175,7 +175,7 @@ class SalesRecordsComponent extends Component
         try {
             $this->selectedSale = Sales::where('business_line', $this->businessLine)->select('id', 'transaction_id', 'total_amount', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at')
                 ->with([
-                    'items:id,sale_id,product_id,dispensed_quantity,selling_price,subtotal',
+                    'items:id,sale_id,product_id,prescribed_quantity,dispensed_quantity,selling_price,subtotal',
                     'items.product:id,name',
                     'patient:id,name,contact,pxnumber',
                     'user:id,name'
@@ -212,7 +212,7 @@ class SalesRecordsComponent extends Component
         try {
             $sale = Sales::where('business_line', $this->businessLine)->select('id', 'transaction_id', 'total_amount', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at')
                 ->with([
-                    'items:id,sale_id,product_id,dispensed_quantity,selling_price,subtotal',
+                    'items:id,sale_id,product_id,prescribed_quantity,dispensed_quantity,selling_price,subtotal',
                     'items.product:id,name',
                     'patient:id,name,contact,pxnumber',
                     'user:id,name'
@@ -238,9 +238,9 @@ class SalesRecordsComponent extends Component
                 ] : null,
                 'items' => $sale->items->map(function($item) {
                     return [
-                        'quantity' => $item->dispensed_quantity,
+                        'quantity' => $item->shown_quantity,
                         'selling_price' => $item->selling_price,
-                        'subtotal' => $item->subtotal,
+                        'subtotal' => $item->shown_subtotal,
                         'product' => [
                             'name' => $item->product->name ?? 'Unknown',
                         ]
@@ -463,7 +463,7 @@ class SalesRecordsComponent extends Component
         $query = Sales::select('id', 'transaction_id', 'total_amount', 'amount_paid', 'payment_status', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at')
             ->where('business_line', $this->businessLine)
             ->with([
-                'items:id,sale_id,product_id,optical_product_id,dispensed_quantity,selling_price,subtotal',
+                'items:id,sale_id,product_id,optical_product_id,prescribed_quantity,dispensed_quantity,selling_price,subtotal',
                 'items.product:id,name',
                 'items.opticalProduct:id,name',
                 'patient:id,name',

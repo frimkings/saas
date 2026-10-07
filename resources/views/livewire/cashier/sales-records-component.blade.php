@@ -96,9 +96,9 @@
                                     <div class="items">
                                         @foreach($sale->items as $item)
                                             <div class="item">
-                                                <span class="product-name">{{ $item->display_product_name }}</span>
-                                                <span class="quantity">{{ $item->dispensed_quantity }}</span>
-                                                <span class="subtotal">{{ number_format($item->subtotal, 2) }}</span>
+                                                <span class="product-name">{{ $item->display_product_name }}{{ $item->is_on_hold ? ' (on hold until paid)' : '' }}</span>
+                                                <span class="quantity">{{ $item->shown_quantity }}</span>
+                                                <span class="subtotal">{{ number_format($item->shown_subtotal, 2) }}</span>
                                             </div>
                                         @endforeach
                                     </div>

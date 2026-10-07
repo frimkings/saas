@@ -88,9 +88,9 @@
             @foreach($sale->items as $item)
                 <tr>
                     <td class="col-item">{{ \Illuminate\Support\Str::limit($item->display_product_name, 19) }}</td>
-                    <td class="col-qty">{{ $item->dispensed_quantity }}</td>
+                    <td class="col-qty">{{ $item->shown_quantity }}</td>
                     <td class="col-price">{{ $currency }}{{ number_format($item->selling_price, 2) }}</td>
-                    <td class="col-total">{{ $currency }}{{ number_format($item->subtotal, 2) }}</td>
+                    <td class="col-total">{{ $currency }}{{ number_format($item->shown_subtotal, 2) }}</td>
                 </tr>
             @endforeach
         </tbody>
