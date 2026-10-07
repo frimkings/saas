@@ -86,6 +86,14 @@ class PatientDocumentStorageTest extends TestCase
         $this->assertSame(0, PatientDocument::count());
     }
 
+    public function test_making_the_bucket_the_default_disk_leaves_upload_temp_files_on_the_server(): void
+    {
+        // What Cloud does when the documents bucket is the environment's default disk.
+        config()->set('filesystems.default', 'documents');
+
+        $this->assertSame('local', config('livewire.temporary_file_upload.disk'));
+    }
+
     public function test_without_a_bucket_uploads_stay_local_and_readiness_flags_it(): void
     {
         Storage::fake('local');

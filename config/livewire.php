@@ -64,7 +64,9 @@ return [
     */
 
     'temporary_file_upload' => [
-        'disk' => null,        // Example: 'local', 's3'              | Default: 'default'
+        // Always the server disk: on Laravel Cloud the first bucket attached becomes the default
+        // disk, and uploads must not start going through the private patient-documents bucket.
+        'disk' => env('LIVEWIRE_TEMPORARY_UPLOAD_DISK', 'local'),
         'rules' => ['required', 'file', 'max:204800'], // Allow the importer's 200 MB dumps; components enforce their own limits.
         'directory' => null,   // Example: 'tmp'                      | Default: 'livewire-tmp'
         'middleware' => null,  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
