@@ -22,6 +22,17 @@ class DiscountApprovalRequest extends Model
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_USED = 'used';
 
+    /**
+     * A direct purchase (no patient) has no saved cart to check: its items live only on the
+     * cashier's till. Its request counts as open for this long, then as stale.
+     */
+    public const DIRECT_PURCHASE_OPEN_HOURS = 12;
+
+    public function isDirectPurchaseStillOpen(): bool
+    {
+        return ! $this->patient_id && $this->created_at && $this->created_at->gt(now()->subHours(self::DIRECT_PURCHASE_OPEN_HOURS));
+    }
+
     protected $fillable = [
         'cashier_id',
         'patient_id',

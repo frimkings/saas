@@ -95,6 +95,14 @@ class ClinicNavigation
         }
 
         if ($workspace === 'clinical') {
+            // The reception desk: admins keep this menu on reception pages, so they need the links too.
+            $menu[] = ['label' => 'Front Desk', 'icon' => 'fa-cash-register', 'items' => [
+                ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
+                ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0],
+                ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
+                ['label' => 'Sales Records', 'route' => 'cashier.sales-records', 'active' => ['cashier.sales-records', 'admin.sales-records']],
+                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*'],
+            ]];
             $doctorPages = (bool) $user?->hasAnyRole(['Doctor', 'Super Admin']);
             $menu[] = ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
                 ['label' => 'Patients Awaiting', 'route' => 'doctor.patient-awaiting', 'show' => $doctorPages, 'active' => ['doctor.patient-awaiting', 'doctor.patient-records']],

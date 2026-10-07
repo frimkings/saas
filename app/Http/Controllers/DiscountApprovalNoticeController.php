@@ -174,8 +174,13 @@ class DiscountApprovalNoticeController extends Controller
 
         $productIds = $this->requestProductIds($request);
 
-        if ($productIds->isEmpty() || !$request->patient_id) {
+        if ($productIds->isEmpty()) {
             return false;
+        }
+
+        // Direct purchase: no saved cart to check (it was deleted here as stale before).
+        if (!$request->patient_id) {
+            return $request->isDirectPurchaseStillOpen();
         }
 
         $openProductIds = Cart::where('patient_id', $request->patient_id)
