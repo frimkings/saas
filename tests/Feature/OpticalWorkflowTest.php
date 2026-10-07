@@ -430,6 +430,44 @@ class OpticalWorkflowTest extends TestCase
         Livewire::test(OpticalCatalogueComponent::class)->call('openIntake')->assertRedirect();
     }
 
+    public function test_full_lens_grid_is_received_in_a_bounded_number_of_queries(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $user->assignRole(Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']));
+        $this->tenant($user, 'full-grid');
+        $this->actingAs($user);
+        // 41 SPH rows x 25 CYL columns: a whole single-vision sheet.
+        $grid = [];
+        for ($r = 40; $r <= 80; $r++) for ($c = 0; $c <= 24; $c++) $grid[$r][$c] = (string) (1 + ($r + $c) % 4);
+        $receive = function () use ($grid) {
+            \Illuminate\Support\Facades\DB::flushQueryLog();
+            \Illuminate\Support\Facades\DB::enableQueryLog();
+            Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
+                ->set('stockType', 'lens')->set('lensRange', 'Factory Grid')->set('entryMode', 'bulk')
+                ->set('bulkQuantities', $grid)->set('bulkCosts.60.1', '15')->set('unitCost', '10')->set('unitPrice', '30')
+                ->set('supplier', 'Factory')->call('save')->assertHasNoErrors();
+            $count = count(\Illuminate\Support\Facades\DB::getQueryLog());
+            \Illuminate\Support\Facades\DB::disableQueryLog();
+            return $count;
+        };
+        // New SKUs, then the same powers again as existing stock.
+        $this->assertLessThan(200, $receive());
+        $this->assertLessThan(200, $receive());
+        $expected = 0;
+        foreach ($grid as $cells) foreach ($cells as $quantity) $expected += 2 * (int) $quantity;
+        $this->assertSame(41 * 25, OpticalProduct::whereNotNull('lens_key')->count());
+        $this->assertSame(41 * 25 * 2, OpticalProductStockMovement::where('movement_type', 'receipt')->count());
+        $this->assertEquals($expected, OpticalProductStock::sum('quantity'));
+        $cell = OpticalProduct::whereNotNull('lens_key')->get()->first(fn ($p) => $p->lens_specs['sphere'] === '0.00' && $p->lens_specs['power'] === '-0.25');
+        $this->assertEquals(15, $cell->cost_price);
+        $this->assertEquals(30, $cell->selling_price);
+        $movements = OpticalProductStockMovement::where('optical_product_id', $cell->id)->orderBy('id')->get();
+        $this->assertSame([2, 4], $movements->pluck('balance_after')->all());
+        $this->assertEquals(15, $movements->first()->unit_cost);
+        $this->assertSame($user->id, $movements->first()->user_id);
+    }
+
     public function test_legacy_lens_migration_preserves_stock_and_history(): void
     {
         config(['tenancy.enabled' => true]);

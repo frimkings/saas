@@ -412,16 +412,23 @@ class OpticalStockManagementComponent extends Component
                 'batch_number' => trim($this->batchNumber) ?: null,
                 'notes' => trim($this->notes."\nExcel: ".$this->importedSummary),
             ], $this->updateSellingPrice, $this->repeatDeliveryReason);
-        } else \Illuminate\Support\Facades\DB::transaction(function () use ($lines) {
-            foreach ($lines as $line) {
-                [$sphere, $power, $quantity, $cost, $price] = $line;
-                app(\App\Services\OpticalLensReceivingService::class)->receive($this->lensSpecs($sphere, $power, $line[5] ?? null), $quantity, [
-                    'unit_cost' => round((float) $cost, 2), 'unit_price' => round((float) $price, 2),
-                    'supplier' => trim($this->supplier), 'reference' => trim($this->reference) ?: null,
-                    'batch_number' => trim($this->batchNumber) ?: null, 'notes' => trim($this->notes.($this->importedSummary ? "\nExcel: ".$this->importedSummary : '')) ?: null,
-                ], $this->updateSellingPrice, $this->entryMode === 'single' ? $this->productId : null);
-            }
-        });
+        } else {
+            $details = fn ($cost, $price) => [
+                'unit_cost' => round((float) $cost, 2), 'unit_price' => round((float) $price, 2),
+                'supplier' => trim($this->supplier), 'reference' => trim($this->reference) ?: null,
+                'batch_number' => trim($this->batchNumber) ?: null, 'notes' => trim($this->notes.($this->importedSummary ? "\nExcel: ".$this->importedSummary : '')) ?: null,
+            ];
+            if ($this->entryMode === 'single') \Illuminate\Support\Facades\DB::transaction(function () use ($lines, $details) {
+                foreach ($lines as $line) {
+                    [$sphere, $power, $quantity, $cost, $price] = $line;
+                    app(\App\Services\OpticalLensReceivingService::class)->receive($this->lensSpecs($sphere, $power, $line[5] ?? null), $quantity, $details($cost, $price), $this->updateSellingPrice, $this->productId);
+                }
+            });
+            // A grid can hold a whole supplier sheet, so it is saved in one batch.
+            else app(\App\Services\OpticalLensReceivingService::class)->receiveMany(array_map(fn ($line) => [
+                'specs' => $this->lensSpecs($line[0], $line[1], $line[5] ?? null), 'quantity' => $line[2], 'details' => $details($line[3], $line[4]),
+            ], $lines), $this->updateSellingPrice);
+        }
         $this->showForm = false;
         $this->resetPage();
         session()->flash('success', 'Lens stock received. The power matrix and stock ledger now show the same inventory.');
