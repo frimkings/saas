@@ -305,8 +305,28 @@ class LensOrder extends Model
         return $this->belongsTo(OpticalProduct::class, 'lens_optical_product_id')->withTrashed();
     }
 
+    /** The staff member who created the order. */
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Status changes, oldest first, with who made each one. */
+    public function events()
+    {
+        return $this->hasMany(LensOrderEvent::class)->orderBy('id');
+    }
+
+    protected static function booted(): void
+    {
+        // Every screen and service changes status through the model, so record each change here.
+        static::updated(function (LensOrder $order): void {
+            if (! $order->wasChanged('status')) return;
+            $order->events()->create([
+                'clinic_id' => $order->clinic_id, 'branch_id' => $order->branch_id, 'user_id' => auth()->id(),
+                'from_status' => $order->getOriginal('status'), 'to_status' => (string) $order->status,
+                'note' => $order->status === 'Cancelled' && $order->cancellation_reason ? mb_substr($order->cancellation_reason, 0, 500) : null,
+            ]);
+        });
     }
 }

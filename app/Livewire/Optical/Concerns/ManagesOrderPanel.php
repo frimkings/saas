@@ -68,7 +68,7 @@ trait ManagesOrderPanel
     public function panelOrder(): ?LensOrder
     {
         return $this->viewOrderId ? LensOrder::with(['patient', 'refraction.consultation.patient', 'user', 'frameProduct', 'lensProduct', 'frameOpticalProduct',
-            'serviceLines', 'lensLines', 'remakeOf', 'refundLog', 'partnerClinic', 'purchaseOrderLines.purchaseOrder', 'labSupplier'])->find($this->viewOrderId) : null;
+            'serviceLines', 'lensLines', 'remakeOf', 'refundLog', 'partnerClinic', 'purchaseOrderLines.purchaseOrder', 'labSupplier', 'events.user'])->find($this->viewOrderId) : null;
     }
 
     public function updateStatus($orderId, $newStatus): void

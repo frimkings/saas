@@ -159,6 +159,18 @@
                 @endif
 
                 <section class="oo-section">
+                    <h3>History</h3>
+                    <ol style="list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:13px">
+                        <li><b>Created</b>@if($o->user) by {{ $o->user->name }}@endif<span class="oo-sub">{{ $o->created_at?->format('d M Y, H:i') }}</span></li>
+                        @foreach($o->events as $event)
+                            <li><b>{{ $event->to_status }}</b>@if($event->from_status) <span class="ui-muted">(was {{ $event->from_status }})</span>@endif · {{ $event->user?->name ?? 'System' }}
+                                <span class="oo-sub">{{ $event->created_at?->format('d M Y, H:i') }}@if($event->note) · {{ $event->note }}@endif</span></li>
+                        @endforeach
+                    </ol>
+                    @if($o->events->isEmpty() && ! in_array($o->status, ['Quotation', 'Pending'], true))<p class="ui-muted" style="margin:6px 0 0;font-size:12px">Status changes before this history was added were not recorded.</p>@endif
+                </section>
+
+                <section class="oo-section">
                     <h3>Documents</h3>
                     <div class="flex flex-wrap gap-2">
                         <a href="{{ route('optical.orders.docket', $o->id) }}" target="_blank" class="oo-btn">Lab docket</a>
