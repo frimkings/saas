@@ -36,9 +36,17 @@ class LegacyImportManagerTest extends TestCase {
  }
  public function test_temporary_upload_accepts_dumps_above_twelve_mb_but_rejects_above_two_hundred_mb():void
  {
-     $rules=\Livewire\Features\SupportFileUploads\FileUploadConfiguration::rules();
+     // Only platform admins get the large allowance (LimitTemporaryUploadSize); clinic staff stay at 3 MB.
+     $rulesFor=function(bool $platformAdmin){
+         $user=\App\Models\User::factory()->create();$user->forceFill(['is_platform_admin'=>$platformAdmin])->save();
+         $request=\Illuminate\Http\Request::create('/livewire/upload-file','POST');$request->setUserResolver(fn()=>$user);
+         (new \App\Http\Middleware\LimitTemporaryUploadSize())->handle($request,fn()=>new \Illuminate\Http\Response());
+         return \Livewire\Features\SupportFileUploads\FileUploadConfiguration::rules();
+     };
+     $rules=$rulesFor(true);
      $this->assertTrue(validator(['file'=>UploadedFile::fake()->create('clinic.sql',13000)],['file'=>$rules])->passes());
      $this->assertTrue(validator(['file'=>UploadedFile::fake()->create('clinic.sql',204801)],['file'=>$rules])->fails());
+     $this->assertTrue(validator(['file'=>UploadedFile::fake()->create('clinic.sql',13000)],['file'=>$rulesFor(false)])->fails());
  }
  public function test_invalid_extension_displays_validation_error():void
  {

@@ -55,7 +55,7 @@
                         </div>
                         <div>
                             <label for="patientImportFile" class="{{ $label }}">CSV file</label>
-                            <input type="file" id="patientImportFile" accept=".csv,text/csv,text/plain" wire:model.live="importFile"
+                            <input type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" id="patientImportFile" accept=".csv,text/csv,text/plain" wire:model.live="importFile"
                                    aria-invalid="{{ $invalid('importFile') }}"
                                    class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200">
                             @error('importFile')<p class="ui-error" role="alert">{{ $message }}</p>@enderror

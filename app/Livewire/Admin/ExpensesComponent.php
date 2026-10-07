@@ -531,7 +531,7 @@ class ExpensesComponent extends Component
             'state.notes'               => 'nullable|string|max:1000',
             'state.repeat'              => 'boolean',
             'state.frequency'           => ['required_if:state.repeat,true', Rule::in(array_keys(RecurringExpense::FREQUENCIES))],
-            'receiptFile'               => 'nullable|file|max:5120|mimes:jpg,jpeg,png,pdf',
+            'receiptFile'               => 'nullable|file|'.\App\Support\UploadLimits::rule().'|mimes:jpg,jpeg,png,pdf',
         ], [], [
             'state.expense_category_id' => 'category',
             'state.expense_date'        => 'date',

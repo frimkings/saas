@@ -468,7 +468,7 @@ class ProductsComponent extends Component
     public function importCsv()
     {
         $this->validate([
-            'importFile' => 'required|file|max:4096|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel',
+            'importFile' => 'required|file|'.\App\Support\UploadLimits::rule().'|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel',
         ], [
             'importFile.required' => 'Please choose a CSV file.',
             'importFile.mimetypes' => 'The file must be a valid CSV file.',

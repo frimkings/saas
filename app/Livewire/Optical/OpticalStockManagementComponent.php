@@ -87,7 +87,7 @@ class OpticalStockManagementComponent extends Component
         }
         $this->excelPreview = [];
         $this->excelSheets = [];
-        $this->validate(['excelFile' => 'required|file|mimes:xlsx,zip|max:5120']);
+        $this->validate(['excelFile' => 'required|file|mimes:xlsx,zip|'.\App\Support\UploadLimits::rule()]);
         $sheets = app(\App\Services\OpticalLensExcelImportService::class)->readUpload($this->excelFile);
         $this->excelSheets = array_column($sheets, 'name');
         $this->excelSheet = 0;
@@ -99,7 +99,7 @@ class OpticalStockManagementComponent extends Component
     {
         $this->assertManager();
         $this->excelPreview = [];
-        $this->validate(['excelFile' => 'required|file|mimes:xlsx,zip|max:5120', 'excelSheet' => 'required|integer|min:0',
+        $this->validate(['excelFile' => 'required|file|mimes:xlsx,zip|'.\App\Support\UploadLimits::rule(), 'excelSheet' => 'required|integer|min:0',
             'excelHeaderRow' => 'required|integer|between:1,2000', 'excelSphereColumn' => 'required|integer|between:1,100',
             'lensDesign' => 'required|in:Single Vision,Bifocal,Progressive',
             'lensEye' => $this->eyeRule(),

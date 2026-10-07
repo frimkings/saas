@@ -90,7 +90,7 @@ class OpticalProductsComponent extends Component
     public function importCsv(): void
     {
         $this->assertManager();
-        $this->validate(['importFile' => 'required|file|mimes:csv,txt|max:4096']);
+        $this->validate(['importFile' => 'required|file|mimes:csv,txt|'.\App\Support\UploadLimits::rule()]);
         $count = app(OpticalProductCsvService::class)->import($this->importFile->getRealPath());
         $this->reset('importFile');
         $this->showImport = false;

@@ -64,7 +64,7 @@
                         <div class="mb-4">
                             <label class="text-sm font-semibold text-slate-500">CLINIC LOGO</label>
                             <div class="block">
-                                <input type="file" wire:model.live="newLogo" class="block w-full text-sm @error('newLogo') is-invalid @enderror" id="customFile{{ $uploadInputKey }}" wire:key="clinic-logo-{{ $uploadInputKey }}">
+                                <input type="file" data-max-kb="2048" wire:model.live="newLogo" class="block w-full text-sm @error('newLogo') is-invalid @enderror" id="customFile{{ $uploadInputKey }}" wire:key="clinic-logo-{{ $uploadInputKey }}">
                                 <label class="hidden" for="customFile{{ $uploadInputKey }}">{{ $newLogo ? $newLogo->getClientOriginalName() : 'Choose file...' }}</label>
                             </div>
                             @error('newLogo') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
