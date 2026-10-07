@@ -146,6 +146,12 @@
                         ({{ currency() }} {{ number_format($initiatingRefundSale->total_amount, 2) }}).
                         A manager must approve before the refund is processed.
                     </p>
+                    @if($refundFeeExcluded)
+                        <p class="rounded-md bg-amber-50 px-2 py-2 text-sm text-amber-900">
+                            <i class="fas fa-user-md mr-1" aria-hidden="true"></i>
+                            The consultation fee is not included: the doctor has already saved a consultation for this visit. The other items will be refunded.
+                        </p>
+                    @endif
                     <div class="grid gap-2 sm:grid-cols-[5fr_7fr]">
                         <div>
                             <label for="refund-type" class="{{ $label }}">Request type</label>

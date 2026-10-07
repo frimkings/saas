@@ -29,6 +29,8 @@ class SalesRecordsComponent extends Component
     public ?int $panelSaleId = null;
 
     public $initiatingRefundSale = null;
+    /** The visit's consultation fee is left out of the refund: the doctor already saved a consultation. */
+    public bool $refundFeeExcluded = false;
     public $initiateRefundReason = '';
     public $initiateRefundReasonCode = '';
     public $initiateRefundType = RefundLog::TYPE_REFUND;
@@ -346,6 +348,17 @@ class SalesRecordsComponent extends Component
             return;
         }
 
+        // A consultation fee is earned once the doctor saves a consultation; other items stay refundable.
+        $refundable = $sale->refundableItems();
+        $feeLocked = $sale->lockedConsultationFeeItemIds() !== [];
+        if ($refundable->isEmpty()) {
+            $this->dispatch('notify', ...[
+                'type'    => 'warning',
+                'message' => $feeLocked ? Sales::CONSULTATION_FEE_LOCKED : 'Nothing on this sale can still be refunded.',
+            ]);
+            return;
+        }
+
         // Today's consultation fee is an open visit bill until the end of the day.
         if (!$sale->finalizeForRefund()) {
             $this->dispatch('notify', ...[
@@ -356,12 +369,11 @@ class SalesRecordsComponent extends Component
         }
 
         $this->initiatingRefundSale   = $sale;
+        $this->refundFeeExcluded      = $feeLocked;
         $this->initiateRefundReason   = '';
         $this->initiateRefundReasonCode = '';
         $this->initiateRefundType = RefundLog::TYPE_REFUND;
-        $this->initiateRefundItemIds = $sale->items
-            ->filter(fn ($item) => $item->dispensed_quantity > $item->refunded_quantity)
-            ->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $this->initiateRefundItemIds = $refundable->pluck('id')->map(fn ($id) => (string) $id)->all();
         $this->resetErrorBag();
         $this->dispatch('show-initiateRefundModal');
     }
@@ -383,11 +395,17 @@ class SalesRecordsComponent extends Component
             403,
             'You may only request refunds for transactions you created.'
         );
-        $allowedIds = $sale->items
-            ->filter(fn ($item) => $item->dispensed_quantity > $item->refunded_quantity)
-            ->pluck('id');
+        $allowedIds = $sale->refundableItems()->pluck('id');
         $selectedIds = collect($this->initiateRefundItemIds)->map(fn ($id) => (int) $id)->unique();
-        abort_unless($selectedIds->isNotEmpty() && $selectedIds->diff($allowedIds)->isEmpty(), 422, 'Invalid or already-refunded sale item selected.');
+        if ($selectedIds->isEmpty() || $selectedIds->diff($allowedIds)->isNotEmpty()) {
+            $this->dispatch('notify', ...[
+                'type'    => 'error',
+                'message' => $sale->lockedConsultationFeeItemIds() !== [] && $selectedIds->intersect($sale->lockedConsultationFeeItemIds())->isNotEmpty()
+                    ? Sales::CONSULTATION_FEE_LOCKED
+                    : 'One or more items were already refunded. Close this dialog and try again.',
+            ]);
+            return;
+        }
 
         $refund = RefundLog::create([
             'sale_id'      => $sale->id,

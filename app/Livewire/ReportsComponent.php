@@ -791,6 +791,15 @@ class ReportsComponent extends Component
             return;
         }
 
+        // A consultation fee is earned once the doctor saves a consultation; other items stay refundable.
+        if ($sale->refundableItems()->isEmpty()) {
+            $this->dispatch('notify', ...[
+                'type'    => 'warning',
+                'message' => $sale->lockedConsultationFeeItemIds() !== [] ? Sales::CONSULTATION_FEE_LOCKED : 'Nothing on this sale can still be refunded.',
+            ]);
+            return;
+        }
+
         // Today's consultation fee is an open visit bill until the end of the day.
         if (!$sale->finalizeForRefund()) {
             $this->dispatch('notify', ...[
@@ -818,14 +827,20 @@ class ReportsComponent extends Component
     {
         $this->validate();
 
-        $sale = $this->refundingSale;
+        $sale = Sales::where('business_line', 'clinic')->with('items')->findOrFail($this->refundingSale->id);
+        $refundable = $sale->refundableItems();
+        if ($refundable->isEmpty()) {
+            $this->dispatch('notify', ...[
+                'type'    => 'warning',
+                'message' => $sale->lockedConsultationFeeItemIds() !== [] ? Sales::CONSULTATION_FEE_LOCKED : 'Nothing on this sale can still be refunded.',
+            ]);
+            return;
+        }
 
-        \DB::transaction(function () use ($sale) {
+        \DB::transaction(function () use ($sale, $refundable) {
             RefundLog::create([
                 'sale_id'      => $sale->id,
-                'sale_item_ids'=> $sale->items
-                    ->filter(fn ($item) => $item->dispensed_quantity > $item->refunded_quantity)
-                    ->pluck('id')->values()->all(),
+                'sale_item_ids'=> $refundable->pluck('id')->values()->all(),
                 'status'       => RefundLog::STATUS_PENDING,
                 'initiated_by' => auth()->id(),
                 'reason'       => $this->refundReason,

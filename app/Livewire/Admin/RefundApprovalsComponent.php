@@ -234,6 +234,10 @@ class RefundApprovalsComponent extends Component
                 if ($refundableItems->count() !== $selectedItemIds->count()) {
                     throw new \RuntimeException('One or more selected items are invalid or were already refunded.');
                 }
+                // Requests made before the doctor saved a consultation, or by older versions, may include the fee.
+                if ($selectedItemIds->intersect($lockedSale->lockedConsultationFeeItemIds())->isNotEmpty()) {
+                    throw new \RuntimeException(Sales::CONSULTATION_FEE_LOCKED.' Reject this request and ask for a new one without the fee.');
+                }
 
                 // The insurer's share of these items was never paid by the patient, so it is
                 // not refunded to them; it comes off the insurer's draft claim instead.

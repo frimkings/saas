@@ -136,6 +136,34 @@ public function isOpenVisitBill(): bool
 }
 
 /**
+ * Consultation fee lines that may no longer be refunded: the doctor has saved a consultation
+ * for this clearance (the record only exists once findings are saved), so the fee was earned.
+ * Other items on the same visit bill stay refundable.
+ */
+public function lockedConsultationFeeItemIds(): array
+{
+    $clearance = $this->clearance;
+    if (!$clearance || !$clearance->consultation()->exists()) {
+        return [];
+    }
+
+    return $this->items
+        ->filter(fn ($item) => $item->notes === 'Clearance Service' && (int) $item->product_id === (int) $clearance->service_id)
+        ->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+}
+
+/** Items that can still be refunded: not yet refunded, and not a consultation fee already earned. */
+public function refundableItems()
+{
+    $locked = $this->lockedConsultationFeeItemIds();
+
+    return $this->items->filter(fn ($item) => $item->dispensed_quantity > $item->refunded_quantity
+        && !in_array((int) $item->id, $locked, true))->values();
+}
+
+public const CONSULTATION_FEE_LOCKED = 'The doctor has already saved a consultation for this visit, so the consultation fee can\'t be refunded.';
+
+/**
  * A refund needs a closed bill. A fully paid open visit bill (e.g. today's consultation fee,
  * which stays open until the end of the day) is closed now, as the till does before a separate
  * sale; later items for the visit start a new bill. Returns false while a balance is still owed.

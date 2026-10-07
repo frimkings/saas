@@ -105,6 +105,86 @@ class ConsultationFeeRefundTest extends TestCase
         $this->assertSame(1, RefundLog::where('sale_id', $sale->id)->count());
     }
 
+    /** The fee sale with its clearance and, optionally, a consultation the doctor saved. */
+    private function seenByDoctor(User $cashier, bool $consultationSaved, bool $withDrops = false): array
+    {
+        $sale = $this->consultationFeeSale($cashier);
+        $feeItem = $sale->items()->firstOrFail();
+        $dropsItem = null;
+        if ($withDrops) {
+            $drops = Product::factory()->create(['user_id' => $cashier->id, 'quantity' => 5, 'selling_price' => 40]);
+            $dropsItem = SaleItem::create(['sale_id' => $sale->id, 'product_id' => $drops->id, 'prescribed_quantity' => 0, 'dispensed_quantity' => 1, 'selling_price' => 40, 'subtotal' => 40]);
+        }
+        $clearance = \App\Models\CashierPatientClearance::create(['user_id' => $cashier->id, 'patient_id' => $sale->patient_id,
+            'service_id' => $feeItem->product_id, 'sale_id' => $sale->id, 'payment_status' => 'Paid', 'doctor_status' => true, 'clearance_date' => today()]);
+        if ($consultationSaved) {
+            \App\Models\Consultations::create(['patient_id' => $sale->patient_id, 'user_id' => $cashier->id, 'clearance_id' => $clearance->id, 'chiefComplaint' => 'Blurred vision']);
+        }
+
+        return [$sale, $feeItem, $dropsItem];
+    }
+
+    private function cashier(): User
+    {
+        foreach (['Cashier', 'Manager'] as $role) Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
+        $cashier = User::factory()->create();
+        $cashier->assignRole('Cashier');
+        $this->actingAs($cashier);
+
+        return $cashier;
+    }
+
+    public function test_fee_is_not_refundable_once_the_doctor_saved_a_consultation(): void
+    {
+        [$sale] = $this->seenByDoctor($this->cashier(), consultationSaved: true);
+
+        Livewire::test(SalesRecordsComponent::class)
+            ->call('initiateRefund', $sale->id)
+            ->assertNotDispatched('show-initiateRefundModal')
+            ->assertDispatched('notify', fn ($name, $params) => ($params['message'] ?? '') === Sales::CONSULTATION_FEE_LOCKED);
+
+        $this->assertSame('open', $sale->fresh()->bill_status, 'Nothing was closed for a refund that cannot happen.');
+        $this->assertSame(0, RefundLog::where('sale_id', $sale->id)->count());
+    }
+
+    public function test_other_items_on_the_visit_bill_can_still_be_refunded_without_the_fee(): void
+    {
+        [$sale, $feeItem, $dropsItem] = $this->seenByDoctor($this->cashier(), consultationSaved: true, withDrops: true);
+
+        Livewire::test(SalesRecordsComponent::class)
+            ->call('initiateRefund', $sale->id)->assertDispatched('show-initiateRefundModal')
+            ->assertSet('refundFeeExcluded', true)->assertSee('The consultation fee is not included')
+            ->assertSet('initiateRefundItemIds', [(string) $dropsItem->id])
+            ->set('initiateRefundItemIds', [(string) $dropsItem->id, (string) $feeItem->id]) // tampered
+            ->set('initiateRefundReasonCode', 'customer_return')->set('initiateRefundReason', 'Patient returned the unopened drops.')
+            ->call('submitRefundRequest')
+            ->assertDispatched('notify', fn ($name, $params) => ($params['message'] ?? '') === Sales::CONSULTATION_FEE_LOCKED);
+        $this->assertSame(0, RefundLog::where('sale_id', $sale->id)->count());
+
+        Livewire::test(SalesRecordsComponent::class)
+            ->call('initiateRefund', $sale->id)
+            ->set('initiateRefundReasonCode', 'customer_return')->set('initiateRefundReason', 'Patient returned the unopened drops.')
+            ->call('submitRefundRequest')->assertHasNoErrors();
+        $this->assertSame([$dropsItem->id], RefundLog::where('sale_id', $sale->id)->firstOrFail()->sale_item_ids);
+    }
+
+    public function test_an_older_request_including_an_earned_fee_cannot_be_processed(): void
+    {
+        $cashier = $this->cashier();
+        [$sale, $feeItem] = $this->seenByDoctor($cashier, consultationSaved: true);
+        $sale->update(['bill_status' => 'finalized']);
+        $refund = RefundLog::create(['sale_id' => $sale->id, 'sale_item_ids' => [$feeItem->id], 'status' => RefundLog::STATUS_APPROVED,
+            'request_type' => RefundLog::TYPE_REFUND, 'reason_code' => 'other', 'initiated_by' => $cashier->id, 'reason' => 'Requested before the rule.', 'initiated_at' => now(), 'approved_at' => now()]);
+        $manager = User::factory()->create();
+        $manager->assignRole('Manager');
+        $this->actingAs($manager);
+
+        Livewire::test(RefundApprovalsComponent::class)->call('process', $refund->id)
+            ->assertDispatched('notify', fn ($name, $params) => str_contains($params['message'] ?? '', "consultation fee can't be refunded"));
+        $this->assertSame(RefundLog::STATUS_APPROVED, $refund->fresh()->status);
+        $this->assertFalse((bool) $sale->fresh()->is_refunded);
+    }
+
     public function test_a_bill_with_a_balance_owing_explains_instead_of_erroring(): void
     {
         Role::firstOrCreate(['name' => 'Cashier', 'guard_name' => 'web']);
