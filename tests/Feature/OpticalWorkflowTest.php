@@ -1015,7 +1015,7 @@ class OpticalWorkflowTest extends TestCase
         app(\App\Services\OpticalProductInventoryService::class)->setBalance($lens, 1, 1, 'Initial optical stock');
         Livewire::test(OpticalOrderCreateComponent::class)
             ->set('currentStep', 2)
-            ->assertSee('Use stocked lenses')
+            ->assertSee('Stocked lenses')
             ->assertSee('Special order')
             ->assertSee('Customer supplied')
             ->assertDontSee('Find a lens SKU')
@@ -2001,6 +2001,30 @@ class OpticalWorkflowTest extends TestCase
 
         // An unknown choice is ignored.
         $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Single Vision|Gold'])->assertSet('wantedLens', '');
+    }
+
+    public function test_heights_and_pds_are_taken_at_fitting_and_reach_the_lab(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $this->tenant($user, 'fitting-step');
+        $this->actingAs($user);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Esi', 'contact' => '0240000777', 'gender' => 'Other']);
+
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 4)
+            ->set('rx_od_pd', '31.5')->set('rx_os_pd', '95')->set('rx_od_hgt', '19')->call('nextStep')
+            ->assertHasErrors(['rx_os_pd'])->assertSet('currentStep', 4)
+            ->set('rx_os_pd', '31')->call('nextStep')->assertHasNoErrors();
+        // Going back to the Rx step and on again keeps the fitting values: that step sends powers only.
+        $form->set('currentStep', 2)->call('checkLensAvailabilityFromClient', ['od' => ['sph' => '-1.00'], 'os' => ['sph' => '-1.00']])
+            ->assertSet('rx_od_pd', '31.5')->assertSet('rx_od_hgt', '19');
+
+        // The order's prescription carries the fitting values to the docket, even when the powers come from a saved prescription.
+        $data = $this->orderData($patient);
+        $data['measurements']['od'] += ['pd' => '31.5', 'hgt' => '19'];
+        $order = app(OpticalOrderService::class)->create($data);
+        $this->assertSame(['+1.00', '31.5', '19'], [data_get($order->prescription_snapshot, 'od.sph'), data_get($order->prescription_snapshot, 'od.pd'), data_get($order->prescription_snapshot, 'od.hgt')]);
+        $this->assertStringContainsString('<td>31.5</td>', view('optical.order-docket', ['order' => $order])->render());
     }
 
     public function test_combined_rx_lens_check_and_order_reservation_use_current_branch_stock(): void

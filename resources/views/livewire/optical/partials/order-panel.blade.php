@@ -107,7 +107,7 @@
                             'Colour' => data_get($docket, 'lens_details.color'),
                             'Coatings' => implode(', ', array_filter(array_merge((array) data_get($docket, 'lens_details.coatings', []), [data_get($docket, 'lens_details.stock_coating')]))),
                         ]);
-                        $fit = array_filter(['PD right' => data_get($docket, 'fitting.pd_right'), 'PD left' => data_get($docket, 'fitting.pd_left'), 'Fitting height' => data_get($docket, 'fitting.fitting_height'), 'Segment height' => data_get($docket, 'fitting.segment_height')], fn ($v) => filled($v));
+                        $fit = array_filter(['PD right' => data_get($docket, 'fitting.pd_right'), 'PD left' => data_get($docket, 'fitting.pd_left'), 'Height right' => data_get($docket, 'fitting.hgt_right'), 'Height left' => data_get($docket, 'fitting.hgt_left'), 'Fitting height' => data_get($docket, 'fitting.fitting_height'), 'Segment height' => data_get($docket, 'fitting.segment_height')], fn ($v) => filled($v));
                         $extra = array_filter(['Frame type' => data_get($docket, 'frame_structure'), 'Lab instructions' => data_get($docket, 'lab.instructions'), 'Notes' => data_get($docket, 'notes'), 'Reference' => data_get($docket, 'reference')], fn ($v) => filled($v) && ! is_array($v));
                     @endphp
                     @if($lens || $fit || $extra)

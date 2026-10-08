@@ -56,7 +56,7 @@ class OpticalOrderService
             $this->validateOpticalProducts($frame, $lens, $opticalFrame, $opticalLens);
             $framePrice = $opticalFrame ? (float) $opticalFrame->selling_price : (float) $data['frame_price'];
             $lensPrice = $opticalLens ? (float) $opticalLens->selling_price : (float) $data['lens_price'];
-            $snapshot = $prescription?->measurements ?? ($this->needsPrescription($data, $services) ? $data['measurements'] : []);
+            $snapshot = $this->withFitting($prescription?->measurements ?? ($this->needsPrescription($data, $services) ? $data['measurements'] : []), $data);
             $lensOption = $this->stockLensOption($data, $snapshot, $order->id);
             if ($lensOption) $lensPrice = $lensOption['price'];
             $serviceTotal = $this->serviceTotal($services);
@@ -105,6 +105,20 @@ class OpticalOrderService
         });
     }
 
+    /**
+     * Heights and monocular PDs are measured at fitting, with the frame, so they are taken
+     * from the order even when the powers come from a saved prescription.
+     */
+    private function withFitting(array $snapshot, array $data): array
+    {
+        if (! $snapshot) return $snapshot;
+        foreach (['od', 'os'] as $eye) foreach (['hgt', 'pd'] as $field) {
+            $value = data_get($data, "measurements.{$eye}.{$field}");
+            if (filled($value)) $snapshot[$eye][$field] = $value;
+        }
+        return $snapshot;
+    }
+
     /** The money on an order, as recorded in the audit trail. */
     private function auditedPrices(LensOrder $order): array
     {
@@ -139,7 +153,7 @@ class OpticalOrderService
             $this->validateOpticalProducts($frame, $lens, $opticalFrame, $opticalLens);
             $framePrice = $opticalFrame ? (float) $opticalFrame->selling_price : (float) $data['frame_price'];
             $lensPrice = $opticalLens ? (float) $opticalLens->selling_price : (float) $data['lens_price'];
-            $snapshot = $prescription?->measurements ?? ($this->needsPrescription($data, $services) ? $data['measurements'] : []);
+            $snapshot = $this->withFitting($prescription?->measurements ?? ($this->needsPrescription($data, $services) ? $data['measurements'] : []), $data);
             $lensOption = $this->stockLensOption($data, $snapshot);
             if ($lensOption) $lensPrice = $lensOption['price'];
             $glazingFee = (float) ($data['glazing_fee'] ?? 0);

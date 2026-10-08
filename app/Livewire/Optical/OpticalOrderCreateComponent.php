@@ -90,9 +90,6 @@ class OpticalOrderCreateComponent extends Component
     public string $wantedLens = '';
 
     // Step 5: Fitting / Lab Details (Matches screenshot)
-    public $pd_right = '';
-    public $pd_left = '';
-    public $fitting_height = '';
     public $segment_height = '';
     public $pickUpDate;
     public $lab_instructions = '';
@@ -419,9 +416,11 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_fulfilment_source = $order->lens_supply_source === 'stock'
             ? 'stock'
             : ($order->lens_supply_source === 'customer' ? 'customer' : ($order->lens_optical_product_id ? 'catalogue' : 'external'));
-        $this->pd_right = data_get($details, 'fitting.pd_right', '');
-        $this->pd_left = data_get($details, 'fitting.pd_left', '');
-        $this->fitting_height = data_get($details, 'fitting.fitting_height', '');
+        // Fitting values: the docket's fitting block, falling back to older orders' single fitting height.
+        $this->rx_od_pd = (string) (data_get($details, 'fitting.pd_right') ?: $this->rx_od_pd);
+        $this->rx_os_pd = (string) (data_get($details, 'fitting.pd_left') ?: $this->rx_os_pd);
+        $this->rx_od_hgt = (string) (data_get($details, 'fitting.hgt_right') ?: data_get($details, 'fitting.fitting_height') ?: $this->rx_od_hgt);
+        $this->rx_os_hgt = (string) (data_get($details, 'fitting.hgt_left') ?: data_get($details, 'fitting.fitting_height') ?: $this->rx_os_hgt);
         $this->segment_height = data_get($details, 'fitting.segment_height', '');
         $this->lab_instructions = data_get($details, 'lab.instructions', '');
         $this->frame_structure = data_get($details, 'frame_structure', $this->frame_structure);
@@ -555,6 +554,7 @@ class OpticalOrderCreateComponent extends Component
                 'frame_price' => 'required|numeric|min:0',
             ]);
         }
+        if ($this->currentStep === 4) $this->validateFitting();
         if ($this->currentStep === 5) $this->validatePricing();
         $this->currentStep = $this->nextApplicableStep($this->currentStep, 1);
     }
@@ -621,16 +621,12 @@ class OpticalOrderCreateComponent extends Component
                     "rx_{$eye}_sph" => ['required', 'numeric', 'between:-30,30', $quarterStep],
                     "rx_{$eye}_cyl" => ['nullable', 'numeric', 'between:-15,15', $quarterStep],
                     "rx_{$eye}_add" => ['nullable', 'numeric', 'between:0,8', $quarterStep],
-                    "rx_{$eye}_hgt" => ['nullable', 'numeric', 'between:0,60'],
-                    "rx_{$eye}_pd" => ['nullable', 'numeric', 'between:20,80'],
                 ];
                 $messages += [
                     "rx_{$eye}_sph.required" => "Enter the {$label} sphere (SPH).",
                     "rx_{$eye}_sph.between" => "{$label} SPH must be between -30.00 and +30.00.",
                     "rx_{$eye}_cyl.between" => "{$label} CYL must be between -15.00 and +15.00.",
                     "rx_{$eye}_add.between" => "{$label} ADD must be between 0.00 and +8.00.",
-                    "rx_{$eye}_hgt.between" => "{$label} height must be between 0 and 60 mm.",
-                    "rx_{$eye}_pd.between" => "{$label} PD must be between 20 and 80 mm.",
                 ];
             }
         }
@@ -639,9 +635,19 @@ class OpticalOrderCreateComponent extends Component
             'rx_od_sph' => 'right-eye SPH', 'rx_os_sph' => 'left-eye SPH',
             'rx_od_cyl' => 'right-eye CYL', 'rx_os_cyl' => 'left-eye CYL',
             'rx_od_add' => 'right-eye ADD', 'rx_os_add' => 'left-eye ADD',
-            'rx_od_hgt' => 'right-eye height', 'rx_os_hgt' => 'left-eye height',
-            'rx_od_pd' => 'right-eye PD', 'rx_os_pd' => 'left-eye PD',
         ]);
+    }
+
+    /** Monocular PDs and fitting heights, measured with the frame at fitting. */
+    private function validateFitting(): void
+    {
+        $rules = ['segment_height' => ['nullable', 'numeric', 'between:0,60']];
+        $messages = ['segment_height.between' => 'Segment height must be between 0 and 60 mm.'];
+        foreach (['od' => 'Right-eye', 'os' => 'Left-eye'] as $eye => $label) {
+            $rules += ["rx_{$eye}_pd" => ['nullable', 'numeric', 'between:20,80'], "rx_{$eye}_hgt" => ['nullable', 'numeric', 'between:0,60']];
+            $messages += ["rx_{$eye}_pd.between" => "{$label} PD must be between 20 and 80 mm.", "rx_{$eye}_hgt.between" => "{$label} fitting height must be between 0 and 60 mm."];
+        }
+        $this->validate($rules, $messages);
     }
 
     public function updated($property): void
@@ -669,6 +675,7 @@ class OpticalOrderCreateComponent extends Component
     {
         foreach (['od', 'os'] as $eye) {
             foreach (['sph', 'cyl', 'axis', 'add', 'hgt', 'pd'] as $field) {
+                if (! array_key_exists($field, (array) data_get($input, $eye, []))) continue;
                 $property = "rx_{$eye}_{$field}";
                 $this->{$property} = trim((string) data_get($input, "{$eye}.{$field}", ''));
             }
@@ -1004,7 +1011,7 @@ class OpticalOrderCreateComponent extends Component
             'pickup_date' => $this->pickUpDate,
             'docket' => [
                 'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null],
-                'fitting' => ['pd_right' => $this->pd_right, 'pd_left' => $this->pd_left, 'fitting_height' => $this->fitting_height, 'segment_height' => $this->segment_height],
+                'fitting' => ['pd_right' => $this->rx_od_pd, 'pd_left' => $this->rx_os_pd, 'hgt_right' => $this->rx_od_hgt, 'hgt_left' => $this->rx_os_hgt, 'segment_height' => $this->segment_height],
                 'lab' => ['instructions' => $this->lab_instructions],
                 'frame_structure' => $this->frame_structure, 'notes' => $this->notes,
                 'frame_source' => $this->frame_source,

@@ -218,7 +218,7 @@
         @elseif($currentStep === 2)
             <div class="border-b border-slate-200 pb-3">
                 <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">2. Optical Prescription &amp; Lens Specification</h2>
-                <p class="text-xs text-slate-500">Select an authorized clinic or saved prescription, or enter measurements manually.</p>
+                <p class="text-xs text-slate-500">Choose a saved prescription or enter the powers. Heights and PDs are taken at fitting.</p>
             </div>
             <div class="space-y-4" x-data="{
                 odCyl: @js((string) $rx_od_cyl), odAxis: @js((string) $rx_od_axis),
@@ -268,8 +268,6 @@
                                 <th class="p-2 border border-slate-800">CYL</th>
                                 <th class="p-2 border border-slate-800">AXIS</th>
                                 <th class="p-2 border border-slate-800">ADD</th>
-                                <th class="p-2 border border-slate-800">HGT (mm)</th>
-                                <th class="p-2 border border-slate-800">PD (mm)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -279,8 +277,6 @@
                                 <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-cyl" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
                                 <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
                                 <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-add" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-hgt" type="text" value="{{ $rx_od_hgt }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_hgt') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-pd" type="text" value="{{ $rx_od_pd }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_pd') border-red-500 @enderror"></td>
                             </tr>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Left (OS)</td>
@@ -288,15 +284,13 @@
                                 <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-cyl" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
                                 <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
                                 <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-add" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-hgt" type="text" value="{{ $rx_os_hgt }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_hgt') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-pd" type="text" value="{{ $rx_os_pd }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_pd') border-red-500 @enderror"></td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
                 <p x-show="axisMessage(odCyl, odAxis)" x-text="'Right eye: ' + axisMessage(odCyl, odAxis)" class="text-xs text-red-600" role="alert" style="display:none"></p>
                 <p x-show="axisMessage(osCyl, osAxis)" x-text="'Left eye: ' + axisMessage(osCyl, osAxis)" class="text-xs text-red-600" role="alert" style="display:none"></p>
-                @php $rxErrors = collect(['sph', 'cyl', 'add', 'hgt', 'pd'])->crossJoin(['od', 'os'])->map(fn ($pair) => "rx_{$pair[1]}_{$pair[0]}")->filter(fn ($key) => $errors->has($key)); @endphp
+                @php $rxErrors = collect(['sph', 'cyl', 'add'])->crossJoin(['od', 'os'])->map(fn ($pair) => "rx_{$pair[1]}_{$pair[0]}")->filter(fn ($key) => $errors->has($key)); @endphp
                 @if($rxErrors->isNotEmpty())
                     <ul class="text-xs text-red-600 space-y-0.5" role="alert">
                         @foreach($rxErrors as $key)<li>{{ $errors->first($key) }}</li>@endforeach
@@ -305,94 +299,87 @@
             </div>
 
             @if($work_type === 'prescription')
-            <div class="border-t border-slate-200 pt-5 space-y-5" x-data="{ fulfilment: @js($lens_fulfilment_source) }">
-                <div>
-                    <h3 class="text-sm font-bold text-slate-900 uppercase">Lens Selection &amp; Availability</h3>
-                    <p class="text-xs text-slate-500">Choose one supply method. Use live availability to match both prescription powers against this branch's stocked lenses.</p>
-                </div>
-                <fieldset>
-                    <legend class="block text-xs font-bold text-slate-700 mb-2">Lens fulfilment *</legend>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                        @foreach(['stock' => ['title' => 'Use stocked lenses', 'help' => 'Find both powers in this branch'], 'external' => ['title' => 'Special order', 'help' => 'Source lenses from a supplier'], 'customer' => ['title' => 'Customer supplied', 'help' => 'Customer provides the lenses']] as $value => $option)
-                            <label class="rounded-lg border p-3 cursor-pointer transition" x-bind:class="fulfilment === @js($value) ? 'border-teal-600 bg-teal-50 ring-1 ring-teal-600' : 'border-slate-200 bg-white hover:border-slate-300'">
-                                <span class="flex items-start gap-2"><input type="radio" name="lens_fulfilment_source" x-model="fulfilment" value="{{ $value }}" class="mt-0.5"><span><strong class="block text-slate-900">{{ $option['title'] }}</strong><span class="text-[11px] text-slate-500">{{ $option['help'] }}</span></span></span>
+            <div class="border-t border-slate-200 pt-4 space-y-3" x-data="{ fulfilment: @js($lens_fulfilment_source) }">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-sm font-bold text-slate-900 uppercase">Lenses</h3>
+                    {{-- One choice, three ways to supply the lenses. --}}
+                    <div role="radiogroup" aria-label="Lens fulfilment" class="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 text-xs font-semibold">
+                        @foreach(['stock' => 'Stocked lenses', 'external' => 'Special order', 'customer' => 'Customer supplied'] as $value => $title)
+                            <label class="cursor-pointer rounded-md px-3 py-1.5 transition" x-bind:class="fulfilment === @js($value) ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-600' : 'text-slate-600 hover:text-slate-900'">
+                                <input type="radio" name="lens_fulfilment_source" x-model="fulfilment" value="{{ $value }}" class="sr-only">{{ $title }}
                             </label>
                         @endforeach
                     </div>
-                    @error('lens_fulfilment_source')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
-                </fieldset>
+                </div>
+                @error('lens_fulfilment_source')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
 
-                <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div>
-                        <h4 class="text-xs font-bold text-slate-800">Branch lens stock</h4>
-                        <p class="text-[11px] text-slate-500">Check the entered OD and OS powers against stock held at this branch.</p>
-                    </div>
+                <div x-show="fulfilment === 'stock'" x-cloak class="space-y-2">
                     @php $wantedChoices = $this->wantedLensChoices(); @endphp
-                    <div class="max-w-sm">
-                        <label for="wanted-lens" class="block text-xs font-bold text-slate-700 mb-1">Lens wanted</label>
-                        {{-- Read with the Rx when stock is checked; changing it after a check checks again. --}}
-                        <select id="wanted-lens" class="ui-input w-full text-xs" onchange="if (document.getElementById('stock-lens-options')) document.getElementById('check-lens-stock')?.click()">
-                            <option value="">Any stocked lens</option>
-                            @foreach(collect($wantedChoices)->groupBy(fn ($label, $key) => explode('|', $key)[0], true) as $design => $lines)
-                                <optgroup label="{{ $design }}">
-                                    @foreach($lines as $key => $label)<option value="{{ $key }}" @selected($wantedLens === $key)>{{ $label }}</option>@endforeach
-                                </optgroup>
-                            @endforeach
-                        </select>
-                        <p class="text-[11px] text-slate-500 mt-1">The design and treatment the customer asked for. Matching lenses are listed first.</p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <button type="button" id="check-lens-stock" onclick="const button=this; const status=document.getElementById('stock-check-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The stock checker is disconnected. Refresh the page and try again.';status.className='text-xs text-red-600';return;} const value=id=>document.getElementById(id)?.value||''; button.disabled=true; button.textContent='Checking stock…';status.textContent='Checking this branch…';status.className='text-xs text-slate-600'; component.call('checkLensAvailabilityFromClient',{wanted:value('wanted-lens'),od:{sph:value('rx-od-sph'),cyl:value('rx-od-cyl'),axis:value('rx-od-axis'),add:value('rx-od-add'),hgt:value('rx-od-hgt'),pd:value('rx-od-pd')},os:{sph:value('rx-os-sph'),cyl:value('rx-os-cyl'),axis:value('rx-os-axis'),add:value('rx-os-add'),hgt:value('rx-os-hgt'),pd:value('rx-os-pd')}}).catch(()=>{if(status.isConnected){status.textContent='Stock could not be checked. Please try again.';status.className='text-xs text-red-600';}}).finally(()=>{if(button.isConnected){button.disabled=false;button.textContent='Check Available Lens Stock';}})" class="ui-button bg-teal-700 text-white hover:bg-teal-800 text-xs font-semibold">Check Available Lens Stock</button>
+                    <div class="flex flex-wrap items-end gap-2">
+                        <div class="min-w-[14rem] flex-1 sm:max-w-sm">
+                            <label for="wanted-lens" class="block text-xs font-bold text-slate-700 mb-1">Lens wanted</label>
+                            {{-- Read with the Rx when stock is checked; changing it after a check checks again. --}}
+                            <select id="wanted-lens" class="ui-input w-full !py-2 text-xs" onchange="if (document.getElementById('stock-lens-options')) document.getElementById('check-lens-stock')?.click()">
+                                <option value="">Any stocked lens</option>
+                                @foreach(collect($wantedChoices)->groupBy(fn ($label, $key) => explode('|', $key)[0], true) as $design => $lines)
+                                    <optgroup label="{{ $design }}">
+                                        @foreach($lines as $key => $label)<option value="{{ $key }}" @selected($wantedLens === $key)>{{ $label }}</option>@endforeach
+                                    </optgroup>
+                                @endforeach
+                            </select>
+                        </div>
+                        <button type="button" id="check-lens-stock" onclick="const button=this; const status=document.getElementById('stock-check-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The stock checker is disconnected. Refresh the page and try again.';status.className='text-xs text-red-600';return;} const value=id=>document.getElementById(id)?.value||''; button.disabled=true; button.textContent='Checking…';status.textContent='';status.className='text-xs text-slate-600'; component.call('checkLensAvailabilityFromClient',{wanted:value('wanted-lens'),od:{sph:value('rx-od-sph'),cyl:value('rx-od-cyl'),axis:value('rx-od-axis'),add:value('rx-od-add')},os:{sph:value('rx-os-sph'),cyl:value('rx-os-cyl'),axis:value('rx-os-axis'),add:value('rx-os-add')}}).catch(()=>{if(status.isConnected){status.textContent='Stock could not be checked. Please try again.';status.className='text-xs text-red-600';}}).finally(()=>{if(button.isConnected){button.disabled=false;button.textContent='Check stock';}})" class="ui-button bg-teal-700 text-white hover:bg-teal-800 text-xs font-semibold !py-2">Check stock</button>
                         <span id="stock-check-client-status" class="text-xs text-slate-500" aria-live="polite"></span>
                     </div>
+
                     @if($stockLensOptions)
-                        <div id="stock-lens-options" class="max-w-3xl space-y-2">
+                        <div id="stock-lens-options" class="max-w-3xl space-y-1.5">
                             @foreach($stockLensOptions as $option)
-                                @php $usable = in_array($option['status'] ?? null, ['available', 'partial'], true); @endphp
+                                @php
+                                    $usable = in_array($option['status'] ?? null, ['available', 'partial'], true);
+                                    $chosen = $stock_lens_key === $option['key'];
+                                @endphp
                                 @if($wantedLens !== '' && $loop->first && empty($option['matches']))<p class="text-xs font-semibold text-slate-600">No match for the lens wanted. Alternatives in stock:</p>@endif
-                                @if($wantedLens !== '' && ! $loop->first && empty($option['matches']) && ! empty($stockLensOptions[$loop->index - 1]['matches']))<p class="pt-2 text-xs font-semibold text-slate-600">Alternatives in stock</p>@endif
-                                <label wire:key="stock-lens-{{ md5($option['key']) }}" class="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 rounded-lg border p-3 text-xs {{ $usable ? 'cursor-pointer' : 'opacity-60' }} {{ $stock_lens_key === $option['key'] ? 'border-teal-600 bg-teal-50 ring-1 ring-teal-600' : 'border-slate-200' }}">
-                                    <input type="radio" name="stock_lens_key" wire:click="selectStockLensOption(@js($option['key']))" @checked($stock_lens_key === $option['key']) @disabled(! $usable)>
-                                    <span class="flex flex-wrap items-center gap-1.5"><strong>{{ $option['design'] }}</strong>
-                                        <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ $option['lens_type'] }}</span>
-                                        @if($option['coating'] !== '')<span class="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-900">{{ $option['coating'] }}</span>@endif
-                                        @if($option['index'] !== '')<span class="text-[10px] text-slate-500">{{ $option['index'] }}</span>@endif
-                                        @if(($option['status'] ?? null) === 'partial')<span class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Half pair in stock</span>@endif
+                                @if($wantedLens !== '' && ! $loop->first && empty($option['matches']) && ! empty($stockLensOptions[$loop->index - 1]['matches']))<p class="pt-1 text-xs font-semibold text-slate-600">Alternatives in stock</p>@endif
+                                <label wire:key="stock-lens-{{ md5($option['key']) }}" class="block rounded-lg border px-3 py-2 text-xs {{ $usable ? 'cursor-pointer' : 'opacity-60' }} {{ $chosen ? 'border-teal-600 bg-teal-50 ring-1 ring-teal-600' : 'border-slate-200 bg-white' }}">
+                                    <span class="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3">
+                                        <input type="radio" name="stock_lens_key" wire:click="selectStockLensOption(@js($option['key']))" @checked($chosen) @disabled(! $usable)>
+                                        <span class="flex flex-wrap items-center gap-1.5"><strong>{{ $option['design'] }}</strong>
+                                            <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ $option['lens_type'] }}</span>
+                                            @if($option['coating'] !== '')<span class="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-900">{{ $option['coating'] }}</span>@endif
+                                            @if($option['index'] !== '')<span class="text-[10px] text-slate-500">{{ $option['index'] }}</span>@endif
+                                            @if(($option['status'] ?? null) === 'partial')<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Half pair in stock</span>@endif
+                                        </span>
+                                        <span class="font-mono text-teal-800">{{ currency() }} {{ number_format($option['price'], 2) }}</span>
+                                        @foreach(['od', 'os'] as $eye)
+                                            @php $line = $option['eyes'][$eye] ?? null; $stocked = $line ? $line['source'] === 'stock' : $option[$eye.'_quantity'] > 0; @endphp
+                                            <span class="{{ $stocked ? 'text-emerald-700' : 'text-amber-700' }}" @if(! empty($line['reason'])) title="{{ $line['reason'] }}" @endif>{{ strtoupper($eye) }}: {{ $stocked ? 'in stock ('.$option[$eye.'_quantity'].')' : 'special order' }}</span>
+                                        @endforeach
                                     </span>
-                                    <span class="font-mono text-teal-800">{{ currency() }} {{ number_format($option['price'], 2) }}</span>
-                                    @foreach(['od', 'os'] as $eye)
-                                        @php $line = $option['eyes'][$eye] ?? null; $stocked = $line ? $line['source'] === 'stock' : $option[$eye.'_quantity'] > 0; @endphp
-                                        <span class="{{ $stocked ? 'text-emerald-700' : 'text-amber-700' }}" @if(! empty($line['reason'])) title="{{ $line['reason'] }}" @endif>{{ strtoupper($eye) }}: {{ $stocked ? 'in stock ('.$option[$eye.'_quantity'].')' : 'special order' }}</span>
-                                    @endforeach
+                                    {{-- The chosen lens shows what each eye will be, in place of a separate summary box. --}}
+                                    @if($chosen && in_array($lensAvailability['status'] ?? null, ['available', 'partial'], true))
+                                        <span class="mt-2 block space-y-0.5 border-t border-teal-200 pt-2 text-[11px] text-slate-700">
+                                            @foreach(($lensAvailability['eyes'] ?? []) as $eye => $availability)
+                                                <span class="block">{{ strtoupper($eye) }}: SPH {{ sprintf('%+.2f', $availability['sphere']) }}, {{ ($availability['power_type'] ?? 'cyl') === 'add' ? 'ADD' : 'CYL' }} {{ sprintf('%+.2f', $availability['cylinder']) }} ·
+                                                    {{ ($availability['source'] ?? 'stock') === 'stock' ? 'from branch stock' : 'special order' }} · {{ currency() }} {{ number_format($availability['unit_price'] ?? 0, 2) }}@if(! empty($availability['price_estimated'])) <span class="text-amber-800">(no catalogue price for this power; design price used)</span>@endif
+                                                    @if(! empty($availability['reason']))<span class="text-amber-800">· {{ $availability['reason'] }}</span>@endif</span>
+                                            @endforeach
+                                            <span class="block text-slate-500">{{ $lensAvailability['message'] ?? '' }} Held for this order when placed; taken from stock when glazing starts.</span>
+                                        </span>
+                                    @endif
                                 </label>
                             @endforeach
                         </div>
-                    @elseif(!$lensAvailability && $errors->has('measurements') === false)
-                        <p class="text-xs text-slate-500">Enter both prescription powers, then check availability.</p>
+                    @endif
+                    {{-- Nothing chosen: why (no stock, wrong lens for the Rx, or the wanted lens is out). --}}
+                    @if($lensAvailability && ! in_array($lensAvailability['status'] ?? null, ['available', 'partial'], true))
+                        <p class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900" role="status">{{ $lensAvailability['message'] ?? '' }}</p>
                     @endif
                     @error('stock_lens_key')<p class="text-xs text-red-600">Select one stocked lens option.</p>@enderror
                     @error('measurements')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
-                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm"><label class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full text-xs font-mono"></div>
-                <div x-show="fulfilment === 'customer'" x-cloak>
-                    <p class="text-xs text-slate-600">Customer supplied lenses carry no lens stock charge. Fitting or glazing fees can be added in Pricing.</p>
-                </div>
-
-                @if($lensAvailability)
-                    <div class="rounded-lg border p-3 text-xs {{ ($lensAvailability['status'] ?? '') === 'available' ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50' }}" role="status">
-                        <p class="font-semibold">{{ $lensAvailability['message'] ?? '' }}</p>
-                        @foreach(($lensAvailability['eyes'] ?? []) as $eye => $availability)
-                            <p class="mt-1">{{ strtoupper($eye) }}: SPH {{ sprintf('%+.2f', $availability['sphere']) }}, {{ ($availability['power_type'] ?? 'cyl') === 'add' ? 'ADD' : 'CYL' }} {{ sprintf('%+.2f', $availability['cylinder']) }} ·
-                                {{ ($availability['source'] ?? 'stock') === 'stock' ? 'from branch stock' : 'special order' }} ·
-                                {{ currency() }} {{ number_format($availability['unit_price'] ?? 0, 2) }}@if(! empty($availability['price_estimated'])) <span class="text-amber-800">(no catalogue price for this power; design price used)</span>@endif
-                                @if(! empty($availability['reason']))<span class="text-amber-800">· {{ $availability['reason'] }}</span>@endif
-                            </p>
-                        @endforeach
-                        @if(in_array($lensAvailability['status'] ?? null, ['available', 'partial'], true))
-                            <p class="mt-2">Stocked lenses are held for this order when it is placed and taken from stock when glazing starts. A special-ordered lens must be marked received before glazing.</p>
-                        @endif
-                    </div>
-                @endif
+                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm"><label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
+                <p x-show="fulfilment === 'customer'" x-cloak class="text-xs text-slate-600">No lens charge. Fitting or glazing fees can be added in Pricing.</p>
                 @error('lens_stock')<p class="text-xs text-red-600" role="alert">{{ $message }}</p>@enderror
             </div>
             @endif
@@ -454,37 +441,38 @@
             </div>
             
             <div class="space-y-6">
-                <!-- 4 Fitting Inputs Row -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Monocular PD (OD / Right)</label>
-                        <div class="relative">
-                            <input autocomplete="off" type="text" wire:model="pd_right" placeholder="31.5 mm" class="ui-input w-full text-xs font-medium pr-10">
-                            <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Monocular PD (OS / Left)</label>
-                        <div class="relative">
-                            <input autocomplete="off" type="text" wire:model="pd_left" placeholder="31.0 mm" class="ui-input w-full text-xs font-medium pr-10">
-                            <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Fitting Height (FH)</label>
-                        <div class="relative">
-                            <input autocomplete="off" type="text" wire:model="fitting_height" placeholder="19.0 mm" class="ui-input w-full text-xs font-medium pr-10">
-                            <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Segment Height (Seg Ht)</label>
-                        <div class="relative">
-                            <input autocomplete="off" type="text" wire:model="segment_height" placeholder="18.5 mm" class="ui-input w-full text-xs font-medium pr-10">
-                            <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
-                        </div>
+                {{-- Measured with the chosen frame. Saved prescriptions keep their powers; these come from fitting. --}}
+                <div class="max-w-2xl overflow-x-auto">
+                    <table class="w-full border-collapse text-center text-xs">
+                        <thead>
+                            <tr class="bg-slate-900 text-[10px] font-semibold uppercase tracking-wider text-white">
+                                <th class="border border-slate-800 p-2">Eye</th>
+                                <th class="border border-slate-800 p-2">Monocular PD (mm)</th>
+                                <th class="border border-slate-800 p-2">Fitting height (mm)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(['od' => 'Right (OD)', 'os' => 'Left (OS)'] as $eye => $label)
+                                <tr class="bg-slate-50">
+                                    <th scope="row" class="border border-slate-200 p-2 font-bold text-teal-800">{{ $label }}</th>
+                                    <td class="border border-slate-200 p-1"><input autocomplete="off" id="fit-{{ $eye }}-pd" type="text" inputmode="decimal" wire:model="rx_{{ $eye }}_pd" placeholder="{{ $eye === 'od' ? '31.5' : '31.0' }}" aria-label="{{ $label }} monocular PD" class="w-full rounded border py-1 text-center font-mono text-xs @error('rx_'.$eye.'_pd') border-red-500 @enderror"></td>
+                                    <td class="border border-slate-200 p-1"><input autocomplete="off" id="fit-{{ $eye }}-hgt" type="text" inputmode="decimal" wire:model="rx_{{ $eye }}_hgt" placeholder="19.0" aria-label="{{ $label }} fitting height" class="w-full rounded border py-1 text-center font-mono text-xs @error('rx_'.$eye.'_hgt') border-red-500 @enderror"></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="max-w-xs">
+                    <label for="fit-segment-height" class="block text-xs font-semibold text-slate-700 mb-1">Segment height (bifocals)</label>
+                    <div class="relative">
+                        <input autocomplete="off" id="fit-segment-height" type="text" inputmode="decimal" wire:model="segment_height" placeholder="18.5" class="ui-input w-full text-xs font-medium pr-10">
+                        <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-sans pointer-events-none">mm</span>
                     </div>
                 </div>
+                @php $fitErrors = collect(['rx_od_pd', 'rx_os_pd', 'rx_od_hgt', 'rx_os_hgt', 'segment_height'])->filter(fn ($key) => $errors->has($key)); @endphp
+                @if($fitErrors->isNotEmpty())
+                    <ul class="text-xs text-red-600 space-y-0.5" role="alert">@foreach($fitErrors as $key)<li>{{ $errors->first($key) }}</li>@endforeach</ul>
+                @endif
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -624,8 +612,8 @@
             </div>
         @endif
 
-        <!-- Wizard navigation -->
-        <div class="flex flex-wrap items-center justify-between border-t border-slate-200 pt-4 gap-3">
+        <!-- Wizard navigation: stays at the bottom of the screen while the step scrolls. -->
+        <div class="sticky bottom-0 z-20 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-slate-200 bg-white/95 px-6 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur">
             <button type="button" wire:click="prevStep" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                 class="ui-button bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs px-4 py-2 border border-slate-300 rounded-lg shadow-sm"
                 {{ $currentStep === 1 ? 'disabled' : '' }}>
@@ -633,7 +621,11 @@
                 <span wire:loading wire:target="prevStep">Loading…</span>
             </button>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+                @if($currentStep > 1)
+                    @php $runningTotal = $this->calculateTotalProperty(); @endphp
+                    @if($runningTotal > 0)<span class="text-xs text-slate-600">Total <strong class="font-mono text-slate-900">{{ currency() }} {{ number_format($runningTotal, 2) }}</strong></span>@endif
+                @endif
                 @unless($remakeOfId)
                 <button type="button" wire:click="saveAsQuotation" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                     class="ui-button bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs px-4 py-2 rounded-lg border border-slate-300 shadow-sm">
@@ -647,7 +639,7 @@
                         @if($currentStep === 1)
                             onclick="const button=this; const status=document.getElementById('next-step-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The order form is disconnected. Refresh the page and try again.';return;} const requester={order_source:document.getElementById('order-source')?.value,work_type:document.getElementById('order-work-type')?.value,bill_to:document.getElementById('order-bill-to')?.value||'customer',partner_id:document.getElementById('selected-partner-id')?.value||null,customer_name:document.getElementById('order-customer-name')?.value||'',customer_phone:document.getElementById('order-customer-phone')?.value||'',reference:document.getElementById('order-reference')?.value||''}; button.disabled=true; status.textContent='Validating…'; component.call('nextStepWithRequester', requester).catch(()=>{if(status.isConnected)status.textContent='Unable to continue. Review the highlighted fields and try again.';}).finally(() => { if(button.isConnected) button.disabled=false; });"
                         @elseif($currentStep === 2)
-                            onclick="const button=this; const status=document.getElementById('next-step-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The order form is disconnected. Refresh the page and try again.';return;} const value=id=>document.getElementById(id)?.value||''; const fulfilment=document.querySelector('input[name=lens_fulfilment_source]:checked')?.value||''; const lens={fulfilment,lens_price:value('special-order-lens-price'),od:{sph:value('rx-od-sph'),cyl:value('rx-od-cyl'),axis:value('rx-od-axis'),add:value('rx-od-add'),hgt:value('rx-od-hgt'),pd:value('rx-od-pd')},os:{sph:value('rx-os-sph'),cyl:value('rx-os-cyl'),axis:value('rx-os-axis'),add:value('rx-os-add'),hgt:value('rx-os-hgt'),pd:value('rx-os-pd')}}; button.disabled=true; status.textContent='Validating…'; component.call('nextStepWithLens',lens).catch(()=>{if(status.isConnected)status.textContent='Unable to continue. Review the highlighted fields and try again.';}).finally(()=>{if(button.isConnected)button.disabled=false;});"
+                            onclick="const button=this; const status=document.getElementById('next-step-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The order form is disconnected. Refresh the page and try again.';return;} const value=id=>document.getElementById(id)?.value||''; const fulfilment=document.querySelector('input[name=lens_fulfilment_source]:checked')?.value||''; const lens={fulfilment,lens_price:value('special-order-lens-price'),od:{sph:value('rx-od-sph'),cyl:value('rx-od-cyl'),axis:value('rx-od-axis'),add:value('rx-od-add')},os:{sph:value('rx-os-sph'),cyl:value('rx-os-cyl'),axis:value('rx-os-axis'),add:value('rx-os-add')}}; button.disabled=true; status.textContent='Validating…'; component.call('nextStepWithLens',lens).catch(()=>{if(status.isConnected)status.textContent='Unable to continue. Review the highlighted fields and try again.';}).finally(()=>{if(button.isConnected)button.disabled=false;});"
                         @else
                             onclick="const button=this; const status=document.getElementById('next-step-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The order form is disconnected. Refresh the page and try again.';return;} button.disabled=true; status.textContent='Validating…'; component.call('nextStep').catch(()=>{if(status.isConnected)status.textContent='Unable to continue. Review the highlighted fields and try again.';}).finally(() => { if(button.isConnected) button.disabled=false; });"
                         @endif
