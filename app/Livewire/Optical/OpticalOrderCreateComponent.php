@@ -86,6 +86,8 @@ class OpticalOrderCreateComponent extends Component
     public array $lensAvailability = [];
     public array $stockLensOptions = [];
     public string $stock_lens_key = '';
+    /** The lens the customer wants, "design|coating" (e.g. "Single Vision|Photo AR"); '' = any stocked lens. */
+    public string $wantedLens = '';
 
     // Step 5: Fitting / Lab Details (Matches screenshot)
     public $pd_right = '';
@@ -413,6 +415,7 @@ class OpticalOrderCreateComponent extends Component
         $this->optical_category_id = data_get($details, 'lens_details.category_id');
         $this->stock_coating = data_get($details, 'lens_details.stock_coating', $this->stock_coating);
         $this->stock_lens_key = (string) data_get($details, 'lens_details.stock_key', '');
+        if ($this->stock_lens_key !== '') $this->wantedLens = $this->lens_type.'|'.$this->stock_coating;
         $this->lens_fulfilment_source = $order->lens_supply_source === 'stock'
             ? 'stock'
             : ($order->lens_supply_source === 'customer' ? 'customer' : ($order->lens_optical_product_id ? 'catalogue' : 'external'));
@@ -682,6 +685,8 @@ class OpticalOrderCreateComponent extends Component
     {
         $input['fulfilment'] = 'stock';
         $this->applyLensStepInput($input);
+        $wanted = (string) ($input['wanted'] ?? '');
+        $this->wantedLens = array_key_exists($wanted, $this->wantedLensChoices()) ? $wanted : '';
         $this->checkLensAvailability();
     }
 
@@ -695,19 +700,63 @@ class OpticalOrderCreateComponent extends Component
     {
         if ($this->work_type !== 'prescription') return;
         $this->validateRxMeasurements();
-        $this->stockLensOptions = app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements());
+        $this->stockLensOptions = $this->withWantedFirst(app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements()));
         $this->stock_lens_key = '';
         $this->lensAvailability = [];
         $usable = collect($this->stockLensOptions)->whereIn('status', ['available', 'partial']);
-        if ($usable->count() === 1) {
-            $this->selectStockLensOption($usable->first()['key']);
-        } elseif ($usable->isEmpty()) {
+        // Only the wanted lens is chosen for staff; an alternative is always their decision.
+        $matching = $usable->where('matches', true);
+        if ($matching->count() === 1) {
+            $this->selectStockLensOption($matching->first()['key']);
+        } elseif ($matching->isEmpty()) {
             $this->lensAvailability = [
                 'status' => 'outside_sourcing',
-                'message' => $this->noStockMessage($this->currentMeasurements()),
+                'message' => $this->wantedLens !== '' && $usable->isNotEmpty()
+                    ? $this->wantedMissingMessage()
+                    : $this->noStockMessage($this->currentMeasurements()),
                 'eyes' => [],
             ];
         }
+    }
+
+    /**
+     * The lens lines this shop stocks, as "design|coating" => label, grouped by design in the
+     * order single vision, progressive, bifocal. Built from received stock, so new lines appear
+     * as soon as they are received.
+     *
+     * @return array<string, string>
+     */
+    public function wantedLensChoices(): array
+    {
+        $designs = ['Single Vision', 'Progressive', 'Bifocal'];
+        return OpticalProduct::whereNotNull('lens_specs')->where('is_active', true)->pluck('lens_specs')
+            ->filter(fn ($specs) => data_get($specs, 'sphere') !== null && in_array(data_get($specs, 'design'), $designs, true) && (string) data_get($specs, 'coating') !== '')
+            ->map(fn ($specs) => [data_get($specs, 'design'), (string) data_get($specs, 'coating')])
+            ->unique(fn ($line) => implode('|', $line))
+            ->sortBy([fn ($a, $b) => array_search($a[0], $designs) <=> array_search($b[0], $designs), fn ($a, $b) => strcasecmp($a[1], $b[1])])
+            ->mapWithKeys(fn ($line) => [implode('|', $line) => $line[0].' – '.$line[1]])->all();
+    }
+
+    /** Flags the options that are the wanted lens and lists them first; with nothing wanted, every option matches. */
+    private function withWantedFirst(array $options): array
+    {
+        [$design, $coating] = array_pad(explode('|', $this->wantedLens, 2), 2, '');
+        return collect($options)->map(fn ($option) => $option + ['matches' => $this->wantedLens === ''
+                || (($option['lens_type'] ?? '') === $design && strcasecmp((string) ($option['coating'] ?? ''), $coating) === 0)])
+            ->sortBy(fn ($option) => $option['matches'] ? 0 : 1)->values()->all();
+    }
+
+    private function wantedMissingMessage(): string
+    {
+        [$design, $coating] = explode('|', $this->wantedLens, 2);
+        $hasAdd = collect($this->currentMeasurements())->contains(fn ($eye) => is_numeric($eye['add'] ?? null) && (float) $eye['add'] != 0);
+        if ($hasAdd && $design === 'Single Vision') {
+            return "This prescription has an ADD, so it needs a progressive or bifocal lens, not {$design} {$coating}. Choose another lens wanted, or special order.";
+        }
+        if (! $hasAdd && $design !== 'Single Vision') {
+            return "{$design} {$coating} lenses need an ADD in the prescription. Choose a single vision lens wanted, or enter the ADD.";
+        }
+        return "{$design} {$coating} is not in stock at this branch for these powers. Special order it, or offer one of the alternatives below.";
     }
 
     /** Explains why nothing matched, and points reading-only prescriptions at single vision stock. */
@@ -751,7 +800,7 @@ class OpticalOrderCreateComponent extends Component
 
     public function selectStockLensOption(string $key): void
     {
-        $options = app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements());
+        $options = $this->withWantedFirst(app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements()));
         $option = collect($options)->firstWhere('key', $key);
         if (! $option) {
             $this->stockLensOptions = $options;

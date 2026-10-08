@@ -1962,6 +1962,47 @@ class OpticalWorkflowTest extends TestCase
         $this->assertArrayNotHasKey('name', json_decode($order->notes, true)['lab']);
     }
 
+    public function test_lens_wanted_lists_matching_stock_first_and_never_picks_an_alternative(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $this->tenant($user, 'lens-wanted');
+        $this->actingAs($user);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Ama', 'contact' => '0240000999', 'gender' => 'Other']);
+        $receive = fn (string $range, string $coating, string $design = 'Single Vision', float $power = 0, ?string $eye = null) => app(\App\Services\OpticalLensReceivingService::class)->receiveMany([[
+            'specs' => array_filter(['range' => $range, 'design' => $design, 'index' => '1.56', 'coating' => $coating, 'diameter' => 65,
+                'sphere' => '-1.00', 'power' => number_format($power, 2, '.', ''), 'eye' => $eye], fn ($v) => $v !== null),
+            'quantity' => 10, 'details' => ['unit_cost' => 10, 'unit_price' => 25, 'supplier' => 'Lab'],
+        ]]);
+        $receive('Canada', 'AR');
+        $receive('Canada', 'BlueCut');
+        $receive('Essilor', 'Photo AR', 'Progressive', 2, 'R');
+        $rx = ['od' => ['sph' => '-1.00'], 'os' => ['sph' => '-1.00']];
+
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2);
+        $this->assertSame(['Single Vision|AR' => 'Single Vision – AR', 'Single Vision|BlueCut' => 'Single Vision – BlueCut', 'Progressive|Photo AR' => 'Progressive – Photo AR'],
+            $form->instance()->wantedLensChoices());
+
+        // Nothing wanted: two stocked lines, staff choose.
+        $form->call('checkLensAvailabilityFromClient', $rx)->assertSet('stock_lens_key', '')
+            ->assertViewHas('stockLensOptions', fn ($options) => count($options) === 2);
+
+        // BlueCut wanted: it is listed first and chosen; AR follows as an alternative.
+        $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Single Vision|BlueCut'])
+            ->assertSet('wantedLens', 'Single Vision|BlueCut')->assertSet('stock_coating', 'BlueCut')
+            ->assertSet('lensAvailability.status', 'available')
+            ->assertSeeInOrder(['Lens wanted', 'BlueCut', 'Alternatives in stock', 'AR']);
+        $this->assertSame([true, false], array_column($form->get('stockLensOptions'), 'matches'));
+
+        // A single vision lens is wanted, but none of that line is in stock: alternatives only, nothing chosen.
+        $form->call('checkLensAvailabilityFromClient', ['od' => ['sph' => '-1.00', 'add' => '2.00'], 'os' => ['sph' => '-1.00', 'add' => '2.00']] + ['wanted' => 'Single Vision|BlueCut'])
+            ->assertSet('stock_lens_key', '')->assertSet('lensAvailability.status', 'outside_sourcing')
+            ->assertSee('This prescription has an ADD, so it needs a progressive or bifocal lens');
+
+        // An unknown choice is ignored.
+        $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Single Vision|Gold'])->assertSet('wantedLens', '');
+    }
+
     public function test_combined_rx_lens_check_and_order_reservation_use_current_branch_stock(): void
     {
         config(['tenancy.enabled' => true]);

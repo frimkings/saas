@@ -327,17 +327,36 @@
                         <h4 class="text-xs font-bold text-slate-800">Branch lens stock</h4>
                         <p class="text-[11px] text-slate-500">Check the entered OD and OS powers against stock held at this branch.</p>
                     </div>
+                    @php $wantedChoices = $this->wantedLensChoices(); @endphp
+                    <div class="max-w-sm">
+                        <label for="wanted-lens" class="block text-xs font-bold text-slate-700 mb-1">Lens wanted</label>
+                        {{-- Read with the Rx when stock is checked; changing it after a check checks again. --}}
+                        <select id="wanted-lens" class="ui-input w-full text-xs" onchange="if (document.getElementById('stock-lens-options')) document.getElementById('check-lens-stock')?.click()">
+                            <option value="">Any stocked lens</option>
+                            @foreach(collect($wantedChoices)->groupBy(fn ($label, $key) => explode('|', $key)[0], true) as $design => $lines)
+                                <optgroup label="{{ $design }}">
+                                    @foreach($lines as $key => $label)<option value="{{ $key }}" @selected($wantedLens === $key)>{{ $label }}</option>@endforeach
+                                </optgroup>
+                            @endforeach
+                        </select>
+                        <p class="text-[11px] text-slate-500 mt-1">The design and treatment the customer asked for. Matching lenses are listed first.</p>
+                    </div>
                     <div class="flex flex-wrap items-center gap-3">
-                        <button type="button" onclick="const button=this; const status=document.getElementById('stock-check-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The stock checker is disconnected. Refresh the page and try again.';status.className='text-xs text-red-600';return;} const value=id=>document.getElementById(id)?.value||''; button.disabled=true; button.textContent='Checking stock…';status.textContent='Checking this branch…';status.className='text-xs text-slate-600'; component.call('checkLensAvailabilityFromClient',{od:{sph:value('rx-od-sph'),cyl:value('rx-od-cyl'),axis:value('rx-od-axis'),add:value('rx-od-add'),hgt:value('rx-od-hgt'),pd:value('rx-od-pd')},os:{sph:value('rx-os-sph'),cyl:value('rx-os-cyl'),axis:value('rx-os-axis'),add:value('rx-os-add'),hgt:value('rx-os-hgt'),pd:value('rx-os-pd')}}).catch(()=>{if(status.isConnected){status.textContent='Stock could not be checked. Please try again.';status.className='text-xs text-red-600';}}).finally(()=>{if(button.isConnected){button.disabled=false;button.textContent='Check Available Lens Stock';}})" class="ui-button bg-teal-700 text-white hover:bg-teal-800 text-xs font-semibold">Check Available Lens Stock</button>
+                        <button type="button" id="check-lens-stock" onclick="const button=this; const status=document.getElementById('stock-check-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The stock checker is disconnected. Refresh the page and try again.';status.className='text-xs text-red-600';return;} const value=id=>document.getElementById(id)?.value||''; button.disabled=true; button.textContent='Checking stock…';status.textContent='Checking this branch…';status.className='text-xs text-slate-600'; component.call('checkLensAvailabilityFromClient',{wanted:value('wanted-lens'),od:{sph:value('rx-od-sph'),cyl:value('rx-od-cyl'),axis:value('rx-od-axis'),add:value('rx-od-add'),hgt:value('rx-od-hgt'),pd:value('rx-od-pd')},os:{sph:value('rx-os-sph'),cyl:value('rx-os-cyl'),axis:value('rx-os-axis'),add:value('rx-os-add'),hgt:value('rx-os-hgt'),pd:value('rx-os-pd')}}).catch(()=>{if(status.isConnected){status.textContent='Stock could not be checked. Please try again.';status.className='text-xs text-red-600';}}).finally(()=>{if(button.isConnected){button.disabled=false;button.textContent='Check Available Lens Stock';}})" class="ui-button bg-teal-700 text-white hover:bg-teal-800 text-xs font-semibold">Check Available Lens Stock</button>
                         <span id="stock-check-client-status" class="text-xs text-slate-500" aria-live="polite"></span>
                     </div>
                     @if($stockLensOptions)
-                        <div class="max-w-3xl space-y-2">
+                        <div id="stock-lens-options" class="max-w-3xl space-y-2">
                             @foreach($stockLensOptions as $option)
                                 @php $usable = in_array($option['status'] ?? null, ['available', 'partial'], true); @endphp
+                                @if($wantedLens !== '' && $loop->first && empty($option['matches']))<p class="text-xs font-semibold text-slate-600">No match for the lens wanted. Alternatives in stock:</p>@endif
+                                @if($wantedLens !== '' && ! $loop->first && empty($option['matches']) && ! empty($stockLensOptions[$loop->index - 1]['matches']))<p class="pt-2 text-xs font-semibold text-slate-600">Alternatives in stock</p>@endif
                                 <label wire:key="stock-lens-{{ md5($option['key']) }}" class="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3 rounded-lg border p-3 text-xs {{ $usable ? 'cursor-pointer' : 'opacity-60' }} {{ $stock_lens_key === $option['key'] ? 'border-teal-600 bg-teal-50 ring-1 ring-teal-600' : 'border-slate-200' }}">
                                     <input type="radio" name="stock_lens_key" wire:click="selectStockLensOption(@js($option['key']))" @checked($stock_lens_key === $option['key']) @disabled(! $usable)>
-                                    <span><strong>{{ $option['design'] }}</strong> <span class="text-slate-500">{{ $option['index'] }} {{ $option['coating'] }}</span>
+                                    <span class="flex flex-wrap items-center gap-1.5"><strong>{{ $option['design'] }}</strong>
+                                        <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ $option['lens_type'] }}</span>
+                                        @if($option['coating'] !== '')<span class="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-900">{{ $option['coating'] }}</span>@endif
+                                        @if($option['index'] !== '')<span class="text-[10px] text-slate-500">{{ $option['index'] }}</span>@endif
                                         @if(($option['status'] ?? null) === 'partial')<span class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Half pair in stock</span>@endif
                                     </span>
                                     <span class="font-mono text-teal-800">{{ currency() }} {{ number_format($option['price'], 2) }}</span>
