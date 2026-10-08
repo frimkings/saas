@@ -2057,6 +2057,27 @@ class OpticalWorkflowTest extends TestCase
             ->assertSet('specialOrderLens', 'Progressive Photo AR')->assertSee('Both eyes will be special-ordered as');
     }
 
+    public function test_deposit_step_enforces_the_minimum_deposit(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $this->tenant($user, 'min-deposit');
+        $this->actingAs($user);
+        \App\Models\OpticalSetting::create(['warranty_months' => 0, 'min_deposit_percentage' => 40]);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Yaa', 'contact' => '0240000444', 'gender' => 'Other']);
+
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)
+            ->set('frame_model_number', 'Frame A')->set('frame_price', 200)->set('lens_price', 100)->set('currentStep', 6);
+        $this->assertEquals(300, $form->instance()->calculateTotalProperty());
+        $form->assertSee('Minimum deposit:')->assertSee('120.00')
+            ->set('paid_amount', '50')->call('nextStep')->assertHasErrors(['paid_amount' => 'min'])->assertSet('currentStep', 6)
+            ->assertSee('A deposit of at least')
+            ->set('paid_amount', '400')->call('nextStep')->assertHasErrors(['paid_amount' => 'max'])
+            ->call('$set', 'paid_amount', '120.00')->call('nextStep')->assertHasNoErrors()->assertSet('currentStep', 7);
+        // Placing the order checks again, in case the deposit was changed on the review step.
+        $form->set('paid_amount', '10')->call('createOrder')->assertHasErrors(['paid_amount' => 'min']);
+    }
+
     public function test_heights_and_pds_are_taken_at_fitting_and_reach_the_lab(): void
     {
         config(['tenancy.enabled' => true]);

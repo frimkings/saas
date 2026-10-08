@@ -565,6 +565,7 @@ class OpticalOrderCreateComponent extends Component
         }
         if ($this->currentStep === 4) $this->validateFitting();
         if ($this->currentStep === 5) $this->validatePricing();
+        if ($this->currentStep === 6) $this->validateDeposit();
         $this->currentStep = $this->nextApplicableStep($this->currentStep, 1);
     }
 
@@ -644,6 +645,31 @@ class OpticalOrderCreateComponent extends Component
             'rx_od_sph' => 'right-eye SPH', 'rx_os_sph' => 'left-eye SPH',
             'rx_od_cyl' => 'right-eye CYL', 'rx_os_cyl' => 'left-eye CYL',
             'rx_od_add' => 'right-eye ADD', 'rx_os_add' => 'left-eye ADD',
+        ]);
+    }
+
+    /** The shop's minimum deposit (Optical → Settings); partner jobs billed on account need none. */
+    public function minimumDepositPercent(): int
+    {
+        $onAccount = $this->order_source === 'partner' && OpticalPartnerClinic::find($this->partner_id)?->billing_terms === 'on_account';
+        return $onAccount ? 0 : (int) (OpticalSetting::first()?->min_deposit_percentage ?? 0);
+    }
+
+    public function minimumDeposit(): float
+    {
+        return round($this->calculateTotalProperty() * $this->minimumDepositPercent() / 100, 2);
+    }
+
+    /** A deposit of at least the shop minimum and no more than the order total. */
+    private function validateDeposit(): void
+    {
+        $minimum = $this->minimumDeposit();
+        $total = round((float) $this->calculateTotalProperty(), 2);
+        $money = fn ($amount) => currency().' '.number_format($amount, 2);
+        $this->validate(['paid_amount' => ['required', 'numeric', 'min:'.$minimum, 'max:'.max($total, $minimum)]], [
+            'paid_amount.required' => 'Enter the deposit paid'.($minimum > 0 ? ", at least {$money($minimum)}." : ', or 0.'),
+            'paid_amount.min' => "A deposit of at least {$money($minimum)} ({$this->minimumDepositPercent()}% of {$money($total)}) is required. If the customer isn't paying yet, save it as a quotation.",
+            'paid_amount.max' => "The deposit can't be more than the order total of {$money($total)}.",
         ]);
     }
 
@@ -1032,12 +1058,8 @@ class OpticalOrderCreateComponent extends Component
 
     public function createOrder()
     {
+        $this->validateDeposit();
         if ($this->editingQuotationId) {
-            $onAccount = $this->order_source === 'partner' && OpticalPartnerClinic::find($this->partner_id)?->billing_terms === 'on_account';
-            $minimum = $onAccount ? 0 : (int) (OpticalSetting::first()?->min_deposit_percentage ?? 0);
-            if ((float) $this->paid_amount < round($this->calculateTotalProperty() * $minimum / 100, 2)) {
-                throw ValidationException::withMessages(['paid_amount' => "A {$minimum}% deposit is required."]);
-            }
             DB::transaction(function () {
                 $this->saveOrder('Quotation');
                 app(OpticalOrderWorkflowService::class)->activateQuotation($this->editingQuotationId, (float) $this->paid_amount, $this->payment_method);

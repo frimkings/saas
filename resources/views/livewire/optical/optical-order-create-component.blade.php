@@ -595,7 +595,15 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Deposit Paid Amount ({{ currency() }}) *</label>
-                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="paid_amount" class="ui-input w-full text-xs font-mono font-bold text-teal-800">
+                    @php $minimumDeposit = $this->minimumDeposit(); @endphp
+                    <input autocomplete="off" type="number" min="{{ $minimumDeposit }}" step="0.01" wire:model="paid_amount" class="ui-input w-full text-xs font-mono font-bold text-teal-800 @error('paid_amount') border-red-500 @enderror">
+                    @if($minimumDeposit > 0)
+                        <p class="mt-1 text-[11px] text-slate-600">Minimum deposit: <strong class="font-mono">{{ currency() }} {{ number_format($minimumDeposit, 2) }}</strong> ({{ $this->minimumDepositPercent() }}% of the total).
+                            <button type="button" class="font-semibold text-teal-700 underline" wire:click="$set('paid_amount', '{{ number_format($minimumDeposit, 2, '.', '') }}')">Use minimum</button></p>
+                    @else
+                        <p class="mt-1 text-[11px] text-slate-500">No minimum deposit for this order.</p>
+                    @endif
+                    @error('paid_amount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
