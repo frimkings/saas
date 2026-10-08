@@ -207,7 +207,7 @@ class OpticalLensAvailabilityService
         if ($stockKey !== '') {
             // Stocked lenses are only held here; they leave the branch ledger
             // when glazing starts (consumeForGlazing).
-            $this->holdLensLines($order, $stockKey, (array) data_get($details, 'lens_details.stock_split', []));
+            $this->holdLensLines($order, $stockKey, (array) data_get($details, 'lens_details.stock_split', []), (array) data_get($details, 'lens_details.special_prices', []));
             return;
         }
         $design = (string) data_get($details, 'lens_details.type', '');
@@ -245,7 +245,7 @@ class OpticalLensAvailabilityService
      * per-eye split, it must still hold so the customer is charged what they
      * were quoted.
      */
-    public function resolveStockOption(array $measurements, string $key, array $expectedSplit = [], ?int $orderId = null): array
+    public function resolveStockOption(array $measurements, string $key, array $expectedSplit = [], ?int $orderId = null, array $specialPrices = []): array
     {
         $option = collect($this->stockOptions($measurements, $orderId))->firstWhere('key', $key);
         if (! $option || $option['status'] === 'none' || empty($option['split'])) {
@@ -254,7 +254,45 @@ class OpticalLensAvailabilityService
         if ($expectedSplit && array_intersect_key($expectedSplit, ['od' => 1, 'os' => 1]) != $option['split']) {
             throw ValidationException::withMessages(['lens_stock' => 'Lens stock changed since it was checked. Check availability again before continuing.']);
         }
+        return $this->withSpecialPrices($option, $specialPrices);
+    }
+
+    /**
+     * Charge the price staff typed for each special-order eye (a made-to-order lens has no
+     * stock price), and total the pair again. Eyes without a typed price keep the range price.
+     */
+    public function withSpecialPrices(array $option, array $prices): array
+    {
+        foreach ($option['eyes'] ?? [] as $eye => $line) {
+            if ($line['source'] !== 'special_order' || ! is_numeric($prices[$eye] ?? null)) continue;
+            $option['eyes'][$eye]['unit_price'] = round((float) $prices[$eye], 2);
+            $option['eyes'][$eye]['price_estimated'] = false;
+            $option['eyes'][$eye]['price_typed'] = true;
+        }
+        if (isset($option['eyes']['od'], $option['eyes']['os'])) {
+            $option['price'] = round($option['eyes']['od']['unit_price'] + $option['eyes']['os']['unit_price'], 2);
+        }
         return $option;
+    }
+
+    /**
+     * Special-order lenses priced by staff (made-to-order, or no price for that power) go to
+     * the audit trail and the owner, so a mistyped or generous price is seen.
+     */
+    public function reportTypedPrices(LensOrder $order): void
+    {
+        $details = json_decode($order->notes ?? '', true) ?: [];
+        $typed = (array) data_get($details, 'lens_details.special_prices', []);
+        $lines = OpticalOrderLensLine::where('lens_order_id', $order->id)->where('source', 'special_order')->orderBy('eye')->get()
+            ->filter(fn ($line) => is_numeric($typed[$line->eye] ?? null));
+        if ($lines->isEmpty()) return;
+        $powerLabel = data_get($details, 'lens_details.type') === 'Single Vision' ? 'CYL' : 'ADD';
+        $eyes = $lines->mapWithKeys(fn ($line) => [strtoupper($line->eye).' lens' => sprintf('SPH %+.2f, %s %+.2f · %s %s', $line->sphere, $powerLabel, $line->power, currency(), number_format((float) $line->unit_price, 2))])->all();
+        $lens = trim(data_get($details, 'lens_details.type').' '.data_get($details, 'lens_details.stock_coating'));
+        \App\Models\AuditTrail::record('optical.special_lens_priced', "Special-order lens price typed on order {$order->order_id}: ".implode('; ', array_map(fn ($eye, $text) => "{$eye} {$text}", array_keys($eyes), $eyes)),
+            $order, [], ['lens' => $lens, 'eyes' => $eyes], $order->patient_id);
+        // Only once the order is really saved.
+        \Illuminate\Support\Facades\DB::afterCommit(fn () => app(\App\Services\OwnerAlerts::class)->specialLensPriced($order, $eyes, $lens));
     }
 
     /** Record the per-eye plan without holding stock (quotations). */
@@ -274,14 +312,14 @@ class OpticalLensAvailabilityService
         }
     }
 
-    private function holdLensLines(LensOrder $order, string $key, array $expectedSplit): void
+    private function holdLensLines(LensOrder $order, string $key, array $expectedSplit, array $specialPrices = []): void
     {
-        $option = $this->resolveStockOption($order->prescription_snapshot ?? [], $key, $expectedSplit, $order->id);
+        $option = $this->resolveStockOption($order->prescription_snapshot ?? [], $key, $expectedSplit, $order->id, $specialPrices);
         // Serialise competing orders for the same lenses, then re-check the
         // free quantity under the lock.
         $productIds = collect($option['eyes'])->where('source', 'stock')->pluck('product_id')->unique()->all();
         \App\Models\OpticalProductStock::whereIn('optical_product_id', $productIds)->lockForUpdate()->get();
-        $option = $this->resolveStockOption($order->prescription_snapshot ?? [], $key, $option['split'], $order->id);
+        $option = $this->resolveStockOption($order->prescription_snapshot ?? [], $key, $option['split'], $order->id, $specialPrices);
         $this->writeLensLines($order, $option, true);
         $order->lens_blank_allocations = null;
         $order->stock_reserved_at = now();

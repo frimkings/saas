@@ -279,6 +279,24 @@ class OwnerAlerts
             $short->isNotEmpty() ? 'Missing stock can mean theft, breakages or sales not recorded. Worth asking the team.' : null);
     }
 
+    /**
+     * Staff typed the price of a special-order lens (there was no stock price for it), so
+     * the owner can check it covers what the lab will charge.
+     *
+     * @param  array<string, string>  $eyes  "OS lens" => "SPH -2.00, ADD +2.50 · GHS 180.00"
+     */
+    public function specialLensPriced(\App\Models\LensOrder $order, array $eyes, string $lens): void
+    {
+        $clinic = $this->currentClinic();
+        if (! $clinic) return;
+        $this->notice($clinic, 'special_lens_priced', 'special_lens:'.$order->id,
+            'Special-order lens priced by staff',
+            (auth()->user()?->name ?? 'Someone')." placed order {$order->order_id} for {$order->display_customer_name} with a special-order lens priced by hand.",
+            array_filter(['Lens' => $lens ?: null] + $eyes + ['Order total' => $this->money($clinic, $order->total), 'Branch' => app(TenantContext::class)->branch()?->name]),
+            'View orders', route('optical.orders'),
+            'Check the price covers what the lab will charge for this lens.');
+    }
+
     private const ADMIN_ROLES = ['Manager', 'Super Admin'];
 
     /** Whether a role list gives admin access that the old list didn't. */

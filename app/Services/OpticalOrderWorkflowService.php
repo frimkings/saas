@@ -174,6 +174,7 @@ class OpticalOrderWorkflowService
             $order->stock_reserved_at = ($order->frameProduct || $order->lensProduct || $order->frameOpticalProduct || $order->lensOpticalProduct) ? now() : null;
             $order->save();
             app(OpticalLensAvailabilityService::class)->reserveForOrder($order);
+            app(OpticalLensAvailabilityService::class)->reportTypedPrices($order);
             AuditTrail::record('optical.quotation_converted', "Quotation {$quoted['order_id']} converted to order {$order->order_id}".($reprice ? ' at current prices' : ''),
                 $order, $quoted + ['status' => 'Quotation'], ['order_id' => $order->order_id, 'status' => 'Pending', 'total' => $order->total, 'repriced' => (bool) $reprice], $order->patient_id);
             return $deposit > 0 ? $this->recordPayment($order->id, $deposit, $method, 'Optical order deposit') : $order;
@@ -190,6 +191,8 @@ class OpticalOrderWorkflowService
         if ($order->lens_supply_source === 'stock' && $stockKey !== '') {
             $order->lens_price = app(OpticalLensAvailabilityService::class)->resolveStockOption(
                 $order->prescription_snapshot ?? [], $stockKey, (array) data_get($details, 'lens_details.stock_split', []), $order->id,
+                // A special-order lens keeps the price staff typed; only stock and catalogue prices move.
+                (array) data_get($details, 'lens_details.special_prices', []),
             )['price'];
         }
         foreach ($order->serviceLines as $line) {

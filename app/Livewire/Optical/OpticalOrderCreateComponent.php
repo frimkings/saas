@@ -89,6 +89,10 @@ class OpticalOrderCreateComponent extends Component
     public string $stock_lens_key = '';
     /** The lens the customer wants, "design|coating" (e.g. "Single Vision|Photo AR"); '' = any stocked lens. */
     public string $wantedLens = '';
+    /** Typed price of each special-order eye of the chosen stock lens (it has no stock price). */
+    public array $specialPrices = ['od' => '', 'os' => ''];
+    /** The lens a whole pair was switched to special order for, shown with the special-order price. */
+    public string $specialOrderLens = '';
 
     // Step 5: Fitting / Lab Details (Matches screenshot)
     public $segment_height = '';
@@ -414,6 +418,7 @@ class OpticalOrderCreateComponent extends Component
         $this->stock_coating = data_get($details, 'lens_details.stock_coating', $this->stock_coating);
         $this->stock_lens_key = (string) data_get($details, 'lens_details.stock_key', '');
         if ($this->stock_lens_key !== '') $this->wantedLens = $this->lens_type.'|'.$this->stock_coating;
+        $this->specialPrices = array_merge(['od' => '', 'os' => ''], array_map('strval', (array) data_get($details, 'lens_details.special_prices', [])));
         $this->lens_fulfilment_source = $order->lens_supply_source === 'stock'
             ? 'stock'
             : ($order->lens_supply_source === 'customer' ? 'customer' : ($order->lens_optical_product_id ? 'catalogue' : 'external'));
@@ -544,6 +549,7 @@ class OpticalOrderCreateComponent extends Component
                         'lens_stock' => 'Neither lens is in stock for this design. Choose special order or customer supplied lenses to continue.',
                     ]);
                 }
+                $this->validateSpecialPrices();
             }
         }
         if ($this->currentStep === 3 && $this->needsFrame()) {
@@ -824,8 +830,81 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_index = $option['index'];
         $this->stock_coating = $option['coating'];
         $this->base_color = $option['coating'] === 'Transitions' ? 'Photochromic' : 'White';
+        // A special-order eye is charged what staff enter for it. A power the catalogue prices
+        // starts at that price; a made-to-order lens or an unpriced power starts empty and
+        // counts as nothing until priced.
+        $listed = $option;
+        foreach (['od', 'os'] as $eye) {
+            $line = $option['eyes'][$eye] ?? [];
+            if (($line['source'] ?? null) !== 'special_order') $this->specialPrices[$eye] = '';
+            elseif ($this->specialPrices[$eye] === '' && $this->hasListPrice($line)) $this->specialPrices[$eye] = number_format((float) $line['unit_price'], 2, '.', '');
+        }
+        $option = app(OpticalLensAvailabilityService::class)->withSpecialPrices($option, array_map(fn ($price) => is_numeric($price) ? $price : 0, $this->specialPrices));
         $this->lens_price = $option['price'];
         $this->lensAvailability = $this->availabilitySummary($option);
+        foreach ($listed['eyes'] ?? [] as $eye => $line) {
+            $this->lensAvailability['eyes'][$eye]['list_price'] = $this->hasListPrice($line) ? (float) $line['unit_price'] : null;
+        }
+    }
+
+    /** The catalogue has a price for this exact power: it is not made to order or estimated from the range. */
+    private function hasListPrice(array $line): bool
+    {
+        return empty($line['price_estimated']) && empty($line['reason']);
+    }
+
+    /**
+     * Prices staff set by hand: a special-order eye with no catalogue price, or one changed
+     * from it. These are charged and reported to the owner; catalogue prices are not.
+     */
+    private function typedSpecialPrices(): array
+    {
+        $typed = [];
+        foreach ($this->specialOrderEyes() as $eye) {
+            $list = $this->lensAvailability['eyes'][$eye]['list_price'] ?? null;
+            if (is_numeric($this->specialPrices[$eye] ?? null) && ($list === null || round((float) $this->specialPrices[$eye], 2) !== round($list, 2))) {
+                $typed[$eye] = $this->specialPrices[$eye];
+            }
+        }
+        return $typed;
+    }
+
+    public function updatedSpecialPrices(): void
+    {
+        if ($this->stock_lens_key !== '') $this->selectStockLensOption($this->stock_lens_key);
+    }
+
+    /** Eyes of the chosen stock lens that are special-ordered, each needing a typed price. */
+    private function specialOrderEyes(): array
+    {
+        return $this->lens_fulfilment_source === 'stock'
+            ? array_keys(array_filter($this->lensAvailability['eyes'] ?? [], fn ($eye) => ($eye['source'] ?? null) === 'special_order'))
+            : [];
+    }
+
+    private function validateSpecialPrices(): void
+    {
+        $rules = $messages = [];
+        foreach ($this->specialOrderEyes() as $eye) {
+            $rules["specialPrices.$eye"] = 'required|numeric|min:0|max:1000000';
+            $messages["specialPrices.$eye.required"] = 'Enter the price of the special-order '.strtoupper($eye).' lens. It has no stock price.';
+            $messages["specialPrices.$eye.numeric"] = 'The '.strtoupper($eye).' lens price must be a number.';
+        }
+        if ($rules) $this->validate($rules, $messages);
+    }
+
+    /**
+     * A progressive or bifocal pair with one eye made to order: make both eyes on the same
+     * special order, so the two lenses match, and leave the stocked lens on the shelf.
+     */
+    public function specialOrderBothEyes(): void
+    {
+        $this->lens_fulfilment_source = 'external';
+        $this->specialOrderLens = trim($this->lens_type.' '.$this->stock_coating);
+        $this->stock_lens_key = '';
+        $this->stockLensOptions = $this->lensAvailability = [];
+        $this->specialPrices = ['od' => '', 'os' => ''];
+        $this->lens_price = 0;
     }
 
     private function availabilitySummary(array $option): array
@@ -956,6 +1035,7 @@ class OpticalOrderCreateComponent extends Component
             if (! $this->stockLensUsable()) {
                 throw ValidationException::withMessages(['lens_stock' => 'These lenses are no longer in stock. Check availability again or choose special order.']);
             }
+            $this->validateSpecialPrices();
         }
         $this->normalizeDiscount();
         $this->validate([
@@ -1011,7 +1091,7 @@ class OpticalOrderCreateComponent extends Component
             'paid_amount' => $this->paid_amount, 'payment_method' => $this->payment_method,
             'pickup_date' => $this->pickUpDate,
             'docket' => [
-                'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null],
+                'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null, 'special_prices' => $this->typedSpecialPrices() ?: null],
                 'fitting' => ['pd_right' => $this->rx_od_pd, 'pd_left' => $this->rx_os_pd, 'hgt_right' => $this->rx_od_hgt, 'hgt_left' => $this->rx_os_hgt, 'segment_height' => $this->segment_height],
                 'lab' => ['instructions' => $this->lab_instructions],
                 'frame_structure' => $this->frame_structure, 'notes' => $this->notes,

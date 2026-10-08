@@ -257,6 +257,7 @@ class OpticalOrderService
             $this->storeServices($order, $services);
             if ($lensOption && $quotation) app(OpticalLensAvailabilityService::class)->writeLensLines($order, $lensOption, false);
             if (! $quotation) app(OpticalLensAvailabilityService::class)->reserveForOrder($order);
+            if (! $quotation) app(OpticalLensAvailabilityService::class)->reportTypedPrices($order);
             if ($remake && $remake['remake_charge'] === 'free') $order->lensLines()->update(['unit_price' => 0]);
             if ((float) $order->discount_amount > 0) {
                 AuditTrail::record('optical.discount_given', 'Discount of '.currency().' '.number_format((float) $order->discount_amount, 2)." on {$order->order_id} for {$order->display_customer_name}",
@@ -280,6 +281,7 @@ class OpticalOrderService
         if (($data['lens_fulfilment_source'] ?? '') !== 'stock' || $key === '') return null;
         return app(OpticalLensAvailabilityService::class)->resolveStockOption(
             $snapshot, $key, (array) data_get($data, 'docket.lens_details.stock_split', []), $orderId,
+            (array) data_get($data, 'docket.lens_details.special_prices', []),
         );
     }
 

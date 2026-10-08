@@ -350,24 +350,56 @@
                                             @if($option['index'] !== '')<span class="text-[10px] text-slate-500">{{ $option['index'] }}</span>@endif
                                             @if(($option['status'] ?? null) === 'partial')<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Half pair in stock</span>@endif
                                         </span>
-                                        <span class="font-mono text-teal-800">{{ currency() }} {{ number_format($option['price'], 2) }}</span>
+                                        <span class="font-mono text-teal-800">{{ currency() }} {{ number_format($chosen ? (float) $lens_price : $option['price'], 2) }}</span>
                                         @foreach(['od', 'os'] as $eye)
                                             @php $line = $option['eyes'][$eye] ?? null; $stocked = $line ? $line['source'] === 'stock' : $option[$eye.'_quantity'] > 0; @endphp
                                             <span class="{{ $stocked ? 'text-emerald-700' : 'text-amber-700' }}" @if(! empty($line['reason'])) title="{{ $line['reason'] }}" @endif>{{ strtoupper($eye) }}: {{ $stocked ? 'in stock ('.$option[$eye.'_quantity'].')' : 'special order' }}</span>
                                         @endforeach
                                     </span>
-                                    {{-- The chosen lens shows what each eye will be, in place of a separate summary box. --}}
-                                    @if($chosen && in_array($lensAvailability['status'] ?? null, ['available', 'partial'], true))
-                                        <span class="mt-2 block space-y-0.5 border-t border-teal-200 pt-2 text-[11px] text-slate-700">
-                                            @foreach(($lensAvailability['eyes'] ?? []) as $eye => $availability)
-                                                <span class="block">{{ strtoupper($eye) }}: SPH {{ sprintf('%+.2f', $availability['sphere']) }}, {{ ($availability['power_type'] ?? 'cyl') === 'add' ? 'ADD' : 'CYL' }} {{ sprintf('%+.2f', $availability['cylinder']) }} ·
-                                                    {{ ($availability['source'] ?? 'stock') === 'stock' ? 'from branch stock' : 'special order' }} · {{ currency() }} {{ number_format($availability['unit_price'] ?? 0, 2) }}@if(! empty($availability['price_estimated'])) <span class="text-amber-800">(no catalogue price for this power; design price used)</span>@endif
-                                                    @if(! empty($availability['reason']))<span class="text-amber-800">· {{ $availability['reason'] }}</span>@endif</span>
-                                            @endforeach
-                                            <span class="block text-slate-500">{{ $lensAvailability['message'] ?? '' }} Held for this order when placed; taken from stock when glazing starts.</span>
-                                        </span>
-                                    @endif
                                 </label>
+                                {{-- The chosen lens: what each eye will be. A special-order eye has no stock price, so staff price it here. --}}
+                                @if($chosen && in_array($lensAvailability['status'] ?? null, ['available', 'partial'], true))
+                                    @php
+                                        $eyes = $lensAvailability['eyes'] ?? [];
+                                        $ordered = collect($eyes)->where('source', 'special_order')->keys();
+                                        $mixedMultifocal = $ordered->isNotEmpty() && $ordered->count() < 2 && \App\Support\LensDesign::isEyeSpecific($option['lens_type']);
+                                    @endphp
+                                    <div class="-mt-1 space-y-2 rounded-b-lg border border-t-0 border-teal-600 bg-white px-3 py-2 text-xs">
+                                        @foreach($eyes as $eye => $availability)
+                                            @php $special = ($availability['source'] ?? 'stock') === 'special_order'; @endphp
+                                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                <strong class="w-7">{{ strtoupper($eye) }}</strong>
+                                                <span class="font-mono">SPH {{ sprintf('%+.2f', $availability['sphere']) }} {{ ($availability['power_type'] ?? 'cyl') === 'add' ? 'ADD' : 'CYL' }} {{ sprintf('%+.2f', $availability['cylinder']) }}</span>
+                                                @if($special)
+                                                    <span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Order from supplier</span>
+                                                    @if(! empty($availability['reason']))<span class="text-amber-800">{{ $availability['reason'] }}</span>
+                                                    @elseif(($availability['list_price'] ?? null) === null)<span class="text-amber-800">No price for this power</span>
+                                                    @else<span class="text-slate-500">Catalogue {{ currency() }} {{ number_format($availability['list_price'], 2) }}</span>@endif
+                                                    <label class="ml-auto flex items-center gap-1.5">
+                                                        <span class="font-semibold">Price {{ currency() }}</span>
+                                                        <input type="number" min="0" step="0.01" wire:model.blur="specialPrices.{{ $eye }}" placeholder="Required" aria-label="{{ strtoupper($eye) }} special-order lens price"
+                                                            class="ui-input !w-28 !py-1 text-right font-mono text-xs @error('specialPrices.'.$eye) border-red-500 @enderror">
+                                                    </label>
+                                                @else
+                                                    <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">From stock · held</span>
+                                                    <span class="ml-auto font-mono">{{ currency() }} {{ number_format($availability['unit_price'] ?? 0, 2) }}</span>
+                                                @endif
+                                            </div>
+                                            @error('specialPrices.'.$eye)<p class="text-red-600">{{ $message }}</p>@enderror
+                                        @endforeach
+                                        @if($ordered->isNotEmpty())
+                                            <p class="text-slate-500">Glazing waits until the {{ $ordered->map(fn ($eye) => strtoupper($eye))->implode(' and ') }} lens arrives and is marked received.@if(collect($eyes)->contains(fn ($e) => ($e['source'] ?? '') === 'special_order' && ($e['list_price'] ?? null) === null)) A price entered by hand is emailed to the owner.@endif</p>
+                                        @else
+                                            <p class="text-slate-500">Both lenses held for this order when it is placed; taken from stock when glazing starts.</p>
+                                        @endif
+                                        @if($mixedMultifocal)
+                                            <div class="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-900" role="note">
+                                                <span class="flex-1"><strong>Mixed pair:</strong> one stock {{ strtolower($option['lens_type']) }} lens and one made by the supplier. Labs usually advise making both eyes together so the two lenses match.</span>
+                                                <button type="button" x-on:click="fulfilment = 'external'" wire:click="specialOrderBothEyes" class="ui-button ui-button-secondary !py-1 text-xs">Special-order both eyes</button>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
                             @endforeach
                         </div>
                     @endif
@@ -378,7 +410,7 @@
                     @error('stock_lens_key')<p class="text-xs text-red-600">Select one stocked lens option.</p>@enderror
                     @error('measurements')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
-                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm"><label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
+                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm">@if($specialOrderLens !== '')<p class="mb-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">Both eyes will be special-ordered as <strong>{{ $specialOrderLens }}</strong>. The stock lens stays on the shelf.</p>@endif<label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
                 <p x-show="fulfilment === 'customer'" x-cloak class="text-xs text-slate-600">No lens charge. Fitting or glazing fees can be added in Pricing.</p>
                 @error('lens_stock')<p class="text-xs text-red-600" role="alert">{{ $message }}</p>@enderror
             </div>

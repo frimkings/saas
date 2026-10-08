@@ -2003,6 +2003,51 @@ class OpticalWorkflowTest extends TestCase
         $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Single Vision|Gold'])->assertSet('wantedLens', '');
     }
 
+    public function test_half_pair_special_order_eye_is_priced_by_staff_and_the_owner_is_told(): void
+    {
+        config(['tenancy.enabled' => true]);
+        \Illuminate\Support\Facades\Mail::fake();
+        $user = User::factory()->create(['name' => 'Ama']);
+        [$clinic] = $this->tenant($user, 'half-pair-price');
+        $clinic->update(['billing_email' => 'owner@example.com']);
+        $this->actingAs($user);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Kojo', 'contact' => '0240000555', 'gender' => 'Other']);
+        // Only the right eye's power is stocked; the left needs CYL, so it is made to order.
+        app(\App\Services\OpticalLensReceivingService::class)->receiveMany([[
+            'specs' => ['range' => 'CANADA', 'design' => 'Progressive', 'index' => '1.56', 'coating' => 'Photo AR', 'diameter' => 65, 'sphere' => '-1.00', 'power' => '1.50', 'eye' => 'R'],
+            'quantity' => 4, 'details' => ['unit_cost' => 20, 'unit_price' => 50, 'supplier' => 'Lab'],
+        ]]);
+        $rx = ['od' => ['sph' => '-1.00', 'add' => '1.50'], 'os' => ['sph' => '-2.00', 'cyl' => '-3.00', 'axis' => '180', 'add' => '2.50']];
+
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2)
+            ->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Progressive|Photo AR'])
+            ->assertSet('lensAvailability.status', 'partial')->assertSet('lens_price', 50.0)
+            ->assertSee('Mixed pair')->assertSee('Special-order both eyes')
+            ->call('nextStepWithLens', $rx + ['fulfilment' => 'stock'])->assertHasErrors(['specialPrices.os'])->assertSet('currentStep', 2)
+            ->set('specialPrices.os', '180')->assertSet('lens_price', 230.0)->assertSet('lensAvailability.eyes.os.unit_price', 180.0)
+            ->call('nextStepWithLens', $rx + ['fulfilment' => 'stock'])->assertHasNoErrors()->assertSet('currentStep', 3);
+
+        // The typed price is what the order and its OS lens line are charged, and the owner hears of it.
+        $data = $this->orderData($patient);
+        $data['measurements'] = $rx;
+        $data['lens_fulfilment_source'] = 'stock';
+        $data['lens_price'] = 0;
+        $data['discount_amount'] = 0;
+        $data['docket'] = ['lens_details' => ['type' => 'Progressive', 'index' => '1.56', 'stock_coating' => 'Photo AR',
+            'stock_key' => $form->get('stock_lens_key'), 'stock_split' => $form->get('lensAvailability.split'), 'special_prices' => ['os' => '180']]];
+        $order = app(OpticalOrderService::class)->create($data);
+        $this->assertEquals(230, $order->lens_price);
+        $this->assertEquals(180, $order->lensLines()->where('eye', 'os')->value('unit_price'));
+        $this->assertSame(['held', 'ordered'], $order->lensLines()->orderBy('eye')->pluck('status')->all());
+        $this->assertDatabaseHas('owner_emails', ['kind' => 'special_lens_priced', 'status' => 'sent', 'recipient' => 'owner@example.com']);
+
+        // Switching a mixed pair to a full special order leaves the stock lens alone.
+        Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2)
+            ->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Progressive|Photo AR'])
+            ->call('specialOrderBothEyes')->assertSet('lens_fulfilment_source', 'external')->assertSet('stock_lens_key', '')
+            ->assertSet('specialOrderLens', 'Progressive Photo AR')->assertSee('Both eyes will be special-ordered as');
+    }
+
     public function test_heights_and_pds_are_taken_at_fitting_and_reach_the_lab(): void
     {
         config(['tenancy.enabled' => true]);
