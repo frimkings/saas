@@ -93,6 +93,8 @@ class OpticalOrderCreateComponent extends Component
     public array $specialPrices = ['od' => '', 'os' => ''];
     /** The lens a whole pair was switched to special order for, shown with the special-order price. */
     public string $specialOrderLens = '';
+    /** How a special-ordered lens moved the pickup date (or why it could not), shown with the lens and the date. */
+    public string $leadTimeNote = '';
 
     // Step 5: Fitting / Lab Details (Matches screenshot)
     public $segment_height = '';
@@ -845,6 +847,26 @@ class OpticalOrderCreateComponent extends Component
         foreach ($listed['eyes'] ?? [] as $eye => $line) {
             $this->lensAvailability['eyes'][$eye]['list_price'] = $this->hasListPrice($line) ? (float) $line['unit_price'] : null;
         }
+        if ($this->specialOrderEyes()) $this->datePickupForSpecialOrder($key);
+        else $this->leadTimeNote = '';
+    }
+
+    /**
+     * A special-ordered lens can't be ready before the supplier delivers it: move the pickup
+     * date to the range supplier's lead time plus a day to glaze. The date only moves later.
+     */
+    private function datePickupForSpecialOrder(string $key): void
+    {
+        $supplier = app(OpticalLensAvailabilityService::class)->rangeSupplier($key);
+        $days = (int) ($supplier?->lead_time_days ?? 0);
+        if ($days < 1) {
+            $this->leadTimeNote = ($supplier ? "{$supplier->name} has no lead time set" : 'No supplier is known for this lens yet')
+                .', so the pickup date was not moved. Set a lead time under Purchasing → Suppliers.';
+            return;
+        }
+        $ready = today()->addDays($days + 1);
+        if (! $this->pickUpDate || \Illuminate\Support\Carbon::parse($this->pickUpDate)->lt($ready)) $this->pickUpDate = $ready->toDateString();
+        $this->leadTimeNote = "Ready about {$ready->format('j M')}: {$supplier->name} takes {$days} ".($days === 1 ? 'day' : 'days').' to supply the lens, plus a day to glaze.';
     }
 
     /** The catalogue has a price for this exact power: it is not made to order or estimated from the range. */
@@ -899,6 +921,8 @@ class OpticalOrderCreateComponent extends Component
      */
     public function specialOrderBothEyes(): void
     {
+        // Both lenses now come from the supplier, so the date follows its lead time too.
+        if ($this->stock_lens_key !== '') $this->datePickupForSpecialOrder($this->stock_lens_key);
         $this->lens_fulfilment_source = 'external';
         $this->specialOrderLens = trim($this->lens_type.' '.$this->stock_coating);
         $this->stock_lens_key = '';

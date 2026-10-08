@@ -276,6 +276,25 @@ class OpticalLensAvailabilityService
     }
 
     /**
+     * The supplier a stock lens range comes from, to date a special order: the supplier of
+     * its latest supplier order, else the supplier named on its latest delivery (matched to
+     * the Suppliers list by name). Null when neither is known.
+     */
+    public function rangeSupplier(string $optionKey): ?\App\Models\Supplier
+    {
+        $specs = json_decode((string) base64_decode($optionKey, true), true);
+        if (! is_array($specs)) return null;
+        $productIds = app(OpticalLensPriceList::class)->rangeProducts($specs)->pluck('id');
+        if ($productIds->isEmpty()) return null;
+
+        $ordered = \App\Models\OpticalPurchaseOrderLine::with('purchaseOrder.supplier')->whereIn('optical_product_id', $productIds)->latest('id')->first()?->purchaseOrder?->supplier;
+        if ($ordered) return $ordered;
+        $name = \App\Models\OpticalProductStockMovement::whereIn('optical_product_id', $productIds)->where('movement_type', 'receipt')
+            ->whereNotNull('supplier')->latest('id')->value('supplier');
+        return $name ? \App\Models\Supplier::whereRaw('LOWER(name) = ?', [mb_strtolower(trim($name))])->first() : null;
+    }
+
+    /**
      * Special-order lenses priced by staff (made-to-order, or no price for that power) go to
      * the audit trail and the owner, so a mistyped or generous price is seen.
      */

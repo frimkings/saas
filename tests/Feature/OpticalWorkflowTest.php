@@ -2019,8 +2019,17 @@ class OpticalWorkflowTest extends TestCase
         ]]);
         $rx = ['od' => ['sph' => '-1.00', 'add' => '1.50'], 'os' => ['sph' => '-2.00', 'cyl' => '-3.00', 'axis' => '180', 'add' => '2.50']];
 
-        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2)
-            ->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Progressive|Photo AR'])
+        // No lead time for the range's supplier yet: the pickup date stays and staff are told why.
+        $supplier = \App\Models\Supplier::create(['name' => 'Lab', 'is_active' => true]);
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2);
+        $defaultPickup = $form->get('pickUpDate');
+        $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Progressive|Photo AR'])
+            ->assertSet('pickUpDate', $defaultPickup)->assertSee('Lab has no lead time set');
+        // With a 7-day lead time the glasses can't be ready before day 8.
+        $supplier->update(['lead_time_days' => 7]);
+        $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Progressive|Photo AR'])
+            ->assertSet('pickUpDate', today()->addDays(8)->toDateString())
+            ->assertSee('Lab takes 7 days to supply the lens, plus a day to glaze.')
             ->assertSet('lensAvailability.status', 'partial')->assertSet('lens_price', 50.0)
             ->assertSee('Mixed pair')->assertSee('Special-order both eyes')
             ->call('nextStepWithLens', $rx + ['fulfilment' => 'stock'])->assertHasErrors(['specialPrices.os'])->assertSet('currentStep', 2)

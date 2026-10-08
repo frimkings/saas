@@ -389,6 +389,7 @@
                                         @endforeach
                                         @if($ordered->isNotEmpty())
                                             <p class="text-slate-500">Glazing waits until the {{ $ordered->map(fn ($eye) => strtoupper($eye))->implode(' and ') }} lens arrives and is marked received.@if(collect($eyes)->contains(fn ($e) => ($e['source'] ?? '') === 'special_order' && ($e['list_price'] ?? null) === null)) A price entered by hand is emailed to the owner.@endif</p>
+                                            @if($leadTimeNote !== '')<p class="font-semibold text-slate-700"><i class="fas fa-calendar-day mr-1 text-slate-400" aria-hidden="true"></i>{{ $leadTimeNote }}</p>@endif
                                         @else
                                             <p class="text-slate-500">Both lenses held for this order when it is placed; taken from stock when glazing starts.</p>
                                         @endif
@@ -410,7 +411,7 @@
                     @error('stock_lens_key')<p class="text-xs text-red-600">Select one stocked lens option.</p>@enderror
                     @error('measurements')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
-                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm">@if($specialOrderLens !== '')<p class="mb-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">Both eyes will be special-ordered as <strong>{{ $specialOrderLens }}</strong>. The stock lens stays on the shelf.</p>@endif<label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
+                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm">@if($specialOrderLens !== '')<p class="mb-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">Both eyes will be special-ordered as <strong>{{ $specialOrderLens }}</strong>. The stock lens stays on the shelf.@if($leadTimeNote !== '') {{ $leadTimeNote }}@endif</p>@endif<label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
                 <p x-show="fulfilment === 'customer'" x-cloak class="text-xs text-slate-600">No lens charge. Fitting or glazing fees can be added in Pricing.</p>
                 @error('lens_stock')<p class="text-xs text-red-600" role="alert">{{ $message }}</p>@enderror
             </div>
@@ -510,6 +511,7 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Expected Ready / Collection Date</label>
                         <input autocomplete="off" type="date" wire:model="pickUpDate" class="ui-input w-full text-xs bg-white">
+                        @if($leadTimeNote !== '')<p class="mt-1 text-[11px] text-slate-500">{{ $leadTimeNote }}</p>@endif
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Glazing / Workshop Instructions</label>
