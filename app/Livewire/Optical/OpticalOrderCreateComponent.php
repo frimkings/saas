@@ -82,7 +82,8 @@ class OpticalOrderCreateComponent extends Component
     public $lens_coatings = '';
     public $lens_price = 0;
     public string $stock_coating = 'AR';
-    public string $lens_fulfilment_source = 'external';
+    /** New orders start on branch stock; the lens choice resets to it when the prescription changes. */
+    public string $lens_fulfilment_source = 'stock';
     public array $lensAvailability = [];
     public array $stockLensOptions = [];
     public string $stock_lens_key = '';
@@ -268,7 +269,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lensAvailability = [];
         $this->stockLensOptions = [];
         $this->stock_lens_key = '';
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         foreach (['od', 'os'] as $eye) foreach (['sph', 'cyl', 'axis', 'add'] as $field) {
             $key = "rx_{$eye}_{$field}";
             $this->{$key} = data_get($rx, "{$eye}.{$field}", '');
@@ -289,14 +290,14 @@ class OpticalOrderCreateComponent extends Component
         $this->lensAvailability = [];
         $this->stockLensOptions = [];
         $this->stock_lens_key = '';
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
     }
 
     public function chooseOpticalCategory($id): void
     {
         $this->optical_category_id = null;
         $this->lensAvailability = [];
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
         $category = OpticalCategory::where('is_active', true)->findOrFail((int) $id);
         abort_unless(in_array($category->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
@@ -323,7 +324,7 @@ class OpticalOrderCreateComponent extends Component
     {
         $this->lens_optical_product_id = null;
         $this->lens_product_id = null;
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
         abort_unless(in_array($product->category?->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
@@ -350,7 +351,7 @@ class OpticalOrderCreateComponent extends Component
         $this->frame_product_id = $this->frame_optical_product_id = null;
         $this->frame_price = 0;
         $this->frame_model_number = trim(($order->frame_model_number ?: 'Frame').' (from order '.$order->order_id.')');
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         $this->stock_lens_key = '';
         $this->lensAvailability = $this->stockLensOptions = [];
         $this->notes = '';

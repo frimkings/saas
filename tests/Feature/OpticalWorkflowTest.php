@@ -2249,7 +2249,7 @@ class OpticalWorkflowTest extends TestCase
             ->call('choosePatient', $patient->id)
             ->assertSet('patient_id', $patient->id)
             ->set('reference', 'JOB-123')
-            ->set('currentStep', 2)
+            ->set('currentStep', 2)->set('lens_fulfilment_source', 'external')
             ->set('rx_od_sph', '-2.00')
             ->set('rx_os_sph', '-1.50')
             ->set('rx_od_cyl', '-0.75')
