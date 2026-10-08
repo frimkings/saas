@@ -59,102 +59,84 @@
     </div>
 
     {{-- Search and Filter Section --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm mb-6">
-        <div class="card-body p-4">
-            <div class="flex flex-wrap -mx-2 items-end">
-                {{-- Search Bar --}}
-                <div class="w-full md:w-4/12 px-2 mb-4 md:mb-0">
-                    <label class="text-sm font-semibold text-slate-500 mb-1">Search</label>
-                    <div class="flex items-stretch">
-                        <div class="flex">
-                            <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-white border-r-0">
-                                <i class="fas fa-search text-slate-500"></i>
-                            </span>
-                        </div>
-                        <input wire:model.live.debounce.400ms="search" 
-                            type="text" 
-                            class="form-control ui-input border-l-0" 
-                            placeholder="Search by name or email...">
-                        @if($search)
-                            <div class="flex">
-                                <button wire:click="$set('search', '')" class="btn ui-button ui-button-secondary" type="button">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-
-                {{-- Filter Toggle & Actions --}}
-                <div class="w-full md:w-8/12 px-2 flex justify-end">
-                    <button wire:click="$toggle('showFilters')" 
-                        class="btn ui-button {{ $showFilters ? 'ui-button-primary' : 'ui-button-secondary' }} mr-2">
-                        <i class="fas fa-filter mr-1"></i> Filters
-                        @if($filterRole || $filterStatus !== '' || $filterEmailVerified !== '' || $filterDateFrom || $filterDateTo)
-                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 ml-1">
-                                {{ collect([$filterRole, $filterStatus, $filterEmailVerified, $filterDateFrom, $filterDateTo])->filter()->count() }}
-                            </span>
-                        @endif
+    @php
+        $activeFilters = collect([$filterRole, $filterStatus, $filterEmailVerified, $filterDateFrom, $filterDateTo])->filter(fn ($v) => $v !== '' && $v !== null)->count();
+        $fieldLabel = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500';
+        $field = 'ui-input !py-2 text-sm';
+    @endphp
+    <div class="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center gap-2 p-4">
+            {{-- Search Bar --}}
+            <div class="relative min-w-[14rem] flex-1">
+                <label for="staff-search" class="sr-only">Search staff</label>
+                <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400" aria-hidden="true"></i>
+                <input id="staff-search" wire:model.live.debounce.400ms="search" type="search"
+                    class="{{ $field }} !pl-9 {{ $search ? '!pr-9' : '' }}" placeholder="Search by name or email…">
+                @if($search)
+                    <button type="button" wire:click="$set('search', '')" class="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 text-slate-400 hover:text-slate-700" aria-label="Clear search">
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
-
-                    @if($filterRole || $filterStatus !== '' || $filterEmailVerified !== '' || $filterDateFrom || $filterDateTo || $search)
-                        <button wire:click="clearFilters" class="btn ui-button ui-button-danger mr-2">
-                            <i class="fas fa-times mr-1"></i> Clear All
-                        </button>
-                    @endif
-
-                    <select wire:model.live="perPage" class="ui-input" style="width: auto;">
-                        <option value="10">10 per page</option>
-                        <option value="25">25 per page</option>
-                        <option value="50">50 per page</option>
-                        <option value="100">100 per page</option>
-                    </select>
-                </div>
+                @endif
             </div>
 
-            {{-- Advanced Filters Panel --}}
-            @if($showFilters)
-                <hr>
-                <div class="flex flex-wrap -mx-2">
-                    {{-- Filter by Role --}}
-                    <div class="w-full md:w-auto md:flex-1 px-2 mb-4">
-                        <label class="text-sm font-semibold text-slate-500 mb-1">Role</label>
-                        <select wire:model.live="filterRole" class="ui-input">
-                            <option value="">All Roles</option>
-                            @foreach($availableRoles as $role)
-                                <option value="{{ $role->name }}">{{ $role->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    {{-- Filter by Status --}}
-                    <div class="w-full md:w-auto md:flex-1 px-2 mb-4">
-                        <label class="text-sm font-semibold text-slate-500 mb-1">Status</label>
-                        <select wire:model.live="filterStatus" class="ui-input">
-                            <option value="">All Status</option>
-                            <option value="1">Active</option>
-                            <option value="0">Inactive</option>
-                        </select>
-                    </div>
-
-                    {{-- Filter by Email Verification --}}
-                    <div class="w-full md:w-auto md:flex-1 px-2 mb-4">
-                        <label class="text-sm font-semibold text-slate-500 mb-1">Email Verified</label>
-                        <select wire:model.live="filterEmailVerified" class="ui-input">
-                            <option value="">All</option>
-                            <option value="1">Verified</option>
-                            <option value="0">Not Verified</option>
-                        </select>
-                    </div>
-
-                    {{-- Filter by date added --}}
-                    <div class="w-full md:w-auto md:flex-1 px-2 mb-4">
-                        <label class="text-sm font-semibold text-slate-500 mb-1 block">Added</label>
-                        <x-date-range from="filterDateFrom" to="filterDateTo" presets="activity" clearable />
-                    </div>
-                </div>
-            @endif
+            {{-- Filter Toggle & Actions --}}
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" wire:click="$toggle('showFilters')" aria-expanded="{{ $showFilters ? 'true' : 'false' }}"
+                    class="ui-button {{ $showFilters ? 'ui-button-primary' : 'ui-button-secondary' }} !py-2">
+                    <i class="fas fa-filter mr-1" aria-hidden="true"></i> Filters
+                    @if($activeFilters)
+                        <span class="ml-1 inline-flex min-w-[1.25rem] justify-center rounded-full px-1.5 text-xs font-bold {{ $showFilters ? 'bg-white text-teal-700' : 'bg-teal-600 text-white' }}">{{ $activeFilters }}</span>
+                    @endif
+                </button>
+                @if($activeFilters || $search)
+                    <button type="button" wire:click="clearFilters" class="ui-button ui-button-secondary !py-2 text-red-700">
+                        <i class="fas fa-times mr-1" aria-hidden="true"></i> Clear all
+                    </button>
+                @endif
+                <label for="staff-per-page" class="sr-only">Rows per page</label>
+                <select id="staff-per-page" wire:model.live="perPage" class="{{ $field }} !w-auto">
+                    <option value="10">10 per page</option>
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                </select>
+            </div>
         </div>
+
+        {{-- Advanced Filters Panel --}}
+        @if($showFilters)
+            <div class="grid grid-cols-1 gap-4 border-t border-slate-200 bg-slate-50/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                    <label for="staff-role" class="{{ $fieldLabel }}">Role</label>
+                    <select id="staff-role" wire:model.live="filterRole" class="{{ $field }}">
+                        <option value="">All roles</option>
+                        @foreach($availableRoles as $role)
+                            <option value="{{ $role->name }}">{{ $role->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label for="staff-status" class="{{ $fieldLabel }}">Status</label>
+                    <select id="staff-status" wire:model.live="filterStatus" class="{{ $field }}">
+                        <option value="">All statuses</option>
+                        <option value="1">Active</option>
+                        <option value="0">Inactive</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="staff-verified" class="{{ $fieldLabel }}">Email verified</label>
+                    <select id="staff-verified" wire:model.live="filterEmailVerified" class="{{ $field }}">
+                        <option value="">All</option>
+                        <option value="1">Verified</option>
+                        <option value="0">Not verified</option>
+                    </select>
+                </div>
+                <div>
+                    <span class="{{ $fieldLabel }}">Added</span>
+                    <x-date-range from="filterDateFrom" to="filterDateTo" presets="activity" clearable class="w-full" />
+                </div>
+            </div>
+        @endif
     </div>
 
     {{-- Users Table --}}
