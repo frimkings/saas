@@ -110,7 +110,7 @@
         @if($priceList)
         <p class="text-xs rounded border border-teal-200 bg-teal-50 p-2">Selling price comes from the lens price list: GHS {{ number_format((float) $priceList->pair_price, 2) }} per pair (GHS {{ number_format((float) $priceList->pair_price / 2, 2) }} per lens){{ $priceList->rules->isNotEmpty() ? ', with '.$priceList->rules->count().' power exception(s)' : '' }}. Change it in Lens Catalogue → Lens prices.</p>
         @else
-        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model="unitPrice" class="ui-input w-full"></label>
+        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model="unitPrice" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitPrice !== '' && ! isNaN(parseFloat($wire.unitPrice))" x-text="'= GHS ' + money(num($wire.unitPrice) * 2) + ' per pair'"></span></label>
         @endif
     </div>
     @if($entryMode === 'bulk')
