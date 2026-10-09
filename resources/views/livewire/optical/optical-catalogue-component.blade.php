@@ -14,6 +14,7 @@
         $stockBadge = fn ($qty, $reorder) => $qty <= 0 ? ['Out of stock', 'oo-b-red'] : ($qty <= $reorder ? ['Low stock', 'oo-b-amber'] : ['In stock', 'oo-b-green']);
     @endphp
 
+    <x-optical.catalogue-tabs />
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Catalogue &amp; Stock</h1>
@@ -21,7 +22,6 @@
         </div>
         <div class="flex flex-wrap gap-2">
             @if($isManager)
-                <a wire:navigate href="{{ route('optical.categories') }}" class="oo-btn">Categories</a>
                 <a wire:navigate href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
                 @if(in_array($activeTab, ['frames', 'lenses']))<a wire:navigate href="{{ route('optical.products') }}" class="oo-btn primary">+ Add item</a>@endif
             @endif

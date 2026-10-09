@@ -67,6 +67,8 @@ final class OpticalAccess
         'optical.profit' => self::MANAGER_ONLY,
         'optical.profit.export' => self::MANAGER_ONLY,
         'optical.settings' => self::MANAGER_ONLY,
+        'optical.audit-trail' => self::MANAGER_ONLY,
+        'optical.login-history' => self::MANAGER_ONLY,
     ];
 
     /**

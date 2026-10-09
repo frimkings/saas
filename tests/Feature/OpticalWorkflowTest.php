@@ -1303,6 +1303,33 @@ class OpticalWorkflowTest extends TestCase
         $this->get(route('optical.purchasing'))->assertForbidden();
     }
 
+    public function test_menu_is_grouped_by_area_and_each_role_sees_its_own_groups(): void
+    {
+        // Receptionist (Optical Assistant): the front desk only, open.
+        $this->opticalStaff('menu-desk', 'Optical Assistant');
+        $this->get(route('optical.dashboard'))->assertOk()
+            ->assertSee('Front desk')->assertSee('Retail POS')->assertSee('id="optical-nav-desk"', false)
+            ->assertDontSee('id="optical-nav-money"', false)->assertDontSee('id="optical-nav-admin"', false)
+            // Job Tracking is shared with the lab, so their Lab group holds only that, folded.
+            ->assertSee('Job Tracking')->assertDontSee('Lab Workbench')->assertDontSee('Awaiting Collection');
+        // Awaiting Collection now opens from Orders, which stays highlighted there.
+        $this->get(route('optical.orders'))->assertSee('Awaiting collection &amp; reminders', false);
+        $this->get(route('optical.collections'))->assertOk()->assertSee('aria-current="page"', false);
+
+        // Lab technician: lab and stock, including receiving.
+        $this->opticalStaff('menu-lab', 'Lab Technician');
+        $this->get(route('optical.lab-workbench'))->assertSee('id="optical-nav-lab"', false)->assertSee('id="optical-nav-stock"', false)
+            ->assertSee('Receiving &amp; Batches', false)->assertDontSee('id="optical-nav-desk"', false)->assertDontSee('id="optical-nav-admin"', false);
+
+        // Manager: every group; products and categories are tabs of Catalogue & Stock, not menu links.
+        Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']);
+        $this->opticalStaff('menu-manager', 'Manager');
+        $page = $this->get(route('optical.catalogue'))->assertOk();
+        foreach (['desk', 'lab', 'stock', 'money', 'admin'] as $group) $page->assertSee('id="optical-nav-'.$group.'"', false);
+        $page->assertSee('aria-label="Catalogue sections"', false)->assertDontSee('Optical Categories')->assertDontSee('Stock Restocking');
+        $this->get(route('optical.products'))->assertOk()->assertSee('aria-label="Catalogue sections"', false);
+    }
+
     public function test_managers_add_staff_but_only_super_admins_hand_out_super_admin(): void
     {
         $manager = $this->opticalManager('optical-staff-admin');

@@ -1,4 +1,5 @@
 <div class="clinic-ui ui-page space-y-6">
+    <x-optical.catalogue-tabs />
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Optical Categories Management <span class="ml-2 rounded-full bg-teal-50 border border-teal-200 px-2 py-1 text-xs text-teal-800">Catalog Master Data</span></h1>

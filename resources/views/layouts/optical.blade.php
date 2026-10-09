@@ -24,7 +24,6 @@
 @include('layouts.partials.toasts')
 @php
     $tenant = app(\App\Support\Tenancy\TenantContext::class);
-    $links = \App\Support\OpticalNavigation::links();
     // Menu badges: everything needing attention, and late or uncollected jobs on Orders.
     $attentionCounts = auth()->check() && ! auth()->user()->is_platform_admin ? app(\App\Services\Reminders\AttentionItems::class)->counts('optical') : [];
     $navBadges = ['optical.attention' => $attentionCounts['total'] ?? 0, 'optical.orders' => $attentionCounts['orders'] ?? 0];
@@ -52,39 +51,47 @@
     <div class="flex flex-1 min-h-0">
         <aside class="w-64 bg-slate-900 text-slate-300 flex-shrink-0 border-r border-slate-800 flex flex-col justify-between overflow-y-auto hidden md:flex">
             <div>
-                <nav class="p-3 space-y-6">
-                    <div class="space-y-1">
-                        <div class="px-3 text-[11px] font-bold text-teal-400 uppercase tracking-wider flex justify-between"><span>Optical Suite</span><span>●</span></div>
-                        @foreach($links as [$route, $label, $icon])
-                            @if($route === 'optical.settings' || ! \App\Support\OpticalNavigation::allowed($route)) @continue @endif
-                            <a href="{{ route($route) }}" @if(\App\Support\OpticalNavigation::navigable($route)) wire:navigate @endif class="block px-3 py-2 rounded-lg text-sm {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">{{ $label }}@if($navBadges[$route] ?? 0)<span style="margin-left:8px;display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;text-align:center">{{ $navBadges[$route] }}</span>@endif</a>
-                        @endforeach
-                    </div>
-                    @hasanyrole('Manager|Super Admin')
-                        <div class="space-y-1"><div class="px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Management</div>
-                            <a href="{{ route('optical.categories') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.categories') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Optical Categories</a>
-                            <a href="{{ route('optical.products') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.products') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Optical Products</a>
-                            <a href="{{ route('optical.stock') }}" wire:navigate class="block px-3 py-2 text-sm {{ request()->routeIs('optical.stock') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }} rounded-lg">Stock Restocking &amp; Batches</a>
+                {{-- Grouped by area of work; each person sees only what their role opens. Groups fold,
+                     the folded state is remembered per device, and the group of the current page is open. --}}
+                <nav class="p-3 space-y-3" aria-label="Optical Suite">
+                    @foreach(\App\Support\OpticalNavigation::groups() as $group)
+                        @php
+                            $groupLinks = array_values(array_filter($group['links'], fn ($link) => \App\Support\OpticalNavigation::allowed($link[0])));
+                            $groupBadge = array_sum(array_map(fn ($link) => (int) ($navBadges[$link[0]] ?? 0), $groupLinks));
+                            $holdsCurrent = collect($groupLinks)->contains(fn ($link) => \App\Support\OpticalNavigation::active($link[0]));
+                        @endphp
+                        @continue(! $groupLinks)
+                        <div class="space-y-0.5"
+                             @if($group['key']) x-data="{ open: (() => { if (@js($holdsCurrent)) return true; try { const s = localStorage.getItem('optical-nav-{{ $group['key'] }}'); if (s !== null) return s === '1'; } catch (e) {} return @js(\App\Support\OpticalNavigation::opensFor($group)); })() }"
+                                x-init="$watch('open', v => { try { localStorage.setItem('optical-nav-{{ $group['key'] }}', v ? '1' : '0'); } catch (e) {} })" @endif>
+                            @if($group['label'])
+                                <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()" aria-controls="optical-nav-{{ $group['key'] }}"
+                                        class="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-300">
+                                    <i class="fas fa-chevron-right text-[9px] transition-transform" :class="open ? 'rotate-90' : ''" aria-hidden="true"></i>
+                                    <span class="flex-1 text-left">{{ $group['label'] }}</span>
+                                    @if($groupBadge)<span x-show="! open" class="rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white" aria-label="{{ $groupBadge }} need attention">{{ $groupBadge }}</span>@endif
+                                </button>
+                            @endif
+                            <div id="optical-nav-{{ $group['key'] ?? 'main' }}" class="space-y-0.5" @if($group['key']) x-show="open" @unless($holdsCurrent || \App\Support\OpticalNavigation::opensFor($group)) x-cloak @endunless @endif>
+                                @foreach($groupLinks as [$route, $label, $icon])
+                                    <a href="{{ \App\Support\OpticalNavigation::url($route) }}" @if(\App\Support\OpticalNavigation::navigable($route) && $route !== 'admin.users') wire:navigate @endif
+                                       @if(\App\Support\OpticalNavigation::active($route)) aria-current="page" @endif
+                                       class="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">
+                                        <i class="fas {{ $icon }} w-4 text-center text-xs opacity-70" aria-hidden="true"></i>
+                                        <span class="flex-1">{{ $label }}</span>
+                                        @if($navBadges[$route] ?? 0)<span class="rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">{{ $navBadges[$route] }}</span>@endif
+                                    </a>
+                                @endforeach
+                            </div>
                         </div>
-                        <a href="{{ route('optical.settings') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.settings') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Settings</a>
-                        @if(\App\Services\LicenseService::has(\App\Support\Feature::AUDIT_TRAIL))
-                            <a href="{{ route('optical.audit-trail') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.audit-trail') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Audit Trail</a>
-                            <a href="{{ route('optical.login-history') }}" wire:navigate class="block px-3 py-2 rounded-lg text-sm {{ request()->routeIs('optical.login-history') ? 'bg-teal-600 text-white font-semibold' : 'text-slate-400 hover:bg-slate-800' }}">Login History</a>
-                        @endif
-                    @endhasanyrole
-                    @if(\App\Support\OpticalNavigation::canManageStaff())
-                        {{-- Staff are managed on the shared staff screen; it links back here. --}}
-                        <a href="{{ route('admin.users', ['from' => 'optical']) }}" class="block px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800">Staff &amp; roles</a>
-                    @endif
+                    @endforeach
                 </nav>
             </div>
             <div class="p-3 border-t border-slate-800 text-xs text-slate-500">Optical Suite</div>
         </aside>
         <main class="flex-1 bg-slate-50 min-w-0 overflow-y-auto">
             <nav class="md:hidden flex gap-2 overflow-x-auto p-2 bg-slate-900 text-white text-xs" aria-label="Optical navigation">
-                @foreach($links as [$route, $label])@if(! \App\Support\OpticalNavigation::allowed($route)) @continue @endif<a href="{{ route($route) }}" @if(\App\Support\OpticalNavigation::navigable($route)) wire:navigate @endif class="whitespace-nowrap px-2 py-1 rounded {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600' : '' }}">{{ $label }}</a>@endforeach
-                @hasanyrole('Manager|Super Admin')<a href="{{ route('optical.categories') }}" wire:navigate class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.categories') ? 'bg-teal-600' : '' }}">Optical Categories</a><a href="{{ route('optical.products') }}" wire:navigate class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.products') ? 'bg-teal-600' : '' }}">Optical Products</a><a href="{{ route('optical.stock') }}" wire:navigate class="whitespace-nowrap px-2 py-1 rounded {{ request()->routeIs('optical.stock') ? 'bg-teal-600' : '' }}">Stock Restocking &amp; Batches</a>@endhasanyrole
-                @if(\App\Support\OpticalNavigation::canManageStaff())<a href="{{ route('admin.users', ['from' => 'optical']) }}" class="whitespace-nowrap px-2 py-1 rounded">Staff &amp; roles</a>@endif
+                @foreach(\App\Support\OpticalNavigation::groups() as $group)@foreach($group['links'] as [$route, $label])@if(! \App\Support\OpticalNavigation::allowed($route)) @continue @endif<a href="{{ \App\Support\OpticalNavigation::url($route) }}" @if(\App\Support\OpticalNavigation::navigable($route) && $route !== 'admin.users') wire:navigate @endif class="whitespace-nowrap px-2 py-1 rounded {{ \App\Support\OpticalNavigation::active($route) ? 'bg-teal-600' : '' }}">{{ $label }}</a>@endforeach @endforeach
             </nav>
             {{-- Notices line up with the page content below and sit close to it. --}}
             @php $opticalNotices = trim(view('components.license-notice')->render()); @endphp

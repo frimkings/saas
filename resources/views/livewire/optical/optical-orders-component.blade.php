@@ -42,6 +42,8 @@
             @foreach(\App\Livewire\Optical\OpticalOrdersComponent::FILTERS as $key => $label)
                 <button type="button" wire:click="setFilter('{{ $key }}')" class="oo-chip {{ $statusFilter === $key ? 'active' : '' }}" aria-pressed="{{ $statusFilter === $key ? 'true' : 'false' }}">{{ $label }}@if($filterCounts[$key] !== null)<b>{{ $filterCounts[$key] }}</b>@endif</button>
             @endforeach
+            {{-- Awaiting Collection left the menu: its reminders and partner messages open from here. --}}
+            <a href="{{ route('optical.collections') }}" wire:navigate class="oo-link" style="margin-left:auto">Awaiting collection &amp; reminders →</a>
         </div>
 
         <div class="overflow-x-auto">
