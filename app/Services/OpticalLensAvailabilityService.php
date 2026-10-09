@@ -46,7 +46,7 @@ class OpticalLensAvailabilityService
             $held = $this->heldQuantities($products->pluck('id')->all(), $ignoreHoldsForOrderId);
 
             return $products->groupBy(function ($product) {
-                $specs = collect($product->lens_specs)->only(['range', 'design', 'index', 'coating', 'diameter'])->all();
+                $specs = collect($product->lens_specs)->only(['range', 'design', 'form', 'index', 'coating', 'diameter'])->all();
                 ksort($specs);
                 return base64_encode(json_encode($specs));
             })->map(function ($group, $key) use ($powers, $held, $matchesPower, $multifocal) {
@@ -81,8 +81,11 @@ class OpticalLensAvailabilityService
 
                 return [
                     'key' => $key,
-                    'design' => trim((string) data_get($first->lens_specs, 'range').' '.data_get($first->lens_specs, 'design')),
+                    'design' => trim((string) data_get($first->lens_specs, 'range').' '.data_get($first->lens_specs, 'design')
+                        .(data_get($first->lens_specs, 'form') ? ' '.\App\Support\Optical\LensOptions::label('form', data_get($first->lens_specs, 'form')) : '')),
                     'lens_type' => (string) data_get($first->lens_specs, 'design', 'Single Vision'),
+                    // Empty = Standard form.
+                    'form' => (string) data_get($first->lens_specs, 'form', ''),
                     'index' => (string) data_get($first->lens_specs, 'index'),
                     'coating' => (string) data_get($first->lens_specs, 'coating'),
                     'price' => round($eyes['od']['unit_price'] + $eyes['os']['unit_price'], 2),
@@ -398,7 +401,7 @@ class OpticalLensAvailabilityService
         $specs = json_decode(base64_decode($key), true) ?: [];
         return \App\Models\OpticalProduct::where('is_active', true)->whereNotNull('lens_specs')->get()
             ->first(function ($product) use ($specs, $eye, $sphere, $power) {
-                $candidate = collect($product->lens_specs)->only(['range', 'design', 'index', 'coating', 'diameter'])->all();
+                $candidate = collect($product->lens_specs)->only(['range', 'design', 'form', 'index', 'coating', 'diameter'])->all();
                 ksort($candidate);
                 return $candidate == $specs
                     && (! LensDesign::isEyeSpecific($specs['design'] ?? null) || data_get($product->lens_specs, 'eye') === LensDesign::stockEye($eye))

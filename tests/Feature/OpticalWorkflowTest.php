@@ -393,7 +393,7 @@ class OpticalWorkflowTest extends TestCase
         $this->tenant($user, 'shared-lenses');
         $this->actingAs($user);
         $form = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('lensRange', 'Factory A')->set('lensDesign', 'Bifocal')
+            ->set('stockType', 'lens')->set('newManufacturer', 'Factory A')->call('addManufacturer')->set('lensDesign', 'Bifocal')
             ->set('lensPower', '2.00')->set('quantity', '5')->set('unitCost', '12.50')
             ->set('unitPrice', '20')->set('supplier', 'Factory')->call('save')->assertHasErrors(['lensEye'])
             ->set('lensEye', 'R')->call('save')->assertHasNoErrors();
@@ -420,7 +420,7 @@ class OpticalWorkflowTest extends TestCase
         $this->tenant($user, 'bulk-lenses');
         $this->actingAs($user);
         Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('lensRange', 'Factory B')->set('entryMode', 'bulk')
+            ->set('stockType', 'lens')->set('newManufacturer', 'Factory B')->call('addManufacturer')->set('entryMode', 'bulk')
             ->set('bulkPaste', "3\t2")->call('pasteGrid')->assertHasNoErrors()
             ->set('bulkCosts.60.1', '15')->set('unitCost', '10')->set('unitPrice', '30')
             ->set('supplier', 'Factory')->call('save')->assertHasNoErrors();
@@ -444,7 +444,7 @@ class OpticalWorkflowTest extends TestCase
             \Illuminate\Support\Facades\DB::flushQueryLog();
             \Illuminate\Support\Facades\DB::enableQueryLog();
             Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-                ->set('stockType', 'lens')->set('lensRange', 'Factory Grid')->set('entryMode', 'bulk')
+                ->set('stockType', 'lens')->set('newManufacturer', 'Factory Grid')->call('addManufacturer')->set('entryMode', 'bulk')
                 ->set('bulkQuantities', $grid)->set('bulkCosts.60.1', '15')->set('unitCost', '10')->set('unitPrice', '30')
                 ->set('supplier', 'Factory')->call('save')->assertHasNoErrors();
             $count = count(\Illuminate\Support\Facades\DB::getQueryLog());
@@ -530,7 +530,7 @@ class OpticalWorkflowTest extends TestCase
             $upload = UploadedFile::fake()->createWithContent('manufacturer-order.xlsx', file_get_contents($path));
             $form = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
                 ->call('downloadLensTemplate')->assertFileDownloaded('SV CLEAR AR LENS ORDER.xlsx')
-                ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('lensRange', 'Excel Range')
+                ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'Excel Range')->call('addManufacturer')
                 ->set('excelFile', $upload);
             $this->assertSame([], $form->errors()->all(), 'Upload: '.json_encode($form->errors()->all()));
             $form->set('excelUnit', 'pieces')->call('previewExcel');
@@ -578,7 +578,7 @@ class OpticalWorkflowTest extends TestCase
         $zip->close();
         try {
             $html = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-                ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('lensRange', 'Blue Block')
+                ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'Blue Block')->call('addManufacturer')
                 ->set('excelFile', UploadedFile::fake()->createWithContent('order.xlsx', file_get_contents($path)))
                 ->assertSet('excelUnit', 'pairs')->call('previewExcel')
                 ->assertHasErrors('excelFile')->html();
@@ -677,7 +677,7 @@ class OpticalWorkflowTest extends TestCase
         $this->actingAs($user);
         $upload = UploadedFile::fake()->createWithContent('ST PAT.xlsx', file_get_contents(resource_path('templates/st-pat-lens-order.xlsx')));
         $form = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('lensRange', 'ST PAT Blue')
+            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'ST PAT Blue')->call('addManufacturer')
             ->set('excelFile', $upload)->assertHasNoErrors()->assertSet('excelLayout', 'template')
             ->assertSet('lensCoating', 'BlueCut')->set('excelUnit', 'pieces')
             ->call('previewExcel')->assertHasNoErrors()->assertSet('excelPreview.total', 186);

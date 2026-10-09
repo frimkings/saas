@@ -206,7 +206,7 @@ class OpticalLensReceivingService
 
     private function itemName(array $specs): string
     {
-        return substr($specs['range'].' '.$specs['design'].' '.$specs['coating'].' '.$specs['sphere'].' / '.$specs['power'].(isset($specs['eye']) ? ' '.$specs['eye'] : ''), 0, 180);
+        return substr($specs['range'].' '.$specs['design'].(isset($specs['form']) ? ' '.$specs['form'] : '').' '.$specs['coating'].' '.$specs['sphere'].' / '.$specs['power'].(isset($specs['eye']) ? ' '.$specs['eye'] : ''), 0, 180);
     }
 
     /**
@@ -226,7 +226,7 @@ class OpticalLensReceivingService
         $signed = fn ($value) => ((float) $value > 0 ? 'P' : ((float) $value < 0 ? 'M' : '')).number_format(abs((float) $value), 2, '.', '');
         $design = ['Single Vision' => 'SV', 'Progressive' => 'PR', 'Bifocal' => 'BF'][$specs['design']] ?? $code(preg_replace('/\b(\w)\w*\s*/', '$1', $specs['design']), 4);
         $parts = array_filter([
-            $code($specs['range'] ?? '', 8), $design ?: 'LENS', preg_replace('/[^0-9.]/', '', (string) ($specs['index'] ?? '')),
+            $code($specs['range'] ?? '', 8), $design ?: 'LENS', $code($specs['form'] ?? '', 4), preg_replace('/[^0-9.]/', '', (string) ($specs['index'] ?? '')),
             $code($specs['coating'] ?? '', 8), $signed($specs['sphere']), $signed($specs['power']), $code($specs['eye'] ?? '', 1),
         ], fn ($part) => $part !== '');
         $sku = ltrim(implode('-', $parts), '.-');

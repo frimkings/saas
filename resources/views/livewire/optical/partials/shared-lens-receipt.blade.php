@@ -1,18 +1,44 @@
 @php $fullPage = $fullPage ?? false; @endphp
 {{-- Totals, row sums and the override list are worked out in the browser (lensReceipt, resources/js/live-totals.js); the server recalculates on save. --}}
 <div class="space-y-4" x-data="lensReceipt(@js(\App\Support\LensDesign::EYE_SPECIFIC))">
-    @if($fullPage)<h2 class="lens-receipt-step">1. Lens range</h2>@endif
-    <p class="text-xs text-slate-600">Receive individual stock lenses supplied to optical shops. Choose a saved range or enter a new manufacturer / range name.</p>
+    @if($fullPage)<h2 class="lens-receipt-step">1. Lens</h2>@endif
+    <p class="text-xs text-slate-600">Choose the lens: type, form, treatment and manufacturer. Each combination is kept as its own stock. Lists are kept under Optical → Settings → Lens options.</p>
+    @php $lensOptions = \App\Support\Optical\LensOptions::class; @endphp
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label class="text-xs">Manufacturer / lens range *<input autocomplete="off" list="lens-ranges" wire:model.live.blur="lensRange" maxlength="100" class="ui-input w-full" placeholder="Select or add a lens range"><datalist id="lens-ranges">@foreach($lensRanges as $range)<option value="{{ $range }}">@endforeach</datalist><span class="text-slate-500">The brand or product line printed on the lens envelope. Lenses of the same range are kept as one stock.</span>
+        <label class="text-xs">Lens type *<select wire:model.live="lensDesign" class="ui-input w-full">@foreach($lensOptions::choices('design', $lensDesign) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
+        <label class="text-xs">Form *<select wire:model.live="lensForm" class="ui-input w-full">@foreach($lensOptions::choices('form', $lensForm, $lensDesign) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select>@error('lensForm')<span class="text-red-600">{{ $message }}</span>@enderror</label>
+        <label class="text-xs">Treatment *<select wire:model.live="lensCoating" class="ui-input w-full">@foreach($lensOptions::choices('treatment', $lensCoating) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
+        <div class="text-xs" x-data="{ adding: false }">
+            <label for="lens-manufacturer" class="block">Manufacturer *</label>
+            <div class="flex gap-2">
+                <select id="lens-manufacturer" wire:model.live="lensRange" class="ui-input w-full">
+                    <option value="">Choose the manufacturer</option>
+                    @foreach($lensOptions::choices('manufacturer', $lensRange) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach
+                    @if($lensRange !== '' && ! array_key_exists($lensRange, $lensOptions::choices('manufacturer', $lensRange)))<option value="{{ $lensRange }}">{{ $lensRange }} (not in list)</option>@endif
+                </select>
+                <button type="button" x-on:click="adding = ! adding" class="ui-button ui-button-secondary !px-3 whitespace-nowrap" :aria-expanded="adding.toString()">+ Add</button>
+            </div>
+            <div x-show="adding" x-cloak class="mt-1 flex gap-2">
+                <label for="new-manufacturer" class="sr-only">New manufacturer</label>
+                <input id="new-manufacturer" wire:model="newManufacturer" maxlength="100" placeholder="New manufacturer name" class="ui-input w-full" x-on:keydown.enter.prevent="$wire.addManufacturer().then(() => adding = false)">
+                <button type="button" wire:click="addManufacturer" x-on:click="adding = false" class="ui-button ui-button-primary !px-3">Save</button>
+            </div>
+            @error('newManufacturer')<span class="text-red-600">{{ $message }}</span>@enderror
+            @error('lensRange')<span class="text-red-600">{{ $message }}</span>@enderror
+            {{-- A manufacturer brought in by a workbook that isn't on the list yet. --}}
             @if($rangeHint = $this->rangeHint())
-                <span class="mt-1 block rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900" role="status"><strong>New range:</strong> “{{ $rangeHint['typed'] }}” will be kept as separate stock.
-                    @if($rangeHint['suggest'])Did you mean <button type="button" wire:click="useRange(@js($rangeHint['suggest']))" class="font-semibold underline">{{ $rangeHint['suggest'] }}</button>?@endif</span>
-            @endif</label>
-        <label class="text-xs">Design *<select wire:model.live="lensDesign" class="ui-input w-full">@foreach(\App\Support\Optical\LensOptions::choices('design', $lensDesign) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
-        <label class="text-xs">Index *<select wire:model.live="lensIndex" class="ui-input w-full">@foreach(['1.50','1.56','1.60','1.61','1.67','1.74'] as $index)<option>{{ $index }}</option>@endforeach</select></label>
-        <label class="text-xs">Treatment *<select wire:model.live="lensCoating" class="ui-input w-full">@foreach(\App\Support\Optical\LensOptions::choices('treatment', $lensCoating) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
-        <label class="text-xs">Diameter (mm) *<input autocomplete="off" wire:model.live.blur="lensDiameter" type="number" min="40" max="100" class="ui-input w-full"></label>
+                <span class="mt-1 block rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900" role="status">“{{ $rangeHint['typed'] }}” is not in your manufacturers.
+                    @if($rangeHint['suggest'])Did you mean <button type="button" wire:click="useRange(@js($rangeHint['suggest']))" class="font-semibold underline">{{ $rangeHint['suggest'] }}</button>, or @endif
+                    <button type="button" wire:click="addManufacturer" class="font-semibold underline">add it as a new manufacturer</button>?</span>
+            @endif
+        </div>
+        <details class="text-xs sm:col-span-2" @if($errors->hasAny(['lensIndex', 'lensDiameter'])) open @endif>
+            <summary class="cursor-pointer text-slate-600">More: index {{ $lensIndex }} · diameter {{ $lensDiameter }} mm</summary>
+            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label>Index *<select wire:model.live="lensIndex" class="ui-input w-full">@foreach(['1.50','1.56','1.60','1.61','1.67','1.74'] as $index)<option>{{ $index }}</option>@endforeach</select></label>
+                <label>Diameter (mm) *<input autocomplete="off" wire:model.live.blur="lensDiameter" type="number" min="40" max="100" class="ui-input w-full"></label>
+            </div>
+        </details>
         <label class="text-xs">Entry mode<select wire:model.live="entryMode" class="ui-input w-full"><option value="single">Single power</option><option value="bulk">{{ $fullPage ? 'Bulk grid / Excel import' : 'Bulk grid / Excel import (opens full page)' }}</option></select></label>
         @if(\App\Support\LensDesign::isEyeSpecific($lensDesign))
             <fieldset class="text-xs sm:col-span-2">

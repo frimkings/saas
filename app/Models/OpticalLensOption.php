@@ -10,7 +10,7 @@ class OpticalLensOption extends Model
 {
     use BelongsToClinic;
 
-    protected $fillable = ['kind', 'code', 'name', 'sort_order', 'is_active'];
+    protected $fillable = ['kind', 'code', 'name', 'design', 'sort_order', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean', 'sort_order' => 'integer'];
 }

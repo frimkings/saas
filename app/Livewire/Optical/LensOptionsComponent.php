@@ -12,14 +12,21 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 /**
- * Optical → Settings → Lens options: the lens designs and treatments staff choose from when
- * receiving and ordering lenses. Treatments can be added, renamed, hidden, reordered and,
- * while unused, deleted. Designs drive stock matching, so they are renamed, hidden and
- * reordered only.
+ * Optical → Settings → Lens options: the lens types, forms, treatments and manufacturers
+ * staff choose from when receiving and ordering lenses. Forms, treatments and manufacturers
+ * can be added, renamed, hidden, reordered and, while nothing uses them, deleted. Lens types
+ * drive stock matching, so they are renamed, hidden and reordered only; Standard is every
+ * lens type's plain form and can be renamed but not deleted.
  */
 class LensOptionsComponent extends Component
 {
-    public string $newTreatment = '';
+    /** Kinds that can be added and deleted. */
+    private const EDITABLE = ['form', 'treatment', 'manufacturer'];
+
+    /** @var array<string, string> new option name per kind */
+    public array $newName = ['form' => '', 'treatment' => '', 'manufacturer' => ''];
+    /** The lens type a new form belongs to ('' = every lens type). */
+    public string $newFormDesign = 'Bifocal';
     public ?int $editingId = null;
     public string $editingName = '';
 
@@ -29,20 +36,27 @@ class LensOptionsComponent extends Component
         app(ClinicAccessService::class)->assertWritable('optical');
     }
 
-    public function addTreatment(): void
+    public function add(string $kind): void
     {
         $this->assertManager();
-        $name = trim(preg_replace('/\s+/', ' ', $this->newTreatment));
-        $this->validateName($name, 'treatment', 'newTreatment');
+        abort_unless(in_array($kind, self::EDITABLE, true), 404);
+        $field = "newName.$kind";
+        $name = trim(preg_replace('/\s+/', ' ', (string) ($this->newName[$kind] ?? '')));
+        $this->validateName($name, $kind, $field);
+        $design = null;
+        if ($kind === 'form') {
+            $design = $this->newFormDesign === '' ? null : $this->newFormDesign;
+            abort_unless($design === null || array_key_exists($design, LensOptions::DESIGNS), 422);
+        }
         // The name becomes the code stock keeps; a clash with an old code gets a number.
         $code = $name;
-        for ($n = 2; OpticalLensOption::where('kind', 'treatment')->where('code', $code)->exists(); $n++) $code = "{$name} {$n}";
-        $option = new OpticalLensOption(['kind' => 'treatment', 'code' => $code, 'name' => $name, 'is_active' => true,
-            'sort_order' => (int) OpticalLensOption::where('kind', 'treatment')->max('sort_order') + 1]);
-        AuditTrail::recordSave($option, 'optical.lens_treatment', 'lens treatment '.$name);
-        $this->reset('newTreatment');
+        for ($n = 2; OpticalLensOption::where('kind', $kind)->where('code', $code)->exists(); $n++) $code = "{$name} {$n}";
+        $option = new OpticalLensOption(['kind' => $kind, 'code' => $code, 'name' => $name, 'design' => $design, 'is_active' => true,
+            'sort_order' => (int) OpticalLensOption::where('kind', $kind)->max('sort_order') + 1]);
+        AuditTrail::recordSave($option, 'optical.lens_'.$kind, 'lens '.$kind.' '.$name);
+        $this->newName[$kind] = '';
         LensOptions::forget();
-        session()->flash('success', "Treatment “{$name}” added.");
+        session()->flash('success', '“'.$name.'” added.');
     }
 
     public function edit(int $id): void
@@ -79,6 +93,9 @@ class LensOptionsComponent extends Component
     {
         $this->assertManager();
         $option = OpticalLensOption::findOrFail($id);
+        if ($option->kind === 'form' && $option->code === LensOptions::STANDARD_FORM && $option->is_active) {
+            throw ValidationException::withMessages(['options' => 'Standard is the form of every plain lens, so it stays available.']);
+        }
         if ($option->is_active && OpticalLensOption::where('kind', $option->kind)->where('is_active', true)->count() === 1) {
             throw ValidationException::withMessages(['options' => 'Keep at least one '.$option->kind.' available.']);
         }
@@ -101,43 +118,47 @@ class LensOptionsComponent extends Component
         LensOptions::forget();
     }
 
-    /** A treatment no stock or price list uses can be removed; one in use can only be hidden. */
+    /** An option no stock or price list uses can be removed; one in use can only be hidden. */
     public function delete(int $id): void
     {
         $this->assertManager();
-        $option = OpticalLensOption::where('kind', 'treatment')->findOrFail($id);
+        $option = OpticalLensOption::whereIn('kind', self::EDITABLE)->findOrFail($id);
+        abort_if($option->kind === 'form' && $option->code === LensOptions::STANDARD_FORM, 422);
         if ($this->inUse($option)) {
             throw ValidationException::withMessages(['options' => "“{$option->name}” is on lens stock or a price list, so it can't be deleted. Hide it instead."]);
         }
         $option->delete();
-        AuditTrail::record('optical.lens_treatment_deleted', 'Deleted lens treatment '.$option->name, $option, $option->only(['code', 'name']), []);
+        AuditTrail::record('optical.lens_'.$option->kind.'_deleted', 'Deleted lens '.$option->kind.' '.$option->name, $option, $option->only(['code', 'name']), []);
         LensOptions::forget();
-        session()->flash('success', "Treatment “{$option->name}” deleted.");
+        session()->flash('success', '“'.$option->name.'” deleted.');
     }
 
     private function inUse(OpticalLensOption $option): bool
     {
-        return OpticalProduct::withTrashed()->whereNotNull('lens_specs')->where('lens_specs->coating', $option->code)->exists()
-            || OpticalLensPrice::where('specs->coating', $option->code)->exists();
+        if ($option->kind === 'design' || ($option->kind === 'form' && $option->code === LensOptions::STANDARD_FORM)) return true;
+        $field = LensOptions::SPEC_FIELDS[$option->kind];
+        return OpticalProduct::withTrashed()->whereNotNull('lens_specs')->where("lens_specs->{$field}", $option->code)->exists()
+            || OpticalLensPrice::where("specs->{$field}", $option->code)->exists();
     }
 
     private function validateName(string $name, string $kind, string $field, ?int $ignoreId = null): void
     {
-        if ($name === '' || mb_strlen($name) > 40) {
-            throw ValidationException::withMessages([$field => 'Enter a name of up to 40 characters.']);
+        $max = $kind === 'manufacturer' ? 100 : 40;
+        if ($name === '' || mb_strlen($name) > $max) {
+            throw ValidationException::withMessages([$field => "Enter a name of up to {$max} characters."]);
         }
         $taken = OpticalLensOption::where('kind', $kind)->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))
             ->get()->contains(fn ($option) => mb_strtolower($option->name) === mb_strtolower($name));
-        if ($taken) throw ValidationException::withMessages([$field => "There is already a {$kind} called “{$name}”."]);
+        if ($taken) throw ValidationException::withMessages([$field => "There is already one called “{$name}”."]);
     }
 
     public function render()
     {
-        $treatments = LensOptions::all('treatment');
-        return view('livewire.optical.lens-options-component', [
-            'designs' => LensOptions::all('design'),
-            'treatments' => $treatments,
-            'inUse' => $treatments->mapWithKeys(fn ($option) => [$option->id => $this->inUse($option)]),
-        ]);
+        $kinds = [];
+        foreach (['design', 'form', 'treatment', 'manufacturer'] as $kind) {
+            $options = LensOptions::all($kind);
+            $kinds[$kind] = ['options' => $options, 'inUse' => $options->mapWithKeys(fn ($option) => [$option->id => $this->inUse($option)])];
+        }
+        return view('livewire.optical.lens-options-component', ['kinds' => $kinds]);
     }
 }

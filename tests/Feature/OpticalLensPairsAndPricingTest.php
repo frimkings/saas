@@ -81,7 +81,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
             .'<row r="5"><c r="A5" t="inlineStr"><is><t>+1.50</t></is></c><c r="B5"><v>3</v></c><c r="C5"><v>2</v></c></row>');
 
         $form = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('lensRange', 'Vario')->set('lensDesign', 'Progressive')
+            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'Vario')->call('addManufacturer')->set('lensDesign', 'Progressive')
             ->set('excelFile', $upload)
             ->assertSet('lensDesign', 'Progressive')->assertSet('excelUnit', 'pairs')->assertSet('lensEye', 'B')
             ->call('previewExcel')->assertHasNoErrors()
@@ -107,7 +107,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
             .'<row r="5"><c r="A5" t="inlineStr"><is><t>+0.50</t></is></c><c r="B5"><v>4</v></c></row>');
 
         Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('lensRange', 'Flat Top')->set('lensDesign', 'Bifocal')
+            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'Flat Top')->call('addManufacturer')->set('lensDesign', 'Bifocal')
             ->set('excelFile', $upload)
             // A sheet titled for one eye holds that eye's individual lenses.
             ->assertSet('lensEye', 'R')->assertSet('excelUnit', 'pieces')
@@ -120,7 +120,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
     {
         $this->manager('bifocal-single-pairs');
         Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('lensRange', 'Flat Top')->set('lensDesign', 'Bifocal')->set('lensEye', 'B')
+            ->set('stockType', 'lens')->set('newManufacturer', 'Flat Top')->call('addManufacturer')->set('lensDesign', 'Bifocal')->set('lensEye', 'B')
             ->set('lensPower', '1.50')->set('quantity', '4')->set('unitCost', '40')->set('unitPrice', '90')
             ->set('supplier', 'Lens Lab')->call('save')->assertHasNoErrors();
 
@@ -434,7 +434,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
 
         // Choosing the bulk grid in the modal moves to the full page with the range filled in.
         Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
-            ->set('stockType', 'lens')->set('lensRange', 'Photo Range')->set('lensCoating', 'Photo AR')->set('entryMode', 'bulk')
+            ->set('stockType', 'lens')->set('newManufacturer', 'Photo Range')->call('addManufacturer')->set('lensCoating', 'Photo AR')->set('entryMode', 'bulk')
             ->assertRedirect(route('optical.stock.receive-lenses', ['lensRange' => 'Photo Range', 'lensDesign' => 'Single Vision', 'lensIndex' => '1.56', 'lensCoating' => 'Photo AR', 'lensDiameter' => '65']));
 
         $this->get(route('optical.stock.receive-lenses', ['lensRange' => 'Photo Range', 'lensCoating' => 'Photo AR']))

@@ -48,13 +48,13 @@ class OpticalLensOptionsTest extends TestCase
     public function test_treatments_can_be_added_renamed_hidden_reordered_and_deleted_when_unused(): void
     {
         $this->receive('Gold Tint'); // a treatment already on stock joins the defaults
-        $page = Livewire::test(LensOptionsComponent::class)->assertSee('Clear AR')->assertSee('Gold Tint')->assertSee('Lens designs');
+        $page = Livewire::test(LensOptionsComponent::class)->assertSee('Clear AR')->assertSee('Gold Tint')->assertSee('Lens types')->assertSee('Forms')->assertSee('Manufacturers');
         $this->assertSame(['AR', 'Photo AR', 'Photo Gray', 'Photochromic', 'Blue AR', 'BlueCut', 'Transitions', 'HC', 'Gold Tint'],
             OpticalLensOption::where('kind', 'treatment')->orderBy('sort_order')->pluck('code')->all());
 
         // Add, then use it when receiving.
-        $page->set('newTreatment', 'Blue cut Photo AR')->call('addTreatment')->assertHasNoErrors();
-        $page->set('newTreatment', 'blue CUT photo ar')->call('addTreatment')->assertHasErrors(['newTreatment']);
+        $page->set('newName.treatment', 'Blue cut Photo AR')->call('add', 'treatment')->assertHasNoErrors();
+        $page->set('newName.treatment', 'blue CUT photo ar')->call('add', 'treatment')->assertHasErrors(['newName.treatment']);
         LensOptions::forget();
         $this->assertArrayHasKey('Blue cut Photo AR', LensOptions::choices('treatment'));
         Livewire::test(OpticalLensReceivingComponent::class)->assertSee('Blue cut Photo AR');
@@ -96,21 +96,54 @@ class OpticalLensOptionsTest extends TestCase
         $page->call('toggle', OpticalLensOption::where('code', 'Progressive')->value('id'))->assertHasErrors(['options']);
     }
 
-    public function test_a_range_typed_in_other_capitals_is_the_same_stock_and_new_ranges_are_flagged(): void
+    public function test_manufacturers_come_from_the_list_and_new_ones_are_added_once(): void
     {
-        $this->receive('AR');
-        $form = Livewire::test(OpticalLensReceivingComponent::class);
+        $this->receive('AR'); // CANADA is on stock, so it starts on the list
+        $form = Livewire::test(OpticalLensReceivingComponent::class)->assertSee('CANADA');
 
-        // Capitals and spaces don't make a new range: the existing spelling is used.
-        $form->set('lensRange', '  canada ')->assertSet('lensRange', 'CANADA')->assertDontSee('New range:');
+        // Adding "canada" picks the existing CANADA instead of making a second one.
+        $form->set('newManufacturer', '  canada ')->call('addManufacturer')->assertSet('lensRange', 'CANADA');
+        $this->assertSame(1, OpticalLensOption::where('kind', 'manufacturer')->count());
+        $form->set('newManufacturer', 'Essilor')->call('addManufacturer')->assertSet('lensRange', 'Essilor');
+        $this->assertSame(['CANADA', 'Essilor'], OpticalLensOption::where('kind', 'manufacturer')->orderBy('sort_order')->pluck('code')->all());
 
-        // A near miss is flagged with the likely range, which one tap puts back.
-        $form->set('lensRange', 'CANDA')->assertSee('New range:')->assertSee('will be kept as separate stock')->assertSee('Did you mean')
-            ->call('useRange', 'CANADA')->assertSet('lensRange', 'CANADA')->assertDontSee('New range:');
-
-        // A genuinely new manufacturer is flagged, with nothing to suggest.
-        $form->set('lensRange', 'Essilor')->assertSee('New range:')->assertDontSee('Did you mean');
+        // A name from a workbook that isn't on the list is flagged and can't be received until chosen or added.
+        $form->set('lensRange', 'CANDA')->assertSee('is not in your manufacturers')->assertSee('Did you mean')
+            ->set('unitCost', '10')->set('unitPrice', '20')->set('supplier', 'Lab')->set('lensSphere', '-1.00')->set('quantity', '1')
+            ->call('save')->assertHasErrors(['lensRange'])
+            ->call('useRange', 'CANADA')->assertSet('lensRange', 'CANADA')->assertDontSee('is not in your manufacturers');
         $form->call('useRange', 'Not a range')->assertStatus(422);
+    }
+
+    public function test_forms_belong_to_a_lens_type_and_each_form_is_its_own_stock(): void
+    {
+        LensOptions::forget();
+        $this->assertSame(['Standard', 'Flat top', 'Invisible'], array_keys(LensOptions::choices('form', null, 'Bifocal')));
+        $this->assertSame(['Standard', 'Wider corridor'], array_keys(LensOptions::choices('form', null, 'Progressive')));
+        $this->assertSame(['Standard'], array_keys(LensOptions::choices('form', null, 'Single Vision')));
+
+        // Receive the same bifocal power as Standard and as Invisible: two stock items.
+        $receive = fn (string $form) => Livewire::test(OpticalLensReceivingComponent::class)
+            ->set('entryMode', 'single')->set('lensDesign', 'Bifocal')->set('lensForm', $form)->set('lensCoating', 'AR')->set('newManufacturer', 'CANADA')->call('addManufacturer')
+            ->set('lensEye', 'R')->set('lensSphere', '-1.00')->set('lensPower', '2.00')->set('quantity', '2')
+            ->set('unitCost', '20')->set('unitPrice', '60')->set('supplier', 'Lab')->call('save')->assertHasNoErrors();
+        $receive('Standard');
+        $receive('Invisible');
+        $items = OpticalProduct::whereNotNull('lens_specs')->get();
+        $this->assertCount(2, $items);
+        $this->assertSame([null, 'Invisible'], $items->map(fn ($item) => $item->lens_specs['form'] ?? null)->sort()->values()->all());
+        $this->assertStringContainsString('Invisible', $items->first(fn ($item) => isset($item->lens_specs['form']))->name);
+
+        // A form that doesn't fit the lens type goes back to Standard.
+        Livewire::test(OpticalLensReceivingComponent::class)->set('lensDesign', 'Bifocal')->set('lensForm', 'Invisible')
+            ->set('lensDesign', 'Progressive')->assertSet('lensForm', 'Standard');
+
+        // Forms are managed in Lens options: Standard can't be deleted; an unused form can.
+        $page = Livewire::test(LensOptionsComponent::class)->set('newName.form', 'Executive')->set('newFormDesign', 'Bifocal')->call('add', 'form')->assertHasNoErrors();
+        $this->assertSame('Bifocal', OpticalLensOption::where('code', 'Executive')->value('design'));
+        $page->assertDontSee('wire:click="delete('.OpticalLensOption::where('code', 'Standard')->value('id').')"', false)
+            ->call('delete', OpticalLensOption::where('code', 'Invisible')->value('id'))->assertHasErrors(['options'])
+            ->call('delete', OpticalLensOption::where('code', 'Executive')->value('id'))->assertHasNoErrors();
     }
 
     public function test_categories_have_a_type_and_stock_lenses_file_into_the_clinics_lens_category(): void
@@ -162,6 +195,6 @@ class OpticalLensOptionsTest extends TestCase
     {
         $staff = User::factory()->create();
         $this->actingAs($staff);
-        Livewire::test(LensOptionsComponent::class)->set('newTreatment', 'Mirror')->call('addTreatment')->assertForbidden();
+        Livewire::test(LensOptionsComponent::class)->set('newName.treatment', 'Mirror')->call('add', 'treatment')->assertForbidden();
     }
 }

@@ -245,8 +245,9 @@ class OpticalStockManagementComponent extends Component
     /** @return \Illuminate\Support\Collection<int, string> the lens ranges already received, as spelled on their stock */
     private function knownRanges()
     {
-        return $this->rangesThisRequest ??= OpticalProduct::whereNotNull('lens_specs')->pluck('lens_specs')
-            ->map(fn ($specs) => trim((string) data_get($specs, 'range')))->filter()->unique()->sort()->values();
+        // The manufacturer list (Lens options), which starts with every range already on stock.
+        return $this->rangesThisRequest ??= \App\Support\Optical\LensOptions::all('manufacturer')->pluck('code')
+            ->map(fn ($range) => trim((string) $range))->filter()->unique()->sort()->values();
     }
 
     /** Ranges for this request only; a private property is not kept between requests. */
@@ -285,20 +286,53 @@ class OpticalStockManagementComponent extends Component
     public function updatedLensRange(): void
     {
         $this->lensRange = $this->canonicalRange($this->lensRange);
-        $saved = OpticalProduct::whereNotNull('lens_specs')->get()->first(fn ($p) => data_get($p->lens_specs, 'range') === $this->lensRange);
-        if ($saved) {
-            $this->lensDesign = $saved->lens_specs['design'];
-            $this->lensIndex = $saved->lens_specs['index'];
-            $this->lensCoating = $saved->lens_specs['coating'];
-            $this->lensDiameter = (string) $saved->lens_specs['diameter'];
-            $this->updatedLensDesign();
+        $this->resetErrorBag('lensRange');
+        // Lens type, form and treatment are chosen first; the manufacturer's last delivery of
+        // that lens (or any of its lenses) fills the index and diameter.
+        $saved = OpticalProduct::whereNotNull('lens_specs')->latest('id')->get()->filter(fn ($p) => data_get($p->lens_specs, 'range') === $this->lensRange);
+        $same = $saved->first(fn ($p) => data_get($p->lens_specs, 'design') === $this->lensDesign && data_get($p->lens_specs, 'coating') === $this->lensCoating
+            && (string) data_get($p->lens_specs, 'form') === (string) \App\Support\Optical\LensOptions::storedForm($this->lensForm)) ?? $saved->first();
+        if ($same) {
+            $this->lensIndex = (string) $same->lens_specs['index'];
+            $this->lensDiameter = (string) $same->lens_specs['diameter'];
         }
+    }
+
+    /** The lens form (Optical → Settings → Lens options); Standard is not written on stock. */
+    public string $lensForm = \App\Support\Optical\LensOptions::STANDARD_FORM;
+
+    /** A manufacturer added while receiving (managers). */
+    public string $newManufacturer = '';
+
+    public function addManufacturer(): void
+    {
+        $this->assertManager();
+        $name = trim(preg_replace('/\s+/', ' ', $this->newManufacturer !== '' ? $this->newManufacturer : $this->lensRange));
+        $this->resetErrorBag('newManufacturer');
+        if ($name === '' || mb_strlen($name) > 100) { $this->addError('newManufacturer', 'Enter the manufacturer name, up to 100 characters.'); return; }
+        $existing = \App\Models\OpticalLensOption::where('kind', 'manufacturer')->get()->first(fn ($option) => mb_strtolower($option->code) === mb_strtolower($name) || mb_strtolower($option->name) === mb_strtolower($name));
+        if ($existing && ! $existing->is_active) $existing->update(['is_active' => true]);
+        $option = $existing ?? \App\Models\OpticalLensOption::create(['kind' => 'manufacturer', 'code' => $name, 'name' => $name, 'is_active' => true,
+            'sort_order' => (int) \App\Models\OpticalLensOption::where('kind', 'manufacturer')->max('sort_order') + 1]);
+        if (! $existing) \App\Models\AuditTrail::record('optical.lens_manufacturer_created', 'Added lens manufacturer '.$name, $option, [], ['name' => $name]);
+        \App\Support\Optical\LensOptions::forget();
+        $this->rangesThisRequest = null;
+        $this->newManufacturer = '';
+        $this->lensRange = $option->code;
+        $this->updatedLensRange();
+    }
+
+    public function updatedLensForm(): void
+    {
+        $this->updatedLensRange();
     }
 
     public function updatedLensDesign(): void
     {
         $this->lensPower = $this->lensDesign === 'Single Vision' ? '0.00' : '1.00';
         if (! \App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->lensEye = '';
+        // Forms belong to a lens type: one that doesn't fit the new type goes back to Standard.
+        if (! array_key_exists($this->lensForm, \App\Support\Optical\LensOptions::choices('form', null, $this->lensDesign))) $this->lensForm = \App\Support\Optical\LensOptions::STANDARD_FORM;
         $this->importedSummary = '';
         $this->importSource = [];
         $this->bulkQuantities = [];
@@ -313,6 +347,8 @@ class OpticalStockManagementComponent extends Component
             'diameter' => (int) $this->lensDiameter,
             'sphere' => number_format((float) $sphere, 2, '.', ''),
             'power' => number_format((float) $power, 2, '.', '')];
+        // A form other than Standard (e.g. invisible bifocal) is separate stock.
+        if ($form = \App\Support\Optical\LensOptions::storedForm($this->lensForm)) $specs['form'] = $form;
         // Progressive and bifocal lenses are made per eye and stocked per eye.
         if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $specs['eye'] = $eye ?? $this->lensEye;
         return $specs;
@@ -435,7 +471,10 @@ class OpticalStockManagementComponent extends Component
         // Also covers a range filled from a workbook or a link, which skips updatedLensRange.
         $this->lensRange = $this->canonicalRange($this->lensRange);
         $this->validate([
-            'lensRange' => 'required|string|max:100', 'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
+            // Lens type, form, treatment and manufacturer come from Optical → Settings → Lens options.
+            'lensRange' => ['required', 'string', 'max:100', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('manufacturer')))],
+            'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
+            'lensForm' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('form', null, $this->lensDesign)))],
             'lensEye' => $this->eyeRule(),
             'lensIndex' => 'required|in:1.50,1.56,1.60,1.61,1.67,1.74',
             // Designs and treatments shown under Optical → Settings → Lens options.
@@ -449,6 +488,10 @@ class OpticalStockManagementComponent extends Component
             'productId' => 'nullable|integer',
             'entryMode' => 'required|in:single,bulk', 'updateSellingPrice' => 'boolean',
             'repeatDeliveryReason' => 'nullable|string|max:1000',
+        ], [
+            'lensRange.required' => 'Choose the manufacturer.',
+            'lensRange.in' => '“'.$this->lensRange.'” is not in your manufacturers. Add it as a new manufacturer, or choose one from the list.',
+            'lensForm.in' => 'Choose a form for this lens type.',
         ]);
         if ($this->importSource && $this->entryMode === 'bulk' && ! $this->eyeMatchesUnit($this->importSource['unit'])) return;
         $lines = [];

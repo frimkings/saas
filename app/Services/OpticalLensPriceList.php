@@ -23,6 +23,8 @@ class OpticalLensPriceList
             'index' => (string) ($specs['index'] ?? ''), 'coating' => (string) ($specs['coating'] ?? ''),
             'diameter' => (int) ($specs['diameter'] ?? 0),
         ];
+        // A form other than Standard is its own range; Standard adds nothing, so older lists keep their key.
+        if (trim((string) ($specs['form'] ?? '')) !== '') $range['form'] = trim((string) $specs['form']);
         ksort($range);
         return $range;
     }

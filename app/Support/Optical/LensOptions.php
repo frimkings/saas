@@ -7,12 +7,16 @@ use App\Models\OpticalProduct;
 use Illuminate\Support\Collection;
 
 /**
- * The lens designs and treatments a clinic offers when receiving and ordering lenses.
+ * The lens choices a clinic offers when receiving and ordering lenses, as its staff name
+ * them: lens types (designs), forms, treatments and manufacturers.
  *
- * Stock keeps each option's code; staff see its name. Designs are the three the stock
- * matching is built on (single vision on CYL; bifocal and progressive per eye on ADD), so
- * they can be renamed, hidden and reordered but not added. Treatments are the clinic's own
- * list. A clinic starts with the defaults below plus any treatment already on its stock.
+ * Stock keeps each option's code; staff see its name, so renaming never splits stock.
+ * Lens types are the three the stock matching is built on (single vision on CYL; bifocal
+ * and progressive per eye on ADD): they can be renamed, hidden and reordered, not added.
+ * Forms belong to a lens type (flat top and invisible to bifocal, wider corridor to
+ * progressive); "Standard" is every lens type's plain form and is not written on stock.
+ * Treatments and manufacturers are the clinic's own lists. A clinic starts with the
+ * defaults below plus whatever its stock already uses.
  */
 class LensOptions
 {
@@ -22,6 +26,15 @@ class LensOptions
         'AR' => 'Clear AR', 'Photo AR' => 'Photo AR', 'Photo Gray' => 'Photo Gray', 'Photochromic' => 'Photochromic',
         'Blue AR' => 'Blue AR', 'BlueCut' => 'Blue cut', 'Transitions' => 'Transitions', 'HC' => 'Hard coat',
     ];
+
+    /** The plain form of every lens type; lenses without a form on their stock record are Standard. */
+    public const STANDARD_FORM = 'Standard';
+
+    /** code => lens type it belongs to (null = every lens type) */
+    public const FORMS = [self::STANDARD_FORM => null, 'Flat top' => 'Bifocal', 'Invisible' => 'Bifocal', 'Wider corridor' => 'Progressive'];
+
+    /** Which lens_specs field each kind is stored in on stock. */
+    public const SPEC_FIELDS = ['design' => 'design', 'form' => 'form', 'treatment' => 'coating', 'manufacturer' => 'range'];
 
     /** @return Collection<int, OpticalLensOption> every option of a kind, in display order */
     public static function all(string $kind): Collection
@@ -38,18 +51,31 @@ class LensOptions
         return app('optical.lens-options');
     }
 
-    /** @return array<string, string> code => name of the options staff can choose */
-    public static function choices(string $kind, ?string $keep = null): array
+    /**
+     * @return array<string, string> code => name of the options staff can choose; forms can be
+     *                               narrowed to one lens type, and a code already chosen is kept
+     */
+    public static function choices(string $kind, ?string $keep = null, ?string $design = null): array
     {
-        return self::all($kind)->filter(fn ($option) => $option->is_active || $option->code === $keep)
+        return self::all($kind)
+            ->filter(fn ($option) => $option->is_active || $option->code === $keep)
+            ->filter(fn ($option) => $kind !== 'form' || $design === null || $option->design === null || $option->design === $design || $option->code === $keep)
             ->mapWithKeys(fn ($option) => [$option->code => $option->name])->all();
     }
 
-    /** The name staff see for a stored code; unknown codes show as they are. */
+    /** The name staff see for a stored code; unknown codes show as they are, and no form is Standard. */
     public static function label(string $kind, ?string $code): string
     {
         $code = (string) $code;
+        if ($kind === 'form' && $code === '') $code = self::STANDARD_FORM;
         return (string) (self::all($kind)->firstWhere('code', $code)?->name ?? $code);
+    }
+
+    /** The form written on stock for a chosen form: none for Standard, so existing stock keeps its identity. */
+    public static function storedForm(?string $form): ?string
+    {
+        $form = trim((string) $form);
+        return $form === '' || $form === self::STANDARD_FORM ? null : $form;
     }
 
     public static function forget(): void
@@ -62,16 +88,23 @@ class LensOptions
         $options = OpticalLensOption::where('kind', $kind)->orderBy('sort_order')->orderBy('id')->get();
         if ($options->isNotEmpty() || ! OpticalLensOption::clinicIdForWrite()) return $options;
 
-        // First use: the defaults, then treatments already on this clinic's stock.
-        $defaults = $kind === 'design' ? self::DESIGNS : self::TREATMENTS;
-        if ($kind === 'treatment') {
-            OpticalProduct::whereNotNull('lens_specs')->pluck('lens_specs')
-                ->map(fn ($specs) => trim((string) data_get($specs, 'coating')))->filter()->unique()
-                ->each(function ($code) use (&$defaults) { $defaults[$code] ??= $code; });
+        // First use: the defaults, then what this clinic's stock already uses.
+        $defaults = match ($kind) {
+            'design' => array_map(fn ($name) => [$name, null], self::DESIGNS),
+            'treatment' => array_map(fn ($name) => [$name, null], self::TREATMENTS),
+            'form' => array_map(fn ($design) => [null, $design], self::FORMS),
+            default => [],
+        };
+        if ($kind !== 'design') {
+            $field = self::SPEC_FIELDS[$kind];
+            OpticalProduct::withTrashed()->whereNotNull('lens_specs')->pluck('lens_specs')
+                ->map(fn ($specs) => trim((string) data_get($specs, $field)))->filter()->unique()->sort()
+                ->each(function ($code) use (&$defaults) { $defaults[$code] ??= [$code, null]; });
         }
         $order = 0;
-        foreach ($defaults as $code => $name) {
-            OpticalLensOption::firstOrCreate(['kind' => $kind, 'code' => $code], ['name' => $name, 'sort_order' => ++$order, 'is_active' => true]);
+        foreach ($defaults as $code => [$name, $design]) {
+            OpticalLensOption::firstOrCreate(['kind' => $kind, 'code' => (string) $code],
+                ['name' => $name ?? (string) $code, 'design' => $design, 'sort_order' => ++$order, 'is_active' => true]);
         }
         return OpticalLensOption::where('kind', $kind)->orderBy('sort_order')->orderBy('id')->get();
     }
