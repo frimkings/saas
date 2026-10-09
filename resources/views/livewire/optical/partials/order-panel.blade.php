@@ -103,7 +103,7 @@
                 @if($docket)
                     @php
                         $lens = array_filter([
-                            'Lens' => trim(implode(' · ', array_filter([data_get($docket, 'lens_details.category_name'), data_get($docket, 'lens_details.type'), data_get($docket, 'lens_details.index') ? 'index '.data_get($docket, 'lens_details.index') : null, data_get($docket, 'lens_details.brand')]))),
+                            'Lens' => trim(implode(' · ', array_filter([data_get($docket, 'lens_details.category_name'), data_get($docket, 'lens_details.type'), data_get($docket, 'lens_details.stock_form'), data_get($docket, 'lens_details.index') ? 'index '.data_get($docket, 'lens_details.index') : null, data_get($docket, 'lens_details.brand')]))),
                             'Colour' => data_get($docket, 'lens_details.color'),
                             'Coatings' => implode(', ', array_filter(array_merge((array) data_get($docket, 'lens_details.coatings', []), [data_get($docket, 'lens_details.stock_coating')]))),
                         ]);

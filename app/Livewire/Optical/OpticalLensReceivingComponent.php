@@ -25,7 +25,7 @@ class OpticalLensReceivingComponent extends OpticalStockManagementComponent
         parent::save();
         // The shared save closes the form only once the receipt is recorded.
         if ($this->showForm) return;
-        session()->flash('lensMatrixUrl', route('optical.catalogue', ['activeTab' => 'lens-matrix', 'matrixRange' => $this->lensRange, 'matrixDesign' => $this->lensDesign, 'matrixIndex' => $this->lensIndex, 'matrixCoating' => $this->lensCoating, 'matrixDiameter' => $this->lensDiameter]));
+        session()->flash('lensMatrixUrl', route('optical.catalogue', ['activeTab' => 'lens-matrix', 'matrixRange' => $this->lensRange, 'matrixDesign' => $this->lensDesign, 'matrixForm' => (string) \App\Support\Optical\LensOptions::storedForm($this->lensForm),'matrixIndex' => $this->lensIndex, 'matrixCoating' => $this->lensCoating, 'matrixDiameter' => $this->lensDiameter]));
         // Clear the entered grid first so the unsaved-changes guard lets the redirect through.
         $this->reset(['bulkQuantities', 'bulkCosts', 'bulkPrices', 'quantity', 'excelFile']);
         $this->dispatch('lens-receipt-saved');

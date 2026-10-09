@@ -4,7 +4,7 @@
         @hasanyrole('Manager|Super Admin')<div class="flex flex-wrap gap-2"><button type="button" wire:click="openAdjustment" class="ui-button">Adjust Stock</button><a wire:navigate href="{{ route('optical.stock.receive-lenses') }}" class="ui-button">Receive lens order (grid / Excel)</a><button type="button" wire:click="openReceipt" class="ui-button ui-button-primary">+ Receive / Restock Inventory</button></div>@endhasanyrole
     </div>
 
-    <x-ui.flash link-label="View received lenses in power matrix" :link="session('lensMatrixUrl') ?? ($stockType === 'lens' ? route('optical.catalogue', ['activeTab' => 'lens-matrix', 'matrixRange' => $lensRange, 'matrixDesign' => $lensDesign, 'matrixIndex' => $lensIndex, 'matrixCoating' => $lensCoating, 'matrixDiameter' => $lensDiameter]) : null)" />
+    <x-ui.flash link-label="View received lenses in power matrix" :link="session('lensMatrixUrl') ?? ($stockType === 'lens' ? route('optical.catalogue', ['activeTab' => 'lens-matrix', 'matrixRange' => $lensRange, 'matrixDesign' => $lensDesign, 'matrixForm' => (string) \App\Support\Optical\LensOptions::storedForm($lensForm), 'matrixIndex' => $lensIndex, 'matrixCoating' => $lensCoating, 'matrixDiameter' => $lensDiameter]) : null)" />
     @error('movement')<div class="ui-panel p-3 text-sm text-red-700" role="alert">{{ $message }}</div>@enderror
 
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

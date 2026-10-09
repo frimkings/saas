@@ -101,7 +101,7 @@
                     <p><span class="label">Frame:</span> {{ $order->frame_model_number }}@if($order->frameOpticalProduct) ({{ $order->frameOpticalProduct->sku }})@elseif($order->frameProduct) ({{ $order->frameProduct->name }})@endif{{ $frameSource ? ' · '.$frameSource : '' }}</p>
                 @endif
                 @if($order->work_type !== 'service')
-                    <p><span class="label">Lenses:</span> {{ data_get($details, 'lens_details.type', '—') }} · Index {{ data_get($details, 'lens_details.index', '—') }} · {{ data_get($details, 'lens_details.coatings', '—') }}</p>
+                    <p><span class="label">Lenses:</span> {{ trim(data_get($details, 'lens_details.type', '—').' '.data_get($details, 'lens_details.stock_form')) }} · Index {{ data_get($details, 'lens_details.index', '—') }} · {{ data_get($details, 'lens_details.coatings', '—') }}</p>
                     @foreach($order->lensLines as $lens)
                         <p><span class="label">{{ strtoupper($lens->eye) }} lens:</span> {{ $lens->source === 'stock' ? 'From branch stock' : 'Special order' }}@if($lens->source !== 'stock' && ! $lens->received_at) · <strong>not yet received</strong>@endif</p>
                     @endforeach

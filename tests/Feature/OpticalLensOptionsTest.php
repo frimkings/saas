@@ -191,6 +191,39 @@ class OpticalLensOptionsTest extends TestCase
             ->assertSee('Suggested from cost +100% (Frames)');
     }
 
+    public function test_an_invisible_bifocal_is_matched_and_shown_apart_from_a_flat_top(): void
+    {
+        $stock = fn (?string $form, int $quantity) => app(\App\Services\OpticalLensReceivingService::class)->receiveMany(array_map(fn ($eye) => [
+            'specs' => array_filter(['range' => 'CANADA', 'design' => 'Bifocal', 'form' => $form, 'index' => '1.56', 'coating' => 'AR', 'diameter' => 65,
+                'sphere' => '-1.00', 'power' => '2.00', 'eye' => $eye], fn ($v) => $v !== null),
+            'quantity' => $quantity, 'details' => ['unit_cost' => 20, 'unit_price' => 60, 'supplier' => 'Lab'],
+        ], ['R', 'L']));
+        $stock(null, 3);          // Standard (flat-top) bifocals
+        $stock('Invisible', 2);
+
+        $patient = \App\Models\Patient::createWithGeneratedPxNumber(['user_id' => auth()->id(), 'name' => 'Abena', 'contact' => '0240000111', 'gender' => 'Other']);
+        $order = Livewire::test(\App\Livewire\Optical\OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2);
+        $choices = $order->instance()->wantedLensChoices();
+        $this->assertSame('Bifocal – Clear AR', $choices['Bifocal|AR']);
+        $this->assertSame('Bifocal Invisible – Clear AR', $choices['Bifocal|AR|Invisible']);
+
+        // Invisible wanted: only the invisible stock is chosen; the flat-top one is an alternative.
+        $rx = ['od' => ['sph' => '-1.00', 'add' => '2.00'], 'os' => ['sph' => '-1.00', 'add' => '2.00']];
+        $order->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Bifocal|AR|Invisible'])
+            ->assertSet('stock_form', 'Invisible')->assertSet('lensAvailability.status', 'available')
+            ->assertSeeInOrder(['CANADA Bifocal Invisible', 'Alternatives in stock', 'CANADA Bifocal']);
+        $this->assertSame([true, false], array_column($order->get('stockLensOptions'), 'matches'));
+        // Flat-top wanted: the invisible stock is never picked for it.
+        $order->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Bifocal|AR'])->assertSet('stock_form', '');
+
+        // The lens matrix keeps them apart, labelled by form.
+        $matrix = Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+            ->set('matrixRange', 'CANADA')->set('matrixDesign', 'Bifocal')->set('matrixForm', 'Invisible')->set('matrixDiameter', 65)
+            ->assertSee('Invisible · Clear AR · CANADA');
+        $matrix->assertViewHas('lensBlankStock', fn ($stock) => $stock['-1.00|2.00'] === 2);
+        $matrix->set('matrixForm', '')->assertViewHas('lensBlankStock', fn ($stock) => $stock['-1.00|2.00'] === 3);
+    }
+
     public function test_only_managers_change_lens_options(): void
     {
         $staff = User::factory()->create();

@@ -1,5 +1,11 @@
 @php
-    $rangeLabel = fn ($specs) => ($specs['range'] !== '' ? $specs['range'] : 'Unspecified range').' · '.$specs['index'].' '.$specs['coating'].' · '.($specs['diameter'] ? $specs['diameter'].' mm' : 'diameter not recorded');
+    // Form · Treatment · Manufacturer, then index and diameter, in the shop's own names.
+    $rangeLabel = fn ($specs) => implode(' · ', array_filter([
+        ! empty($specs['form']) ? \App\Support\Optical\LensOptions::label('form', $specs['form']) : null,
+        \App\Support\Optical\LensOptions::label('treatment', $specs['coating']),
+        $specs['range'] !== '' ? \App\Support\Optical\LensOptions::label('manufacturer', $specs['range']) : 'Unspecified manufacturer',
+        $specs['index'], $specs['diameter'] ? $specs['diameter'].' mm' : 'diameter not recorded',
+    ]));
     $pairsText = fn ($pairs, $extra, $eyeSpecific) => number_format($pairs).' '.\Illuminate\Support\Str::plural('pair', $pairs).($extra ? ' + '.$extra.' '.($eyeSpecific ? 'unpaired' : 'single').' '.\Illuminate\Support\Str::plural('lens', $extra) : '');
     $currentRange = $stockedRanges->firstWhere('key', $matrixRangeKey);
     $isManager = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
@@ -48,7 +54,7 @@
                 @if($stockedRanges->isEmpty())<option value="">No lens stock received yet</option>@endif
                 @unless($currentRange || $stockedRanges->isEmpty())<option value="{{ $matrixRangeKey }}">{{ $matrixRange ?: 'Unspecified range' }} · {{ $matrixDesign }} (no stock)</option>@endunless
                 @foreach($stockedRanges->groupBy('specs.design') as $design => $ranges)
-                    <optgroup label="{{ $design }}">
+                    <optgroup label="{{ \App\Support\Optical\LensOptions::label('design', $design) }}">
                         @foreach($ranges as $range)
                             <option value="{{ $range['key'] }}">{{ $rangeLabel($range['specs']) }} — {{ $pairsText($range['pairs'], $range['extra'], \App\Support\LensDesign::isEyeSpecific($design)) }}</option>
                         @endforeach

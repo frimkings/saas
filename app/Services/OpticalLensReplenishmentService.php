@@ -12,7 +12,8 @@ class OpticalLensReplenishmentService
         return OpticalProduct::with('stocks')->where('is_active', true)->whereNotNull('lens_specs')->whereHas('stocks')->get()
             ->filter(function ($product) use ($specs) {
                 foreach ($specs as $key => $value) if ((string) data_get($product->lens_specs, $key) !== (string) $value) return false;
-                return true;
+                // Standard (no form) and e.g. invisible lenses of the same range are separate stock.
+                return (string) data_get($product->lens_specs, 'form') === (string) ($specs['form'] ?? '');
             })->map(function ($product) {
                 $stock = $product->stocks->first();
                 $threshold = (int) ($stock->lens_reorder_pairs ?? 5);

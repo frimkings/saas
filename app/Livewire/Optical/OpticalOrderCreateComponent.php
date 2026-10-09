@@ -82,6 +82,8 @@ class OpticalOrderCreateComponent extends Component
     public $lens_coatings = '';
     public $lens_price = 0;
     public string $stock_coating = 'AR';
+    /** The chosen stock lens's form ('' = Standard). */
+    public string $stock_form = '';
     /** New orders start on branch stock; the lens choice resets to it when the prescription changes. */
     public string $lens_fulfilment_source = 'stock';
     public array $lensAvailability = [];
@@ -418,7 +420,8 @@ class OpticalOrderCreateComponent extends Component
         $this->optical_category_id = data_get($details, 'lens_details.category_id');
         $this->stock_coating = data_get($details, 'lens_details.stock_coating', $this->stock_coating);
         $this->stock_lens_key = (string) data_get($details, 'lens_details.stock_key', '');
-        if ($this->stock_lens_key !== '') $this->wantedLens = $this->lens_type.'|'.$this->stock_coating;
+        $this->stock_form = (string) data_get($details, 'lens_details.stock_form', '');
+        if ($this->stock_lens_key !== '') $this->wantedLens = rtrim($this->lens_type.'|'.$this->stock_coating.'|'.$this->stock_form, '|');
         $this->specialPrices = array_merge(['od' => '', 'os' => ''], array_map('strval', (array) data_get($details, 'lens_details.special_prices', [])));
         $this->lens_fulfilment_source = $order->lens_supply_source === 'stock'
             ? 'stock'
@@ -772,25 +775,30 @@ class OpticalOrderCreateComponent extends Component
         $designs = ['Single Vision', 'Progressive', 'Bifocal'];
         return OpticalProduct::whereNotNull('lens_specs')->where('is_active', true)->pluck('lens_specs')
             ->filter(fn ($specs) => data_get($specs, 'sphere') !== null && in_array(data_get($specs, 'design'), $designs, true) && (string) data_get($specs, 'coating') !== '')
-            ->map(fn ($specs) => [data_get($specs, 'design'), (string) data_get($specs, 'coating')])
+            // "design|coating", plus "|form" for a form other than Standard.
+            ->map(fn ($specs) => array_filter([data_get($specs, 'design'), (string) data_get($specs, 'coating'), (string) data_get($specs, 'form')], fn ($part) => $part !== ''))
             ->unique(fn ($line) => implode('|', $line))
-            ->sortBy([fn ($a, $b) => array_search($a[0], $designs) <=> array_search($b[0], $designs), fn ($a, $b) => strcasecmp($a[1], $b[1])])
-            ->mapWithKeys(fn ($line) => [implode('|', $line) => \App\Support\Optical\LensOptions::label('design', $line[0]).' – '.\App\Support\Optical\LensOptions::label('treatment', $line[1])])->all();
+            ->sortBy([fn ($a, $b) => array_search($a[0], $designs) <=> array_search($b[0], $designs), fn ($a, $b) => strcasecmp($a[2] ?? '', $b[2] ?? ''), fn ($a, $b) => strcasecmp($a[1], $b[1])])
+            ->mapWithKeys(fn ($line) => [implode('|', $line) => \App\Support\Optical\LensOptions::label('design', $line[0])
+                .(isset($line[2]) ? ' '.\App\Support\Optical\LensOptions::label('form', $line[2]) : '').' – '.\App\Support\Optical\LensOptions::label('treatment', $line[1])])->all();
     }
 
     /** Flags the options that are the wanted lens and lists them first; with nothing wanted, every option matches. */
     private function withWantedFirst(array $options): array
     {
-        [$design, $coating] = array_pad(explode('|', $this->wantedLens, 2), 2, '');
+        [$design, $coating, $form] = array_pad(explode('|', $this->wantedLens, 3), 3, '');
+        // An invisible bifocal is never offered as a match for a flat-top one, or the reverse.
         return collect($options)->map(fn ($option) => $option + ['matches' => $this->wantedLens === ''
-                || (($option['lens_type'] ?? '') === $design && strcasecmp((string) ($option['coating'] ?? ''), $coating) === 0)])
+                || (($option['lens_type'] ?? '') === $design && strcasecmp((string) ($option['coating'] ?? ''), $coating) === 0 && (string) ($option['form'] ?? '') === $form)])
             ->sortBy(fn ($option) => $option['matches'] ? 0 : 1)->values()->all();
     }
 
     private function wantedMissingMessage(): string
     {
-        [$designCode, $coatingCode] = explode('|', $this->wantedLens, 2);
-        [$design, $coating] = [\App\Support\Optical\LensOptions::label('design', $designCode), \App\Support\Optical\LensOptions::label('treatment', $coatingCode)];
+        [$designCode, $coatingCode, $formCode] = array_pad(explode('|', $this->wantedLens, 3), 3, '');
+        // "Bifocal Invisible" reads as one name; a Standard form adds nothing.
+        $design = \App\Support\Optical\LensOptions::label('design', $designCode).($formCode !== '' ? ' '.\App\Support\Optical\LensOptions::label('form', $formCode) : '');
+        $coating = \App\Support\Optical\LensOptions::label('treatment', $coatingCode);
         $hasAdd = collect($this->currentMeasurements())->contains(fn ($eye) => is_numeric($eye['add'] ?? null) && (float) $eye['add'] != 0);
         if ($hasAdd && $designCode === 'Single Vision') {
             return "This prescription has an ADD, so it needs a progressive or bifocal lens, not {$design} {$coating}. Choose another lens wanted, or special order.";
@@ -857,6 +865,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_type = $option['lens_type'];
         $this->lens_index = $option['index'];
         $this->stock_coating = $option['coating'];
+        $this->stock_form = (string) ($option['form'] ?? '');
         $this->base_color = $option['coating'] === 'Transitions' ? 'Photochromic' : 'White';
         // A special-order eye is charged what staff enter for it. A power the catalogue prices
         // starts at that price; a made-to-order lens or an unpriced power starts empty and
@@ -1137,7 +1146,7 @@ class OpticalOrderCreateComponent extends Component
             'paid_amount' => $this->paid_amount, 'payment_method' => $this->payment_method,
             'pickup_date' => $this->pickUpDate,
             'docket' => [
-                'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null, 'special_prices' => $this->typedSpecialPrices() ?: null],
+                'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_form' => $this->stock_form ?: null, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null, 'special_prices' => $this->typedSpecialPrices() ?: null],
                 'fitting' => ['pd_right' => $this->rx_od_pd, 'pd_left' => $this->rx_os_pd, 'hgt_right' => $this->rx_od_hgt, 'hgt_left' => $this->rx_os_hgt, 'segment_height' => $this->segment_height],
                 'lab' => ['instructions' => $this->lab_instructions],
                 'frame_structure' => $this->frame_structure, 'notes' => $this->notes,
