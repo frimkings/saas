@@ -183,7 +183,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $both = $receiving->receive(self::SV + ['sphere' => '5.00', 'power' => '-3.00'], 2, ['unit_cost' => 12.50, 'unit_price' => 20]);
         $key = app(OpticalLensPriceList::class)->rangeKey(self::SV);
 
-        $list = Livewire::test(LensPriceListComponent::class)->assertSee('Photo Range')->assertSee('Not set')
+        $list = Livewire::test(LensPriceListComponent::class)->assertSee('Photo Range')->assertSee('No price list · set per power')
             ->call('edit', $key)->set('pairPrice', '50')
             ->call('addRule')->set('rules.0.pair_price', '70')->call('save')->assertHasErrors('rules.0.min_sphere')
             ->set('rules.0.min_sphere', '4.00')

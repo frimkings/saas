@@ -17,7 +17,9 @@
                 <td class="ui-number">{{ $range['stock'] }}</td>
                 <td class="ui-number">
                     @if($range['list']){{ currency() }} {{ number_format((float) $range['list']->pair_price, 2) }}
-                    @else<span class="text-slate-500" title="Prices set per power during stock receipts">Not set ({{ currency() }} {{ number_format($range['min'], 2) }}@if($range['max'] != $range['min'])–{{ number_format($range['max'], 2) }}@endif)</span>@endif
+                    {{-- No range price list: each power keeps the price entered when it was received. --}}
+                    @else<span class="block text-slate-700" title="Each power sells at the price entered when it was received. Set a price list to price the whole range at once.">{{ currency() }} {{ number_format($range['min'], 2) }}@if($range['max'] != $range['min'])–{{ number_format($range['max'], 2) }}@endif</span>
+                        <span class="block text-[11px] text-slate-500">No price list · set per power</span>@endif
                 </td>
                 <td>{{ $range['list'] && $range['list']->rules->isNotEmpty() ? $range['list']->rules->count() : '—' }}</td>
                 @if($canManage)<td><button type="button" class="ui-button text-xs" wire:click="edit('{{ $range['key'] }}')">{{ $range['list'] ? 'Edit' : 'Set price' }}</button></td>@endif
