@@ -322,7 +322,7 @@
                             <select id="wanted-lens" class="ui-input w-full !py-2 text-xs" onchange="if (document.getElementById('stock-lens-options')) document.getElementById('check-lens-stock')?.click()">
                                 <option value="">Any stocked lens</option>
                                 @foreach(collect($wantedChoices)->groupBy(fn ($label, $key) => explode('|', $key)[0], true) as $design => $lines)
-                                    <optgroup label="{{ $design }}">
+                                    <optgroup label="{{ \App\Support\Optical\LensOptions::label('design', $design) }}">
                                         @foreach($lines as $key => $label)<option value="{{ $key }}" @selected($wantedLens === $key)>{{ $label }}</option>@endforeach
                                     </optgroup>
                                 @endforeach
@@ -345,8 +345,8 @@
                                     <span class="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto] items-center gap-3">
                                         <input type="radio" name="stock_lens_key" wire:click="selectStockLensOption(@js($option['key']))" @checked($chosen) @disabled(! $usable)>
                                         <span class="flex flex-wrap items-center gap-1.5"><strong>{{ $option['design'] }}</strong>
-                                            <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ $option['lens_type'] }}</span>
-                                            @if($option['coating'] !== '')<span class="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-900">{{ $option['coating'] }}</span>@endif
+                                            <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ \App\Support\Optical\LensOptions::label('design', $option['lens_type']) }}</span>
+                                            @if($option['coating'] !== '')<span class="rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-900">{{ \App\Support\Optical\LensOptions::label('treatment', $option['coating']) }}</span>@endif
                                             @if($option['index'] !== '')<span class="text-[10px] text-slate-500">{{ $option['index'] }}</span>@endif
                                             @if(($option['status'] ?? null) === 'partial')<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Half pair in stock</span>@endif
                                         </span>

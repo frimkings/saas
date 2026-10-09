@@ -101,7 +101,7 @@ class OpticalStockManagementComponent extends Component
         $this->excelPreview = [];
         $this->validate(['excelFile' => 'required|file|mimes:xlsx,zip|max:5120', 'excelSheet' => 'required|integer|min:0',
             'excelHeaderRow' => 'required|integer|between:1,2000', 'excelSphereColumn' => 'required|integer|between:1,100',
-            'lensDesign' => 'required|in:Single Vision,Bifocal,Progressive',
+            'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
             'lensEye' => $this->eyeRule(),
             'excelUnit' => 'required|in:pieces,pairs', 'excelLayout' => 'required|in:template,manual']);
         if (! $this->eyeMatchesUnit($this->excelUnit)) return;
@@ -373,10 +373,11 @@ class OpticalStockManagementComponent extends Component
     {
         if ($this->excelFile) { $this->addError('excelFile', 'Preview and apply the uploaded workbook, or cancel the import before receiving stock.'); return; }
         $this->validate([
-            'lensRange' => 'required|string|max:100', 'lensDesign' => 'required|in:Single Vision,Bifocal,Progressive',
+            'lensRange' => 'required|string|max:100', 'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
             'lensEye' => $this->eyeRule(),
             'lensIndex' => 'required|in:1.50,1.56,1.60,1.61,1.67,1.74',
-            'lensCoating' => 'required|in:AR,Photo AR,Photo Gray,Photochromic,Blue AR,BlueCut,Transitions,HC',
+            // Designs and treatments shown under Optical → Settings → Lens options.
+            'lensCoating' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('treatment')))],
             'lensDiameter' => 'required|integer|between:40,100',
             'unitCost' => 'required|numeric|min:0|max:99999999',
             'unitPrice' => ($this->rangePriceList() ? 'nullable' : 'required').'|numeric|min:0|max:99999999',

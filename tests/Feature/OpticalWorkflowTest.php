@@ -1980,7 +1980,7 @@ class OpticalWorkflowTest extends TestCase
         $rx = ['od' => ['sph' => '-1.00'], 'os' => ['sph' => '-1.00']];
 
         $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2);
-        $this->assertSame(['Single Vision|AR' => 'Single Vision – AR', 'Single Vision|BlueCut' => 'Single Vision – BlueCut', 'Progressive|Photo AR' => 'Progressive – Photo AR'],
+        $this->assertSame(['Single Vision|AR' => 'Single Vision – Clear AR', 'Single Vision|BlueCut' => 'Single Vision – Blue cut', 'Progressive|Photo AR' => 'Progressive – Photo AR'],
             $form->instance()->wantedLensChoices());
 
         // Nothing wanted: two stocked lines, staff choose.
@@ -1991,7 +1991,7 @@ class OpticalWorkflowTest extends TestCase
         $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Single Vision|BlueCut'])
             ->assertSet('wantedLens', 'Single Vision|BlueCut')->assertSet('stock_coating', 'BlueCut')
             ->assertSet('lensAvailability.status', 'available')
-            ->assertSeeInOrder(['Lens wanted', 'BlueCut', 'Alternatives in stock', 'AR']);
+            ->assertSeeInOrder(['Lens wanted', 'Blue cut', 'Alternatives in stock', 'Clear AR']);
         $this->assertSame([true, false], array_column($form->get('stockLensOptions'), 'matches'));
 
         // A single vision lens is wanted, but none of that line is in stock: alternatives only, nothing chosen.

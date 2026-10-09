@@ -776,7 +776,7 @@ class OpticalOrderCreateComponent extends Component
             ->map(fn ($specs) => [data_get($specs, 'design'), (string) data_get($specs, 'coating')])
             ->unique(fn ($line) => implode('|', $line))
             ->sortBy([fn ($a, $b) => array_search($a[0], $designs) <=> array_search($b[0], $designs), fn ($a, $b) => strcasecmp($a[1], $b[1])])
-            ->mapWithKeys(fn ($line) => [implode('|', $line) => $line[0].' – '.$line[1]])->all();
+            ->mapWithKeys(fn ($line) => [implode('|', $line) => \App\Support\Optical\LensOptions::label('design', $line[0]).' – '.\App\Support\Optical\LensOptions::label('treatment', $line[1])])->all();
     }
 
     /** Flags the options that are the wanted lens and lists them first; with nothing wanted, every option matches. */
@@ -790,12 +790,13 @@ class OpticalOrderCreateComponent extends Component
 
     private function wantedMissingMessage(): string
     {
-        [$design, $coating] = explode('|', $this->wantedLens, 2);
+        [$designCode, $coatingCode] = explode('|', $this->wantedLens, 2);
+        [$design, $coating] = [\App\Support\Optical\LensOptions::label('design', $designCode), \App\Support\Optical\LensOptions::label('treatment', $coatingCode)];
         $hasAdd = collect($this->currentMeasurements())->contains(fn ($eye) => is_numeric($eye['add'] ?? null) && (float) $eye['add'] != 0);
-        if ($hasAdd && $design === 'Single Vision') {
+        if ($hasAdd && $designCode === 'Single Vision') {
             return "This prescription has an ADD, so it needs a progressive or bifocal lens, not {$design} {$coating}. Choose another lens wanted, or special order.";
         }
-        if (! $hasAdd && $design !== 'Single Vision') {
+        if (! $hasAdd && $designCode !== 'Single Vision') {
             return "{$design} {$coating} lenses need an ADD in the prescription. Choose a single vision lens wanted, or enter the ADD.";
         }
         return "{$design} {$coating} is not in stock at this branch for these powers. Special order it, or offer one of the alternatives below.";

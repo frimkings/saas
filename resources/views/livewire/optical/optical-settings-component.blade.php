@@ -4,6 +4,7 @@
     // One tab per section; the URL hash keeps the tab across reloads (#payments, #reminders, ...).
     $tabs = array_filter([
         'general' => ['General', 'fa-sliders-h', true],
+        'lenses' => ['Lens options', 'fa-glasses', $isManager],
         'payments' => ['Payment methods', 'fa-wallet', $isManager],
         'reminders' => ['Reminders', 'fa-bell', $isManager],
         'links' => ['Links', 'fa-link', $isManager],
@@ -72,6 +73,7 @@
 
     {{-- What the optical tills accept, and when staff and the owner are reminded --}}
     @if($isManager)
+        <div x-show="tab === 'lenses'" x-cloak role="tabpanel"><livewire:optical.lens-options-component /></div>
         <div x-show="tab === 'payments'" x-cloak role="tabpanel"><livewire:admin.payment-methods-component :optical="true" /></div>
         <div x-show="tab === 'reminders'" x-cloak role="tabpanel"><livewire:admin.reminder-settings-component :optical="true" /></div>
         <div x-show="tab === 'links'" x-cloak role="tabpanel"><livewire:admin.clinic-links-component :optical="true" /></div>
