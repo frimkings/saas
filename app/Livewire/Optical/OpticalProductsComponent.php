@@ -108,10 +108,28 @@ class OpticalProductsComponent extends Component
         }
     }
 
+    /** Set when the selling price came from the category's markup, e.g. "+40% (Frames)". */
+    public string $priceFromMarkup = '';
+
+    public function updatedCostPrice(): void { $this->suggestPriceFromMarkup(); }
+    public function updatedCategoryId(): void { $this->suggestPriceFromMarkup(); }
+    public function updatedSellingPrice(): void { $this->priceFromMarkup = ''; }
+
+    /** An empty selling price (or one this filled in) follows cost plus the category's markup; a typed one is kept. */
+    private function suggestPriceFromMarkup(): void
+    {
+        if (($this->sellingPrice !== '' && $this->priceFromMarkup === '') || ! is_numeric($this->costPrice) || ! ctype_digit($this->categoryId)) return;
+        $category = \App\Models\OpticalCategory::find((int) $this->categoryId);
+        $price = $category?->suggestedPrice((float) $this->costPrice);
+        if ($price === null) return;
+        $this->sellingPrice = number_format($price, 2, '.', '');
+        $this->priceFromMarkup = '+'.rtrim(rtrim(number_format((float) $category->default_markup, 2, '.', ''), '0'), '.').'% ('.$category->name.')';
+    }
+
     public function add(): void
     {
         $this->assertManager();
-        $this->reset(['editingId', 'name', 'sku', 'categoryId', 'brand', 'specifications', 'costPrice', 'sellingPrice']);
+        $this->reset(['editingId', 'name', 'sku', 'categoryId', 'brand', 'specifications', 'costPrice', 'sellingPrice', 'priceFromMarkup']);
         $this->quantity = '0';
         $this->reorderLevel = '5';
         $this->active = true;
@@ -132,6 +150,7 @@ class OpticalProductsComponent extends Component
         $this->specifications = $product->specifications ?? '';
         $this->costPrice = (string) $product->cost_price;
         $this->sellingPrice = (string) $product->selling_price;
+        $this->priceFromMarkup = '';
         $this->quantity = (string) ($stock?->quantity ?? 0);
         $this->reorderLevel = (string) ($stock?->reorder_level ?? 5);
         $this->active = $product->is_active;

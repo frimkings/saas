@@ -21,6 +21,9 @@ class OpticalCategoriesComponent extends Component
     public string $description = '';
     public string $markup = '';
     public bool $active = true;
+    /** Frames, lenses or accessories (OpticalCategory::TYPES); lens categories may name a lens type. */
+    public string $type = 'lens';
+    public string $lensType = '';
 
     public function updatedSearch(): void { $this->resetPage(); }
 
@@ -32,7 +35,7 @@ class OpticalCategoriesComponent extends Component
     public function add(): void
     {
         $this->assertManager();
-        $this->reset(['editingId', 'code', 'name', 'description', 'markup']);
+        $this->reset(['editingId', 'code', 'name', 'description', 'markup', 'type', 'lensType']);
         $this->active = true;
         $this->resetValidation();
         $this->showForm = true;
@@ -48,6 +51,8 @@ class OpticalCategoriesComponent extends Component
         $this->description = $category->description ?? '';
         $this->markup = $category->default_markup === null ? '' : (string) $category->default_markup;
         $this->active = (bool) $category->is_active;
+        $this->type = $category->type ?: 'accessory';
+        $this->lensType = (string) $category->lens_type;
         $this->resetValidation();
         $this->showForm = true;
     }
@@ -65,14 +70,22 @@ class OpticalCategoriesComponent extends Component
             'description' => 'nullable|string|max:500',
             'markup' => 'nullable|numeric|between:0,500',
             'active' => 'boolean',
+            'type' => ['required', Rule::in(array_keys(OpticalCategory::TYPES))],
+            'lensType' => ['nullable', Rule::in(array_keys(\App\Support\Optical\LensOptions::DESIGNS))],
         ]);
         $category = $this->editingId ? OpticalCategory::findOrFail($this->editingId) : new OpticalCategory();
+        // Stock lenses (with powers) must stay in a lens category.
+        if ($this->type !== 'lens' && $category->exists && $category->products()->whereNotNull('lens_specs')->exists()) {
+            throw ValidationException::withMessages(['type' => 'This category holds stock lenses, so it must stay a Lenses category.']);
+        }
         $category->fill([
             'code' => $this->code,
             'name' => $this->name,
             'description' => trim($this->description) ?: null,
             'is_active' => $this->active,
             'default_markup' => $this->markup === '' ? null : round((float) $this->markup, 2),
+            'type' => $this->type,
+            'lens_type' => $this->type === 'lens' && $this->lensType !== '' ? $this->lensType : null,
         ]);
         \App\Models\AuditTrail::recordSave($category, 'optical.category', 'optical category '.$category->name);
         $this->showForm = false;
@@ -114,9 +127,8 @@ class OpticalCategoriesComponent extends Component
         return view('livewire.optical.optical-categories-component', [
             'categories' => $categories,
             'activeCount' => $summary->where('is_active', true)->count(),
-            'singleVisionCount' => $summary->filter(fn ($category) => $category->group === 'single_vision')->count(),
-            'frameSkuCount' => $summary->filter(fn ($category) => $category->group === 'frames')->sum('products_count'),
-            'multifocalCount' => $summary->filter(fn ($category) => in_array($category->group, ['progressive', 'bifocal'], true))->count(),
+            // Items per type, for the summary cards.
+            'typeCounts' => collect(OpticalCategory::TYPES)->map(fn ($label, $type) => (int) $summary->where('type', $type)->sum('products_count'))->all(),
         ])->layout('layouts.optical');
     }
 }

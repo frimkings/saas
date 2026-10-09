@@ -110,11 +110,11 @@
     @php $priceList = $this->rangePriceList(); @endphp
     @if($fullPage)<h2 class="lens-receipt-step">{{ $entryMode === 'bulk' ? '3' : '2' }}. Pricing</h2>@endif
     <div class="grid grid-cols-2 gap-3">
-        <label class="text-xs">{{ $entryMode === 'bulk' ? 'Default unit cost' : 'Unit cost' }} (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model="unitCost" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitCost !== '' && ! isNaN(parseFloat($wire.unitCost))" x-text="'= GHS ' + money(num($wire.unitCost) * 2) + ' per pair'"></span></label>
+        <label class="text-xs">{{ $entryMode === 'bulk' ? 'Default unit cost' : 'Unit cost' }} (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model.blur="unitCost" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitCost !== '' && ! isNaN(parseFloat($wire.unitCost))" x-text="'= GHS ' + money(num($wire.unitCost) * 2) + ' per pair'"></span></label>
         @if($priceList)
         <p class="text-xs rounded border border-teal-200 bg-teal-50 p-2">Selling price comes from the lens price list: GHS {{ number_format((float) $priceList->pair_price, 2) }} per pair (GHS {{ number_format((float) $priceList->pair_price / 2, 2) }} per lens){{ $priceList->rules->isNotEmpty() ? ', with '.$priceList->rules->count().' power exception(s)' : '' }}. Change it in Lens Catalogue → Lens prices.</p>
         @else
-        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model="unitPrice" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitPrice !== '' && ! isNaN(parseFloat($wire.unitPrice))" x-text="'= GHS ' + money(num($wire.unitPrice) * 2) + ' per pair'"></span></label>
+        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model.blur="unitPrice" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitPrice !== '' && ! isNaN(parseFloat($wire.unitPrice))" x-text="'= GHS ' + money(num($wire.unitPrice) * 2) + ' per pair'"></span>@if($priceFromMarkup !== '')<span class="block text-teal-700">Suggested from cost {{ $priceFromMarkup }}. Change it if needed.</span>@endif</label>
         @endif
     </div>
     @if($entryMode === 'bulk')

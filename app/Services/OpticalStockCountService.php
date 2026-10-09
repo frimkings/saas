@@ -162,8 +162,8 @@ class OpticalStockCountService
         $products = OpticalProduct::with('category')->where('is_active', true)->get();
         return (match ($scope) {
             'lens_range' => $products->filter(fn ($product) => $product->lens_specs && $this->normaliseSpecs((array) $product->lens_specs) == $specs),
-            'frames' => $products->filter(fn ($product) => ! $product->lens_specs && $product->category?->group === 'frames'),
-            'other' => $products->filter(fn ($product) => ! $product->lens_specs && $product->category?->group !== 'frames'),
+            'frames' => $products->filter(fn ($product) => ! $product->lens_specs && $product->category?->isFrame()),
+            'other' => $products->filter(fn ($product) => ! $product->lens_specs && ! $product->category?->isFrame()),
             default => $products,
         })->sortBy(fn ($product) => $product->lens_specs
             ? sprintf('%08.2f|%08.2f', 100 + (float) data_get($product->lens_specs, 'sphere'), 100 + (float) data_get($product->lens_specs, 'power'))

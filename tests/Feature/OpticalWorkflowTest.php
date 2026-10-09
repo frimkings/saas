@@ -730,7 +730,7 @@ class OpticalWorkflowTest extends TestCase
         Livewire::test(OpticalCategoriesComponent::class)
             ->call('add')
             ->set('code', 'CAT-SV-BAR')
-            ->set('name', 'Single Vision Blue AR')
+            ->set('name', 'Single Vision Blue AR')->set('type', 'lens')->set('lensType', 'Single Vision')
             ->set('markup', '40')
             ->set('description', 'Blue AR single vision lenses')
             ->call('save')->assertHasNoErrors();

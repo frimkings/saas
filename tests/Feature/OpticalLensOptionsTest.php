@@ -113,6 +113,51 @@ class OpticalLensOptionsTest extends TestCase
         $form->call('useRange', 'Not a range')->assertStatus(422);
     }
 
+    public function test_categories_have_a_type_and_stock_lenses_file_into_the_clinics_lens_category(): void
+    {
+        // A lens category for single vision, with a 40% markup.
+        Livewire::test(\App\Livewire\Optical\OpticalCategoriesComponent::class)->call('add')
+            ->set('name', 'SV LENSES')->set('code', 'SV')->set('type', 'lens')->set('lensType', 'Single Vision')->set('markup', '40')
+            ->call('save')->assertHasNoErrors();
+        $sv = \App\Models\OpticalCategory::where('code', 'SV')->firstOrFail();
+        $this->assertSame(['lens', 'Single Vision'], [$sv->type, $sv->lens_type]);
+
+        // Received single vision stock goes into it, not an automatic "Stock Lenses" category.
+        $this->receive('AR');
+        $this->assertSame($sv->id, OpticalProduct::whereNotNull('lens_specs')->firstOrFail()->optical_category_id);
+        $this->assertSame(0, \App\Models\OpticalCategory::where('code', 'like', 'stock-%')->count());
+
+        // A category holding stock lenses can't stop being a lens category.
+        Livewire::test(\App\Livewire\Optical\OpticalCategoriesComponent::class)->call('edit', $sv->id)->set('type', 'accessory')->call('save')
+            ->assertHasErrors(['type']);
+
+        // Progressive stock with no progressive category gets one made for it.
+        app(\App\Services\OpticalLensReceivingService::class)->receiveMany([[
+            'specs' => ['range' => 'CANADA', 'design' => 'Progressive', 'index' => '1.56', 'coating' => 'AR', 'diameter' => 65, 'sphere' => '-1.00', 'power' => '1.50', 'eye' => 'R'],
+            'quantity' => 1, 'details' => ['unit_cost' => 10, 'unit_price' => 25, 'supplier' => 'Lab'],
+        ]]);
+        $made = \App\Models\OpticalCategory::where('lens_type', 'Progressive')->firstOrFail();
+        $this->assertSame(['lens', 'Progressive Lenses'], [$made->type, $made->name]);
+
+        // Frames and accessories: a name no longer decides; old-style names still get a sensible type.
+        $this->assertSame('frame', \App\Models\OpticalCategory::create(['code' => 'FR', 'name' => 'Designer Frames', 'is_active' => true])->type);
+        $this->assertSame('accessory', \App\Models\OpticalCategory::create(['code' => 'CS', 'name' => 'Cases', 'is_active' => true])->type);
+    }
+
+    public function test_markup_suggests_a_selling_price_from_cost_and_a_typed_price_is_kept(): void
+    {
+        \App\Models\OpticalCategory::create(['code' => 'SV', 'name' => 'SV LENSES', 'type' => 'lens', 'lens_type' => 'Single Vision', 'default_markup' => 40, 'is_active' => true]);
+        $receive = Livewire::test(OpticalLensReceivingComponent::class)->set('lensDesign', 'Single Vision')
+            ->set('unitCost', '25')->assertSet('unitPrice', '35.00')->assertSee('Suggested from cost +40% (SV LENSES)')
+            ->set('unitCost', '50')->assertSet('unitPrice', '70.00');
+        $receive->set('unitPrice', '80')->set('unitCost', '60')->assertSet('unitPrice', '80')->assertDontSee('Suggested from cost');
+
+        $frames = \App\Models\OpticalCategory::create(['code' => 'FR', 'name' => 'Frames', 'type' => 'frame', 'default_markup' => 100, 'is_active' => true]);
+        Livewire::test(\App\Livewire\Optical\OpticalProductsComponent::class)->call('add')
+            ->set('categoryId', (string) $frames->id)->set('costPrice', '120')->assertSet('sellingPrice', '240.00')
+            ->assertSee('Suggested from cost +100% (Frames)');
+    }
+
     public function test_only_managers_change_lens_options(): void
     {
         $staff = User::factory()->create();

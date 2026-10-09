@@ -500,9 +500,9 @@ class OpticalCatalogueComponent extends Component
     private function productListData(): array
     {
         $categories = OpticalCategory::all();
-        $groups = $this->activeTab === 'frames' ? ['frames'] : ['single_vision', 'progressive', 'bifocal'];
+        $type = $this->activeTab === 'frames' ? 'frame' : 'lens';
         $productsQuery = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)
-            ->whereIn('optical_category_id', $categories->filter(fn ($category) => in_array($category->group, $groups, true))->pluck('id'));
+            ->whereIn('optical_category_id', $categories->where('type', $type)->pluck('id'));
         if (! empty($this->searchTerm)) {
             $productsQuery->where(function ($q) {
                 $q->where('name', 'like', '%'.$this->searchTerm.'%')

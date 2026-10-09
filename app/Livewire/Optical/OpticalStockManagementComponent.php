@@ -386,6 +386,25 @@ class OpticalStockManagementComponent extends Component
             $this->priceFromProduct = (bool) $product;
             $this->updateSellingPrice = false;
         }
+        if ($property === 'unitPrice') $this->priceFromMarkup = '';
+        if (in_array($property, ['unitCost', 'lensDesign'], true)) $this->suggestPriceFromMarkup();
+    }
+
+    /** Set when the selling price came from the lens category's markup: "+40% (Single Vision Lenses)". */
+    public string $priceFromMarkup = '';
+
+    /**
+     * An empty selling price (or one this filled in) follows the cost plus the markup of the
+     * category these lenses are filed in. A price typed by staff is never replaced.
+     */
+    private function suggestPriceFromMarkup(): void
+    {
+        if ($this->stockType !== 'lens' || ($this->unitPrice !== '' && $this->priceFromMarkup === '') || ! is_numeric($this->unitCost)) return;
+        $category = \App\Models\OpticalCategory::stockLensCategory($this->lensDesign);
+        $price = $category?->suggestedPrice((float) $this->unitCost);
+        if ($price === null) return;
+        $this->unitPrice = number_format($price, 2, '.', '');
+        $this->priceFromMarkup = '+'.rtrim(rtrim(number_format((float) $category->default_markup, 2, '.', ''), '0'), '.').'% ('.$category->name.')';
     }
 
     public function pasteGrid(): void

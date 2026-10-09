@@ -201,9 +201,7 @@ class OpticalLensReceivingService
 
     private function category(string $design): OpticalCategory
     {
-        return OpticalCategory::firstOrCreate(['code' => 'stock-'.strtolower(str_replace(' ', '-', $design))], [
-            'name' => $design.' Stock Lenses', 'is_active' => true, 'default_markup' => 0,
-        ]);
+        return OpticalCategory::forStockLenses($design);
     }
 
     private function itemName(array $specs): string

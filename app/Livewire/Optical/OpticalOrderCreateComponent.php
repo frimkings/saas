@@ -306,11 +306,10 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
         $category = OpticalCategory::where('is_active', true)->findOrFail((int) $id);
-        abort_unless(in_array($category->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
+        abort_unless($category->isLens(), 404);
         $this->optical_category_id = $category->id;
-        $this->lens_type = [
-            'single_vision' => 'Single Vision', 'progressive' => 'Progressive', 'bifocal' => 'Bifocal',
-        ][$category->group];
+        // A lens category may name its lens type; a general one leaves the type as it was.
+        if ($category->lens_type) $this->lens_type = $category->lens_type;
     }
 
     public function selectFrameOpticalProduct($id): void
@@ -319,7 +318,7 @@ class OpticalOrderCreateComponent extends Component
         $this->frame_product_id = null;
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
-        abort_unless($product->category?->group === 'frames', 404);
+        abort_unless((bool) $product->category?->isFrame(), 404);
         $this->frame_optical_product_id = $product->id;
         $this->frame_source = 'stock';
         $this->frame_model_number = $product->name;
@@ -333,7 +332,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
-        abort_unless(in_array($product->category?->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
+        abort_unless((bool) $product->category?->isLens(), 404);
         // A stock lens item is one lens; stock lenses are matched per eye from the prescription.
         abort_unless($product->lens_specs === null, 404);
         $this->lens_optical_product_id = $product->id;
@@ -1156,8 +1155,8 @@ class OpticalOrderCreateComponent extends Component
     public function render()
     {
         $opticalCategories = OpticalCategory::where('is_active', true)->orderBy('name')->get();
-        $frameIds = $opticalCategories->filter(fn ($category) => $category->group === 'frames')->pluck('id');
-        $lensCategories = $opticalCategories->filter(fn ($category) => in_array($category->group, ['single_vision', 'progressive', 'bifocal'], true));
+        $frameIds = $opticalCategories->where('type', 'frame')->pluck('id');
+        $lensCategories = $opticalCategories->where('type', 'lens');
         return view('livewire.optical.optical-order-create-component', [
             'customers' => $this->order_source === 'in_clinic' && strlen(trim($this->customerSearch)) > 0
                 ? Patient::where(function ($query) {

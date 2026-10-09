@@ -349,7 +349,7 @@ class OpticalOrderService
         $categoryId = data_get($data, 'docket.lens_details.category_id');
         if ($categoryId) {
             $category = OpticalCategory::where('is_active', true)->findOrFail((int) $categoryId);
-            abort_unless(in_array($category->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
+            abort_unless($category->isLens(), 404);
             if (($data['work_type'] ?? 'prescription') !== 'prescription') {
                 throw ValidationException::withMessages(['optical_category_id' => 'Lens categories are only available for prescription orders.']);
             }
@@ -383,10 +383,10 @@ class OpticalOrderService
         if (($frame && $opticalFrame) || ($lens && $opticalLens)) {
             throw ValidationException::withMessages(['product' => 'Choose one catalogue item per frame or lens.']);
         }
-        if ($opticalFrame && $opticalFrame->category?->group !== 'frames') {
+        if ($opticalFrame && ! $opticalFrame->category?->isFrame()) {
             throw ValidationException::withMessages(['frame_optical_product_id' => 'Select an optical frame SKU.']);
         }
-        if ($opticalLens && ! in_array($opticalLens->category?->group, ['single_vision', 'progressive', 'bifocal'], true)) {
+        if ($opticalLens && ! $opticalLens->category?->isLens()) {
             throw ValidationException::withMessages(['lens_optical_product_id' => 'Select an optical lens SKU.']);
         }
         // A stock lens item is a single lens; stock lenses are taken per eye from the prescription match.
@@ -397,14 +397,14 @@ class OpticalOrderService
 
     private function isFrameCategory(Product $product): bool
     {
-        if ($product->opticalCategory) return $product->opticalCategory->group === 'frames';
+        if ($product->opticalCategory) return $product->opticalCategory->isFrame();
         $category = $product->category;
         return $category && ($category->type === 'frame' || str_contains(strtolower($category->name), 'frame'));
     }
 
     private function isLensCategory(Product $product): bool
     {
-        if ($product->opticalCategory) return in_array($product->opticalCategory->group, ['single_vision', 'progressive', 'bifocal'], true);
+        if ($product->opticalCategory) return $product->opticalCategory->isLens();
         $category = $product->category;
         return $category && ($category->type === 'lens' || str_contains(strtolower($category->name), 'lens'));
     }
