@@ -96,6 +96,23 @@ class OpticalLensOptionsTest extends TestCase
         $page->call('toggle', OpticalLensOption::where('code', 'Progressive')->value('id'))->assertHasErrors(['options']);
     }
 
+    public function test_a_range_typed_in_other_capitals_is_the_same_stock_and_new_ranges_are_flagged(): void
+    {
+        $this->receive('AR');
+        $form = Livewire::test(OpticalLensReceivingComponent::class);
+
+        // Capitals and spaces don't make a new range: the existing spelling is used.
+        $form->set('lensRange', '  canada ')->assertSet('lensRange', 'CANADA')->assertDontSee('New range:');
+
+        // A near miss is flagged with the likely range, which one tap puts back.
+        $form->set('lensRange', 'CANDA')->assertSee('New range:')->assertSee('will be kept as separate stock')->assertSee('Did you mean')
+            ->call('useRange', 'CANADA')->assertSet('lensRange', 'CANADA')->assertDontSee('New range:');
+
+        // A genuinely new manufacturer is flagged, with nothing to suggest.
+        $form->set('lensRange', 'Essilor')->assertSee('New range:')->assertDontSee('Did you mean');
+        $form->call('useRange', 'Not a range')->assertStatus(422);
+    }
+
     public function test_only_managers_change_lens_options(): void
     {
         $staff = User::factory()->create();

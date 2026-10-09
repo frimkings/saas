@@ -4,7 +4,11 @@
     @if($fullPage)<h2 class="lens-receipt-step">1. Lens range</h2>@endif
     <p class="text-xs text-slate-600">Receive individual stock lenses supplied to optical shops. Choose a saved range or enter a new manufacturer / range name.</p>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label class="text-xs">Manufacturer / lens range *<input autocomplete="off" list="lens-ranges" wire:model.live.blur="lensRange" maxlength="100" class="ui-input w-full" placeholder="Select or add a lens range"><datalist id="lens-ranges">@foreach($lensRanges as $range)<option value="{{ $range }}">@endforeach</datalist><span class="text-slate-500">The brand or product line printed on the lens envelope. Lenses of the same range are kept as one stock.</span></label>
+        <label class="text-xs">Manufacturer / lens range *<input autocomplete="off" list="lens-ranges" wire:model.live.blur="lensRange" maxlength="100" class="ui-input w-full" placeholder="Select or add a lens range"><datalist id="lens-ranges">@foreach($lensRanges as $range)<option value="{{ $range }}">@endforeach</datalist><span class="text-slate-500">The brand or product line printed on the lens envelope. Lenses of the same range are kept as one stock.</span>
+            @if($rangeHint = $this->rangeHint())
+                <span class="mt-1 block rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900" role="status"><strong>New range:</strong> “{{ $rangeHint['typed'] }}” will be kept as separate stock.
+                    @if($rangeHint['suggest'])Did you mean <button type="button" wire:click="useRange(@js($rangeHint['suggest']))" class="font-semibold underline">{{ $rangeHint['suggest'] }}</button>?@endif</span>
+            @endif</label>
         <label class="text-xs">Design *<select wire:model.live="lensDesign" class="ui-input w-full">@foreach(\App\Support\Optical\LensOptions::choices('design', $lensDesign) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
         <label class="text-xs">Index *<select wire:model.live="lensIndex" class="ui-input w-full">@foreach(['1.50','1.56','1.60','1.61','1.67','1.74'] as $index)<option>{{ $index }}</option>@endforeach</select></label>
         <label class="text-xs">Treatment *<select wire:model.live="lensCoating" class="ui-input w-full">@foreach(\App\Support\Optical\LensOptions::choices('treatment', $lensCoating) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>

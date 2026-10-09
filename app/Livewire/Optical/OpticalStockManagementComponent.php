@@ -242,9 +242,50 @@ class OpticalStockManagementComponent extends Component
         return ['pieces' => $pieces * $pairFactor, 'cost' => $cost * $pairFactor];
     }
 
+    /** @return \Illuminate\Support\Collection<int, string> the lens ranges already received, as spelled on their stock */
+    private function knownRanges()
+    {
+        return $this->rangesThisRequest ??= OpticalProduct::whereNotNull('lens_specs')->pluck('lens_specs')
+            ->map(fn ($specs) => trim((string) data_get($specs, 'range')))->filter()->unique()->sort()->values();
+    }
+
+    /** Ranges for this request only; a private property is not kept between requests. */
+    private ?\Illuminate\Support\Collection $rangesThisRequest = null;
+
+    /**
+     * A typed range in the spelling its stock already uses: "canada  opticals" is the
+     * existing "CANADA OPTICALS", so one range never becomes two stocks by capitals or spaces.
+     */
+    private function canonicalRange(string $typed): string
+    {
+        $typed = trim(preg_replace('/\s+/', ' ', $typed));
+        return $this->knownRanges()->first(fn ($range) => mb_strtolower($range) === mb_strtolower($typed)) ?? $typed;
+    }
+
+    /** Shown under the range box when the name is new: it will be separate stock, and the closest existing name. */
+    public function rangeHint(): ?array
+    {
+        $typed = trim($this->lensRange);
+        if ($typed === '' || $this->knownRanges()->contains($typed)) return null;
+        $lower = mb_strtolower($typed);
+        $closest = $this->knownRanges()
+            ->map(fn ($range) => ['range' => $range, 'distance' => levenshtein(mb_strtolower($range), $lower), 'contains' => str_contains(mb_strtolower($range), $lower) || str_contains($lower, mb_strtolower($range))])
+            ->filter(fn ($match) => $match['contains'] || $match['distance'] <= max(2, (int) floor(mb_strlen($typed) / 4)))
+            ->sortBy('distance')->first();
+        return ['typed' => $typed, 'suggest' => $closest['range'] ?? null];
+    }
+
+    public function useRange(string $range): void
+    {
+        abort_unless($this->knownRanges()->contains($range), 422);
+        $this->lensRange = $range;
+        $this->updatedLensRange();
+    }
+
     public function updatedLensRange(): void
     {
-        $saved = OpticalProduct::whereNotNull('lens_specs')->get()->first(fn ($p) => data_get($p->lens_specs, 'range') === trim($this->lensRange));
+        $this->lensRange = $this->canonicalRange($this->lensRange);
+        $saved = OpticalProduct::whereNotNull('lens_specs')->get()->first(fn ($p) => data_get($p->lens_specs, 'range') === $this->lensRange);
         if ($saved) {
             $this->lensDesign = $saved->lens_specs['design'];
             $this->lensIndex = $saved->lens_specs['index'];
@@ -372,6 +413,8 @@ class OpticalStockManagementComponent extends Component
     private function saveLensReceipt(): void
     {
         if ($this->excelFile) { $this->addError('excelFile', 'Preview and apply the uploaded workbook, or cancel the import before receiving stock.'); return; }
+        // Also covers a range filled from a workbook or a link, which skips updatedLensRange.
+        $this->lensRange = $this->canonicalRange($this->lensRange);
         $this->validate([
             'lensRange' => 'required|string|max:100', 'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
             'lensEye' => $this->eyeRule(),
@@ -555,7 +598,7 @@ class OpticalStockManagementComponent extends Component
             'fullPage' => $this->fullPage,
             'duplicateImport' => $this->importSource ? app(\App\Services\OpticalLensImportReceiptService::class)
                 ->matches(app(\App\Services\OpticalLensImportReceiptService::class)->fingerprint($this->lensSpecs(0, 0), $this->importSource['quantities']))->latest('id')->first() : null,
-            'lensRanges' => OpticalProduct::whereNotNull('lens_specs')->get()->pluck('lens_specs.range')->unique()->sort()->values(),
+            'lensRanges' => $this->knownRanges(),
             'productMatches' => $this->showForm && $this->productId === null
                 ? OpticalProduct::where('is_active', true)
                     ->when(trim($this->productSearch) !== '', fn ($query) => $query->where(fn ($q) => $q
