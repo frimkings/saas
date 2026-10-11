@@ -30,6 +30,13 @@
             </div>
         </div>
 
+        @foreach($silent as $device)
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+                <span><i class="fas fa-triangle-exclamation mr-1" aria-hidden="true"></i><strong>{{ $device->name }}</strong> has sent no punches since {{ $device->last_seen_at->setTimezone($timezone)->format('D j M, g:i A') }}. Either it is cut off or nobody has punched. Check it has power and is on the network; punches made meanwhile stay on the terminal and normally arrive once it is back.</span>
+                <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="$set('showDevices', true)">Terminals</button>
+            </div>
+        @endforeach
+
         @if(! $hasData)
             <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
                 <p class="!mb-1 text-base font-semibold text-slate-800">No attendance uploaded yet</p>

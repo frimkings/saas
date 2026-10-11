@@ -286,6 +286,7 @@ class AttendanceComponent extends Component
     {
         $month = $this->monthStart();
         $report = $analyzer->month($month);
+        $timezone = app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
 
         $rows = array_values(array_filter($report['rows'], fn ($row) => match ($this->show) {
             'late' => $row['staff']->is_tracked && $row['totals']['late'] > 0,
@@ -304,6 +305,8 @@ class AttendanceComponent extends Component
             'imports' => $this->showUpload ? AttendanceImport::query()->with('uploader:id,name')->latest('id')->limit(5)->get() : collect(),
             'hasData' => AttendanceStaff::query()->exists() || AttendanceDevice::query()->exists(),
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),
+            'silent' => AttendanceDevice::silent(now()->setTimezone($timezone)),
+            'timezone' => $timezone,
         ])->layout('layouts.admin.admin-layout');
     }
 }
