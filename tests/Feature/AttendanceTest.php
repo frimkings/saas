@@ -674,6 +674,106 @@ class AttendanceTest extends TestCase
         Livewire::test(\App\Livewire\UserProfileComponent::class)->assertDontSee('My attendance');
     }
 
+    public function test_leave_for_part_of_a_day_moves_when_they_are_expected(): void
+    {
+        $this->importFixture();
+        $ama = AttendanceStaff::where('employee_no', '001')->value('id');
+        $this->assertSame('late', $this->row($this->october(), '001')['days']['2026-10-02']['status']);
+        $this->assertTrue($this->row($this->october(), '001')['days']['2026-10-05']['left_early']);
+
+        // Friday the 2nd she came at 8:20 with permission until 9; Monday the 5th she left at 4:10 with the last hour off.
+        Livewire::test(AttendanceComponent::class)
+            ->call('openStaff', $ama)
+            ->set('leaveFrom', '2026-10-02')->set('leaveFromTime', '08:00')->set('leaveToTime', '09:00')->set('leaveType', 'permission')
+            ->call('addLeave')
+            ->assertHasNoErrors()
+            ->assertSee('2 Oct 2026, 8:00 AM to 9:00 AM')
+            ->set('leaveFrom', '2026-10-05')->set('leaveFromTime', '16:00')->set('leaveToTime', '17:00')
+            ->call('addLeave')
+            ->assertHasNoErrors()
+            // Times need both ends, in order, and one day only.
+            ->set('leaveFrom', '2026-10-06')->set('leaveFromTime', '12:00')->set('leaveToTime', '11:00')
+            ->call('addLeave')
+            ->assertHasErrors('leaveToTime')
+            ->set('leaveToTime', '13:00')->set('leaveTo', '2026-10-07')
+            ->call('addLeave')
+            ->assertHasErrors('leaveToTime');
+
+        $days = $this->row($this->october(), '001')['days'];
+        $this->assertSame(['on_time', 0, 'Permission 8:00 AM to 9:00 AM'], [$days['2026-10-02']['status'], $days['2026-10-02']['late_minutes'], $days['2026-10-02']['note']]);
+        $this->assertFalse($days['2026-10-05']['left_early']);
+        $this->assertSame(0, $this->row($this->october(), '001')['totals']['leave']);
+
+        // Time off in the middle of the day is extra break; the whole working day off is a day of leave.
+        $analyzer = app(AttendanceAnalyzer::class);
+        $less = new \ReflectionMethod($analyzer, 'lessTimeAway');
+        $hours = ['start' => '08:00', 'end' => '17:00'];
+        $this->assertSame([$hours, 150, false], $less->invoke($analyzer, $hours, [['from' => '11:00', 'to' => '12:30']], 60));
+        $this->assertSame([['start' => '17:00', 'end' => '17:00'], 60, true], $less->invoke($analyzer, $hours, [['from' => '12:30', 'to' => '17:00'], ['from' => '08:00', 'to' => '12:30']], 60));
+    }
+
+    public function test_staff_ask_for_leave_and_it_counts_once_a_manager_approves(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        $this->importFixture();
+        $this->clinic->update(['billing_email' => 'owner@clinic-a.test']);
+        DB::table('clinic_subscriptions')->update(['current_period_starts_at' => '2026-01-01 00:00:00', 'current_period_ends_at' => '2036-01-01 00:00:00']);
+        \Illuminate\Support\Carbon::setTestNow('2026-10-01 09:00:00');
+        $esi = AttendanceStaff::where('employee_no', '004')->first();
+        $esi->update(['user_id' => $this->admin->id]);
+
+        $profile = Livewire::test(\App\Livewire\UserProfileComponent::class)
+            ->call('switchTab', 'attendance')
+            ->assertSee('Ask for time off')
+            // Not for days gone by, and a morning needs a working day.
+            ->set('leaveFrom', '2026-09-28')->call('requestLeave')->assertHasErrors('leaveFrom')
+            ->set('leaveKind', 'morning')->set('leaveFrom', '2026-10-10')->call('requestLeave')->assertHasErrors('leaveFrom')
+            ->set('leaveKind', 'days')->set('leaveFrom', '2026-10-12')->set('leaveTo', '2026-10-13')->set('leaveType', 'sick')->set('leaveNote', 'Clinic appointment')
+            ->call('requestLeave')
+            ->assertHasNoErrors()
+            ->assertSee('12 Oct 2026 to 13 Oct 2026')
+            ->assertSee('Waiting for approval')
+            ->set('leaveKind', 'morning')->set('leaveFrom', '2026-10-14')
+            ->call('requestLeave')
+            ->assertHasNoErrors()
+            ->assertSee('14 Oct 2026, 8:00 AM to 12:30 PM')
+            ->set('leaveKind', 'hours')->set('leaveFrom', '2026-10-15')->set('leaveFromTime', '10:00')->set('leaveToTime', '11:00')
+            ->call('requestLeave')
+            ->assertHasNoErrors();
+        [$days, $morning, $hours] = AttendanceLeave::orderBy('id')->get()->all();
+        $this->assertSame(['pending', $this->admin->id, null], [$days->status, $days->requested_by, $days->from_time]);
+        $this->assertSame(['08:00', '12:30'], [$morning->from_time, $morning->to_time]);
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\OwnerNoticeMail::class, fn ($mail) => $mail->hasTo('owner@clinic-a.test')
+            && $mail->heading === 'Leave waiting for approval' && $mail->details['When'] === '12 Oct 2026 to 13 Oct 2026' && $mail->details['Reason'] === 'Clinic appointment');
+
+        // Not answered yet: still an absence. A request can be taken back until it is.
+        $this->assertSame('absent', $this->row($this->october(), '004')['days']['2026-10-12']['status']);
+        $profile->call('withdrawLeave', $hours->id);
+        $this->assertSame(2, AttendanceLeave::count());
+
+        Livewire::test(AttendanceComponent::class)
+            ->assertSee('leave requests are', false)
+            ->set('showRequests', true)
+            ->assertSee('Clinic appointment')
+            ->call('reviewLeave', $days->id, true)
+            ->set('reviewNotes.'.$morning->id, 'We are short that day')
+            ->call('reviewLeave', $morning->id, false)
+            ->assertSee('No requests are waiting.');
+
+        $this->assertSame(['approved', $this->admin->id], [$days->fresh()->status, $days->fresh()->reviewed_by]);
+        $this->assertSame(['rejected', 'We are short that day'], [$morning->fresh()->status, $morning->fresh()->review_note]);
+        $row = $this->row($this->october(), '004');
+        $this->assertSame(['leave', 'leave', 'absent'], [$row['days']['2026-10-12']['status'], $row['days']['2026-10-13']['status'], $row['days']['2026-10-14']['status']]);
+        $this->assertNull($row['days']['2026-10-14']['note']);
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\OwnerNoticeMail::class, fn ($mail) => $mail->hasTo($this->admin->email) && $mail->heading === 'Your leave was approved');
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\OwnerNoticeMail::class, fn ($mail) => $mail->hasTo($this->admin->email)
+            && $mail->heading === 'Your leave was not approved' && $mail->details['Note'] === 'We are short that day');
+        // An answered request cannot be withdrawn or answered again.
+        $profile->call('withdrawLeave', $days->id);
+        $this->assertSame(2, AttendanceLeave::count());
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
     public function test_the_owners_morning_email_lists_staff_late_or_absent_in_the_latest_report(): void
     {
         $this->importFixture();

@@ -41,8 +41,9 @@ class AttendanceAnalyzer
     }
 
     /** The same for any run of days, first to last inclusive: a week for the owner's weekly email, say. */
-    public function range(CarbonImmutable $first, CarbonImmutable $last): array
+    public function range(CarbonImmutable $first, CarbonImmutable $last, ?string $assume = null): array
     {
+        // $assume: how to treat days nothing has been received for ('partial' for today's live view).
         $first = $first->startOfDay();
         $last = $last->startOfDay();
         $settings = AttendanceSetting::current();
@@ -68,12 +69,18 @@ class AttendanceAnalyzer
             ->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->orderBy('date')->get()
             ->mapWithKeys(fn ($holiday) => [$holiday->date->format('Y-m-d') => $holiday->name])->all();
         $leave = [];
-        AttendanceLeave::query()
+        $away = [];
+        AttendanceLeave::query()->approved()
             ->where('starts_on', '<=', $last->format('Y-m-d'))->where('ends_on', '>=', $first->format('Y-m-d'))->get()
-            ->each(function ($entry) use (&$leave, $days) {
+            ->each(function ($entry) use (&$leave, &$away, $days) {
+                if ($entry->isPartDay()) {
+                    $away[$entry->attendance_staff_id][$entry->starts_on->format('Y-m-d')][] = ['from' => $entry->from_time, 'to' => $entry->to_time, 'label' => $entry->typeName()];
+
+                    return;
+                }
                 foreach ($days as $key => $day) {
                     if ($key >= $entry->starts_on->format('Y-m-d') && $key <= $entry->ends_on->format('Y-m-d')) {
-                        $leave[$entry->attendance_staff_id][$key] = AttendanceLeave::TYPES[$entry->type] ?? 'Leave';
+                        $leave[$entry->attendance_staff_id][$key] = $entry->typeName();
                     }
                 }
             });
@@ -83,11 +90,19 @@ class AttendanceAnalyzer
             $staffDays = [];
             $from = max($countFrom ?? '9999-12-31', $staff->starts_on?->format('Y-m-d') ?? '');
             foreach ($days as $key => $day) {
-                $state = $key < $from ? null : ($coverage[$key] ?? null);
+                $state = $key < $from ? null : ($coverage[$key] ?? $assume);
                 $hours = $staff->hours ? AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
                 $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
-                $staffDays[$key] = $this->day($punches[$staff->id][$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $settings->break_minutes ?? 60)
-                    + ['note' => $holidays[$key] ?? $leave[$staff->id][$key] ?? null];
+                $note = $holidays[$key] ?? $leave[$staff->id][$key] ?? null;
+                $break = $settings->break_minutes ?? 60;
+                // Leave for part of the day: they are expected for the rest of it.
+                if ($hours && ! $excused && $part = $away[$staff->id][$key] ?? null) {
+                    [$hours, $break, $allDay] = $this->lessTimeAway($hours, $part, $break);
+                    $excused = $allDay ? 'leave' : null;
+                    $note = implode(', ', array_map(fn ($a) => $a['label'].' '.self::time($a['from']).' to '.self::time($a['to']), $part));
+                }
+                $staffDays[$key] = $this->day($punches[$staff->id][$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break)
+                    + ['note' => $note, 'hours' => $hours];
             }
             $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
         }
@@ -112,6 +127,66 @@ class AttendanceAnalyzer
                 'expected' => $sum('expected'),
             ],
         ];
+    }
+
+    /**
+     * A working day with approved time away taken out of it. Time away at the start of the day
+     * moves the start, at the end moves the end, and in between adds to the break allowed.
+     * Returns [hours, break allowed, whether nothing of the day is left].
+     */
+    private function lessTimeAway(array $hours, array $away, int $break): array
+    {
+        $start = $this->minutes($hours['start']);
+        $end = $this->minutes($hours['end']);
+        usort($away, fn ($a, $b) => strcmp($a['from'], $b['from']));
+        foreach ($away as $time) {
+            $from = $this->minutes($time['from']);
+            $to = $this->minutes($time['to']);
+            if ($from <= $start && $to > $start) {
+                $start = min($to, $end);
+            } elseif ($to >= $end && $from < $end) {
+                $end = max($from, $start);
+            } else {
+                $break += max(0, min($to, $end) - max($from, $start));
+            }
+        }
+
+        return [['start' => self::clock($start), 'end' => self::clock($end)], $break, $start >= $end];
+    }
+
+    /**
+     * Where each followed person is right now, for the live board: 'in', 'out' (stepped out, or
+     * gone for the day once 'left' is set), 'due' (not in yet, still on time), 'missing' (not in
+     * and late), 'leave', 'holiday' or 'off'. $now is the time now where the branch is.
+     */
+    public function today(CarbonImmutable $now): array
+    {
+        $key = $now->format('Y-m-d');
+        $clock = $this->minutes($now->format('H:i'));
+        $settings = AttendanceSetting::current();
+        $people = [];
+        foreach ($this->range($now, $now, 'partial')['rows'] as $row) {
+            $staff = $row['staff'];
+            if (! $staff->is_tracked || ($staff->starts_on && $staff->starts_on->format('Y-m-d') > $key)) {
+                continue;
+            }
+            $day = $row['days'][$key];
+            $hours = $day['hours'];
+            $last = $day['punches'] ? end($day['punches']) : null;
+            $person = ['staff' => $staff, 'time' => $last['time'] ?? null, 'in' => $day['in'], 'late_minutes' => $day['late_minutes'],
+                'note' => $day['note'], 'expected' => $hours['start'] ?? null, 'left' => false];
+            if ($last) {
+                $person['state'] = $last['kind'];
+                $person['left'] = $last['kind'] === 'out' && (! $hours || $clock >= $this->minutes($hours['end']));
+            } elseif (in_array($day['status'], ['leave', 'holiday', 'off'], true)) {
+                $person['state'] = $day['status'];
+            } else {
+                $person['state'] = ! $hours ? 'off' : ($clock >$this->minutes($hours['start']) + $settings->grace_minutes ? 'missing' : 'due');
+            }
+            $people[] = $person;
+        }
+
+        return $people;
     }
 
     /** ['Y-m-d' => 'complete' | 'partial'] for the days of the range some uploaded report covers. */

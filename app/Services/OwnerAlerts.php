@@ -203,6 +203,43 @@ class OwnerAlerts
         return $found;
     }
 
+    /** A staff member asked for leave from their profile. */
+    public function leaveRequested(\App\Models\AttendanceLeave $leave): void
+    {
+        $clinic = $this->currentClinic();
+        if (! $clinic) return;
+        $leave->loadMissing('staff');
+        $name = $leave->staff?->name ?? 'A staff member';
+
+        $this->notice($clinic, 'leave_request', 'leave:' . $leave->id,
+            'Leave waiting for approval',
+            "{$name} asked for time off. It does not count on their attendance until you or a manager approves it.",
+            array_filter([
+                'Staff member' => $name,
+                'When' => $leave->when(),
+                'Type' => $leave->typeName(),
+                'Reason' => $leave->note,
+                'Branch' => app(TenantContext::class)->branch()?->name,
+            ]),
+            'Review leave', route('admin.attendance'));
+    }
+
+    /** The answer to a leave request, to the person who asked (when their account has an email). */
+    public function leaveReviewed(\App\Models\AttendanceLeave $leave): void
+    {
+        $clinic = $this->currentClinic();
+        $asker = $leave->requested_by ? User::find($leave->requested_by) : null;
+        if (! $clinic || ! $asker) return;
+        $approved = $leave->status === \App\Models\AttendanceLeave::APPROVED;
+        $heading = $approved ? 'Your leave was approved' : 'Your leave was not approved';
+
+        $this->mailer->sendToAddress($clinic, $asker->email, 'leave_' . $leave->status, 'leave:' . $leave->id . ':' . $leave->status, $heading . ' - ' . $clinic->name,
+            fn () => new OwnerNoticeMail($clinic->name, $heading,
+                $approved ? 'Your request for time off was approved. It now shows on your attendance.' : 'Your request for time off was not approved, so you are expected at work as usual.',
+                array_filter(['When' => $leave->when(), 'Type' => $leave->typeName(), 'Decided by' => auth()->user()?->name, 'Note' => $leave->review_note]),
+                'My attendance', route('user.profile')));
+    }
+
     /** A branch has used 80% of its SMS limit. */
     public function branchSmsLow(Branch $branch): void
     {

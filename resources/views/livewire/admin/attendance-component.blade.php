@@ -37,6 +37,65 @@
             </div>
         @endforeach
 
+        @if($requests->isNotEmpty())
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
+                <span><i class="fas fa-envelope-open-text mr-1" aria-hidden="true"></i><strong>{{ $requests->count() }}</strong> leave {{ $requests->count() === 1 ? 'request is' : 'requests are' }} waiting for an answer.</span>
+                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="$set('showRequests', true)">Review</button>
+            </div>
+        @endif
+
+        @if($board)
+            @php
+                $groups = [
+                    'in' => ['In now', 'bg-emerald-50 text-emerald-800', collect($board)->where('state', 'in')],
+                    'out' => ['Out', 'bg-slate-100 text-slate-700', collect($board)->where('state', 'out')],
+                    'missing' => ['Not in', 'bg-red-100 text-red-800', collect($board)->whereIn('state', ['missing', 'due'])],
+                    'away' => ['On leave or off', 'bg-indigo-100 text-indigo-800', collect($board)->whereIn('state', ['leave', 'holiday', 'off'])],
+                ];
+            @endphp
+            <div class="mb-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm" wire:poll.60s.visible>
+                <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 class="!mb-0 text-sm font-semibold text-slate-900">Today, {{ $today->format('D j M') }}</h2>
+                    <span class="text-xs text-slate-500">As of {{ $today->format('g:i A') }}, from the terminal's punches. Updates every minute.</span>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    @foreach($groups as $group => [$label, $colour, $people])
+                        <div>
+                            <p class="!mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $label }} <span class="ml-1 rounded px-1.5 py-0.5 {{ $colour }}">{{ $people->count() }}</span></p>
+                            @forelse($people as $person)
+                                <button type="button" class="mb-1 block w-full rounded-lg border border-slate-100 px-2 py-1 text-left text-sm hover:bg-slate-50" wire:click="openStaff({{ $person['staff']->id }})" wire:key="board-{{ $person['staff']->id }}">
+                                    <span class="font-medium text-slate-800">{{ $person['staff']->name }}</span>
+                                    <span class="block text-xs text-slate-500">
+                                        @switch($person['state'])
+                                            @case('in')
+                                                In since {{ AttendanceAnalyzer::time($person['time']) }}{{ $person['time'] !== $person['in'] ? ', first in '.AttendanceAnalyzer::time($person['in']) : '' }}{{ $person['late_minutes'] ? ' · '.AttendanceAnalyzer::duration($person['late_minutes']).' late' : '' }}
+                                                @break
+                                            @case('out')
+                                                {{ $person['left'] ? 'Left at' : 'Out since' }} {{ AttendanceAnalyzer::time($person['time']) }}
+                                                @break
+                                            @case('missing')
+                                                <span class="font-medium text-red-700">Expected by {{ AttendanceAnalyzer::time($person['expected']) }}</span>{{ $person['note'] ? ' · '.$person['note'] : '' }}
+                                                @break
+                                            @case('due')
+                                                Due at {{ AttendanceAnalyzer::time($person['expected']) }}{{ $person['note'] ? ' · '.$person['note'] : '' }}
+                                                @break
+                                            @case('off')
+                                                Day off
+                                                @break
+                                            @default
+                                                {{ $person['note'] ?: ($person['state'] === 'holiday' ? 'Holiday' : 'On leave') }}
+                                        @endswitch
+                                    </span>
+                                </button>
+                            @empty
+                                <p class="!mb-0 text-sm text-slate-400">Nobody</p>
+                            @endforelse
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         @if(! $hasData)
             <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
                 <p class="!mb-1 text-base font-semibold text-slate-800">No attendance uploaded yet</p>
@@ -328,6 +387,29 @@
         </x-ui.modal>
     @endif
 
+    @if($showRequests)
+        <x-ui.modal title="Leave requests" state="showRequests">
+            <div class="space-y-3 p-4">
+                <p class="!mb-0 text-sm text-slate-600">Time off staff have asked for from their profile. It counts on their attendance only once approved; they are told your answer by email.</p>
+                @forelse($requests as $request)
+                    <div class="rounded-lg border border-slate-200 p-3" wire:key="request-{{ $request->id }}">
+                        <p class="!mb-0 text-sm"><strong class="text-slate-900">{{ $request->staff->name ?? 'Unknown' }}</strong> · {{ $request->typeName() }}</p>
+                        <p class="!mb-0 text-sm text-slate-700">{{ $request->when() }}</p>
+                        @if($request->note)<p class="!mb-0 mt-1 text-sm text-slate-600">“{{ $request->note }}”</p>@endif
+                        <p class="!mb-2 text-xs text-slate-400">Asked {{ $request->created_at->diffForHumans() }}</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="text" maxlength="255" class="ui-input min-w-[10rem] flex-1 !py-1.5 !text-sm" wire:model="reviewNotes.{{ $request->id }}" placeholder="Note to them (optional)" aria-label="Note">
+                            <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="reviewLeave({{ $request->id }}, false)" wire:loading.attr="disabled" wire:target="reviewLeave">Don't approve</button>
+                            <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="reviewLeave({{ $request->id }}, true)" wire:loading.attr="disabled" wire:target="reviewLeave">Approve</button>
+                        </div>
+                    </div>
+                @empty
+                    <p class="!mb-0 text-sm text-slate-500">No requests are waiting.</p>
+                @endforelse
+            </div>
+        </x-ui.modal>
+    @endif
+
     @if($showStaff && $detail)
         {{-- Wider than the other dialogs: a day's punches need the room. --}}
         <style>.clinic-ui .ui-dialog:has(.attendance-person) { width: min(900px, calc(100% - 32px)); }</style>
@@ -377,14 +459,25 @@
                                 @foreach(\App\Models\AttendanceLeave::TYPES as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
                             </select>
                         </div>
+                        <div>
+                            <label for="leave-from-time" class="mb-1 block text-xs font-medium text-slate-600">From (part of a day)</label>
+                            <input id="leave-from-time" type="time" class="ui-input !w-32 !py-1.5 !text-sm" wire:model="leaveFromTime">
+                        </div>
+                        <div>
+                            <label for="leave-to-time" class="mb-1 block text-xs font-medium text-slate-600">To</label>
+                            <input id="leave-to-time" type="time" class="ui-input !w-32 !py-1.5 !text-sm" wire:model="leaveToTime">
+                        </div>
                         <x-ui.button type="submit" wire:loading.attr="disabled" wire:target="addLeave">Add leave</x-ui.button>
-                        @foreach(['leaveFrom', 'leaveTo', 'leaveType'] as $field)
+                        <p class="!mb-0 w-full text-xs text-slate-500">Leave the times empty for whole days. With times, the person is expected for the rest of that day.</p>
+                        @foreach(['leaveFrom', 'leaveTo', 'leaveType', 'leaveFromTime', 'leaveToTime'] as $field)
                             @error($field)<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
                         @endforeach
                     </form>
                     @foreach($leaves as $leave)
                         <div class="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 text-sm" wire:key="leave-{{ $leave->id }}">
-                            <span>{{ $leave->starts_on->format('j M Y') }}{{ $leave->ends_on->ne($leave->starts_on) ? ' to '.$leave->ends_on->format('j M Y') : '' }} · {{ \App\Models\AttendanceLeave::TYPES[$leave->type] ?? 'Leave' }}</span>
+                            <span>{{ $leave->when() }} · {{ $leave->typeName() }}
+                                @if($leave->status !== \App\Models\AttendanceLeave::APPROVED)<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs font-medium', 'bg-amber-100 text-amber-900' => $leave->status === 'pending', 'bg-slate-100 text-slate-600' => $leave->status === 'rejected'])>{{ \App\Models\AttendanceLeave::STATUSES[$leave->status] ?? $leave->status }}</span>@endif
+                            </span>
                             <button type="button" class="ui-button ui-button-danger !px-2 !py-1 !text-xs" wire:click="removeLeave({{ $leave->id }})" wire:confirm="Remove this leave?">Remove</button>
                         </div>
                     @endforeach

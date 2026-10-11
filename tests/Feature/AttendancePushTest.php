@@ -300,11 +300,54 @@ class AttendancePushTest extends TestCase
         $this->assertSame(1, $alerts->terminalsSilent($this->clinic, Carbon::parse('2026-10-21 10:00')));
         Mail::assertSent(OwnerNoticeMail::class, 2);
 
-        Carbon::setTestNow('2026-10-21 11:00:00');
+        $this->pretendItIs('2026-10-21 11:00:00');
         $this->asAdmin();
         Livewire::test(AttendanceComponent::class)->assertSee('has sent no punches since Tue 20 Oct, 12:00 PM');
         $this->device->forceFill(['last_seen_at' => now()])->save();
         Livewire::test(AttendanceComponent::class)->assertDontSee('has sent no punches since');
+        Carbon::setTestNow();
+    }
+
+    /** Set the clock, with the clinic's subscription running whatever the real date is. */
+    private function pretendItIs(string $time): void
+    {
+        DB::table('clinic_subscriptions')->update(['current_period_starts_at' => '2026-01-01 00:00:00', 'current_period_ends_at' => '2036-01-01 00:00:00']);
+        Carbon::setTestNow($time);
+    }
+
+    public function test_the_board_shows_where_everyone_is_right_now(): void
+    {
+        // Wednesday the 14th. Ama is in, Kofi came late and stepped out, Esi has not come, Yaw is on leave.
+        $this->push($this->event('001', '2026-10-14T07:58:00+00:00'))->assertOk();
+        $this->push($this->event('002', '2026-10-14T08:40:00+00:00', ['name' => 'Kofi Boateng']))->assertOk();
+        $this->push($this->event('002', '2026-10-14T09:30:00+00:00', ['name' => 'Kofi Boateng']))->assertOk();
+        $this->asAdmin();
+        AttendanceStaff::create(['employee_no' => '004', 'name' => 'Esi Owusu']);
+        $yaw = AttendanceStaff::create(['employee_no' => '005', 'name' => 'Yaw Darko']);
+        AttendanceLeave::create(['attendance_staff_id' => $yaw->id, 'starts_on' => '2026-10-14', 'ends_on' => '2026-10-14', 'type' => 'sick']);
+        AttendanceStaff::create(['employee_no' => '006', 'name' => 'Not Followed', 'is_tracked' => false]);
+
+        $board = fn (string $time) => collect(app(AttendanceAnalyzer::class)->today(CarbonImmutable::parse($time)))
+            ->mapWithKeys(fn ($person) => [$person['staff']->name => $person['state'].($person['left'] ? ' left' : '').' '.$person['time']])->all();
+
+        $this->assertSame(['Ama Mensah' => 'in 07:58', 'Esi Owusu' => 'missing ', 'Kofi Boateng' => 'out 09:30', 'Yaw Darko' => 'leave '], $board('2026-10-14 10:00'));
+        // Before the grace period is up, someone not in yet is not late.
+        $this->assertSame('due ', $board('2026-10-14 08:10')['Esi Owusu']);
+        // After closing time, the last punch out is them gone for the day.
+        $this->assertSame('out left 09:30', $board('2026-10-14 17:30')['Kofi Boateng']);
+        // The next day nobody has punched yet; a Saturday is a day off.
+        $this->assertSame('due ', $board('2026-10-15 07:00')['Ama Mensah']);
+        $this->assertSame('off ', $board('2026-10-17 10:00')['Ama Mensah']);
+
+        $this->pretendItIs('2026-10-14 10:00:00');
+        $this->asAdmin();
+        Livewire::test(AttendanceComponent::class)
+            ->assertSee('Today, Wed 14 Oct')
+            ->assertSee('In since 7:58 AM')
+            ->assertSee('Out since 9:30 AM')
+            ->assertSee('Expected by 8:00 AM')
+            ->assertSee('Sick leave')
+            ->assertDontSee('Not Followed</span>', false);
         Carbon::setTestNow();
     }
 
