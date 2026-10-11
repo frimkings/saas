@@ -69,7 +69,7 @@ class AttendanceDevice extends Model
         $date = $opened->toDateString();
         $expected = AttendanceStaff::query()->where('is_tracked', true)
             ->where(fn ($q) => $q->whereNull('starts_on')->orWhereDate('starts_on', '<=', $date))
-            ->whereNotIn('id', AttendanceLeave::query()->whereDate('starts_on', '<=', $date)->whereDate('ends_on', '>=', $date)->select('attendance_staff_id'))
+            ->whereNotIn('id', AttendanceLeave::query()->approved()->whereNull('from_time')->whereDate('starts_on', '<=', $date)->whereDate('ends_on', '>=', $date)->select('attendance_staff_id'))
             ->exists();
         if (! $expected) return new Collection();
 

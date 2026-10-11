@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Attendance\AttendanceAnalyzer;
 use App\Services\Attendance\AttendanceImportService;
 use App\Services\Attendance\AttendanceRecordParser;
+use App\Services\OwnerAlerts;
 use Carbon\CarbonImmutable;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -58,6 +59,11 @@ class AttendanceComponent extends Component
     public string $leaveTo = '';
     public string $leaveType = 'annual';
     public string $leaveNote = '';
+    public string $leaveFromTime = '';
+    public string $leaveToTime = '';
+
+    public bool $showRequests = false;
+    public array $reviewNotes = [];
 
     public function mount(): void
     {
@@ -211,7 +217,7 @@ class AttendanceComponent extends Component
         $this->staffOwnHours = (bool) $staff->hours;
         // Their own hours start as a copy of the branch's, to adjust.
         $this->staffHours = $this->hoursForm($staff->hours ?: (AttendanceSetting::current()->hours ?? []));
-        $this->reset('leaveFrom', 'leaveTo', 'leaveType', 'leaveNote');
+        $this->reset('leaveFrom', 'leaveTo', 'leaveType', 'leaveNote', 'leaveFromTime', 'leaveToTime');
         $this->resetValidation();
         $this->showStaff = true;
     }
@@ -253,17 +259,44 @@ class AttendanceComponent extends Component
             'leaveTo' => 'nullable|date|after_or_equal:leaveFrom',
             'leaveType' => 'required|in:'.implode(',', array_keys(AttendanceLeave::TYPES)),
             'leaveNote' => 'nullable|string|max:255',
-        ], [], ['leaveFrom' => 'first day', 'leaveTo' => 'last day', 'leaveType' => 'type', 'leaveNote' => 'note']);
+            // Both times for part of one day; neither for whole days.
+            'leaveFromTime' => 'nullable|date_format:H:i|required_with:leaveToTime',
+            'leaveToTime' => 'nullable|date_format:H:i|required_with:leaveFromTime|after:leaveFromTime',
+        ], ['leaveToTime.after' => 'The end time must be after the start time.'],
+            ['leaveFrom' => 'first day', 'leaveTo' => 'last day', 'leaveType' => 'type', 'leaveNote' => 'note', 'leaveFromTime' => 'start time', 'leaveToTime' => 'end time']);
+        if ($this->leaveFromTime && $this->leaveTo && $this->leaveTo !== $this->leaveFrom) {
+            $this->addError('leaveToTime', 'Leave for part of a day covers one day only. Clear the last day or the times.');
+
+            return;
+        }
 
         AttendanceLeave::create([
             'attendance_staff_id' => AttendanceStaff::query()->findOrFail($this->staffId)->id,
             'starts_on' => $this->leaveFrom,
             'ends_on' => $this->leaveTo ?: $this->leaveFrom,
+            'from_time' => $this->leaveFromTime ?: null,
+            'to_time' => $this->leaveToTime ?: null,
             'type' => $this->leaveType,
             'note' => trim($this->leaveNote) ?: null,
             'created_by' => auth()->id(),
         ]);
-        $this->reset('leaveFrom', 'leaveTo', 'leaveNote');
+        $this->reset('leaveFrom', 'leaveTo', 'leaveNote', 'leaveFromTime', 'leaveToTime');
+    }
+
+    /** Approve or turn down leave a staff member asked for; they are told by email. */
+    public function reviewLeave(int $id, bool $approve, OwnerAlerts $alerts): void
+    {
+        $this->authorizeAccess();
+        $leave = AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->findOrFail($id);
+        $leave->update([
+            'status' => $approve ? AttendanceLeave::APPROVED : AttendanceLeave::REJECTED,
+            'reviewed_by' => auth()->id(),
+            'reviewed_at' => now(),
+            'review_note' => mb_substr(trim((string) ($this->reviewNotes[$id] ?? '')), 0, 255) ?: null,
+        ]);
+        unset($this->reviewNotes[$id]);
+        $alerts->leaveReviewed($leave);
+        $this->dispatch('notify', type: 'success', message: $approve ? 'Leave approved.' : 'Leave not approved.');
     }
 
     public function removeLeave(int $id): void
@@ -306,6 +339,11 @@ class AttendanceComponent extends Component
             'hasData' => AttendanceStaff::query()->exists() || AttendanceDevice::query()->exists(),
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),
             'silent' => AttendanceDevice::silent(now()->setTimezone($timezone)),
+            // The live board needs a terminal that sends punches as they happen.
+            'board' => AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
+                ? $analyzer->today(CarbonImmutable::now($timezone)) : [],
+            'today' => CarbonImmutable::now($timezone),
+            'requests' => AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->with('staff:id,name')->orderBy('starts_on')->get(),
             'timezone' => $timezone,
         ])->layout('layouts.admin.admin-layout');
     }
