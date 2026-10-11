@@ -12,6 +12,9 @@
  */
 window.dismissLocal = (el, $wire, properties, value = false) => {
     const changes = typeof properties === 'string' ? { [properties]: value } : properties;
+    // Before the panel goes: $wire finds its component through the element it was used on, and
+    // quietly does nothing once that element is out of the page.
+    Object.entries(changes).forEach(([name, next]) => $wire.$set(name, next, false));
     // A marked wrapper (a backdrop around the dialog, say) wins over the dialog inside it.
     const panel = el.closest('[data-sheet]') ?? el.closest('dialog, [role=dialog]');
     // A panel that stays in the page (data-keep) hides itself through x-show on these properties.
@@ -22,7 +25,6 @@ window.dismissLocal = (el, $wire, properties, value = false) => {
         if (overlay?.hasAttribute('data-sheet-overlay')) overlay.remove();
         panel.remove();
     }
-    Object.entries(changes).forEach(([name, next]) => $wire.$set(name, next, false));
 };
 
 /**
@@ -48,6 +50,7 @@ window.openLocal = ($wire, values, panel = null) => {
  *   <button x-on:click="dismissCall($el, $wire, 'closeCount')">Close</button>
  */
 window.dismissCall = (el, $wire, method) => {
-    window.dismissLocal(el, $wire, {});
+    // The call is started first, for the same reason dismissLocal sets its properties first.
     $wire.$call(method);
+    window.dismissLocal(el, $wire, {});
 };

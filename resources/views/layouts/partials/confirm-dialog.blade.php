@@ -3,7 +3,9 @@
        Options, or attributes on the confirming element: title / data-confirm-title,
        confirmText / data-confirm-button, danger / data-confirm-danger="true|false".
      - window.appAlert(title, body, tone) → Promise, one OK button; tone: info | success | warning | error.
-     - window.appBusy(title, body) → close(); a "please wait" dialog with no buttons. --}}
+     - window.appBusy(title, body) → close(); a "please wait" dialog with no buttons.
+     It is a <dialog> opened with showModal(), so it sits above a page dialog (x-ui.modal) that is already open:
+     a plain element, whatever its z-index, would be hidden behind one and could not be clicked. --}}
 <div x-data="{
         open: false, title: '', body: '', confirmText: 'Confirm', danger: false, icon: '?', mode: 'confirm', resolve: null,
         show(detail) {
@@ -14,10 +16,10 @@
         close() { this.open = false; this.resolve = null },
      }"
      x-on:app-confirm.window="show($event.detail)"
-     x-on:app-confirm-close.window="close()"
-     x-on:keydown.escape.window="open && answer(false)">
+     x-on:app-confirm-close.window="close()">
+    {{-- Esc is the dialog's own cancel. Answering on keydown instead would take the prompt away first, and the same key press would then close the window underneath. --}}
     <template x-if="open">
-        <div class="app-confirm" x-on:click.self="answer(false)">
+        <dialog class="app-confirm" x-init="$el.showModal()" x-on:cancel.prevent="answer(false)" x-on:click.self="answer(false)">
             <div class="app-confirm__box" :role="mode === 'busy' ? 'status' : 'alertdialog'" aria-modal="true" aria-labelledby="app-confirm-title" aria-describedby="app-confirm-body">
                 <div class="app-confirm__spinner" x-show="mode === 'busy'" aria-hidden="true"></div>
                 <div class="app-confirm__icon" x-show="mode !== 'busy'" :class="danger && 'app-confirm__icon--danger'" aria-hidden="true" x-text="icon"></div>
@@ -28,11 +30,12 @@
                     <button type="button" x-ref="ok" class="app-confirm__btn app-confirm__btn--ok" :class="danger && 'app-confirm__btn--danger'" x-on:click="answer(true)" x-text="confirmText"></button>
                 </div>
             </div>
-        </div>
+        </dialog>
     </template>
 </div>
 <style>
-.app-confirm { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; background: rgb(15 23 42 / 55%); }
+.app-confirm { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 16px; background: rgb(15 23 42 / 55%); }
+.app-confirm::backdrop { background: transparent; }
 .app-confirm__box { width: 100%; max-width: 420px; padding: 24px; border-radius: 14px; background: #fff; color: #0f172a; text-align: center; box-shadow: 0 24px 48px rgb(15 23 42 / 25%); font-family: inherit; }
 .app-confirm__icon { width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 999px; display: grid; place-items: center; font-size: 22px; font-weight: 700; color: #0f766e; background: #ccfbf1; }
 .app-confirm__icon--danger { color: #b91c1c; background: #fee2e2; }
