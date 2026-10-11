@@ -41,9 +41,16 @@ class AttendancePushController extends Controller
                 $accounts->linkAccount($staff, User::query()->inCurrentClinic(['active'])->get(['id', 'name']));
             }
             // The terminal resends what was not acknowledged; a punch already held is skipped.
-            $stored += DB::table('attendance_punches')->insertOrIgnore([
+            $new = DB::table('attendance_punches')->insertOrIgnore([
                 'clinic_id' => $clinic->id, 'branch_id' => $branch->id, 'attendance_staff_id' => $staff->id, 'punched_at' => $punch['time'],
+                'terminal_status' => $punch['status'], 'method' => $punch['method'],
             ]);
+            $stored += $new;
+            if (! $new && ($punch['status'] || $punch['method'])) {
+                // Held from before these were kept: fill them in when the terminal replays its history.
+                DB::table('attendance_punches')->where('attendance_staff_id', $staff->id)->where('punched_at', $punch['time'])
+                    ->update(['terminal_status' => $punch['status'], 'method' => $punch['method']]);
+            }
         }
 
         // Every event moves the terminal's clock on, a punch or not: a quiet day is still a day it was working.

@@ -122,6 +122,28 @@ class AttendancePushTest extends TestCase
         $this->assertSame('Employee 004', AttendanceStaff::withoutGlobalScopes()->value('name'));
     }
 
+    public function test_the_terminals_label_and_method_are_kept_with_the_punch(): void
+    {
+        $this->push($this->event('001', '2026-10-12T07:55:03+00:00', ['attendanceStatus' => 'checkIn']))->assertOk();
+        $this->push($this->event('001', '2026-10-12T12:00:00+00:00', ['attendanceStatus' => 'breakOut', 'subEventType' => 38]))->assertOk();
+        $this->push($this->event('001', '2026-10-12T17:00:00+00:00'))->assertOk();
+
+        $rows = DB::table('attendance_punches')->orderBy('punched_at')->get(['terminal_status', 'method'])->map(fn ($row) => [$row->terminal_status, $row->method])->all();
+        $this->assertSame([['checkIn', 'face'], ['breakOut', 'fingerprint'], [null, 'face']], $rows);
+    }
+
+    public function test_a_replayed_punch_fills_in_a_label_that_was_not_kept_before(): void
+    {
+        $this->push($this->event('001', '2026-10-12T07:55:03+00:00'))->assertOk();
+        DB::table('attendance_punches')->update(['terminal_status' => null, 'method' => null]);
+
+        $this->push($this->event('001', '2026-10-12T07:55:03+00:00', ['attendanceStatus' => 'checkIn']))->assertOk();
+
+        $punch = DB::table('attendance_punches')->sole();
+        $this->assertSame(['checkIn', 'face'], [$punch->terminal_status, $punch->method]);
+        $this->assertSame(1, AttendanceDevice::withoutGlobalScopes()->value('punches_received'));
+    }
+
     public function test_a_punch_sent_again_is_stored_once(): void
     {
         $this->push($this->event('001', '2026-10-12T07:55:03+00:00'))->assertOk();

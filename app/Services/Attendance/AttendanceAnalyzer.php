@@ -13,13 +13,17 @@ use Carbon\CarbonImmutable;
 
 /**
  * Works out a month of attendance for the current branch from its punches and working hours.
- * The first punch of a day is the arrival and the last the departure. A day is only judged when
+ * Every punch counts: in order they are taken as in, out, in, out…, so time on site is the sum of
+ * the stretches between and the gaps are breaks. A day is only judged when
  * an uploaded report or a connected terminal covers it: later days are unknown, not absences, and
  * the latest day heard of is still in progress, so nobody is absent or gone early on it yet. Holidays and leave are
  * days off for those they cover; staff with hours of their own are judged against those.
  */
 class AttendanceAnalyzer
 {
+    /** Punches this close together are one punch: the terminal recognising the same person twice. */
+    public const SAME_PUNCH_MINUTES = 2;
+
     public const STATUSES = [
         'on_time' => 'On time',
         'late' => 'Late',
@@ -33,8 +37,14 @@ class AttendanceAnalyzer
 
     public function month(CarbonImmutable $month): array
     {
-        $first = $month->startOfMonth();
-        $last = $month->endOfMonth()->startOfDay();
+        return $this->range($month->startOfMonth(), $month->endOfMonth());
+    }
+
+    /** The same for any run of days, first to last inclusive: a week for the owner's weekly email, say. */
+    public function range(CarbonImmutable $first, CarbonImmutable $last): array
+    {
+        $first = $first->startOfDay();
+        $last = $last->startOfDay();
         $settings = AttendanceSetting::current();
 
         $days = [];
@@ -76,7 +86,7 @@ class AttendanceAnalyzer
                 $state = $key < $from ? null : ($coverage[$key] ?? null);
                 $hours = $staff->hours ? AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
                 $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
-                $staffDays[$key] = $this->day($punches[$staff->id][$key] ?? [], $hours, $settings->grace_minutes, $state, $excused)
+                $staffDays[$key] = $this->day($punches[$staff->id][$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $settings->break_minutes ?? 60)
                     + ['note' => $holidays[$key] ?? $leave[$staff->id][$key] ?? null];
             }
             $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
@@ -149,17 +159,22 @@ class AttendanceAnalyzer
     /**
      * One person's day. $times are that day's punches as 'HH:MM', in order; $hours the working
      * hours or null on a day off; $state 'complete', 'partial' or null when the day is not covered;
-     * $excused 'holiday' or 'leave' when a working day is not expected of them.
+     * $excused 'holiday' or 'leave' when a working day is not expected of them; $breakAllowed the
+     * minutes they may be out between punches before it is flagged.
+     *
+     * 'punches' lists every punch as ['time', 'kind' => 'in' | 'out']. 'out' is the departure: the
+     * last punch when they pair up, null when one is missing ('no_clock_out').
      */
-    public function day(array $times, ?array $hours, int $grace, ?string $state, ?string $excused = null): array
+    public function day(array $times, ?array $hours, int $grace, ?string $state, ?string $excused = null, int $breakAllowed = 60): array
     {
         $day = ['status' => 'none', 'in' => null, 'out' => null, 'late_minutes' => 0, 'early_minutes' => 0,
-            'left_early' => false, 'no_clock_out' => false, 'minutes_worked' => null, 'in_progress' => $state === 'partial'];
+            'left_early' => false, 'no_clock_out' => false, 'minutes_worked' => null, 'in_progress' => $state === 'partial',
+            'punches' => [], 'break_minutes' => 0, 'long_break' => false];
         if ($state === null) {
             return $day;
         }
 
-        $times = array_values(array_unique($times));
+        $times = $this->distinctPunches($times);
         if (! $times) {
             // On the day the report was made, someone not in yet may still come.
             $day['status'] = ! $hours ? 'off' : ($excused ?? ($state === 'complete' ? 'absent' : 'none'));
@@ -167,11 +182,22 @@ class AttendanceAnalyzer
             return $day;
         }
 
+        $paired = count($times) % 2 === 0;
+        $worked = 0;
+        foreach ($times as $i => $time) {
+            $day['punches'][] = ['time' => $time, 'kind' => $i % 2 === 0 ? 'in' : 'out'];
+            if ($i % 2 === 1) {
+                $worked += $this->minutes($time) - $this->minutes($times[$i - 1]);
+            } elseif ($i > 0) {
+                $day['break_minutes'] += $this->minutes($time) - $this->minutes($times[$i - 1]);
+            }
+        }
         $day['in'] = $times[0];
-        $day['out'] = count($times) > 1 ? end($times) : null;
+        $day['out'] = $paired ? end($times) : null;
         $in = $this->minutes($day['in']);
         $out = $day['out'] ? $this->minutes($day['out']) : null;
-        $day['minutes_worked'] = $out !== null ? $out - $in : null;
+        $day['minutes_worked'] = count($times) > 1 ? $worked : null;
+        $day['long_break'] = $day['break_minutes'] > $breakAllowed;
         if (! $hours || $excused) {
             $day['status'] = 'worked_off';
 
@@ -194,10 +220,25 @@ class AttendanceAnalyzer
         return $day;
     }
 
+    /** The day's punches in order, with any within SAME_PUNCH_MINUTES of the one before left out. */
+    private function distinctPunches(array $times): array
+    {
+        $times = array_values(array_unique($times));
+        sort($times);
+        $kept = [];
+        foreach ($times as $time) {
+            if (! $kept || $this->minutes($time) - $this->minutes(end($kept)) > self::SAME_PUNCH_MINUTES) {
+                $kept[] = $time;
+            }
+        }
+
+        return $kept;
+    }
+
     private function totals(array $days): array
     {
         $totals = ['on_time' => 0, 'late' => 0, 'absent' => 0, 'leave' => 0, 'holiday' => 0, 'worked_off' => 0, 'late_minutes' => 0,
-            'left_early' => 0, 'no_clock_out' => 0, 'minutes_worked' => 0];
+            'left_early' => 0, 'no_clock_out' => 0, 'minutes_worked' => 0, 'long_breaks' => 0, 'break_minutes' => 0];
         $arrivals = [];
         foreach ($days as $day) {
             if (isset($totals[$day['status']])) {
@@ -207,6 +248,8 @@ class AttendanceAnalyzer
             $totals['left_early'] += (int) $day['left_early'];
             $totals['no_clock_out'] += (int) $day['no_clock_out'];
             $totals['minutes_worked'] += (int) $day['minutes_worked'];
+            $totals['long_breaks'] += (int) $day['long_break'];
+            $totals['break_minutes'] += $day['break_minutes'];
             if (in_array($day['status'], ['on_time', 'late'], true)) {
                 $arrivals[] = $this->minutes($day['in']);
             }
@@ -241,9 +284,9 @@ class AttendanceAnalyzer
         return sprintf('%d:%s %s', $hour % 12 ?: 12, substr($time, 3, 2), $hour < 12 ? 'AM' : 'PM');
     }
 
-    /** 135 -> '2h 15m', 40 -> '40m'. */
+    /** 135 -> '2h 15m', 60 -> '1h', 40 -> '40m'. */
     public static function duration(int $minutes): string
     {
-        return $minutes >= 60 ? intdiv($minutes, 60).'h '.($minutes % 60).'m' : $minutes.'m';
+        return $minutes >= 60 ? intdiv($minutes, 60).'h'.($minutes % 60 ? ' '.($minutes % 60).'m' : '') : $minutes.'m';
     }
 }

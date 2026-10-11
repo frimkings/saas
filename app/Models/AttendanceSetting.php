@@ -12,11 +12,12 @@ class AttendanceSetting extends Model
 
     public const DAYS = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
 
-    protected $fillable = ['hours', 'grace_minutes'];
+    protected $fillable = ['hours', 'grace_minutes', 'break_minutes'];
 
     protected $casts = [
         'hours' => 'array',
         'grace_minutes' => 'integer',
+        'break_minutes' => 'integer',
     ];
 
     /** The branch's settings; Monday to Friday, 8 to 5, 15 minutes' grace until someone sets them. */
@@ -25,6 +26,7 @@ class AttendanceSetting extends Model
         return static::query()->first() ?? new self([
             'hours' => array_fill_keys([1, 2, 3, 4, 5], ['start' => '08:00', 'end' => '17:00']),
             'grace_minutes' => 15,
+            'break_minutes' => 60,
         ]);
     }
 

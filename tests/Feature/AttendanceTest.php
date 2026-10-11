@@ -160,9 +160,13 @@ class AttendanceTest extends TestCase
         $this->assertSame(50, $ama['2026-10-05']['early_minutes']);
         $this->assertTrue($ama['2026-10-06']['no_clock_out']);
 
-        // Four punches: the first is arrival, the last departure.
+        // Four punches: in, out for lunch, back in, out. Time on site leaves the 57-minute break out.
         $this->assertSame(['07:50', '17:02'], [$ama['2026-10-07']['in'], $ama['2026-10-07']['out']]);
-        $this->assertSame(552, $ama['2026-10-07']['minutes_worked']);
+        $this->assertSame(['in', 'out', 'in', 'out'], array_column($ama['2026-10-07']['punches'], 'kind'));
+        $this->assertSame(['07:50', '12:01', '12:58', '17:02'], array_column($ama['2026-10-07']['punches'], 'time'));
+        $this->assertSame(495, $ama['2026-10-07']['minutes_worked']);
+        $this->assertSame(57, $ama['2026-10-07']['break_minutes']);
+        $this->assertFalse($ama['2026-10-07']['long_break']);
 
         $kofi = $this->row($this->october(), '002')['days'];
         $this->assertSame('absent', $kofi['2026-10-02']['status']);
@@ -447,6 +451,154 @@ class AttendanceTest extends TestCase
         $this->assertStringStartsWith('%PDF', $pdf->streamedContent());
 
         $this->get(route('admin.attendance.export', ['format' => 'csv', 'month' => 'October']))->assertSessionHasErrors('month');
+    }
+
+    public function test_every_punch_is_read_in_order_as_in_then_out(): void
+    {
+        $hours = ['start' => '08:00', 'end' => '17:00'];
+        $day = fn (array $times, int $break = 60, string $state = 'complete') => app(AttendanceAnalyzer::class)->day($times, $hours, 15, $state, null, $break);
+
+        // Out for two hours in the middle of the day: a long break, and those hours are not time on site.
+        $out = $day(['08:00', '10:00', '12:00', '17:00']);
+        $this->assertSame([120, true, 420], [$out['break_minutes'], $out['long_break'], $out['minutes_worked']]);
+        $this->assertFalse($day(['08:00', '10:00', '12:00', '17:00'], 120)['long_break']);
+
+        // Two breaks add up.
+        $two = $day(['08:00', '10:00', '10:40', '13:00', '13:40', '17:00']);
+        $this->assertSame([80, true], [$two['break_minutes'], $two['long_break']]);
+
+        // Three punches: went out, came back, never punched out. The departure is not known.
+        $odd = $day(['08:00', '12:00', '13:00']);
+        $this->assertSame(['08:00', null, true, 240], [$odd['in'], $odd['out'], $odd['no_clock_out'], $odd['minutes_worked']]);
+        $this->assertFalse($odd['left_early']);
+        // On a day still going they are simply in.
+        $this->assertFalse($day(['08:00', '12:00', '13:00'], 60, 'partial')['no_clock_out']);
+
+        // The terminal recognising someone twice in a moment is one punch.
+        $twice = $day(['07:59', '08:00', '08:01', '17:00', '17:01']);
+        $this->assertSame(['07:59', '17:00'], array_column($twice['punches'], 'time'));
+        $this->assertSame(541, $twice['minutes_worked']);
+    }
+
+    public function test_long_breaks_are_counted_and_every_punch_is_shown(): void
+    {
+        $this->importFixture();
+
+        Livewire::test(AttendanceComponent::class)
+            ->call('editHours')
+            ->assertSet('breakMinutes', 60)
+            ->set('breakMinutes', 30)
+            ->call('saveHours')
+            ->assertHasNoErrors()
+            ->call('openStaff', AttendanceStaff::where('employee_no', '001')->value('id'))
+            ->assertSee('Out 12:01 PM')
+            ->assertSee('In 12:58 PM')
+            ->assertSee('Long break');
+
+        $this->assertSame(30, AttendanceSetting::current()->break_minutes);
+        $ama = $this->row($this->october(), '001');
+        $this->assertTrue($ama['days']['2026-10-07']['long_break']);
+        $this->assertSame([1, 57], [$ama['totals']['long_breaks'], $ama['totals']['break_minutes']]);
+
+        $csv = $this->get(route('admin.attendance.export', ['format' => 'csv', 'month' => '2026-10']))->streamedContent();
+        $this->assertStringContainsString('57,Yes,"In 7:50 AM; Out 12:01 PM; In 12:58 PM; Out 5:02 PM;"', $csv);
+    }
+
+    private function digest(string $period, string $from, string $to, string $previousFrom, string $previousTo): ?array
+    {
+        $day = fn (string $date) => \Illuminate\Support\Carbon::parse($date);
+
+        return app(\App\Services\Attendance\AttendanceDigest::class)->block($period, $day($from), $day($to), $day($previousFrom), $day($previousTo));
+    }
+
+    public function test_the_daily_email_names_only_the_exceptions(): void
+    {
+        $this->assertNull($this->digest('daily', '2026-10-02', '2026-10-02', '2026-10-01', '2026-10-01'), 'No terminal staff yet.');
+        $this->importFixture();
+
+        // Friday the 2nd: Ama came in late, the other two did not come.
+        $friday = $this->digest('daily', '2026-10-02', '2026-10-02', '2026-10-01', '2026-10-01');
+        $this->assertSame('1 of 3 staff present', $friday['headline']);
+        $this->assertSame([
+            ['name' => 'Ama Mensah', 'detail' => 'In at 8:20 AM, 20m late', 'tone' => 'late'],
+            ['name' => 'Esi Boateng', 'detail' => 'Absent', 'tone' => 'absent'],
+            ['name' => 'Kofi Añané', 'detail' => 'Absent', 'tone' => 'absent'],
+        ], $friday['exceptions']);
+
+        // Monday the 5th: Ama left early; Tuesday: she never punched out.
+        $this->assertSame('Left 50m early (4:10 PM)', collect($this->digest('daily', '2026-10-05', '2026-10-05', '2026-10-02', '2026-10-02')['exceptions'])->firstWhere('name', 'Ama Mensah')['detail']);
+        $this->assertSame('A punch is missing', collect($this->digest('daily', '2026-10-06', '2026-10-06', '2026-10-05', '2026-10-05')['exceptions'])->firstWhere('name', 'Ama Mensah')['detail']);
+
+        // A Saturday, when nobody is expected: nothing to say, even though Kofi came in.
+        $this->assertNull($this->digest('daily', '2026-10-03', '2026-10-03', '2026-10-02', '2026-10-02'));
+
+        // A day nothing was received for is not a day of absences.
+        $unknown = $this->digest('daily', '2026-10-22', '2026-10-22', '2026-10-21', '2026-10-21');
+        $this->assertNull($unknown['headline']);
+        $this->assertSame([], $unknown['exceptions']);
+        $this->assertStringContainsString('No attendance was received', $unknown['note']);
+    }
+
+    public function test_someone_on_leave_is_named_in_the_daily_email_and_not_counted_absent(): void
+    {
+        $this->importFixture();
+        AttendanceLeave::create(['attendance_staff_id' => AttendanceStaff::where('employee_no', '004')->value('id'), 'starts_on' => '2026-10-02', 'ends_on' => '2026-10-02', 'type' => 'sick']);
+
+        $friday = $this->digest('daily', '2026-10-02', '2026-10-02', '2026-10-01', '2026-10-01');
+
+        $this->assertSame('1 of 2 staff present, 1 on leave', $friday['headline']);
+        $this->assertSame(['detail' => 'On leave (Sick leave)', 'tone' => 'note'], \Illuminate\Support\Arr::only(collect($friday['exceptions'])->firstWhere('name', 'Esi Boateng'), ['detail', 'tone']));
+    }
+
+    public function test_the_weekly_and_monthly_emails_list_everyone_and_name_who_was_latest(): void
+    {
+        $this->importFixture();
+        AttendanceStaff::where('employee_no', '004')->update(['is_tracked' => false]);
+
+        // Monday 5th to Sunday 11th, against the week before (Thursday 1st and Friday 2nd are all it holds).
+        $week = $this->digest('weekly', '2026-10-05', '2026-10-11', '2026-09-28', '2026-10-04');
+        $this->assertSame('10 of 10 working days attended', $week['headline']);
+        $this->assertSame([100.0, 75.0], [$week['rate'], $week['previousRate']]);
+        $this->assertSame(['Ama Mensah', 'Kofi Añané'], array_column($week['rows'], 'name'));
+        $ama = $week['rows'][0];
+        $this->assertSame([5, 5, 1, '16m', 0], [$ama['present'], $ama['expected'], $ama['late'], $ama['late_time'], $ama['absent']]);
+        $this->assertSame('Ama Mensah (16m over 1 day)', $week['mostLate']);
+        $this->assertNull($week['note']);
+
+        $month = $this->digest('monthly', '2026-10-01', '2026-10-31', '2026-09-01', '2026-09-30');
+        $this->assertSame('22 of 30 working days attended', $month['headline']);
+        $this->assertSame(73.3, $month['rate']);
+        $this->assertNull($month['previousRate']);
+        $this->assertSame('Kofi Añané (1h 50m over 2 days), Ama Mensah (36m over 2 days)', $month['mostLate']);
+        $this->assertSame([], $month['perfect']);
+        $this->assertSame('Recorded up to Wed 21 Oct; later days are not counted.', $month['note']);
+        $this->assertSame(8, collect($month['rows'])->firstWhere('name', 'Kofi Añané')['absent']);
+    }
+
+    public function test_the_owner_summary_email_carries_the_attendance_block(): void
+    {
+        $this->importFixture();
+        $summaries = app(\App\Services\OwnerSummaryService::class);
+        $day = fn (string $date) => \Illuminate\Support\Carbon::parse($date);
+
+        $daily = $summaries->build($this->clinic, 'daily', $day('2026-10-02'), $day('2026-10-02'));
+        $this->assertSame(['Main'], array_keys($daily['attendance']));
+        $html = (new \App\Mail\OwnerSummaryMail($daily))->render();
+        $this->assertStringContainsString('Staff attendance', $html);
+        $this->assertStringContainsString('1 of 3 staff present', $html);
+        $this->assertStringContainsString('In at 8:20 AM, 20m late', $html);
+        $this->assertStringContainsString(route('admin.attendance'), $html);
+
+        $monthly = (new \App\Mail\OwnerSummaryMail($summaries->build($this->clinic, 'monthly', $day('2026-10-01'), $day('2026-10-31'))))->render();
+        $this->assertStringContainsString('Most time lost to lateness:', $monthly);
+        $this->assertStringContainsString('Kofi Añané (1h 50m over 2 days)', $monthly);
+        $this->assertStringContainsString('On site', $monthly);
+
+        // A clinic with no terminal gets the email exactly as before.
+        AttendanceStaff::query()->delete();
+        $plain = $summaries->build($this->clinic, 'daily', $day('2026-10-02'), $day('2026-10-02'));
+        $this->assertSame([], $plain['attendance']);
+        $this->assertStringNotContainsString('Staff attendance', (new \App\Mail\OwnerSummaryMail($plain))->render());
     }
 
     private function clinicUser(string $name, ?Clinic $clinic = null): User

@@ -48,7 +48,7 @@
             <tr>
                 <th>ID</th><th>Name</th><th>Department</th>
                 <th class="num">Expected</th><th class="num">Present</th><th class="num">On time</th><th class="num">Late</th><th class="num">Time late</th>
-                <th class="num">Absent</th><th class="num">Leave</th><th class="num">Left early</th><th class="num">No clock-out</th><th class="num">Usual arrival</th><th class="num">Hours on site</th>
+                <th class="num">Absent</th><th class="num">Leave</th><th class="num">Left early</th><th class="num">Long breaks</th><th class="num">Missing punch</th><th class="num">Usual arrival</th><th class="num">Hours on site</th>
             </tr>
         </thead>
         <tbody>
@@ -66,12 +66,13 @@
                     <td class="num">{{ $t['absent'] }}</td>
                     <td class="num">{{ $t['leave'] }}</td>
                     <td class="num">{{ $t['left_early'] }}</td>
+                    <td class="num">{{ $t['long_breaks'] }}</td>
                     <td class="num">{{ $t['no_clock_out'] }}</td>
                     <td class="num">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
                     <td class="num">{{ $t['minutes_worked'] ? AttendanceAnalyzer::duration($t['minutes_worked']) : '–' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="14" style="text-align:center">No staff are being followed.</td></tr>
+                <tr><td colspan="15" style="text-align:center">No staff are being followed.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -109,7 +110,7 @@
     @if($report['holidays'])
         <p class="muted">Holidays: @foreach($report['holidays'] as $date => $name){{ \Carbon\CarbonImmutable::parse($date)->format('j M') }} {{ $name }}{{ $loop->last ? '' : ', ' }}@endforeach</p>
     @endif
-    <p class="muted">Late means arriving more than {{ $report['settings']->grace_minutes }} minutes after the start of the working day. The first punch of a day is the arrival, the last the departure.</p>
+    <p class="muted">Late means arriving more than {{ $report['settings']->grace_minutes }} minutes after the start of the working day. Punches are read in order as in, out, in, out; time out of more than {{ AttendanceAnalyzer::duration($report['settings']->break_minutes ?? 60) }} in a day is a long break.</p>
 
     <table class="signature">
         <tr><td>Prepared by: ______________________________</td><td>Approved by: ______________________________</td></tr>

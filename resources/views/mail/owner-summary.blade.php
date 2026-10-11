@@ -161,6 +161,10 @@
   </tr>
   @endif
 
+  @if(! empty($s['attendance']))
+    @include('mail.partials.owner-attendance', ['blocks' => $s['attendance'], 'url' => $s['attendanceUrl'], 'compareWith' => $s['compareWith']])
+  @endif
+
   <tr>
     <td style="padding:22px 28px 26px">
       <a href="{{ $s['url'] }}" style="display:inline-block;background:#1688c4;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:bold">Open full reports</a>
