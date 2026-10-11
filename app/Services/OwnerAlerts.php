@@ -179,6 +179,30 @@ class OwnerAlerts
             'View subscription', route('admin.subscription'));
     }
 
+    /**
+     * Attendance terminals that have stopped sending: one email per terminal per silence.
+     * Safe to run every hour. Returns how many terminals were reported on.
+     */
+    public function terminalsSilent(Clinic $clinic, ?\Illuminate\Support\Carbon $now = null): int
+    {
+        $local = ($now ?? now())->copy()->setTimezone($this->timezone($clinic));
+        $found = 0;
+        \App\Support\Tenancy\ActAsClinic::eachBranch($clinic, function (Branch $branch) use ($clinic, $local, &$found) {
+            foreach (\App\Models\AttendanceDevice::silent($local) as $device) {
+                $last = $device->last_seen_at->copy()->setTimezone($local->getTimezone());
+                $this->notice($clinic, 'attendance_terminal_silent', "terminal:{$device->id}:" . $last->format('YmdHi'),
+                    'Attendance terminal not sending',
+                    "No punches have been received from {$device->name} since {$last->format('D j M, g:i A')}. Either the terminal is cut off or nobody has punched.",
+                    ['Terminal' => $device->name, 'Branch' => $branch->name, 'Last heard from' => $last->format('D j M Y, g:i A')],
+                    'Open attendance', route('admin.attendance'),
+                    'Check it has power and is on the network. Punches made meanwhile stay on the terminal and normally arrive once it is back.');
+                $found++;
+            }
+        });
+
+        return $found;
+    }
+
     /** A branch has used 80% of its SMS limit. */
     public function branchSmsLow(Branch $branch): void
     {

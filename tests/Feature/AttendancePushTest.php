@@ -4,16 +4,22 @@ namespace Tests\Feature;
 
 use App\Livewire\Admin\AttendanceComponent;
 use App\Models\AttendanceDevice;
+use App\Mail\OwnerNoticeMail;
+use App\Models\AttendanceHoliday;
+use App\Models\AttendanceLeave;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceStaff;
 use App\Models\Clinic;
 use App\Models\User;
 use App\Services\Attendance\AttendanceAnalyzer;
+use App\Services\OwnerAlerts;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\Concerns\GivesClinicsAccess;
@@ -228,6 +234,78 @@ class AttendancePushTest extends TestCase
 
         $page->call('removeDevice', $this->device->id)->assertDontSee($this->device->token);
         $this->assertSame(['Back office'], AttendanceDevice::pluck('name')->all());
+    }
+
+    public function test_a_terminal_that_goes_silent_is_noticed_once_the_morning_is_under_way(): void
+    {
+        $this->asAdmin();
+        $silent = fn (string $time) => AttendanceDevice::silent(Carbon::parse($time))->pluck('name')->all();
+        $this->device->forceFill(['last_seen_at' => '2026-10-12 17:02:00'])->save();
+
+        // Nobody followed on the terminal yet, so nobody is expected to punch.
+        $this->assertSame([], $silent('2026-10-13 12:00'));
+        $ama = AttendanceStaff::create(['employee_no' => '001', 'name' => 'Ama Mensah']);
+        $this->device->forceFill(['last_seen_at' => null])->save();
+
+        // Never connected: that is a setup still to finish, not a failure.
+        $this->assertSame([], $silent('2026-10-13 12:00'));
+
+        // Last heard from on Monday the 12th at 5:02 PM. Tuesday opens at 8.
+        $this->device->forceFill(['last_seen_at' => '2026-10-12 17:02:00'])->save();
+        $this->assertSame([], $silent('2026-10-13 09:59'));
+        $this->assertSame(['Front door'], $silent('2026-10-13 10:00'));
+        $this->device->forceFill(['last_seen_at' => '2026-10-13 08:05:00'])->save();
+        $this->assertSame([], $silent('2026-10-13 16:00'));
+
+        // Quiet over a weekend is expected; quiet on Monday morning is not.
+        $this->device->forceFill(['last_seen_at' => '2026-10-16 17:00:00'])->save();
+        $this->assertSame([], $silent('2026-10-18 15:00'));
+        $this->assertSame([], $silent('2026-10-19 09:00'));
+        $this->assertSame(['Front door'], $silent('2026-10-19 10:30'));
+
+        // Nor on a holiday, or once the terminal is switched off here.
+        AttendanceHoliday::create(['date' => '2026-10-19', 'name' => 'Founders day']);
+        $this->assertSame([], $silent('2026-10-19 10:30'));
+        $this->assertSame(['Front door'], $silent('2026-10-20 10:30'));
+        // Nor when everyone followed is on leave that day.
+        $leave = AttendanceLeave::create(['attendance_staff_id' => $ama->id, 'starts_on' => '2026-10-20', 'ends_on' => '2026-10-21', 'type' => 'annual']);
+        $this->assertSame([], $silent('2026-10-20 10:30'));
+        $leave->delete();
+        $this->device->forceFill(['is_active' => false])->save();
+        $this->assertSame([], $silent('2026-10-20 10:30'));
+    }
+
+    public function test_the_owner_is_emailed_once_about_a_silent_terminal_and_the_page_warns(): void
+    {
+        Mail::fake();
+        $this->clinic->update(['billing_email' => 'owner@clinic-a.test']);
+        $this->asAdmin();
+        AttendanceStaff::create(['employee_no' => '001', 'name' => 'Ama Mensah']);
+        $this->device->forceFill(['last_seen_at' => '2026-10-16 17:00:00'])->save();
+        $alerts = app(OwnerAlerts::class);
+
+        $this->assertSame(0, $alerts->terminalsSilent($this->clinic, Carbon::parse('2026-10-19 09:00')));
+        Mail::assertNothingSent();
+        // Monday, two hours after opening; and again an hour later and the next day, with nothing new to say.
+        foreach (['2026-10-19 10:00', '2026-10-19 11:00', '2026-10-20 10:00'] as $time) {
+            $this->assertSame(1, $alerts->terminalsSilent($this->clinic, Carbon::parse($time)));
+        }
+        Mail::assertSent(OwnerNoticeMail::class, 1);
+        Mail::assertSent(OwnerNoticeMail::class, fn ($mail) => $mail->hasTo('owner@clinic-a.test') && $mail->heading === 'Attendance terminal not sending'
+            && str_contains($mail->intro, 'from Front door since Fri 16 Oct, 5:00 PM') && $mail->details['Branch'] === 'Main');
+
+        // It comes back, then stops again: a new silence, a new email.
+        $this->device->forceFill(['last_seen_at' => '2026-10-20 12:00:00'])->save();
+        $this->assertSame(0, $alerts->terminalsSilent($this->clinic, Carbon::parse('2026-10-20 15:00')));
+        $this->assertSame(1, $alerts->terminalsSilent($this->clinic, Carbon::parse('2026-10-21 10:00')));
+        Mail::assertSent(OwnerNoticeMail::class, 2);
+
+        Carbon::setTestNow('2026-10-21 11:00:00');
+        $this->asAdmin();
+        Livewire::test(AttendanceComponent::class)->assertSee('has sent no punches since Tue 20 Oct, 12:00 PM');
+        $this->device->forceFill(['last_seen_at' => now()])->save();
+        Livewire::test(AttendanceComponent::class)->assertDontSee('has sent no punches since');
+        Carbon::setTestNow();
     }
 
     public function test_one_clinics_terminal_cannot_be_removed_by_another(): void
