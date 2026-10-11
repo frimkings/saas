@@ -44,4 +44,9 @@ return [
         'low_balance' => (int) env('EAZISMS_LOW_BALANCE', 1000),
     ],
 
+    'attendance' => [
+        // Set to switch on the capture address for a terminal (AttendanceCaptureController); empty = off.
+        'capture_token' => env('ATTENDANCE_CAPTURE_TOKEN'),
+    ],
+
 ];
