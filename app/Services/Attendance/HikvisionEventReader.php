@@ -11,11 +11,14 @@ use Illuminate\Http\UploadedFile;
  * the event in one part and a face photo in another. The photo is never read.
  *
  * Returns the events found, each ['type', 'time' => 'Y-m-d H:i:s' by the terminal's own clock,
- * 'employee_no', 'name', 'major', 'minor'].
+ * 'employee_no', 'name', 'major', 'minor', 'status' => the terminal's own check-in/out label, 'method'].
  */
 class HikvisionEventReader
 {
     private const MAX_TEXT = 262144;
+
+    /** Access event sub-types that say how the person was recognised. */
+    private const METHODS = [1 => 'card', 38 => 'fingerprint', 75 => 'face'];
 
     public function events(Request $request): array
     {
@@ -82,6 +85,9 @@ class HikvisionEventReader
         $detail = is_array($data['AccessControllerEvent'] ?? null) ? $data['AccessControllerEvent'] : [];
         $text = fn ($value) => is_scalar($value) ? trim((string) $value) : '';
         $employeeNo = $text($detail['employeeNoString'] ?? '') ?: $text($detail['employeeNo'] ?? '');
+        $minor = is_numeric($detail['subEventType'] ?? null) ? (int) $detail['subEventType'] : null;
+        // "undefined" is what a terminal sends when it is not set to ask for check-in or check-out.
+        $status = $text($detail['attendanceStatus'] ?? '');
 
         return [
             'type' => $type,
@@ -89,7 +95,9 @@ class HikvisionEventReader
             'employee_no' => $employeeNo !== '' ? mb_substr($employeeNo, 0, 32) : null,
             'name' => $text($detail['name'] ?? '') ?: null,
             'major' => is_numeric($detail['majorEventType'] ?? null) ? (int) $detail['majorEventType'] : null,
-            'minor' => is_numeric($detail['subEventType'] ?? null) ? (int) $detail['subEventType'] : null,
+            'minor' => $minor,
+            'status' => $status !== '' && strcasecmp($status, 'undefined') !== 0 ? mb_substr($status, 0, 20) : null,
+            'method' => self::METHODS[$minor] ?? null,
         ];
     }
 

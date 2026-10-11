@@ -29,17 +29,17 @@ class AttendanceExporter
 
             fputcsv($out, ['SUMMARY']);
             fputcsv($out, ['Employee ID', 'Name', 'Department', 'Days expected', 'Present', 'On time', 'Late', 'Minutes late', 'Absent', 'On leave',
-                'Left early', 'No clock-out', 'Worked on days off', 'Usual arrival', 'Hours on site']);
+                'Left early', 'Missing punch', 'Worked on days off', 'Usual arrival', 'Hours on site', 'Long breaks', 'Hours on break']);
             foreach ($rows as $row) {
                 $t = $row['totals'];
                 fputcsv($out, [$this->text($row['staff']->employee_no), $row['staff']->name, $row['staff']->department, $t['expected'], $t['present'], $t['on_time'], $t['late'],
                     $t['late_minutes'], $t['absent'], $t['leave'], $t['left_early'], $t['no_clock_out'], $t['worked_off'], AttendanceAnalyzer::time($t['average_arrival']),
-                    round($t['minutes_worked'] / 60, 2)]);
+                    round($t['minutes_worked'] / 60, 2), $t['long_breaks'], round($t['break_minutes'] / 60, 2)]);
             }
             fputcsv($out, []);
 
             fputcsv($out, ['DAILY']);
-            fputcsv($out, ['Employee ID', 'Name', 'Date', 'Day', 'In', 'Out', 'Hours on site', 'Status', 'Minutes late', 'Left early (minutes)', 'No clock-out', 'Note']);
+            fputcsv($out, ['Employee ID', 'Name', 'Date', 'Day', 'In', 'Out', 'Hours on site', 'Status', 'Minutes late', 'Left early (minutes)', 'Missing punch', 'Note', 'Break (minutes)', 'Long break', 'All punches']);
             foreach ($rows as $row) {
                 foreach ($row['days'] as $key => $day) {
                     if (in_array($day['status'], ['none', 'off'], true)) {
@@ -47,7 +47,9 @@ class AttendanceExporter
                     }
                     fputcsv($out, [$this->text($row['staff']->employee_no), $row['staff']->name, $key, $report['days'][$key]->format('D'), AttendanceAnalyzer::time($day['in']), AttendanceAnalyzer::time($day['out']),
                         $day['minutes_worked'] !== null ? round($day['minutes_worked'] / 60, 2) : null, AttendanceAnalyzer::STATUSES[$day['status']],
-                        $day['late_minutes'] ?: null, $day['early_minutes'] ?: null, $day['no_clock_out'] ? 'Yes' : null, $day['note']]);
+                        $day['late_minutes'] ?: null, $day['early_minutes'] ?: null, $day['no_clock_out'] ? 'Yes' : null, $day['note'],
+                        $day['break_minutes'] ?: null, $day['long_break'] ? 'Yes' : null,
+                        implode(' ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'In ' : 'Out ').AttendanceAnalyzer::time($punch['time']).';', $day['punches']))]);
                 }
             }
             fclose($out);

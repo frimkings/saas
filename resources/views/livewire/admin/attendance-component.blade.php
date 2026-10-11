@@ -91,7 +91,8 @@
                                     <th class="text-right">Absent</th>
                                     <th class="text-right">Leave</th>
                                     <th class="text-right">Left early</th>
-                                    <th class="text-right">No clock-out</th>
+                                    <th class="text-right">Long breaks</th>
+                                    <th class="text-right">Missing punch</th>
                                     <th class="text-right">Usual arrival</th>
                                     <th><span class="sr-only">Open</span></th>
                                 </tr>
@@ -114,15 +115,16 @@
                                             <td class="text-right ui-number">@if($t['absent'])<span class="rounded bg-red-100 px-1.5 py-0.5 font-semibold text-red-800">{{ $t['absent'] }}</span>@else 0 @endif</td>
                                             <td class="text-right ui-number">{{ $t['leave'] }}</td>
                                             <td class="text-right ui-number">{{ $t['left_early'] }}</td>
+                                            <td class="text-right ui-number">@if($t['long_breaks'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['long_breaks'] }}</span>@else 0 @endif</td>
                                             <td class="text-right ui-number">{{ $t['no_clock_out'] }}</td>
                                             <td class="text-right ui-number">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
                                         @else
-                                            <td colspan="9" class="text-right text-sm text-slate-400">–</td>
+                                            <td colspan="10" class="text-right text-sm text-slate-400">–</td>
                                         @endif
                                         <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="openStaff({{ $staff->id }})">Open</button></td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="11" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
+                                    <tr><td colspan="12" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -153,12 +155,13 @@
                                             @php
                                                 $title = $report['days'][$key]->format('D j M').': '.AttendanceAnalyzer::STATUSES[$day['status']]
                                                     .($day['note'] ? ' ('.$day['note'].')' : '')
-                                                    .($day['in'] ? ', in '.AttendanceAnalyzer::time($day['in']) : '').($day['out'] ? ', out '.AttendanceAnalyzer::time($day['out']) : '')
+                                                    .($day['punches'] ? ': '.implode(', ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'in ' : 'out ').AttendanceAnalyzer::time($punch['time']), $day['punches'])) : '')
+                                                    .($day['break_minutes'] ? ', '.AttendanceAnalyzer::duration($day['break_minutes']).' break' : '')
                                                     .($day['late_minutes'] ? ', '.AttendanceAnalyzer::duration($day['late_minutes']).' late' : '')
-                                                    .($day['left_early'] ? ', left early' : '').($day['no_clock_out'] ? ', no clock-out' : '');
+                                                    .($day['left_early'] ? ', left early' : '').($day['no_clock_out'] ? ', a punch is missing' : '').($day['long_break'] ? ', long break' : '');
                                             @endphp
                                             <td class="p-0.5 text-center">
-                                                <span title="{{ $title }}" @class(['block min-w-[3.6rem] whitespace-nowrap rounded px-1 py-1 tabular-nums', $tone[$day['status']], 'ring-1 ring-inset ring-slate-400' => $day['left_early'] || $day['no_clock_out']])>
+                                                <span title="{{ $title }}" @class(['block min-w-[3.6rem] whitespace-nowrap rounded px-1 py-1 tabular-nums', $tone[$day['status']], 'ring-1 ring-inset ring-slate-400' => $day['left_early'] || $day['no_clock_out'] || $day['long_break']])>
                                                     {{ match($day['status']) { 'absent' => 'Absent', 'holiday' => 'Hol', 'leave' => 'Leave', 'off' => '·', 'none' => '', default => AttendanceAnalyzer::time($day['in']) } }}
                                                 </span>
                                             </td>
@@ -175,13 +178,13 @@
                         @foreach(['on_time' => 'On time', 'late' => 'Late', 'absent' => 'Absent', 'leave' => 'On leave', 'holiday' => 'Holiday', 'worked_off' => 'Worked on a day off', 'off' => 'Day off'] as $key => $label)
                             <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded {{ $tone[$key] }}"></span>{{ $label }}</span>
                         @endforeach
-                        <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>Left early or no clock-out</span>
+                        <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>Left early, long break or a missing punch</span>
                     </div>
                 </div>
             @endif
 
             <p class="!mb-0 mt-3 text-xs text-slate-500">
-                The first punch of a day counts as arrival and the last as departure. Late means arriving more than {{ $settings->grace_minutes }} minutes after the start of the working day.
+                Punches are read in order as in, out, in, out. Late means arriving more than {{ $settings->grace_minutes }} minutes after the start of the working day; a break is long when it is over {{ AttendanceAnalyzer::duration($settings->break_minutes ?? 60) }}.
             </p>
         @endif
     </div>
@@ -224,6 +227,12 @@
                     <input id="attendance-grace" type="number" min="0" max="240" class="ui-input !w-32" wire:model="graceMinutes">
                     <p class="!mb-0 mt-1 text-xs text-slate-500">Arriving within this many minutes of the start still counts as on time.</p>
                     @error('graceMinutes')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="attendance-break" class="mb-1 block text-sm font-medium text-slate-700">Break allowed (minutes)</label>
+                    <input id="attendance-break" type="number" min="0" max="480" class="ui-input !w-32" wire:model="breakMinutes">
+                    <p class="!mb-0 mt-1 text-xs text-slate-500">Staff punch out when they leave and in when they return. Time out longer than this in a day is flagged.</p>
+                    @error('breakMinutes')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                 </div>
                 <div class="flex items-center justify-end gap-2">
                     <x-ui.button wire:click="$set('showHours', false)">Cancel</x-ui.button>
@@ -313,8 +322,10 @@
     @endif
 
     @if($showStaff && $detail)
+        {{-- Wider than the other dialogs: a day's punches need the room. --}}
+        <style>.clinic-ui .ui-dialog:has(.attendance-person) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="$detail['staff']->name.' · '.$monthStart->format('F Y')" state="showStaff">
-            <div class="space-y-4 p-4">
+            <div class="attendance-person space-y-4 p-4">
                 <form wire:submit="saveStaff" class="space-y-3 rounded-lg bg-slate-50 p-3">
                     <div class="flex flex-wrap items-end gap-3">
                         <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="staffTracked"> Follow this person's attendance</label>
@@ -376,20 +387,26 @@
                     <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Days in {{ $monthStart->format('F Y') }}</p>
                     <div class="ui-table-wrap">
                         <table class="table ui-table ui-table-sm mb-0">
-                            <thead><tr><th>Day</th><th>In</th><th>Out</th><th class="text-right">Time in</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Day</th><th>Punches</th><th class="text-right">On site</th><th class="text-right">Break</th><th>Status</th></tr></thead>
                             <tbody>
                                 @foreach($detail['days'] as $key => $day)
                                     @continue($day['status'] === 'none' || $day['status'] === 'off')
                                     <tr wire:key="detail-{{ $key }}">
-                                        <td>{{ $report['days'][$key]->format('D j M') }}</td>
-                                        <td class="ui-number">{{ AttendanceAnalyzer::time($day['in']) ?? '–' }}</td>
-                                        <td class="ui-number">{{ AttendanceAnalyzer::time($day['out']) ?? '–' }}</td>
+                                        <td class="whitespace-nowrap">{{ $report['days'][$key]->format('D j M') }}</td>
+                                        <td>
+                                            @foreach($day['punches'] as $punch)
+                                                <span @class(['mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs tabular-nums', 'bg-emerald-50 text-emerald-800' => $punch['kind'] === 'in', 'bg-slate-100 text-slate-700' => $punch['kind'] === 'out'])>{{ $punch['kind'] === 'in' ? 'In' : 'Out' }} {{ AttendanceAnalyzer::time($punch['time']) }}</span>
+                                            @endforeach
+                                            @if(! $day['punches'])–@endif
+                                        </td>
                                         <td class="text-right ui-number">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
+                                        <td class="text-right ui-number">@if($day['break_minutes'])<span @class(['rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900' => $day['long_break']])>{{ AttendanceAnalyzer::duration($day['break_minutes']) }}</span>@else – @endif</td>
                                         <td>
                                             <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['status']] }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
                                             @if($day['note'])<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
                                             @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
-                                            @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">No clock-out</span>@endif
+                                            @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
+                                            @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
                                             @if($day['in_progress'])<span class="ml-1 text-xs text-slate-400">Day in progress</span>@endif
                                         </td>
                                     </tr>

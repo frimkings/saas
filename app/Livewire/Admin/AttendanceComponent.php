@@ -38,6 +38,7 @@ class AttendanceComponent extends Component
     public bool $showHours = false;
     public array $hours = [];
     public int|string $graceMinutes = 15;
+    public int|string $breakMinutes = 60;
 
     public bool $showDevices = false;
     public string $deviceName = '';
@@ -103,6 +104,7 @@ class AttendanceComponent extends Component
         $settings = AttendanceSetting::current();
         $this->hours = $this->hoursForm($settings->hours ?? []);
         $this->graceMinutes = $settings->grace_minutes;
+        $this->breakMinutes = $settings->break_minutes ?? 60;
         $this->resetValidation();
         $this->showHours = true;
     }
@@ -110,13 +112,16 @@ class AttendanceComponent extends Component
     public function saveHours(): void
     {
         $this->authorizeAccess();
-        $this->validate(['graceMinutes' => 'required|integer|min:0|max:240'], [], ['graceMinutes' => 'grace period']);
+        $this->validate([
+            'graceMinutes' => 'required|integer|min:0|max:240',
+            'breakMinutes' => 'required|integer|min:0|max:480',
+        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed']);
         if (! $hours = $this->hoursFrom('hours')) {
             return;
         }
 
         $settings = AttendanceSetting::current();
-        $settings->fill(['hours' => $hours, 'grace_minutes' => (int) $this->graceMinutes])->save();
+        $settings->fill(['hours' => $hours, 'grace_minutes' => (int) $this->graceMinutes, 'break_minutes' => (int) $this->breakMinutes])->save();
         $this->showHours = false;
         $this->dispatch('notify', type: 'success', message: 'Working hours saved.');
     }

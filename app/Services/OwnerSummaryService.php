@@ -106,9 +106,14 @@ class OwnerSummaryService
         $longView = $period !== 'daily';
         $rows = [];
         $before = [];
-        ActAsClinic::eachBranch($clinic, function (Branch $branch, bool $clinical, bool $optical) use ($from, $to, $prevFrom, $prevTo, $longView, &$rows, &$before) {
+        $attendance = [];
+        ActAsClinic::eachBranch($clinic, function (Branch $branch, bool $clinical, bool $optical) use ($period, $from, $to, $prevFrom, $prevTo, $longView, &$rows, &$before, &$attendance) {
             $rows[$branch->name] = $this->figures($from, $to, $clinical, $optical, true, $longView);
             $before[] = $this->figures($prevFrom, $prevTo, $clinical, $optical, false, false);
+            // Branches with an attendance terminal: who was late, absent or on leave over the same days.
+            if ($block = app(\App\Services\Attendance\AttendanceDigest::class)->block($period, $from, $to, $prevFrom, $prevTo)) {
+                $attendance[$branch->name] = $block;
+            }
         });
 
         $total = $this->sum($rows);
@@ -129,6 +134,8 @@ class OwnerSummaryService
             'longView' => $longView,
             'compareWith' => match ($period) { 'weekly' => 'the week before', 'monthly' => 'the month before', default => 'the day before' },
             'branches' => count($rows) > 1 ? $rows : [],
+            'attendance' => $attendance,
+            'attendanceUrl' => route('admin.attendance'),
             'url' => $total['hasClinic'] ? route('admin.reports') : route('optical.reports'),
         ];
     }

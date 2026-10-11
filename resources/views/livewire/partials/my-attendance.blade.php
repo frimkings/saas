@@ -25,18 +25,19 @@
     @else
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
-                <thead><tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500"><th class="py-2 pr-3">Day</th><th class="py-2 pr-3">In</th><th class="py-2 pr-3">Out</th><th class="py-2">Status</th></tr></thead>
+                <thead><tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500"><th class="py-2 pr-3">Day</th><th class="py-2 pr-3">Punches</th><th class="py-2 pr-3">On site</th><th class="py-2">Status</th></tr></thead>
                 <tbody>
                     @foreach($shown as $key => $day)
                         <tr class="border-b border-slate-100">
                             <td class="py-1.5 pr-3">{{ $mine['report']['days'][$key]->format('D j M') }}</td>
-                            <td class="py-1.5 pr-3 tabular-nums">{{ AttendanceAnalyzer::time($day['in']) ?? '–' }}</td>
-                            <td class="py-1.5 pr-3 tabular-nums">{{ AttendanceAnalyzer::time($day['out']) ?? '–' }}</td>
+                            <td class="py-1.5 pr-3 tabular-nums">{{ implode(' · ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'In ' : 'Out ').AttendanceAnalyzer::time($punch['time']), $day['punches'])) ?: '–' }}</td>
+                            <td class="py-1.5 pr-3 tabular-nums">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
                             <td class="py-1.5">
                                 <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['status']] ?? '' }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}{{ $day['late_minutes'] ? ' · '.AttendanceAnalyzer::duration($day['late_minutes']) : '' }}</span>
                                 @if($day['note'])<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
                                 @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
-                                @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">No clock-out</span>@endif
+                                @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
+                                @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break ({{ AttendanceAnalyzer::duration($day['break_minutes']) }})</span>@endif
                             </td>
                         </tr>
                     @endforeach
