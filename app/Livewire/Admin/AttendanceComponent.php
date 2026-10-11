@@ -308,6 +308,7 @@ class AttendanceComponent extends Component
     private function authorizeAccess(): void
     {
         abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE), 403, 'Staff attendance is not included in your subscription.');
     }
 
     private function monthStart(): CarbonImmutable

@@ -43,10 +43,9 @@ class ClinicAddonService
         $product = PlanProduct::productOf($this->subscription($clinic)?->feature_snapshot);
         $prices = PlatformAddon::all()->keyBy('feature');
 
-        return collect(PlanProduct::EXTRAS)
-            ->reject(fn ($extra) => $extra[1] === PlanProduct::CLINIC && $product === PlanProduct::OPTICAL)
-            ->map(fn ($extra, $feature) => [
-                'feature' => $feature, 'name' => $extra[0],
+        return collect(PlanProduct::extrasFor($product))
+            ->map(fn ($name, $feature) => [
+                'feature' => $feature, 'name' => $name,
                 'price' => (float) ($prices[$feature]->monthly_price ?? 0),
                 'currency' => $prices[$feature]->currency ?? $this->currency($clinic),
                 'offered' => (bool) ($prices[$feature]->is_offered ?? false),

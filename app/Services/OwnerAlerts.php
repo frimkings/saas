@@ -188,6 +188,7 @@ class OwnerAlerts
         $local = ($now ?? now())->copy()->setTimezone($this->timezone($clinic));
         $found = 0;
         \App\Support\Tenancy\ActAsClinic::eachBranch($clinic, function (Branch $branch) use ($clinic, $local, &$found) {
+            if (! LicenseService::has(\App\Support\Feature::ATTENDANCE)) return;
             foreach (\App\Models\AttendanceDevice::silent($local) as $device) {
                 $last = $device->last_seen_at->copy()->setTimezone($local->getTimezone());
                 $this->notice($clinic, 'attendance_terminal_silent', "terminal:{$device->id}:" . $last->format('YmdHi'),

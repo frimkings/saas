@@ -15,12 +15,48 @@ class ClinicNavigation
 {
     public static function menu(string $name): array
     {
+        if (OpticalMode::attendanceOnly()) {
+            return self::attendanceOnly();
+        }
+
         return match ($name) {
             'reception' => self::reception(),
             'doctor' => self::doctor(),
             'admin' => self::admin(),
             default => [],
         };
+    }
+
+    /** A subscriber with staff attendance and nothing else: managers run it, staff see their own. */
+    public static function attendanceOnly(): array
+    {
+        $user = auth()->user();
+        $superAdmin = (bool) $user?->hasRole('Super Admin');
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
+        if (! $user?->hasAnyRole(['Super Admin', 'Manager'])) {
+            return [
+                ['label' => 'My attendance', 'route' => 'user.profile', 'icon' => 'fa-user-clock'],
+                ['label' => 'Messages', 'route' => 'staff.messages', 'icon' => 'fa-envelope'],
+            ];
+        }
+
+        return self::visible([
+            ['label' => 'Attendance', 'route' => 'admin.attendance', 'icon' => 'fa-user-clock', 'active' => 'admin.attendance*'],
+            ['label' => 'My profile', 'route' => 'user.profile', 'icon' => 'fa-user'],
+            ['label' => 'Messages', 'route' => 'staff.messages', 'icon' => 'fa-envelope'],
+            ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
+                ['label' => 'Users', 'route' => 'admin.users', 'show' => $superAdmin || (bool) $user->can('manage users')],
+                ['label' => 'Login History', 'route' => 'admin.login-history', 'show' => $has(Feature::AUDIT_TRAIL)],
+                ['label' => 'Audit Trail', 'route' => 'admin.audit-trail', 'show' => $has(Feature::AUDIT_TRAIL)],
+            ]],
+            ['label' => 'System', 'icon' => 'fa-cog', 'show' => $superAdmin, 'items' => [
+                ['label' => 'Settings', 'route' => 'admin.settings', 'activePath' => 'admin/settings*'],
+                ['label' => 'Branches', 'route' => 'admin.branches', 'activePath' => 'admin/branches*'],
+                ['label' => 'License & Subscription', 'route' => 'admin.license'],
+                ['label' => 'Subscription & Billing', 'route' => 'admin.subscription', 'activePath' => 'admin/subscription*',
+                    'show' => app(\App\Services\ClinicAccessService::class)->hosted()],
+            ]],
+        ]);
     }
 
     /** Reception and cashier desk. */
@@ -155,7 +191,7 @@ class ClinicNavigation
             $menu[] = ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
                 ['label' => 'Users', 'route' => 'admin.users', 'show' => $superAdmin],
                 ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $superAdmin],
-                ['label' => 'Attendance', 'route' => 'admin.attendance'],
+                ['label' => 'Attendance', 'route' => 'admin.attendance', 'active' => 'admin.attendance*', 'show' => \App\Services\LicenseService::has(Feature::ATTENDANCE)],
                 ['label' => 'Login History', 'route' => 'admin.login-history'],
                 ['label' => 'Audit Trail', 'route' => 'admin.audit-trail'],
             ]];

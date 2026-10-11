@@ -22,8 +22,13 @@ class EnforceSubscriptionWriteAccess
                     str_starts_with($name, 'doctor.') || str_starts_with($name, 'secretary.')
                     || str_starts_with($name, 'cashier.') || str_starts_with($name, 'cart.')
                 )) abort(403, 'Clinical workflows are not included in this subscription.');
+                if (\App\Support\OpticalMode::attendanceOnly() && \Illuminate\Support\Str::startsWith($name, ['doctor.', 'secretary.', 'cashier.', 'cart.', 'optical.', 'pos-', 'reports-'])) {
+                    abort(403, 'This subscription covers staff attendance only.');
+                }
             }
         }
+        // An attendance-only subscriber has a short list of pages; any other page leads back to their start page.
+        if ($request->isMethodSafe() && ($target = $this->attendanceOnlyTarget($request))) return $target;
         // Optical-only subscribers are sent to the optical page before any plan check on the clinic page.
         if ($request->isMethodSafe() && ($target = RedirectOpticalOnly::targetFor($request))) return new \Illuminate\Http\RedirectResponse($target);
         // A page from the module the plan doesn't include: send the user to their own dashboard.
@@ -36,6 +41,21 @@ class EnforceSubscriptionWriteAccess
         abort_if(!$access['allowed']||$access['read_only'],403,$access['read_only']?'The clinic is in read-only mode until its license or subscription is renewed.':$access['reason']);
         return $next($request);
     }
+    private function attendanceOnlyTarget(Request $request): ?\Illuminate\Http\RedirectResponse
+    {
+        $name = $request->route()?->getName();
+        if (! $name || str_starts_with($name, 'livewire.') || ! \App\Support\OpticalMode::attendanceOnly()) return null;
+        foreach (config('subscriptions.attendance_only_routes', []) as $route) {
+            if ($request->routeIs($route, $route.'.*')) return null;
+        }
+        $url = app(\App\Support\Tenancy\RoleDashboardResolver::class)->url($request->user());
+        if (rtrim($url, '/') === rtrim($request->url(), '/')) return null;
+        // Landing on an old start page (a bookmark, a remembered workspace) needs no telling-off.
+        if (! str_ends_with($name, '.dashboard')) session()->flash('product_notice', 'That page is not part of your attendance subscription.');
+
+        return new \Illuminate\Http\RedirectResponse($url);
+    }
+
     private function otherProductTarget(Request $request, \App\Services\ClinicAccessService $service): ?\Illuminate\Http\RedirectResponse
     {
         $clinicalRoute = collect(config('subscriptions.route_features', []))

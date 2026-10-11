@@ -16,7 +16,7 @@ class IssueOfflineLicense extends Command
             'plan' => $this->option('plan'), 'features' => $this->option('feature'),
         ], ['installation' => 'required|uuid', 'expires' => 'required|date_format:Y-m-d|after_or_equal:today',
             'plan' => 'required|string|max:100', 'features' => 'array',
-            'features.*' => ['string', \Illuminate\Validation\Rule::in(array_merge(['*'], \App\Support\PlanProduct::PRODUCT_KEYS, config('license.pro_features', [])))]]);
+            'features.*' => ['string', \Illuminate\Validation\Rule::in(array_merge(['*', \App\Support\Feature::ATTENDANCE], \App\Support\PlanProduct::PRODUCT_KEYS, config('license.pro_features', [])))]]);
         if ($data->fails()) {
             $this->error($data->errors()->first());
             return self::FAILURE;
