@@ -60,7 +60,7 @@ class OwnerSummaryService
     /** Build and send one summary. Also used to send a sample on demand. */
     public function send(Clinic $clinic, string $period, Carbon $from, Carbon $to, ?string $key = null): string
     {
-        $subject = self::title($period) . ' - ' . $clinic->name . ' - ' . self::periodLabel($period, $from, $to);
+        $subject = self::title($period, \App\Support\OpticalMode::attendanceOnly($clinic)) . ' - ' . $clinic->name . ' - ' . self::periodLabel($period, $from, $to);
 
         return $this->mailer->send($clinic, 'summary_' . $period, $key ?? "summary:{$period}:{$from->toDateString()}", $subject,
             fn () => new OwnerSummaryMail($this->build($clinic, $period, $from, $to)));
@@ -79,9 +79,9 @@ class OwnerSummaryService
         };
     }
 
-    public static function title(string $period): string
+    public static function title(string $period, bool $attendanceOnly = false): string
     {
-        return ucfirst($period) . ' summary';
+        return ucfirst($period) . ($attendanceOnly ? ' attendance summary' : ' summary');
     }
 
     public static function periodLabel(string $period, Carbon $from, Carbon $to): string
@@ -111,17 +111,20 @@ class OwnerSummaryService
             $rows[$branch->name] = $this->figures($from, $to, $clinical, $optical, true, $longView);
             $before[] = $this->figures($prevFrom, $prevTo, $clinical, $optical, false, false);
             // Branches with an attendance terminal: who was late, absent or on leave over the same days.
-            if ($block = app(\App\Services\Attendance\AttendanceDigest::class)->block($period, $from, $to, $prevFrom, $prevTo)) {
+            if (LicenseService::has(Feature::ATTENDANCE) && $block = app(\App\Services\Attendance\AttendanceDigest::class)->block($period, $from, $to, $prevFrom, $prevTo)) {
                 $attendance[$branch->name] = $block;
             }
         });
 
         $total = $this->sum($rows);
         $previous = $this->sum($before);
+        // A subscriber with attendance and nothing else gets the attendance part alone, with no sales figures.
+        $attendanceOnly = \App\Support\OpticalMode::attendanceOnly($clinic);
 
         return [
             'clinic' => $clinic->name,
-            'title' => self::title($period),
+            'title' => self::title($period, $attendanceOnly),
+            'attendanceOnly' => $attendanceOnly,
             'period' => $period,
             'label' => self::periodLabel($period, $from, $to),
             'currency' => $clinic->default_currency ?: currency(),
@@ -136,7 +139,7 @@ class OwnerSummaryService
             'branches' => count($rows) > 1 ? $rows : [],
             'attendance' => $attendance,
             'attendanceUrl' => route('admin.attendance'),
-            'url' => $total['hasClinic'] ? route('admin.reports') : route('optical.reports'),
+            'url' => $attendanceOnly ? route('admin.attendance') : ($total['hasClinic'] ? route('admin.reports') : route('optical.reports')),
         ];
     }
 

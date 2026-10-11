@@ -26,4 +26,9 @@ class Feature
     const MONTHLY_SUMMARY      = 'owner_monthly_summary';
     // Morning email to the owner: low stock, expiring stock, bills due, late lab jobs (App\Services\OwnerAlertDigestService).
     const MORNING_ALERTS       = 'owner_morning_alerts';
+    // Staff attendance from a terminal: an extra on a clinic or optical plan, and what the
+    // "Attendance only" product is made of (App\Support\PlanProduct).
+    const ATTENDANCE           = 'attendance';
+    // Marks a plan that is attendance and nothing else: no clinic, no optical shop.
+    const ATTENDANCE_ONLY      = 'attendance_only';
 }

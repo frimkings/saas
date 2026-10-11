@@ -11,6 +11,8 @@ class NavigationWorkspace
 {
     public static function available(User $user): array
     {
+        // One set of pages, so nothing to switch between.
+        if (OpticalMode::attendanceOnly()) return [];
         $workspaces = [];
         $manager = $user->hasAnyRole(['Manager', 'Super Admin']);
         if ($manager) {

@@ -119,6 +119,7 @@ class UserProfileComponent extends Component
     /** Ask for time off: whole days, a morning, an afternoon or a few hours. A manager answers it. */
     public function requestLeave(\App\Services\OwnerAlerts $alerts): void
     {
+        abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE), 403);
         $staff = \App\Models\AttendanceStaff::query()->where('user_id', Auth::id())->where('is_tracked', true)->firstOrFail();
         $part = $this->leaveKind !== 'days';
         $this->validate([
@@ -184,7 +185,8 @@ class UserProfileComponent extends Component
         $lastLogin    = $allLoginLogs->skip(1)->first();
         $accountAge  = (int) $user->created_at->diffInDays(now()); // Carbon 3 returns a fraction
         // Linked to someone on this branch's attendance terminal: they can see their own month.
-        $onTerminal = \App\Models\AttendanceStaff::query()->where('user_id', $user->id)->where('is_tracked', true)->first();
+        $onTerminal = \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE)
+            ? \App\Models\AttendanceStaff::query()->where('user_id', $user->id)->where('is_tracked', true)->first() : null;
         $mine = null;
         if ($onTerminal && $this->activeTab === 'attendance') {
             $latest = \App\Models\AttendanceImport::query()->latest('id')->value('period_start');

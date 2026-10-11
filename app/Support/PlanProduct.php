@@ -3,32 +3,53 @@
 namespace App\Support;
 
 /**
- * What a subscription plan covers: the clinic, the optical shop, or both, plus the
- * extra features on top. Stored as feature keys on the plan and its subscriptions:
+ * What a subscription plan covers: the clinic, the optical shop, both, or staff attendance
+ * on its own, plus the extra features on top. Stored as feature keys on the plan and its
+ * subscriptions:
  *
  *   ['clinical', 'optical', 'sms_campaigns', ...]  product keys + chosen extras
  *   ['optical', '*']                               optical shop with every extra
+ *   ['attendance_only', 'attendance', ...]         attendance and nothing else
  *   [] or ['*'] (no product key)                   legacy "everything" plans
  *
  * '*' only ever means "every extra feature"; it never adds a product the plan doesn't name.
+ * Attendance is an extra for clinics and optical shops, and the whole of the attendance-only
+ * product, which can only take the extras in ATTENDANCE_EXTRAS.
  */
 class PlanProduct
 {
     public const CLINIC = 'clinic';
     public const OPTICAL = 'optical';
     public const BOTH = 'both';
+    public const ATTENDANCE = 'attendance';
 
     public const PRODUCTS = [
         self::CLINIC => 'Clinic',
         self::OPTICAL => 'Optical shop',
         self::BOTH => 'Clinic + Optical',
+        self::ATTENDANCE => 'Attendance only',
+    ];
+
+    /** What each product is, for the screens where one is picked. */
+    public const DESCRIPTIONS = [
+        self::CLINIC => 'Patients, consultations, cashier, clinic inventory',
+        self::OPTICAL => 'Optical orders, lab, POS, optical stock, partner clinics',
+        self::BOTH => 'Everything in both modules',
+        self::ATTENDANCE => 'Staff attendance from a terminal, leave and reports; no clinic or shop',
     ];
 
     /** Feature keys that decide the product. */
-    public const PRODUCT_KEYS = [Feature::CLINICAL, Feature::OPTICAL];
+    public const PRODUCT_KEYS = [Feature::CLINICAL, Feature::OPTICAL, Feature::ATTENDANCE_ONLY];
+
+    /** The only extras that mean anything to an attendance-only subscriber. */
+    public const ATTENDANCE_EXTRAS = [
+        Feature::AUDIT_TRAIL, Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY,
+        Feature::MANUAL_BACKUP, Feature::SCHEDULED_BACKUPS, Feature::UNLIMITED_USERS,
+    ];
 
     /** Optional extras, with the product they belong to (null = either). */
     public const EXTRAS = [
+        Feature::ATTENDANCE => ['Staff attendance (terminal, leave, reports)', null],
         Feature::SMS_CAMPAIGNS => ['SMS reminders & campaigns', null],
         Feature::APPROVALS => ['Approval workflows', null],
         Feature::AUDIT_TRAIL => ['Audit trail & login history', null],
@@ -54,14 +75,28 @@ class PlanProduct
         return match ($product) {
             self::CLINIC => [Feature::CLINICAL],
             self::OPTICAL => [Feature::OPTICAL],
+            self::ATTENDANCE => [Feature::ATTENDANCE_ONLY, Feature::ATTENDANCE],
             default => [Feature::CLINICAL, Feature::OPTICAL],
         };
+    }
+
+    /** The extras a product can be given: [key => label]. Attendance itself is the whole of the attendance-only product. */
+    public static function extrasFor(string $product): array
+    {
+        return collect(self::EXTRAS)
+            ->filter(fn ($extra, $key) => match ($product) {
+                self::ATTENDANCE => in_array($key, self::ATTENDANCE_EXTRAS, true),
+                self::OPTICAL => $extra[1] !== self::CLINIC,
+                default => true,
+            })
+            ->map(fn ($extra) => $extra[0])->all();
     }
 
     /** The feature list to store for a product and its extras. */
     public static function features(string $product, array $extras, bool $allExtras = false): array
     {
-        $extras = array_values(array_intersect(array_keys(self::EXTRAS), $extras));
+        // Only the attendance product narrows the list here; the screens leave clinic-only extras off an optical plan.
+        $extras = array_values(array_intersect(array_keys($product === self::ATTENDANCE ? self::extrasFor($product) : self::EXTRAS), $extras));
         return array_values(array_unique(array_merge(self::keys($product), $allExtras ? ['*'] : $extras)));
     }
 
@@ -77,6 +112,7 @@ class PlanProduct
         if (! self::isProductAware($features)) return self::BOTH;
         $clinic = in_array(Feature::CLINICAL, $features, true);
         $optical = in_array(Feature::OPTICAL, $features, true);
+        if (! $clinic && ! $optical) return self::ATTENDANCE;
         return $clinic && $optical ? self::BOTH : ($optical ? self::OPTICAL : self::CLINIC);
     }
 
@@ -91,13 +127,19 @@ class PlanProduct
         if (empty($features)) return true;
         if (! self::isProductAware($features)) return in_array('*', $features, true) || in_array($feature, $features, true);
         if (in_array($feature, self::PRODUCT_KEYS, true)) return in_array($feature, $features, true);
+        if (self::productOf($features) === self::ATTENDANCE) {
+            // Attendance and its own short list of extras; nothing from the clinic or the shop.
+            if ($feature === Feature::ATTENDANCE) return true;
+            if (! in_array($feature, self::ATTENDANCE_EXTRAS, true)) return false;
+        }
         return in_array('*', $features, true) || in_array($feature, $features, true);
     }
 
     /** The extras a list includes ('*' = all of them). */
     public static function extrasOf(?array $features): array
     {
-        if (empty($features) || in_array('*', $features, true)) return array_keys(self::EXTRAS);
-        return array_values(array_intersect(array_keys(self::EXTRAS), $features));
+        $possible = array_keys(self::isProductAware($features) ? self::extrasFor(self::productOf($features)) : self::EXTRAS);
+        if (empty($features) || in_array('*', $features, true)) return $possible;
+        return array_values(array_intersect($possible, $features));
     }
 }

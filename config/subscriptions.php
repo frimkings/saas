@@ -20,6 +20,16 @@ return [
         'reports',
     ],
 
+    // The only pages an attendance-only subscriber can open (route names, with their sub-routes).
+    // Anything else sends them back to their own start page.
+    'attendance_only_routes' => [
+        'admin.attendance', 'user.profile', 'staff.messages', 'dashboard',
+        'admin.users', 'admin.login-history', 'admin.audit-trail',
+        'admin.settings', 'admin.branches', 'admin.license', 'admin.subscription',
+        'admin.backups', 'admin.backup.download',
+        'subscription.locked', 'navigation.workspace', 'announcements.dismiss', 'pulse',
+    ],
+
     // Server-side route prefixes close direct-URL gaps even if navigation is hidden.
     'route_features' => [
         'doctor' => 'clinical',
@@ -46,6 +56,7 @@ return [
         'admin.suppliers' => 'inventory',
         'admin.income-statement' => 'advanced_reports',
         'admin.lens-outstanding-report' => 'spectacles_pro',
+        'admin.attendance' => 'attendance',
         'admin.audit-trail' => 'audit_trail',
         'admin.login-history' => 'audit_trail',
         'admin.expenses' => 'expense_tracking',

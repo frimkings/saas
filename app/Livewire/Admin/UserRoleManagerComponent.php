@@ -199,7 +199,11 @@ class UserRoleManagerComponent extends Component
 
         $allRoles = Role::where('name', 'like', '%' . $this->roleSearch . '%')->get();
         // Only Super Admins can hand out the Super Admin role.
-        $availableRoles = Role::query()->when(! $this->actsAsSuperAdmin(), fn ($query) => $query->where('name', '!=', 'Super Admin'))->orderBy('name')->get();
+        // An attendance-only subscriber has no clinic or shop jobs: people are plain Staff, or they manage.
+        $attendanceOnly = \App\Support\OpticalMode::attendanceOnly();
+        if ($attendanceOnly) Role::firstOrCreate(['name' => 'Staff', 'guard_name' => 'web']);
+        $availableRoles = Role::query()->when(! $this->actsAsSuperAdmin(), fn ($query) => $query->where('name', '!=', 'Super Admin'))
+            ->when($attendanceOnly, fn ($query) => $query->whereIn('name', ['Staff', 'Manager', 'Super Admin']))->orderBy('name')->get();
 
         $clinicUsers = User::query()->whereHas('clinics', fn ($query) => $query->whereKey($clinic->id)->whereIn('clinic_user.status', self::CURRENT_MEMBER_STATUSES));
         $memberships = DB::table('clinic_user')->where('clinic_id', $clinic->id);

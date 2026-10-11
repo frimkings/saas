@@ -43,7 +43,7 @@ class OfflineLicenseComponent extends Component
     private function premiumFeaturesFor(string $product): array
     {
         return array_values(array_filter(config('license.pro_features', []),
-            fn ($f) => ! ($product === \App\Support\PlanProduct::OPTICAL && (\App\Support\PlanProduct::EXTRAS[$f][1] ?? null) === \App\Support\PlanProduct::CLINIC)));
+            fn ($f) => ! isset(\App\Support\PlanProduct::EXTRAS[$f]) || isset(\App\Support\PlanProduct::extrasFor($product)[$f])));
     }
 
     public function issue(): void

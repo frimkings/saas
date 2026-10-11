@@ -183,7 +183,7 @@ class OwnerAlertDigestService
                             "Ready for {$days} days" . ($balance > 0 ? ' · ' . $money($balance) . ' still to pay' : ''));
                     });
             }
-            $this->addAttendance($add);
+            if (LicenseService::has(Feature::ATTENDANCE)) $this->addAttendance($add);
         });
 
         return $items;

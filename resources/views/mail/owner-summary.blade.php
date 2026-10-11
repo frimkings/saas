@@ -26,6 +26,16 @@
     </td>
   </tr>
 
+  @if(! empty($s['attendanceOnly']))
+    @if(empty($s['attendance']))
+    <tr>
+      <td style="padding:26px 28px 6px">
+        <p style="margin:0;font-size:15px;line-height:1.6">There is no attendance to report for {{ $s['label'] }}.</p>
+        <p style="margin:8px 0 0;font-size:13px;color:#667085">If staff were at work, check that the attendance terminal is connected.</p>
+      </td>
+    </tr>
+    @endif
+  @else
   @if($quiet)
   <tr>
     <td style="padding:26px 28px 6px">
@@ -161,18 +171,20 @@
   </tr>
   @endif
 
+  @endif
+
   @if(! empty($s['attendance']))
     @include('mail.partials.owner-attendance', ['blocks' => $s['attendance'], 'url' => $s['attendanceUrl'], 'compareWith' => $s['compareWith']])
   @endif
 
   <tr>
     <td style="padding:22px 28px 26px">
-      <a href="{{ $s['url'] }}" style="display:inline-block;background:#1688c4;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:bold">Open full reports</a>
+      <a href="{{ $s['url'] }}" style="display:inline-block;background:#1688c4;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:bold">{{ empty($s['attendanceOnly']) ? 'Open full reports' : 'Open attendance' }}</a>
     </td>
   </tr>
   <tr>
     <td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #eef0f3;font-size:12px;color:#98a2b3;line-height:1.5">
-      Sales count when made; money counts when received. Sent to the clinic owner by {{ config('mail.from.name') }}; change the owner email under Subscription &rarr; Billing profile.
+      {{ empty($s['attendanceOnly']) ? 'Sales count when made; money counts when received. ' : '' }}Sent to the owner by {{ config('mail.from.name') }}; change the owner email under Subscription &rarr; Billing profile.
     </td>
   </tr>
 </table>

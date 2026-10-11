@@ -15,7 +15,7 @@
                 @foreach(\App\Support\PlanProduct::PRODUCTS as $key => $label)
                     <label style="display:flex;flex-direction:column;gap:3px;border:1px solid {{ $product === $key ? '#38bdf8' : '#273750' }};border-radius:10px;padding:10px 12px;cursor:pointer;background:#0b1526">
                         <span><input type="radio" wire:model.live="product" value="{{ $key }}"> <b>{{ $label }}</b></span>
-                        <small class="pa-muted">{{ ['clinic' => 'Patients, consultations, cashier, clinic stock', 'optical' => 'Optical orders, lab, POS and optical stock only', 'both' => 'Everything in both modules'][$key] }}</small>
+                        <small class="pa-muted">{{ \App\Support\PlanProduct::DESCRIPTIONS[$key] ?? '' }}</small>
                     </label>
                 @endforeach
             </div>
