@@ -1,0 +1,249 @@
+<?php
+
+namespace App\Services\Attendance;
+
+use App\Models\AttendanceDevice;
+use App\Models\AttendanceHoliday;
+use App\Models\AttendanceImport;
+use App\Models\AttendanceLeave;
+use App\Models\AttendancePunch;
+use App\Models\AttendanceSetting;
+use App\Models\AttendanceStaff;
+use Carbon\CarbonImmutable;
+
+/**
+ * Works out a month of attendance for the current branch from its punches and working hours.
+ * The first punch of a day is the arrival and the last the departure. A day is only judged when
+ * an uploaded report or a connected terminal covers it: later days are unknown, not absences, and
+ * the latest day heard of is still in progress, so nobody is absent or gone early on it yet. Holidays and leave are
+ * days off for those they cover; staff with hours of their own are judged against those.
+ */
+class AttendanceAnalyzer
+{
+    public const STATUSES = [
+        'on_time' => 'On time',
+        'late' => 'Late',
+        'absent' => 'Absent',
+        'off' => 'Day off',
+        'holiday' => 'Holiday',
+        'leave' => 'On leave',
+        'worked_off' => 'Worked on a day off',
+        'none' => 'No data',
+    ];
+
+    public function month(CarbonImmutable $month): array
+    {
+        $first = $month->startOfMonth();
+        $last = $month->endOfMonth()->startOfDay();
+        $settings = AttendanceSetting::current();
+
+        $days = [];
+        for ($day = $first; $day->lte($last); $day = $day->addDay()) {
+            $days[$day->format('Y-m-d')] = $day;
+        }
+        $coverage = $this->coverage($first, $last);
+        // Attendance is counted from the first day anyone punched at this branch.
+        $firstPunch = AttendancePunch::query()->min('punched_at');
+        $countFrom = $firstPunch ? CarbonImmutable::parse($firstPunch)->format('Y-m-d') : null;
+
+        $punches = [];
+        AttendancePunch::query()
+            ->whereBetween('punched_at', [$first->format('Y-m-d 00:00:00'), $last->format('Y-m-d 23:59:59')])
+            ->orderBy('punched_at')->toBase()->get(['attendance_staff_id', 'punched_at'])
+            ->each(function ($punch) use (&$punches) {
+                $punches[$punch->attendance_staff_id][substr($punch->punched_at, 0, 10)][] = substr($punch->punched_at, 11, 5);
+            });
+
+        $holidays = AttendanceHoliday::query()
+            ->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->orderBy('date')->get()
+            ->mapWithKeys(fn ($holiday) => [$holiday->date->format('Y-m-d') => $holiday->name])->all();
+        $leave = [];
+        AttendanceLeave::query()
+            ->where('starts_on', '<=', $last->format('Y-m-d'))->where('ends_on', '>=', $first->format('Y-m-d'))->get()
+            ->each(function ($entry) use (&$leave, $days) {
+                foreach ($days as $key => $day) {
+                    if ($key >= $entry->starts_on->format('Y-m-d') && $key <= $entry->ends_on->format('Y-m-d')) {
+                        $leave[$entry->attendance_staff_id][$key] = AttendanceLeave::TYPES[$entry->type] ?? 'Leave';
+                    }
+                }
+            });
+
+        $rows = [];
+        foreach (AttendanceStaff::query()->orderByDesc('is_tracked')->orderBy('name')->get() as $staff) {
+            $staffDays = [];
+            $from = max($countFrom ?? '9999-12-31', $staff->starts_on?->format('Y-m-d') ?? '');
+            foreach ($days as $key => $day) {
+                $state = $key < $from ? null : ($coverage[$key] ?? null);
+                $hours = $staff->hours ? AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
+                $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
+                $staffDays[$key] = $this->day($punches[$staff->id][$key] ?? [], $hours, $settings->grace_minutes, $state, $excused)
+                    + ['note' => $holidays[$key] ?? $leave[$staff->id][$key] ?? null];
+            }
+            $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
+        }
+
+        $tracked = array_filter($rows, fn ($row) => $row['staff']->is_tracked);
+        $sum = fn (string $key) => array_sum(array_map(fn ($row) => $row['totals'][$key], $tracked));
+        $coveredDays = array_keys($coverage);
+
+        return [
+            'days' => $days,
+            'coverage' => $coverage,
+            'covered_until' => $coveredDays ? max($coveredDays) : null,
+            'settings' => $settings,
+            'holidays' => $holidays,
+            'rows' => $rows,
+            'totals' => [
+                'staff' => count($tracked),
+                'late' => $sum('late'),
+                'absent' => $sum('absent'),
+                'leave' => $sum('leave'),
+                'present' => $sum('present'),
+                'expected' => $sum('expected'),
+            ],
+        ];
+    }
+
+    /** ['Y-m-d' => 'complete' | 'partial'] for the days of the range some uploaded report covers. */
+    private function coverage(CarbonImmutable $first, CarbonImmutable $last): array
+    {
+        $coverage = [];
+        $imports = AttendanceImport::query()
+            ->where('period_start', '<=', $last->format('Y-m-d'))
+            ->where('period_end', '>=', $first->format('Y-m-d'))
+            ->get(['period_start', 'period_end', 'exported_at']);
+
+        foreach ($imports as $import) {
+            $exported = $import->exported_at->format('Y-m-d');
+            $from = max($first->format('Y-m-d'), $import->period_start->format('Y-m-d'));
+            $to = min($last->format('Y-m-d'), $import->period_end->format('Y-m-d'), $exported);
+            for ($day = CarbonImmutable::parse($from); $day->format('Y-m-d') <= $to; $day = $day->addDay()) {
+                $key = $day->format('Y-m-d');
+                if ($key < $exported) {
+                    $coverage[$key] = 'complete';
+                } else {
+                    $coverage[$key] ??= 'partial';
+                }
+            }
+        }
+        // A connected terminal accounts for every day from its first event to its latest.
+        $devices = AttendanceDevice::query()->whereNotNull('first_event_at')->whereNotNull('last_event_at')->get(['first_event_at', 'last_event_at']);
+        foreach ($devices as $device) {
+            $latest = $device->last_event_at->format('Y-m-d');
+            $from = max($first->format('Y-m-d'), $device->first_event_at->format('Y-m-d'));
+            $to = min($last->format('Y-m-d'), $latest);
+            for ($day = CarbonImmutable::parse($from); $day->format('Y-m-d') <= $to; $day = $day->addDay()) {
+                $key = $day->format('Y-m-d');
+                if ($key < $latest) {
+                    $coverage[$key] = 'complete';
+                } else {
+                    $coverage[$key] ??= 'partial';
+                }
+            }
+        }
+        ksort($coverage);
+
+        return $coverage;
+    }
+
+    /**
+     * One person's day. $times are that day's punches as 'HH:MM', in order; $hours the working
+     * hours or null on a day off; $state 'complete', 'partial' or null when the day is not covered;
+     * $excused 'holiday' or 'leave' when a working day is not expected of them.
+     */
+    public function day(array $times, ?array $hours, int $grace, ?string $state, ?string $excused = null): array
+    {
+        $day = ['status' => 'none', 'in' => null, 'out' => null, 'late_minutes' => 0, 'early_minutes' => 0,
+            'left_early' => false, 'no_clock_out' => false, 'minutes_worked' => null, 'in_progress' => $state === 'partial'];
+        if ($state === null) {
+            return $day;
+        }
+
+        $times = array_values(array_unique($times));
+        if (! $times) {
+            // On the day the report was made, someone not in yet may still come.
+            $day['status'] = ! $hours ? 'off' : ($excused ?? ($state === 'complete' ? 'absent' : 'none'));
+
+            return $day;
+        }
+
+        $day['in'] = $times[0];
+        $day['out'] = count($times) > 1 ? end($times) : null;
+        $in = $this->minutes($day['in']);
+        $out = $day['out'] ? $this->minutes($day['out']) : null;
+        $day['minutes_worked'] = $out !== null ? $out - $in : null;
+        if (! $hours || $excused) {
+            $day['status'] = 'worked_off';
+
+            return $day;
+        }
+
+        $start = $this->minutes($hours['start']);
+        $late = $in > $start + $grace;
+        $day['status'] = $late ? 'late' : 'on_time';
+        $day['late_minutes'] = $late ? $in - $start : 0;
+        if ($state === 'complete') {
+            $day['no_clock_out'] = $out === null;
+            $end = $this->minutes($hours['end']);
+            if ($out !== null && $out < $end) {
+                $day['left_early'] = true;
+                $day['early_minutes'] = $end - $out;
+            }
+        }
+
+        return $day;
+    }
+
+    private function totals(array $days): array
+    {
+        $totals = ['on_time' => 0, 'late' => 0, 'absent' => 0, 'leave' => 0, 'holiday' => 0, 'worked_off' => 0, 'late_minutes' => 0,
+            'left_early' => 0, 'no_clock_out' => 0, 'minutes_worked' => 0];
+        $arrivals = [];
+        foreach ($days as $day) {
+            if (isset($totals[$day['status']])) {
+                $totals[$day['status']]++;
+            }
+            $totals['late_minutes'] += $day['late_minutes'];
+            $totals['left_early'] += (int) $day['left_early'];
+            $totals['no_clock_out'] += (int) $day['no_clock_out'];
+            $totals['minutes_worked'] += (int) $day['minutes_worked'];
+            if (in_array($day['status'], ['on_time', 'late'], true)) {
+                $arrivals[] = $this->minutes($day['in']);
+            }
+        }
+        $totals['present'] = $totals['on_time'] + $totals['late'];
+        // Working days that have been judged: the days this person was expected in.
+        $totals['expected'] = $totals['present'] + $totals['absent'];
+        $totals['average_arrival'] = $arrivals ? self::clock((int) round(array_sum($arrivals) / count($arrivals))) : null;
+
+        return $totals;
+    }
+
+    private function minutes(string $time): int
+    {
+        return (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
+    }
+
+    /** 485 -> '08:05'. */
+    public static function clock(int $minutes): string
+    {
+        return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+    }
+
+    /** '17:05' -> '5:05 PM', for showing; times are kept as 24-hour 'HH:MM'. */
+    public static function time(?string $time): ?string
+    {
+        if (! $time) {
+            return null;
+        }
+        $hour = (int) substr($time, 0, 2);
+
+        return sprintf('%d:%s %s', $hour % 12 ?: 12, substr($time, 3, 2), $hour < 12 ? 'AM' : 'PM');
+    }
+
+    /** 135 -> '2h 15m', 40 -> '40m'. */
+    public static function duration(int $minutes): string
+    {
+        return $minutes >= 60 ? intdiv($minutes, 60).'h '.($minutes % 60).'m' : $minutes.'m';
+    }
+}

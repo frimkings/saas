@@ -354,6 +354,10 @@ Route::get('/admin/insurance/claims', \App\Livewire\Admin\InsuranceClaimsCompone
 Route::get('/admin/insurance/insurers', \App\Livewire\Admin\InsurersComponent::class)->name('admin.insurance.insurers');
 Route::get('/admin/insurance/receivables', \App\Livewire\Admin\InsurerReceivablesComponent::class)->name('admin.insurance.receivables');
 
+// Staff attendance from the terminal's monthly report
+Route::get('/admin/attendance', \App\Livewire\Admin\AttendanceComponent::class)->name('admin.attendance');
+Route::get('/admin/attendance/export/{format}', \App\Http\Controllers\AttendanceExportController::class)->whereIn('format', ['csv', 'pdf'])->name('admin.attendance.export');
+
 // Patient Recall dashboard
 Route::get('/admin/patient-recall', \App\Livewire\Admin\PatientRecallComponent::class)->name('admin.patient-recall')->middleware('feature:sms_campaigns');
 

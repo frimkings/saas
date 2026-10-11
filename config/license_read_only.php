@@ -7,6 +7,9 @@ return [
     'admin.income-statement-component' => [
         'fields' => ['fromDate', 'toDate', 'section', 'selectedPreset'], 'methods' => ['setThisMonth', 'setLastMonth'],
     ],
+    'admin.attendance-component' => [
+        'fields' => ['month', 'view', 'show', 'showStaff'], 'methods' => ['shiftMonth', 'openStaff'],
+    ],
     'admin.daily-cash-summary-component' => [
         'fields' => ['reportDate', 'line'], 'methods' => ['print'],
     ],

@@ -1,0 +1,407 @@
+@php
+    use App\Services\Attendance\AttendanceAnalyzer;
+
+    $tone = [
+        'on_time' => 'bg-emerald-50 text-emerald-800',
+        'late' => 'bg-amber-100 text-amber-900',
+        'absent' => 'bg-red-100 text-red-800',
+        'off' => 'bg-slate-100 text-slate-400',
+        'holiday' => 'bg-violet-100 text-violet-800',
+        'leave' => 'bg-indigo-100 text-indigo-800',
+        'worked_off' => 'bg-sky-50 text-sky-800',
+        'none' => 'text-slate-300',
+    ];
+    $totals = $report['totals'];
+    $coveredUntil = $report['covered_until'] ? \Carbon\CarbonImmutable::parse($report['covered_until']) : null;
+    $settings = $report['settings'];
+@endphp
+<div class="clinic-ui ui-page">
+    <div class="w-full">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h1 class="!mb-0 text-xl font-semibold text-slate-900">Attendance</h1>
+                <p class="!mb-0 text-sm text-slate-500">Who was on time, late or absent, from the attendance terminal's monthly report.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="ui-button ui-button-secondary" wire:click="editHours"><i class="fas fa-clock" aria-hidden="true"></i>Working hours</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showHolidays', true)"><i class="fas fa-calendar-day" aria-hidden="true"></i>Holidays</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showDevices', true)"><i class="fas fa-fingerprint" aria-hidden="true"></i>Terminals</button>
+                <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
+            </div>
+        </div>
+
+        @if(! $hasData)
+            <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+                <p class="!mb-1 text-base font-semibold text-slate-800">No attendance uploaded yet</p>
+                <p class="!mb-4 text-sm text-slate-500">Connect the terminal under <strong>Terminals</strong> so punches arrive by themselves, or export its <strong>Attendance Record</strong> report for the month to a USB drive and upload the .xls file here.</p>
+                <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
+            </div>
+        @else
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1.5" wire:click="shiftMonth(-1)" aria-label="Previous month"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+                    <input type="month" class="ui-input !w-44 !py-1.5 !text-sm" wire:model.live="month" aria-label="Month">
+                    <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1.5" wire:click="shiftMonth(1)" aria-label="Next month"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
+                        <option value="all">Everyone</option>
+                        <option value="late">Late at least once</option>
+                        <option value="absent">Absent at least once</option>
+                    </select>
+                    <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="View">
+                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day'] as $key => $label)
+                            <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
+                        @endforeach
+                    </div>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'month' => $monthStart->format('Y-m')]) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'month' => $monthStart->format('Y-m')]) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
+                </div>
+            </div>
+
+            @if(! $coveredUntil)
+                <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    Nothing has been received for {{ $monthStart->format('F Y') }}, so nobody is marked late or absent in it.
+                </div>
+            @else
+                <div class="ui-stats ui-stats--inline">
+                    <x-ui.stat label="Staff followed" :value="$totals['staff']" />
+                    <x-ui.stat label="Late arrivals" :value="$totals['late']" />
+                    <x-ui.stat label="Absences" :value="$totals['absent']" />
+                    <x-ui.stat label="Days on leave" :value="$totals['leave']" />
+                    <x-ui.stat label="Attendance" :value="$totals['expected'] ? round($totals['present'] / $totals['expected'] * 100).'%' : '–'" />
+                </div>
+                <p class="!mb-3 text-xs text-slate-500">
+                    Recorded up to {{ $coveredUntil->format('D j M Y') }}{{ ($report['coverage'][$report['covered_until']] ?? '') === 'partial' ? ', a day still in progress' : '' }}.
+                    Later days show no data until the terminal sends more or a newer report is uploaded.
+                </p>
+            @endif
+
+            @if($view === 'summary')
+                <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Staff</th>
+                                    <th class="text-right">Present</th>
+                                    <th class="text-right">On time</th>
+                                    <th class="text-right">Late</th>
+                                    <th class="text-right">Time late</th>
+                                    <th class="text-right">Absent</th>
+                                    <th class="text-right">Leave</th>
+                                    <th class="text-right">Left early</th>
+                                    <th class="text-right">No clock-out</th>
+                                    <th class="text-right">Usual arrival</th>
+                                    <th><span class="sr-only">Open</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($rows as $row)
+                                    @php $t = $row['totals']; $staff = $row['staff']; @endphp
+                                    <tr wire:key="summary-{{ $staff->id }}" @class(['opacity-60' => ! $staff->is_tracked])>
+                                        <td>
+                                            <strong>{{ $staff->name }}</strong>
+                                            @unless($staff->is_tracked)<span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Not followed</span>@endunless
+                                            @if($staff->hours)<span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Own hours</span>@endif
+                                            <br><small class="text-slate-500">ID {{ $staff->employee_no }}@if($staff->department) · {{ $staff->department }}@endif</small>
+                                        </td>
+                                        @if($staff->is_tracked)
+                                            <td class="text-right ui-number">{{ $t['present'] }}<span class="text-slate-400"> / {{ $t['expected'] }}</span></td>
+                                            <td class="text-right ui-number">{{ $t['on_time'] }}</td>
+                                            <td class="text-right ui-number">@if($t['late'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['late'] }}</span>@else 0 @endif</td>
+                                            <td class="text-right ui-number">{{ $t['late_minutes'] ? AttendanceAnalyzer::duration($t['late_minutes']) : '–' }}</td>
+                                            <td class="text-right ui-number">@if($t['absent'])<span class="rounded bg-red-100 px-1.5 py-0.5 font-semibold text-red-800">{{ $t['absent'] }}</span>@else 0 @endif</td>
+                                            <td class="text-right ui-number">{{ $t['leave'] }}</td>
+                                            <td class="text-right ui-number">{{ $t['left_early'] }}</td>
+                                            <td class="text-right ui-number">{{ $t['no_clock_out'] }}</td>
+                                            <td class="text-right ui-number">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
+                                        @else
+                                            <td colspan="9" class="text-right text-sm text-slate-400">–</td>
+                                        @endif
+                                        <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="openStaff({{ $staff->id }})">Open</button></td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="11" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @else
+                <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500">
+                                    <th class="sticky left-0 z-10 min-w-[11rem] bg-slate-50 px-3 py-2 text-left font-semibold">Staff</th>
+                                    @foreach($report['days'] as $key => $day)
+                                        <th @class(['px-1 py-1 text-center font-medium', 'text-slate-300' => ! $settings->hoursOn($day->dayOfWeekIso) || isset($report['holidays'][$key])]) title="{{ $report['holidays'][$key] ?? '' }}">
+                                            <span class="block">{{ $day->format('D')[0] }}</span><span class="block text-slate-700">{{ $day->day }}</span>
+                                        </th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($rows as $row)
+                                    @continue(! $row['staff']->is_tracked)
+                                    <tr wire:key="grid-{{ $row['staff']->id }}" class="border-t border-slate-100">
+                                        <th class="sticky left-0 z-10 bg-white px-3 py-1.5 text-left font-medium">
+                                            <button type="button" class="text-left text-slate-800 hover:underline" wire:click="openStaff({{ $row['staff']->id }})">{{ $row['staff']->name }}</button>
+                                        </th>
+                                        @foreach($row['days'] as $key => $day)
+                                            @php
+                                                $title = $report['days'][$key]->format('D j M').': '.AttendanceAnalyzer::STATUSES[$day['status']]
+                                                    .($day['note'] ? ' ('.$day['note'].')' : '')
+                                                    .($day['in'] ? ', in '.AttendanceAnalyzer::time($day['in']) : '').($day['out'] ? ', out '.AttendanceAnalyzer::time($day['out']) : '')
+                                                    .($day['late_minutes'] ? ', '.AttendanceAnalyzer::duration($day['late_minutes']).' late' : '')
+                                                    .($day['left_early'] ? ', left early' : '').($day['no_clock_out'] ? ', no clock-out' : '');
+                                            @endphp
+                                            <td class="p-0.5 text-center">
+                                                <span title="{{ $title }}" @class(['block min-w-[3.6rem] whitespace-nowrap rounded px-1 py-1 tabular-nums', $tone[$day['status']], 'ring-1 ring-inset ring-slate-400' => $day['left_early'] || $day['no_clock_out']])>
+                                                    {{ match($day['status']) { 'absent' => 'Absent', 'holiday' => 'Hol', 'leave' => 'Leave', 'off' => '·', 'none' => '', default => AttendanceAnalyzer::time($day['in']) } }}
+                                                </span>
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="{{ count($report['days']) + 1 }}" class="py-6 text-center text-sm text-slate-500">Nobody matches this filter.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-3 py-2 text-xs text-slate-600">
+                        <span>Each cell shows the arrival time.</span>
+                        @foreach(['on_time' => 'On time', 'late' => 'Late', 'absent' => 'Absent', 'leave' => 'On leave', 'holiday' => 'Holiday', 'worked_off' => 'Worked on a day off', 'off' => 'Day off'] as $key => $label)
+                            <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded {{ $tone[$key] }}"></span>{{ $label }}</span>
+                        @endforeach
+                        <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>Left early or no clock-out</span>
+                    </div>
+                </div>
+            @endif
+
+            <p class="!mb-0 mt-3 text-xs text-slate-500">
+                The first punch of a day counts as arrival and the last as departure. Late means arriving more than {{ $settings->grace_minutes }} minutes after the start of the working day.
+            </p>
+        @endif
+    </div>
+
+    @if($showUpload)
+        <x-ui.modal title="Upload attendance report" state="showUpload">
+            <form wire:submit="importReport" class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">On the terminal, export the <strong>Attendance Record</strong> report for the month to a USB drive, and choose that .xls file here. You can upload the same month again as it fills up; only new punches are added.</p>
+                <div>
+                    <label for="attendance-file" class="mb-1 block text-sm font-medium text-slate-700">Report file (.xls)</label>
+                    <input id="attendance-file" type="file" accept=".xls,application/vnd.ms-excel" wire:model="file" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
+                    <p wire:loading wire:target="file" class="!mb-0 mt-1 text-sm text-slate-500" role="status">Reading the file…</p>
+                    @error('file')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <x-ui.button wire:click="$set('showUpload', false)">Cancel</x-ui.button>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="importReport,file">Upload</x-ui.button>
+                </div>
+                @if($imports->isNotEmpty())
+                    <div class="border-t border-slate-200 pt-3">
+                        <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent uploads</p>
+                        <ul class="!mb-0 list-none space-y-1 !pl-0 text-sm text-slate-600">
+                            @foreach($imports as $import)
+                                <li>{{ $import->period_start->format('M Y') }} · report made {{ $import->exported_at->format('j M Y g:i A') }} · {{ $import->new_punches }} new · {{ $import->uploader->name ?? 'Unknown' }}, {{ $import->created_at->diffForHumans() }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </form>
+        </x-ui.modal>
+    @endif
+
+    @if($showHours)
+        <x-ui.modal title="Working hours" state="showHours">
+            <form wire:submit="saveHours" class="space-y-3 p-4">
+                <p class="!mb-0 text-sm text-slate-600">Tick the days this branch works and when the day starts and ends. Unticked days are days off. Staff who work different hours can be given their own: open the person from the list.</p>
+                @include('livewire.admin.partials.attendance-hours', ['model' => 'hours', 'values' => $hours])
+                <div>
+                    <label for="attendance-grace" class="mb-1 block text-sm font-medium text-slate-700">Grace period (minutes)</label>
+                    <input id="attendance-grace" type="number" min="0" max="240" class="ui-input !w-32" wire:model="graceMinutes">
+                    <p class="!mb-0 mt-1 text-xs text-slate-500">Arriving within this many minutes of the start still counts as on time.</p>
+                    @error('graceMinutes')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <x-ui.button wire:click="$set('showHours', false)">Cancel</x-ui.button>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveHours">Save</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endif
+
+    @if($showDevices)
+        @php
+            $base = parse_url(url('/'));
+            $secure = ($base['scheme'] ?? 'http') === 'https';
+        @endphp
+        <x-ui.modal title="Terminals" state="showDevices">
+            <div class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">A connected terminal sends each punch here as it happens, so there is nothing to export. Add the terminal, then enter its settings on the terminal's own web page under <strong>HTTP Listening</strong> (in the network settings).</p>
+                <form wire:submit="addDevice" class="flex flex-wrap items-end gap-2">
+                    <div class="min-w-[14rem] flex-1">
+                        <label for="device-name" class="mb-1 block text-xs font-medium text-slate-600">Name</label>
+                        <input id="device-name" type="text" maxlength="100" class="ui-input !py-1.5 !text-sm" wire:model="deviceName" placeholder="Front door terminal">
+                    </div>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="addDevice">Add terminal</x-ui.button>
+                    @error('deviceName')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                </form>
+                @forelse($devices as $device)
+                    <div class="rounded-lg border border-slate-200 p-3" wire:key="device-{{ $device->id }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <strong class="text-sm text-slate-900">{{ $device->name }}</strong>
+                                @if($device->isOnline())
+                                    <span class="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-800">Connected</span>
+                                @elseif($device->last_seen_at)
+                                    <span class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900">Quiet since {{ $device->last_seen_at->diffForHumans() }}</span>
+                                @else
+                                    <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">Nothing received yet</span>
+                                @endif
+                                <p class="!mb-0 text-xs text-slate-500">{{ number_format($device->punches_received) }} {{ $device->punches_received === 1 ? 'punch' : 'punches' }} received{{ $device->last_event_at ? ' · latest event '.$device->last_event_at->format('j M Y g:i A') : '' }}</p>
+                            </div>
+                            <button type="button" class="ui-button ui-button-danger !px-2 !py-1 !text-xs" wire:click="removeDevice({{ $device->id }})" wire:confirm="Remove this terminal? It will stop being accepted. Punches already received are kept.">Remove</button>
+                        </div>
+                        <dl class="!mb-0 mt-2 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 rounded bg-slate-50 p-2 text-xs">
+                            <dt class="text-slate-500">Protocol</dt><dd class="!mb-0 font-mono text-slate-800">{{ $secure ? 'HTTPS' : 'HTTP' }}</dd>
+                            <dt class="text-slate-500">IP / domain</dt><dd class="!mb-0 font-mono text-slate-800">{{ $base['host'] ?? '' }}</dd>
+                            <dt class="text-slate-500">Port</dt><dd class="!mb-0 font-mono text-slate-800">{{ $base['port'] ?? ($secure ? 443 : 80) }}</dd>
+                            <dt class="text-slate-500">URL</dt><dd class="!mb-0 break-all font-mono text-slate-800">{{ $device->pushPath() }}</dd>
+                        </dl>
+                    </div>
+                @empty
+                    <p class="!mb-0 text-sm text-slate-500">No terminal connected yet.</p>
+                @endforelse
+                <p class="!mb-0 text-xs text-slate-500">Each person's Employee ID on the terminal identifies them here. Keep the terminal's clock right: its time is what is recorded. Treat the URL like a password.</p>
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showHolidays)
+        <x-ui.modal title="Holidays" state="showHolidays">
+            <div class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">Days this branch is closed. Nobody is marked absent on a holiday.</p>
+                <form wire:submit="addHoliday" class="flex flex-wrap items-end gap-2">
+                    <div>
+                        <label for="holiday-date" class="mb-1 block text-xs font-medium text-slate-600">Date</label>
+                        <input id="holiday-date" type="date" class="ui-input !w-44 !py-1.5 !text-sm" wire:model="holidayDate">
+                    </div>
+                    <div class="min-w-[12rem] flex-1">
+                        <label for="holiday-name" class="mb-1 block text-xs font-medium text-slate-600">Name</label>
+                        <input id="holiday-name" type="text" maxlength="100" class="ui-input !py-1.5 !text-sm" wire:model="holidayName" placeholder="Independence Day">
+                    </div>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="addHoliday">Add</x-ui.button>
+                    @error('holidayDate')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                    @error('holidayName')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                </form>
+                <div>
+                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Holidays in {{ $monthStart->year }}</p>
+                    @forelse($holidayList as $holiday)
+                        <div class="flex items-center justify-between gap-2 border-t border-slate-100 py-1.5 text-sm" wire:key="holiday-{{ $holiday->id }}">
+                            <span><strong>{{ $holiday->date->format('D j M') }}</strong> · {{ $holiday->name }}</span>
+                            <button type="button" class="ui-button ui-button-danger !px-2 !py-1 !text-xs" wire:click="removeHoliday({{ $holiday->id }})" wire:confirm="Remove this holiday?">Remove</button>
+                        </div>
+                    @empty
+                        <p class="!mb-0 text-sm text-slate-500">None added yet.</p>
+                    @endforelse
+                </div>
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showStaff && $detail)
+        <x-ui.modal :title="$detail['staff']->name.' · '.$monthStart->format('F Y')" state="showStaff">
+            <div class="space-y-4 p-4">
+                <form wire:submit="saveStaff" class="space-y-3 rounded-lg bg-slate-50 p-3">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="staffTracked"> Follow this person's attendance</label>
+                        <div>
+                            <label for="attendance-starts" class="mb-1 block text-xs font-medium text-slate-600">Count from (optional)</label>
+                            <input id="attendance-starts" type="date" class="ui-input !w-44 !py-1.5 !text-sm" wire:model="staffStartsOn">
+                        </div>
+                    </div>
+                    @error('staffStartsOn')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    <div>
+                        <label for="attendance-account" class="mb-1 block text-xs font-medium text-slate-600">User account (optional)</label>
+                        <select id="attendance-account" class="ui-input !w-72 !py-1.5 !text-sm" wire:model="staffUserId">
+                            <option value="">Not linked</option>
+                            @foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach
+                        </select>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">Once linked, this person sees their own attendance on their profile page.</p>
+                        @error('staffUserId')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                    <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="staffOwnHours"> Works different hours from the branch</label>
+                    @if($staffOwnHours)
+                        @include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])
+                    @endif
+                    <div class="flex justify-end">
+                        <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveStaff">Save</x-ui.button>
+                    </div>
+                </form>
+
+                <div>
+                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Leave</p>
+                    <form wire:submit="addLeave" class="flex flex-wrap items-end gap-2">
+                        <div>
+                            <label for="leave-from" class="mb-1 block text-xs font-medium text-slate-600">First day</label>
+                            <input id="leave-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="leaveFrom">
+                        </div>
+                        <div>
+                            <label for="leave-to" class="mb-1 block text-xs font-medium text-slate-600">Last day</label>
+                            <input id="leave-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="leaveTo">
+                        </div>
+                        <div>
+                            <label for="leave-type" class="mb-1 block text-xs font-medium text-slate-600">Type</label>
+                            <select id="leave-type" class="ui-input !w-36 !py-1.5 !text-sm" wire:model="leaveType">
+                                @foreach(\App\Models\AttendanceLeave::TYPES as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
+                            </select>
+                        </div>
+                        <x-ui.button type="submit" wire:loading.attr="disabled" wire:target="addLeave">Add leave</x-ui.button>
+                        @foreach(['leaveFrom', 'leaveTo', 'leaveType'] as $field)
+                            @error($field)<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                        @endforeach
+                    </form>
+                    @foreach($leaves as $leave)
+                        <div class="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 pt-1.5 text-sm" wire:key="leave-{{ $leave->id }}">
+                            <span>{{ $leave->starts_on->format('j M Y') }}{{ $leave->ends_on->ne($leave->starts_on) ? ' to '.$leave->ends_on->format('j M Y') : '' }} · {{ \App\Models\AttendanceLeave::TYPES[$leave->type] ?? 'Leave' }}</span>
+                            <button type="button" class="ui-button ui-button-danger !px-2 !py-1 !text-xs" wire:click="removeLeave({{ $leave->id }})" wire:confirm="Remove this leave?">Remove</button>
+                        </div>
+                    @endforeach
+                </div>
+
+                <div>
+                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Days in {{ $monthStart->format('F Y') }}</p>
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table ui-table-sm mb-0">
+                            <thead><tr><th>Day</th><th>In</th><th>Out</th><th class="text-right">Time in</th><th>Status</th></tr></thead>
+                            <tbody>
+                                @foreach($detail['days'] as $key => $day)
+                                    @continue($day['status'] === 'none' || $day['status'] === 'off')
+                                    <tr wire:key="detail-{{ $key }}">
+                                        <td>{{ $report['days'][$key]->format('D j M') }}</td>
+                                        <td class="ui-number">{{ AttendanceAnalyzer::time($day['in']) ?? '–' }}</td>
+                                        <td class="ui-number">{{ AttendanceAnalyzer::time($day['out']) ?? '–' }}</td>
+                                        <td class="text-right ui-number">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
+                                        <td>
+                                            <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['status']] }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
+                                            @if($day['note'])<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
+                                            @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
+                                            @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">No clock-out</span>@endif
+                                            @if($day['in_progress'])<span class="ml-1 text-xs text-slate-400">Day in progress</span>@endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if(collect($detail['days'])->every(fn ($day) => in_array($day['status'], ['none', 'off'], true)))
+                        <p class="!mb-0 mt-2 text-sm text-slate-500">Nothing recorded for this person in {{ $monthStart->format('F Y') }}.</p>
+                    @endif
+                </div>
+            </div>
+        </x-ui.modal>
+    @endif
+</div>

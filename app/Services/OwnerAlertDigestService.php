@@ -38,6 +38,7 @@ class OwnerAlertDigestService
         'late_pickup' => ['Spectacles past their promised date', 'Chase the lab, and tell the patients the new date.'],
         'lab' => ['Late from the lab', 'Chase the lab, and let the customers know.'],
         'uncollected' => ['Glasses not collected', 'Call these customers to come in.'],
+        'attendance' => ['Staff attendance', 'Late arrivals and absences in the latest attendance report.'],
     ];
 
     public function __construct(private readonly OwnerMailer $mailer, private readonly OwnerSummaryService $summaries) {}
@@ -182,9 +183,34 @@ class OwnerAlertDigestService
                             "Ready for {$days} days" . ($balance > 0 ? ' · ' . $money($balance) . ' still to pay' : ''));
                     });
             }
+            $this->addAttendance($add);
         });
 
         return $items;
+    }
+
+    /**
+     * Staff late or absent in the month of the branch's latest attendance report. The stage is the
+     * counts, so someone is mentioned again only when a newer report changes them.
+     */
+    private function addAttendance(callable $add): void
+    {
+        $latest = \App\Models\AttendanceImport::query()->latest('id')->value('period_start');
+        if (! $latest) return;
+
+        $month = \Carbon\CarbonImmutable::parse($latest)->startOfMonth();
+        $report = app(\App\Services\Attendance\AttendanceAnalyzer::class)->month($month);
+        $upTo = $report['covered_until'] ? ' to ' . Carbon::parse($report['covered_until'])->format('j M') : '';
+        foreach ($report['rows'] as $row) {
+            $t = $row['totals'];
+            if (! $row['staff']->is_tracked || ($t['late'] === 0 && $t['absent'] === 0)) continue;
+            $parts = array_filter([
+                $t['late'] ? $t['late'] . ' late (' . \App\Services\Attendance\AttendanceAnalyzer::duration($t['late_minutes']) . ')' : null,
+                $t['absent'] ? $t['absent'] . ' absent' : null,
+            ]);
+            $add('attendance', 'att' . $row['staff']->id . ':' . $month->format('Y-m'), 'l' . $t['late'] . 'a' . $t['absent'], $row['staff']->name,
+                implode(', ', $parts) . ' in ' . $month->format('F') . $upTo);
+        }
     }
 
     /** What the email shows: today's new items by section, and how many older ones are still open. */
@@ -200,6 +226,7 @@ class OwnerAlertDigestService
             'recurring' => route('admin.expenses'),
             'late_pickup' => $new->where('section', 'late_pickup')->every(fn ($row) => str_starts_with($row->item_key, 'clate')) ? route('secretary.spectacles') : route('optical.orders'),
             'lab' => route('optical.jobs'),
+            'attendance' => route('admin.attendance'),
             'uncollected' => $new->where('section', 'uncollected')->every(fn ($row) => str_starts_with($row->item_key, 'cready')) ? route('secretary.spectacles') : route('optical.collections'),
         ];
 
