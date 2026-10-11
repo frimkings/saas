@@ -120,6 +120,15 @@ class UserProfileComponent extends Component
         $totalLogins  = $allLoginLogs->count();
         $lastLogin    = $allLoginLogs->skip(1)->first();
         $accountAge  = (int) $user->created_at->diffInDays(now()); // Carbon 3 returns a fraction
+        // Linked to someone on this branch's attendance terminal: they can see their own month.
+        $onTerminal = \App\Models\AttendanceStaff::query()->where('user_id', $user->id)->where('is_tracked', true)->first();
+        $mine = null;
+        if ($onTerminal && $this->activeTab === 'attendance') {
+            $latest = \App\Models\AttendanceImport::query()->latest('id')->value('period_start');
+            $month = ($latest ? \Carbon\CarbonImmutable::parse($latest) : \Carbon\CarbonImmutable::now())->startOfMonth();
+            $report = app(\App\Services\Attendance\AttendanceAnalyzer::class)->month($month);
+            $mine = ['month' => $month, 'report' => $report, 'row' => collect($report['rows'])->first(fn ($row) => $row['staff']->id === $onTerminal->id)];
+        }
 
         return view('livewire.user-profile-component', [
             'user'        => $user,
@@ -128,6 +137,8 @@ class UserProfileComponent extends Component
             'totalLogins' => $totalLogins,
             'lastLogin'   => $lastLogin,
             'accountAge'  => $accountAge,
+            'onTerminal'  => (bool) $onTerminal,
+            'mine'        => $mine,
         ])->layout(...\App\Support\ClinicNavigation::sharedLayout());
     }
 }

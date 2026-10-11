@@ -155,6 +155,7 @@ class ClinicNavigation
             $menu[] = ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
                 ['label' => 'Users', 'route' => 'admin.users', 'show' => $superAdmin],
                 ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $superAdmin],
+                ['label' => 'Attendance', 'route' => 'admin.attendance'],
                 ['label' => 'Login History', 'route' => 'admin.login-history'],
                 ['label' => 'Audit Trail', 'route' => 'admin.audit-trail'],
             ]];

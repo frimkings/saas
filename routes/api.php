@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AttendanceCaptureController;
+use App\Http\Controllers\Api\AttendancePushController;
 use App\Http\Controllers\Api\PublicBookingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,10 @@ Route::post('/v1/appointments', [PublicBookingController::class, 'store']);
 
 // Attendance terminal capture: records what a device sends. A terminal resending a backlog would trip the default limit.
 Route::any('/v1/attendance/capture/{token}', AttendanceCaptureController::class)
+    ->withoutMiddleware('throttle:api')->middleware('throttle:600,1');
+
+// Where a registered attendance terminal sends its punches (Attendance → Terminals gives each its address).
+Route::any('/v1/attendance/push/{token}', AttendancePushController::class)->name('attendance.push')
     ->withoutMiddleware('throttle:api')->middleware('throttle:600,1');
 
 // Convert Online Booking to Official Patient & Appointment
