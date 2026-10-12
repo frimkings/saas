@@ -34,10 +34,10 @@
             <img src="{{ $appSettings->logoDataUri() }}" class="clinic-logo" alt="">
         @endif
         <div class="clinic-name">{{ $appSettings->clinic_name ?? $place }}</div>
-        <h2>STAFF ATTENDANCE · {{ strtoupper($month->format('F Y')) }}</h2>
+        <h2>STAFF ATTENDANCE · {{ strtoupper($label) }}</h2>
         <div class="muted">
             {{ $place }} ·
-            {{ $report['covered_until'] ? 'Covers up to '.\Carbon\CarbonImmutable::parse($report['covered_until'])->format('j M Y') : 'Nothing received for this month' }}
+            {{ $report['covered_until'] ? 'Covers up to '.\Carbon\CarbonImmutable::parse($report['covered_until'])->format('j M Y') : 'Nothing received for these days' }}
             · Printed {{ $generatedAt->format('j M Y g:i A') }}
         </div>
     </div>
@@ -77,6 +77,7 @@
         </tbody>
     </table>
 
+    @if($withGrid)
     <h3>Arrival time, day by day</h3>
     <table class="grid">
         <thead>
@@ -107,6 +108,9 @@
         <span style="background-color: {{ $shade['worked_off'] }}">Worked on a day off</span>
         <span style="background-color: {{ $shade['off'] }}">Day off</span>
     </p>
+    @else
+    <p class="muted">The day-by-day sheet is printed for up to 31 days. The Excel file lists every day of a longer period.</p>
+    @endif
     @if($report['holidays'])
         <p class="muted">Holidays: @foreach($report['holidays'] as $date => $name){{ \Carbon\CarbonImmutable::parse($date)->format('j M') }} {{ $name }}{{ $loop->last ? '' : ', ' }}@endforeach</p>
     @endif

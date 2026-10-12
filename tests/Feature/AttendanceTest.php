@@ -42,6 +42,8 @@ class AttendanceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // The last day of the fixture's month, so "this month to date" is all of October 2026.
+        \Illuminate\Support\Carbon::setTestNow('2026-10-31 12:00:00');
         config()->set('tenancy.enabled', true);
         $role = Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']);
 
@@ -59,6 +61,12 @@ class AttendanceTest extends TestCase
 
         $this->actingAs($this->admin);
         $this->useBranch($this->branchId);
+    }
+
+    protected function tearDown(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function useBranch(int $branchId): void
@@ -264,6 +272,9 @@ class AttendanceTest extends TestCase
 
     public function test_a_report_is_uploaded_from_the_page(): void
     {
+        // On the real clock: Livewire clears uploads it thinks are a day old.
+        DB::table('clinic_subscriptions')->update(['current_period_starts_at' => '2026-01-01 00:00:00', 'current_period_ends_at' => '2036-01-01 00:00:00']);
+        \Illuminate\Support\Carbon::setTestNow();
         $file = UploadedFile::fake()->createWithContent('AttendanceRecord.xls', file_get_contents($this->fixture()));
 
         Livewire::test(AttendanceComponent::class)
@@ -272,7 +283,7 @@ class AttendanceTest extends TestCase
             ->set('file', $file)
             ->call('importReport')
             ->assertHasNoErrors()
-            ->assertSet('month', '2026-10')
+            ->assertSet('from', '2026-10-01')->assertSet('to', '2026-10-31')
             ->assertSet('showUpload', false)
             ->assertSee('Ama Mensah')
             ->assertSee('Recorded up to Wed 21 Oct 2026')
@@ -772,6 +783,97 @@ class AttendanceTest extends TestCase
         $profile->call('withdrawLeave', $days->id);
         $this->assertSame(2, AttendanceLeave::count());
         \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    public function test_day_by_day_is_a_month_calendar_with_a_list_for_each_day(): void
+    {
+        $this->importFixture();
+        $cell = fn (array $calendar, string $key) => collect($calendar['weeks'])->flatten(1)->filter()->firstWhere('key', $key);
+
+        Livewire::test(AttendanceComponent::class)
+            ->set('view', 'grid')
+            ->assertSee('October 2026')
+            ->assertViewHas('calendar', function (array $calendar) use ($cell) {
+                // October 2026 starts on a Thursday: five weeks, Monday first.
+                $friday = $cell($calendar, '2026-10-02')['counts'];
+
+                return count($calendar['weeks']) === 5 && $calendar['weeks'][0][0] === null && $calendar['weeks'][0][3]['key'] === '2026-10-01'
+                    && [$friday['in'], $friday['late'], $friday['absent'], $friday['leave']] === [1, 1, 2, 0]
+                    // Kofi came in on a Saturday; nobody was expected on the Sunday; nothing was received after the 21st.
+                    && $cell($calendar, '2026-10-03')['counts']['in'] === 1 && $cell($calendar, '2026-10-03')['state'] === 'day'
+                    && $cell($calendar, '2026-10-04')['state'] === 'off' && $cell($calendar, '2026-10-22')['state'] === 'none'
+                    && ! $calendar['previous'] && ! $calendar['next'];
+            })
+            ->assertSee('2 absent')
+            ->assertSee('No data')
+            // A day opens as a list of everyone, those to look at first.
+            ->call('openDay', '2026-10-02')
+            ->assertSet('showDay', true)
+            ->assertSee('Friday 2 October 2026')
+            ->assertSee('In 8:20 AM')
+            ->assertViewHas('dayList', fn (array $list) => array_map(fn ($person) => $person['staff']->name, $list['people']) === ['Esi Boateng', 'Kofi Añané', 'Ama Mensah'])
+            ->set('showDay', false)
+            ->call('openDay', '2026-11-05')
+            ->assertSet('showDay', false)
+            // Days picked across two months: one month at a time, the later one first.
+            ->set('from', '2026-09-15')->set('to', '2026-10-09')
+            ->assertViewHas('calendar', fn (array $calendar) => $calendar['month']->format('Y-m') === '2026-10' && $calendar['previous'] && ! $calendar['next']
+                && $cell($calendar, '2026-10-09')['shown'] && ! $cell($calendar, '2026-10-10')['shown'])
+            ->call('shiftCalendar', -1)
+            ->assertSee('September 2026')
+            ->call('shiftCalendar', -1)
+            ->assertSet('calendarMonth', '2026-09')
+            ->call('shiftCalendar', 1)
+            ->assertSet('calendarMonth', '2026-10');
+    }
+
+    public function test_the_page_covers_whatever_days_are_picked(): void
+    {
+        $this->importFixture();
+        $period = \App\Services\Attendance\AttendancePeriod::class;
+        $day = fn (string $date) => CarbonImmutable::parse($date);
+
+        // It opens on this month to date; a week shows that week alone.
+        Livewire::test(AttendanceComponent::class)
+            ->assertSet('from', '2026-10-01')->assertSet('to', '2026-10-31')
+            ->assertSee('from=2026-10-01&amp;to=2026-10-31', false)
+            ->set('from', '2026-10-05')->set('to', '2026-10-09')
+            ->assertViewHas('periodLabel', '5 Oct – 9 Oct 2026')
+            ->assertViewHas('report', fn ($report) => array_keys($report['days']) === ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09']
+                && $this->row($report, '001')['totals']['expected'] === 5 && $this->row($report, '001')['totals']['late'] === 1)
+            ->call('openStaff', AttendanceStaff::where('employee_no', '001')->value('id'))
+            ->assertSee('Days, 5 Oct – 9 Oct 2026')
+            // Dates the wrong way round are read the right way.
+            ->set('from', '2026-10-09')->set('to', '2026-10-05')
+            ->assertViewHas('first', fn ($first) => $first->format('Y-m-d') === '2026-10-05')
+            ->set('from', '2026-07-01')->set('to', '2026-10-31')
+            ->assertViewHas('report', fn ($report) => count($report['days']) === 123);
+        // An older link to a month still opens that month.
+        Livewire::withQueryParams(['month' => '2026-09'])->test(AttendanceComponent::class)->assertSet('from', '2026-09-01')->assertSet('to', '2026-09-30');
+
+        $this->assertSame(['October 2026', 'Mon 5 Oct 2026', '28 Dec 2025 – 3 Jan 2026'], [
+            $period::label($day('2026-10-01'), $day('2026-10-31')), $period::label($day('2026-10-05'), $day('2026-10-05')), $period::label($day('2025-12-28'), $day('2026-01-03')),
+        ]);
+        // Nothing picked is this month to date; more than a year is cut to a year.
+        $this->assertSame(['2026-10-01', '2026-10-12'], array_map(fn ($d) => $d->format('Y-m-d'), $period::resolve('', 'nonsense', $day('2026-10-12'))));
+        $this->assertSame(366, $period::days(...$period::resolve('2024-01-01', '2026-10-12', $day('2026-10-12'))));
+
+        // The files follow the days too.
+        $week = $this->get(route('admin.attendance.export', ['format' => 'csv', 'from' => '2026-10-05', 'to' => '2026-10-09']))->assertOk();
+        $this->assertStringContainsString('attendance-2026-10-05-to-2026-10-09.csv', $week->headers->get('Content-Disposition'));
+        $csv = $week->streamedContent();
+        $this->assertStringContainsString('Attendance,"5 Oct – 9 Oct 2026"', $csv);
+        $this->assertStringNotContainsString('2026-10-02', $csv);
+        $this->assertStringContainsString('attendance-2026-10.pdf', $this->get(route('admin.attendance.export', ['format' => 'pdf', 'from' => '2026-10-01', 'to' => '2026-10-31']))->assertOk()->headers->get('Content-Disposition'));
+        $this->get(route('admin.attendance.export', ['format' => 'pdf', 'from' => '2026-07-01', 'to' => '2026-10-31']))->assertOk();
+        $this->get(route('admin.attendance.export', ['format' => 'csv', 'from' => '2026-10-09', 'to' => '2026-10-05']))->assertSessionHasErrors('to');
+
+        // Staff pick their own days on their profile.
+        AttendanceStaff::where('employee_no', '001')->update(['user_id' => $this->admin->id]);
+        Livewire::test(\App\Livewire\UserProfileComponent::class)->call('switchTab', 'attendance')
+            ->assertSet('attendanceFrom', '2026-10-01')->assertSee('Your attendance for October 2026')->assertSee('Left 50m early')
+            ->set('attendanceFrom', '2026-10-02')->set('attendanceTo', '2026-10-02')
+            ->assertSee('Your attendance for Fri 2 Oct 2026')->assertSee('8:20 AM')->assertDontSee('Left 50m early');
     }
 
     public function test_the_owners_morning_email_lists_staff_late_or_absent_in_the_latest_report(): void

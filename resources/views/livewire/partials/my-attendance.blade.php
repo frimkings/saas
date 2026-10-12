@@ -1,4 +1,4 @@
-{{-- Profile → My attendance: the signed-in person's own month from the attendance terminal. $mine = ['month', 'row', 'report']. --}}
+{{-- Profile → My attendance: the signed-in person's own month from the attendance terminal. $mine = ['label', 'row', 'report', 'requests']. --}}
 @php
     use App\Services\Attendance\AttendanceAnalyzer;
 
@@ -8,8 +8,9 @@
     $shown = collect($mine['row']['days'])->reject(fn ($day) => in_array($day['status'], ['none', 'off'], true));
 @endphp
 <div class="card-body p-4 px-6 py-6">
+    <div class="mb-3"><x-date-range from="attendanceFrom" to="attendanceTo" presets="finance" label="Days" /></div>
     <p class="mb-3 text-sm text-slate-500">
-        Your attendance for {{ $mine['month']->format('F Y') }}, from the attendance terminal.
+        Your attendance for {{ $mine['label'] }}, from the attendance terminal.
         @if($mine['report']['covered_until'])Recorded up to {{ \Carbon\CarbonImmutable::parse($mine['report']['covered_until'])->format('D j M') }}.@endif
     </p>
     <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -80,7 +81,7 @@
     </div>
 
     @if($shown->isEmpty())
-        <p class="mb-0 text-sm text-slate-500">Nothing recorded for you this month yet.</p>
+        <p class="mb-0 text-sm text-slate-500">Nothing recorded for you for these days.</p>
     @else
         <div class="overflow-x-auto">
             <table class="w-full text-sm">

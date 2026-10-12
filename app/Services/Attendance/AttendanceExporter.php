@@ -8,22 +8,23 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/** The month's attendance sheet as a file: a CSV that opens in Excel, or a PDF to print. Staff not followed are left out. */
+/** The attendance sheet for a run of days as a file: a CSV that opens in Excel, or a PDF to print. Staff not followed are left out. */
 class AttendanceExporter
 {
     public function __construct(private readonly AttendanceAnalyzer $analyzer)
     {
     }
 
-    public function csv(CarbonImmutable $month): StreamedResponse
+    public function csv(CarbonImmutable $first, CarbonImmutable $last): StreamedResponse
     {
-        $report = $this->analyzer->month($month);
+        $report = $this->analyzer->range($first, $last);
+        $label = AttendancePeriod::label($first, $last);
         $rows = $this->tracked($report);
 
-        return response()->streamDownload(function () use ($report, $rows, $month) {
+        return response()->streamDownload(function () use ($report, $rows, $label) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF"); // so Excel reads names with accents correctly
-            fputcsv($out, ['Attendance', $month->format('F Y'), $this->place()]);
+            fputcsv($out, ['Attendance', $label, $this->place()]);
             fputcsv($out, ['Recorded up to', $report['covered_until'] ? CarbonImmutable::parse($report['covered_until'])->format('j M Y') : 'Nothing received']);
             fputcsv($out, []);
 
@@ -53,14 +54,16 @@ class AttendanceExporter
                 }
             }
             fclose($out);
-        }, 'attendance-'.$month->format('Y-m').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }, $this->fileName($first, $last).'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
-    public function pdf(CarbonImmutable $month): StreamedResponse
+    public function pdf(CarbonImmutable $first, CarbonImmutable $last): StreamedResponse
     {
-        $report = $this->analyzer->month($month);
+        $report = $this->analyzer->range($first, $last);
         $pdf = Pdf::loadView('pdf.attendance-sheet', [
-            'month' => $month,
+            'label' => AttendancePeriod::label($first, $last),
+            // A landscape page holds a month of columns.
+            'withGrid' => AttendancePeriod::days($first, $last) <= 31,
             'report' => $report,
             'rows' => $this->tracked($report),
             'place' => $this->place(),
@@ -68,7 +71,15 @@ class AttendanceExporter
             'generatedAt' => now(),
         ])->setPaper('a4', 'landscape');
 
-        return response()->streamDownload(fn () => print($pdf->output()), 'attendance-'.$month->format('Y-m').'.pdf', ['Content-Type' => 'application/pdf']);
+        return response()->streamDownload(fn () => print($pdf->output()), $this->fileName($first, $last).'.pdf', ['Content-Type' => 'application/pdf']);
+    }
+
+    /** 'attendance-2026-10' for a whole month, otherwise 'attendance-2026-10-01-to-2026-10-12'. */
+    private function fileName(CarbonImmutable $first, CarbonImmutable $last): string
+    {
+        $wholeMonth = $first->day === 1 && $last->isSameDay($first->endOfMonth());
+
+        return 'attendance-'.($wholeMonth ? $first->format('Y-m') : $first->format('Y-m-d').($first->isSameDay($last) ? '' : '-to-'.$last->format('Y-m-d')));
     }
 
     private function tracked(array $report): array

@@ -35,6 +35,10 @@ class UserProfileComponent extends Component
 
     public string $activeTab = 'account';
 
+    // My attendance: the days on show ('Y-m-d').
+    public string $attendanceFrom = '';
+    public string $attendanceTo = '';
+
     // My attendance → ask for time off.
     public string $leaveKind = 'days';
     public string $leaveFrom = '';
@@ -189,10 +193,12 @@ class UserProfileComponent extends Component
             ? \App\Models\AttendanceStaff::query()->where('user_id', $user->id)->where('is_tracked', true)->first() : null;
         $mine = null;
         if ($onTerminal && $this->activeTab === 'attendance') {
-            $latest = \App\Models\AttendanceImport::query()->latest('id')->value('period_start');
-            $month = ($latest ? \Carbon\CarbonImmutable::parse($latest) : \Carbon\CarbonImmutable::now())->startOfMonth();
-            $report = app(\App\Services\Attendance\AttendanceAnalyzer::class)->month($month);
-            $mine = ['month' => $month, 'report' => $report, 'row' => collect($report['rows'])->first(fn ($row) => $row['staff']->id === $onTerminal->id),
+            // The days they picked; this month to date until they do.
+            $timezone = app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
+            [$first, $last] = \App\Services\Attendance\AttendancePeriod::resolve($this->attendanceFrom, $this->attendanceTo, \Carbon\CarbonImmutable::now($timezone)->startOfDay());
+            [$this->attendanceFrom, $this->attendanceTo] = [$first->format('Y-m-d'), $last->format('Y-m-d')];
+            $report = app(\App\Services\Attendance\AttendanceAnalyzer::class)->range($first, $last);
+            $mine = ['label' => \App\Services\Attendance\AttendancePeriod::label($first, $last), 'report' => $report, 'row' => collect($report['rows'])->first(fn ($row) => $row['staff']->id === $onTerminal->id),
                 'requests' => \App\Models\AttendanceLeave::query()->where('attendance_staff_id', $onTerminal->id)->where('requested_by', $user->id)->latest('id')->limit(10)->get()];
         }
 
