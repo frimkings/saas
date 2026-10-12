@@ -8,7 +8,7 @@ return [
         'fields' => ['fromDate', 'toDate', 'section', 'selectedPreset'], 'methods' => ['setThisMonth', 'setLastMonth'],
     ],
     'admin.attendance-component' => [
-        'fields' => ['month', 'view', 'show', 'showStaff'], 'methods' => ['shiftMonth', 'openStaff'],
+        'fields' => ['from', 'to', 'view', 'show', 'showStaff', 'showDay', 'calendarMonth'], 'methods' => ['openStaff', 'openDay', 'shiftCalendar'],
     ],
     'admin.daily-cash-summary-component' => [
         'fields' => ['reportDate', 'line'], 'methods' => ['print'],

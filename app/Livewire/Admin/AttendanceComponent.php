@@ -11,6 +11,7 @@ use App\Models\AttendanceStaff;
 use App\Models\User;
 use App\Services\Attendance\AttendanceAnalyzer;
 use App\Services\Attendance\AttendanceImportService;
+use App\Services\Attendance\AttendancePeriod;
 use App\Services\Attendance\AttendanceRecordParser;
 use App\Services\OwnerAlerts;
 use Carbon\CarbonImmutable;
@@ -19,19 +20,27 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 
 /**
- * Staff & Security → Attendance: upload the terminal's monthly "Attendance Record" report, then
- * see for the branch who was on time, late or absent, day by day. Working hours, holidays, leave
+ * Staff & Security → Attendance: for the days picked, see for the branch who was on time, late or
+ * absent, day by day, from a connected terminal or its uploaded "Attendance Record" report. Working hours, holidays, leave
  * and hours of their own for individual staff are set here too.
  */
 class AttendanceComponent extends Component
 {
     use WithFileUploads;
 
+    // The days on show, 'Y-m-d' both; the page opens on this month to date.
     #[Url]
-    public string $month = '';
+    public string $from = '';
+    #[Url]
+    public string $to = '';
     #[Url]
     public string $view = 'summary';
     public string $show = 'all';
+
+    // Day by day: the month on the calendar ('Y-m') and the day whose list is open ('Y-m-d').
+    public string $calendarMonth = '';
+    public string $dayKey = '';
+    public bool $showDay = false;
 
     public bool $showUpload = false;
     public $file = null;
@@ -68,19 +77,118 @@ class AttendanceComponent extends Component
     public function mount(): void
     {
         $this->authorizeAccess();
-        if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $this->month)) {
-            // Open on the month last uploaded.
-            $latest = AttendanceImport::query()->latest('id')->value('period_start');
-            $this->month = ($latest ? CarbonImmutable::parse($latest) : CarbonImmutable::now())->format('Y-m');
+        // Links made before the page took two dates name a whole month.
+        if ($month = AttendancePeriod::month(request()->query('month'))) {
+            [$this->from, $this->to] = [$month[0]->format('Y-m-d'), $month[1]->format('Y-m-d')];
         }
+        [$first, $last] = $this->period();
+        [$this->from, $this->to] = [$first->format('Y-m-d'), $last->format('Y-m-d')];
         if (! in_array($this->view, ['summary', 'grid'], true)) {
             $this->view = 'summary';
         }
     }
 
-    public function shiftMonth(int $by): void
+
+    /** Day by day: the month before or after, within the days picked. */
+    public function shiftCalendar(int $by): void
     {
-        $this->month = $this->monthStart()->addMonthsNoOverflow($by <=> 0)->format('Y-m');
+        [$first, $last] = $this->period();
+        $month = $this->calendarStart($first, $last)->addMonthsNoOverflow($by <=> 0);
+        if ($month->lte($last) && $month->endOfMonth()->gte($first)) {
+            $this->calendarMonth = $month->format('Y-m');
+        }
+    }
+
+    /** Day by day: everyone's punches on one day. */
+    public function openDay(string $date): void
+    {
+        [$first, $last] = $this->period();
+        $day = AttendancePeriod::resolve($date, $date, $first)[0];
+        if ($day->format('Y-m-d') !== $date || $day->lt($first) || $day->gt($last)) {
+            return;
+        }
+        $this->dayKey = $date;
+        $this->showDay = true;
+    }
+
+    /** The first day of the month the calendar is on: the one chosen, or the latest month of the days picked. */
+    private function calendarStart(CarbonImmutable $first, CarbonImmutable $last): CarbonImmutable
+    {
+        $month = AttendancePeriod::month($this->calendarMonth)[0] ?? null;
+
+        return $month && $month->lte($last) && $month->endOfMonth()->gte($first) ? $month : $last->startOfMonth();
+    }
+
+    /**
+     * The calendar for one month: weeks of seven cells, Monday first, null outside the month. Each
+     * cell counts the followed staff: who came ('in', late or not), late, absent, on leave, and
+     * 'flags' for days to look at (left early, a long break, a missing punch).
+     */
+    private function calendar(array $report, CarbonImmutable $first, CarbonImmutable $last, CarbonImmutable $today): array
+    {
+        $month = $this->calendarStart($first, $last);
+        $tracked = array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked);
+        $weeks = [];
+        $week = array_fill(0, $month->dayOfWeekIso - 1, null);
+        for ($date = $month; $date->month === $month->month; $date = $date->addDay()) {
+            $key = $date->format('Y-m-d');
+            $counts = ['in' => 0, 'late' => 0, 'absent' => 0, 'leave' => 0, 'flags' => 0];
+            $states = [];
+            foreach ($tracked as $row) {
+                $day = $row['days'][$key] ?? null;
+                if (! $day) {
+                    continue;
+                }
+                $states[$day['status']] = true;
+                $counts['in'] += (int) in_array($day['status'], ['on_time', 'late', 'worked_off'], true);
+                $counts['late'] += (int) ($day['status'] === 'late');
+                $counts['absent'] += (int) ($day['status'] === 'absent');
+                $counts['leave'] += (int) ($day['status'] === 'leave');
+                $counts['flags'] += (int) ($day['left_early'] || $day['no_clock_out'] || $day['long_break']);
+            }
+            $summary = implode(', ', array_filter([
+                $counts['in'] ? $counts['in'].' in' : null, $counts['late'] ? $counts['late'].' late' : null,
+                $counts['absent'] ? $counts['absent'].' absent' : null, $counts['leave'] ? $counts['leave'].' on leave' : null,
+            ]));
+            $week[] = [
+                'key' => $key, 'date' => $date, 'counts' => $counts, 'today' => $date->isSameDay($today),
+                // Days of the month outside the days picked are drawn but empty.
+                'shown' => isset($report['days'][$key]),
+                'holiday' => $report['holidays'][$key] ?? null,
+                // 'none' when nothing was received for anyone, 'off' when nobody was expected.
+                'state' => ! array_diff_key($states, ['none' => 1]) ? 'none' : (! array_diff_key($states, ['off' => 1, 'none' => 1]) ? 'off' : 'day'),
+                'summary' => $summary ?: 'nothing recorded',
+            ];
+            if (count($week) === 7) {
+                $weeks[] = $week;
+                $week = [];
+            }
+        }
+        if ($week) {
+            $weeks[] = array_pad($week, 7, null);
+        }
+
+        return ['month' => $month, 'weeks' => $weeks,
+            'previous' => $month->gt($first->startOfMonth()), 'next' => $month->lt($last->startOfMonth())];
+    }
+
+    /** Everyone followed on the open day, those to look at first. */
+    private function dayList(array $report): ?array
+    {
+        if (! isset($report['days'][$this->dayKey])) {
+            return null;
+        }
+        $order = ['absent' => 0, 'late' => 1, 'none' => 2, 'on_time' => 3, 'worked_off' => 4, 'leave' => 5, 'holiday' => 6, 'off' => 7];
+        $people = [];
+        foreach ($report['rows'] as $row) {
+            if ($row['staff']->is_tracked) {
+                $people[] = ['staff' => $row['staff'], 'day' => $row['days'][$this->dayKey]];
+            }
+        }
+        usort($people, fn ($a, $b) => [$order[$a['day']['status']] ?? 9, $a['staff']->name] <=> [$order[$b['day']['status']] ?? 9, $b['staff']->name]);
+
+        return ['date' => $report['days'][$this->dayKey], 'people' => $people, 'holiday' => $report['holidays'][$this->dayKey] ?? null,
+            'inProgress' => ($report['coverage'][$this->dayKey] ?? null) === 'partial'];
     }
 
     // Not "upload": that name is Livewire's own browser-side file upload function.
@@ -97,7 +205,8 @@ class AttendanceComponent extends Component
         $import = $imports->import($parser->parseUpload($this->file), $this->file->getClientOriginalName());
 
         $this->reset('file', 'showUpload');
-        $this->month = $import->period_start->format('Y-m');
+        // Show what was just read.
+        [$this->from, $this->to] = [$import->period_start->format('Y-m-d'), $import->period_end->format('Y-m-d')];
         $this->dispatch('notify', type: 'success', message: sprintf(
             '%s read: %d staff, %d new %s.',
             $import->period_start->format('F Y'), $import->staff_count, $import->new_punches, $import->new_punches === 1 ? 'punch' : 'punches',
@@ -311,16 +420,22 @@ class AttendanceComponent extends Component
         abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE), 403, 'Staff attendance is not included in your subscription.');
     }
 
-    private function monthStart(): CarbonImmutable
+    /** [first day, last day] on show. */
+    private function period(): array
     {
-        return CarbonImmutable::createFromFormat('!Y-m', $this->month) ?: CarbonImmutable::now()->startOfMonth();
+        return AttendancePeriod::resolve($this->from, $this->to, CarbonImmutable::now($this->timezone())->startOfDay());
+    }
+
+    private function timezone(): string
+    {
+        return app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
     }
 
     public function render(AttendanceAnalyzer $analyzer)
     {
-        $month = $this->monthStart();
-        $report = $analyzer->month($month);
-        $timezone = app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
+        [$first, $last] = $this->period();
+        $report = $analyzer->range($first, $last);
+        $timezone = $this->timezone();
 
         $rows = array_values(array_filter($report['rows'], fn ($row) => match ($this->show) {
             'late' => $row['staff']->is_tracked && $row['totals']['late'] > 0,
@@ -329,13 +444,17 @@ class AttendanceComponent extends Component
         }));
 
         return view('livewire.admin.attendance-component', [
-            'monthStart' => $month,
+            'first' => $first,
+            'last' => $last,
+            'periodLabel' => AttendancePeriod::label($first, $last),
+            'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
+            'dayList' => $this->showDay ? $this->dayList($report) : null,
             'report' => $report,
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,
             'leaves' => $this->showStaff ? AttendanceLeave::query()->where('attendance_staff_id', $this->staffId)->orderByDesc('starts_on')->limit(20)->get() : collect(),
             'accounts' => $this->showStaff ? User::query()->inCurrentClinic()->orderBy('name')->get(['id', 'name']) : collect(),
-            'holidayList' => $this->showHolidays ? AttendanceHoliday::query()->whereYear('date', $month->year)->orderBy('date')->get() : collect(),
+            'holidayList' => $this->showHolidays ? AttendanceHoliday::query()->whereYear('date', $last->year)->orderBy('date')->get() : collect(),
             'imports' => $this->showUpload ? AttendanceImport::query()->with('uploader:id,name')->latest('id')->limit(5)->get() : collect(),
             'hasData' => AttendanceStaff::query()->exists() || AttendanceDevice::query()->exists(),
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),

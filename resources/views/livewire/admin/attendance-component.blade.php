@@ -20,7 +20,7 @@
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="!mb-0 text-xl font-semibold text-slate-900">Attendance</h1>
-                <p class="!mb-0 text-sm text-slate-500">Who was on time, late or absent, from the attendance terminal's monthly report.</p>
+                <p class="!mb-0 text-sm text-slate-500">Who was on time, late or absent, from the attendance terminal.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button type="button" class="ui-button ui-button-secondary" wire:click="editHours"><i class="fas fa-clock" aria-hidden="true"></i>Working hours</button>
@@ -104,11 +104,7 @@
             </div>
         @else
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <div class="flex items-center gap-2">
-                    <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1.5" wire:click="shiftMonth(-1)" aria-label="Previous month"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
-                    <input type="month" class="ui-input !w-44 !py-1.5 !text-sm" wire:model.live="month" aria-label="Month">
-                    <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1.5" wire:click="shiftMonth(1)" aria-label="Next month"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
-                </div>
+                <x-date-range from="from" to="to" presets="finance" />
                 <div class="flex flex-wrap items-center gap-2">
                     <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
                         <option value="all">Everyone</option>
@@ -120,14 +116,14 @@
                             <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
                         @endforeach
                     </div>
-                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'month' => $monthStart->format('Y-m')]) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
-                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'month' => $monthStart->format('Y-m')]) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')]) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')]) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
                 </div>
             </div>
 
             @if(! $coveredUntil)
                 <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    Nothing has been received for {{ $monthStart->format('F Y') }}, so nobody is marked late or absent in it.
+                    Nothing has been received for {{ $periodLabel }}, so nobody is marked late or absent in it.
                 </div>
             @else
                 <div class="ui-stats ui-stats--inline">
@@ -197,54 +193,51 @@
                     </div>
                 </div>
             @else
+                {{-- A month at a time, Monday to Sunday: how each day went for the branch. Clicking a day lists everyone. --}}
                 <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <div class="overflow-x-auto">
-                        <table class="w-full border-collapse text-xs">
-                            <thead>
-                                <tr class="bg-slate-50 text-slate-500">
-                                    <th class="sticky left-0 z-10 min-w-[11rem] bg-slate-50 px-3 py-2 text-left font-semibold">Staff</th>
-                                    @foreach($report['days'] as $key => $day)
-                                        <th @class(['px-1 py-1 text-center font-medium', 'text-slate-300' => ! $settings->hoursOn($day->dayOfWeekIso) || isset($report['holidays'][$key])]) title="{{ $report['holidays'][$key] ?? '' }}">
-                                            <span class="block">{{ $day->format('D')[0] }}</span><span class="block text-slate-700">{{ $day->day }}</span>
-                                        </th>
-                                    @endforeach
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($rows as $row)
-                                    @continue(! $row['staff']->is_tracked)
-                                    <tr wire:key="grid-{{ $row['staff']->id }}" class="border-t border-slate-100">
-                                        <th class="sticky left-0 z-10 bg-white px-3 py-1.5 text-left font-medium">
-                                            <button type="button" class="text-left text-slate-800 hover:underline" wire:click="openStaff({{ $row['staff']->id }})">{{ $row['staff']->name }}</button>
-                                        </th>
-                                        @foreach($row['days'] as $key => $day)
-                                            @php
-                                                $title = $report['days'][$key]->format('D j M').': '.AttendanceAnalyzer::STATUSES[$day['status']]
-                                                    .($day['note'] ? ' ('.$day['note'].')' : '')
-                                                    .($day['punches'] ? ': '.implode(', ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'in ' : 'out ').AttendanceAnalyzer::time($punch['time']), $day['punches'])) : '')
-                                                    .($day['break_minutes'] ? ', '.AttendanceAnalyzer::duration($day['break_minutes']).' break' : '')
-                                                    .($day['late_minutes'] ? ', '.AttendanceAnalyzer::duration($day['late_minutes']).' late' : '')
-                                                    .($day['left_early'] ? ', left early' : '').($day['no_clock_out'] ? ', a punch is missing' : '').($day['long_break'] ? ', long break' : '');
-                                            @endphp
-                                            <td class="p-0.5 text-center">
-                                                <span title="{{ $title }}" @class(['block min-w-[3.6rem] whitespace-nowrap rounded px-1 py-1 tabular-nums', $tone[$day['status']], 'ring-1 ring-inset ring-slate-400' => $day['left_early'] || $day['no_clock_out'] || $day['long_break']])>
-                                                    {{ match($day['status']) { 'absent' => 'Absent', 'holiday' => 'Hol', 'leave' => 'Leave', 'off' => '·', 'none' => '', default => AttendanceAnalyzer::time($day['in']) } }}
-                                                </span>
-                                            </td>
-                                        @endforeach
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="{{ count($report['days']) + 1 }}" class="py-6 text-center text-sm text-slate-500">Nobody matches this filter.</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+                        <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1.5" wire:click="shiftCalendar(-1)" @disabled(! $calendar['previous']) aria-label="Previous month"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+                        <h2 class="!mb-0 text-sm font-semibold text-slate-900" aria-live="polite">{{ $calendar['month']->format('F Y') }}</h2>
+                        <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1.5" wire:click="shiftCalendar(1)" @disabled(! $calendar['next']) aria-label="Next month"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
                     </div>
+                    <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        @foreach(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $name)<div class="px-1 py-1.5">{{ $name }}</div>@endforeach
+                    </div>
+                    @foreach($calendar['weeks'] as $week)
+                        <div class="grid grid-cols-7 border-b border-slate-100 last:border-b-0">
+                            @foreach($week as $cell)
+                                @if(! $cell)
+                                    <div class="min-h-[5.5rem] border-r border-slate-100 bg-slate-50/60 last:border-r-0"></div>
+                                @else
+                                    @php $c = $cell['counts']; @endphp
+                                    <button type="button" wire:click="openDay('{{ $cell['key'] }}')" wire:key="cal-{{ $cell['key'] }}" @disabled(! $cell['shown'])
+                                            @class(['flex min-h-[5.5rem] flex-col items-stretch justify-start border-r border-slate-100 p-1.5 text-left last:border-r-0', 'hover:bg-slate-50' => $cell['shown'], 'cursor-default bg-slate-50/60' => ! $cell['shown'], 'ring-2 ring-inset ring-teal-600' => $cell['today']])
+                                            aria-label="{{ $cell['date']->format('l j F') }}{{ $cell['shown'] ? ': '.$cell['summary'] : '' }}">
+                                        <span @class(['block text-xs font-semibold', 'text-slate-800' => $cell['shown'], 'text-slate-300' => ! $cell['shown']])>{{ $cell['date']->day }}</span>
+                                        @if($cell['shown'])
+                                            @if($cell['holiday'])
+                                                <span class="mt-1 block truncate rounded px-1 py-0.5 text-xs {{ $tone['holiday'] }}" title="{{ $cell['holiday'] }}">{{ $cell['holiday'] }}</span>
+                                            @elseif($cell['state'] === 'none')
+                                                <span class="mt-1 block text-xs text-slate-300">No data</span>
+                                            @elseif($cell['state'] === 'off' && ! $c['in'])
+                                                <span class="mt-1 block text-xs text-slate-400">Day off</span>
+                                            @endif
+                                            <span class="mt-1 flex flex-wrap gap-1 text-xs font-medium">
+                                                @if($c['in'])<span class="rounded px-1 py-0.5 {{ $tone['on_time'] }}">{{ $c['in'] }} in</span>@endif
+                                                @if($c['late'])<span class="rounded px-1 py-0.5 {{ $tone['late'] }}">{{ $c['late'] }} late</span>@endif
+                                                @if($c['absent'])<span class="rounded px-1 py-0.5 {{ $tone['absent'] }}">{{ $c['absent'] }} absent</span>@endif
+                                                @if($c['leave'])<span class="rounded px-1 py-0.5 {{ $tone['leave'] }}">{{ $c['leave'] }} on leave</span>@endif
+                                                @if($c['flags'])<span class="rounded px-1 py-0.5 text-slate-600 ring-1 ring-inset ring-slate-400">{{ $c['flags'] }} to check</span>@endif
+                                            </span>
+                                        @endif
+                                    </button>
+                                @endif
+                            @endforeach
+                        </div>
+                    @endforeach
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-3 py-2 text-xs text-slate-600">
-                        <span>Each cell shows the arrival time.</span>
-                        @foreach(['on_time' => 'On time', 'late' => 'Late', 'absent' => 'Absent', 'leave' => 'On leave', 'holiday' => 'Holiday', 'worked_off' => 'Worked on a day off', 'off' => 'Day off'] as $key => $label)
-                            <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded {{ $tone[$key] }}"></span>{{ $label }}</span>
-                        @endforeach
-                        <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>Left early, long break or a missing punch</span>
+                        <span>Click a day to see everyone's punches. "In" counts everyone who came, late or not.</span>
+                        <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>To check: left early, a long break or a missing punch</span>
                     </div>
                 </div>
             @endif
@@ -373,7 +366,7 @@
                     @error('holidayName')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
                 </form>
                 <div>
-                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Holidays in {{ $monthStart->year }}</p>
+                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Holidays in {{ $last->year }}</p>
                     @forelse($holidayList as $holiday)
                         <div class="flex items-center justify-between gap-2 border-t border-slate-100 py-1.5 text-sm" wire:key="holiday-{{ $holiday->id }}">
                             <span><strong>{{ $holiday->date->format('D j M') }}</strong> · {{ $holiday->name }}</span>
@@ -383,6 +376,43 @@
                         <p class="!mb-0 text-sm text-slate-500">None added yet.</p>
                     @endforelse
                 </div>
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showDay && $dayList)
+        <style>.clinic-ui .ui-dialog:has(.attendance-day) { width: min(900px, calc(100% - 32px)); }</style>
+        <x-ui.modal :title="$dayList['date']->format('l j F Y').($dayList['holiday'] ? ' · '.$dayList['holiday'] : '')" state="showDay">
+            <div class="attendance-day p-4">
+                <div class="ui-table-wrap">
+                    <table class="table ui-table ui-table-sm mb-0">
+                        <thead><tr><th class="w-[30%]">Staff</th><th class="w-[30%] text-center">Punches</th><th class="w-[12%] text-center">On site</th><th class="w-[10%] text-center">Break</th><th class="w-[18%] text-center">Status</th></tr></thead>
+                        <tbody>
+                            @foreach($dayList['people'] as $person)
+                                @php $day = $person['day']; @endphp
+                                <tr wire:key="day-{{ $person['staff']->id }}">
+                                    <td class="font-medium text-slate-800">{{ $person['staff']->name }}</td>
+                                    <td class="text-center">
+                                        @foreach($day['punches'] as $punch)
+                                            <span @class(['mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs tabular-nums', 'bg-emerald-50 text-emerald-800' => $punch['kind'] === 'in', 'bg-slate-100 text-slate-700' => $punch['kind'] === 'out'])>{{ $punch['kind'] === 'in' ? 'In' : 'Out' }} {{ AttendanceAnalyzer::time($punch['time']) }}</span>
+                                        @endforeach
+                                        @if(! $day['punches'])–@endif
+                                    </td>
+                                    <td class="text-center ui-number">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
+                                    <td class="text-center ui-number">@if($day['break_minutes'])<span @class(['rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900' => $day['long_break']])>{{ AttendanceAnalyzer::duration($day['break_minutes']) }}</span>@else – @endif</td>
+                                    <td class="text-center">
+                                        <span class="inline-block rounded px-1.5 py-0.5 text-xs font-medium {{ $day['status'] === 'none' ? 'bg-slate-100 text-slate-600' : $tone[$day['status']] }}">{{ $day['status'] === 'none' ? 'Not in yet' : AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
+                                        @if($day['note'] && $day['status'] !== 'holiday')<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
+                                        @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
+                                        @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
+                                        @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if($dayList['inProgress'])<p class="!mb-0 mt-2 text-xs text-slate-500">This day is still in progress, so nobody is absent or gone early on it yet.</p>@endif
             </div>
         </x-ui.modal>
     @endif
@@ -413,7 +443,7 @@
     @if($showStaff && $detail)
         {{-- Wider than the other dialogs: a day's punches need the room. --}}
         <style>.clinic-ui .ui-dialog:has(.attendance-person) { width: min(900px, calc(100% - 32px)); }</style>
-        <x-ui.modal :title="$detail['staff']->name.' · '.$monthStart->format('F Y')" state="showStaff">
+        <x-ui.modal :title="$detail['staff']->name.' · '.$periodLabel" state="showStaff">
             <div class="attendance-person space-y-4 p-4">
                 <form wire:submit="saveStaff" class="space-y-3 rounded-lg bg-slate-50 p-3">
                     <div class="flex flex-wrap items-end gap-3">
@@ -484,7 +514,7 @@
                 </div>
 
                 <div>
-                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Days in {{ $monthStart->format('F Y') }}</p>
+                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Days, {{ $periodLabel }}</p>
                     <div class="ui-table-wrap">
                         <table class="table ui-table ui-table-sm mb-0">
                             <thead><tr><th>Day</th><th>Punches</th><th class="text-right">On site</th><th class="text-right">Break</th><th>Status</th></tr></thead>
@@ -515,7 +545,7 @@
                         </table>
                     </div>
                     @if(collect($detail['days'])->every(fn ($day) => in_array($day['status'], ['none', 'off'], true)))
-                        <p class="!mb-0 mt-2 text-sm text-slate-500">Nothing recorded for this person in {{ $monthStart->format('F Y') }}.</p>
+                        <p class="!mb-0 mt-2 text-sm text-slate-500">Nothing recorded for this person for {{ $periodLabel }}.</p>
                     @endif
                 </div>
             </div>
