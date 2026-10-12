@@ -872,8 +872,9 @@
         <div class="flex flex-wrap -mx-2">
             {{-- LEFT COLUMN: Compact Search Bar (25%) --}}
             <div class="w-full md:w-3/12 px-2">
-                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 shadow-xs sticky top-0 z-20" style="top: 10px;">
-                    <div class="card-header border-b border-slate-200 bg-teal-700 text-white py-1 px-4">
+                {{-- No overflow-hidden here: the search results drop down outside the card. --}}
+                <div class="card rounded-xl border bg-white border-slate-200 shadow-xs sticky top-0 z-30" style="top: 10px;">
+                    <div class="card-header rounded-t-xl border-b border-slate-200 bg-teal-700 text-white py-1 px-4">
                         <h6 class="mb-0 font-semibold" style="font-size: 13px;">
                             <i class="fas fa-search"></i> Quick Add Product
                         </h6>
@@ -891,22 +892,19 @@
                             @if($productSearch && strlen($productSearch) >= 2)
                                 <div class="search-results-dropdown">
                                     @if($searchResults->count() > 0)
-                                        <ul class="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+                                        <ul>
                                             @foreach($searchResults as $product)
-                                                <li class="list-group-item block w-full border-b border-slate-100 text-left hover:bg-slate-50 py-1 px-2"
+                                                <li class="list-group-item flex items-center justify-between gap-2 border-b border-slate-100 text-left last:border-b-0 hover:bg-teal-50"
                                                     wire:click="selectProduct({{ $product->id }})" style="cursor: pointer;">
-                                                    <div class="flex justify-between items-center">
-                                                        <div class="grow">
-                                                            <strong class="block" style="font-size: 12px;">{{ $product->name }}</strong>
-                                                            <small class="text-slate-500" style="font-size: 10px;">
-                                                                <i class="fas fa-warehouse"></i> Stock:
-                                                                <strong>{{ $product->made_to_order ? 'Made to order' : $product->quantity }}</strong>
-                                                            </small>
-                                                        </div>
-                                                        <span class="inline-flex items-center text-xs font-semibold bg-teal-100 text-teal-800 rounded-full px-2 py-1" style="font-size: 10px;">
-                                                            {{ currency() }} {{ number_format($product->selling_price, 2) }}
+                                                    <div class="min-w-0 leading-tight">
+                                                        <span class="block truncate text-xs font-semibold text-slate-800" title="{{ $product->name }}">{{ $product->name }}</span>
+                                                        <span class="text-[11px] {{ !$product->made_to_order && $product->quantity <= 0 ? 'text-red-600' : 'text-slate-500' }}">
+                                                            Stock: {{ $product->made_to_order ? 'Made to order' : $product->quantity }}
                                                         </span>
                                                     </div>
+                                                    <span class="shrink-0 whitespace-nowrap text-xs font-semibold text-teal-700">
+                                                        {{ currency() }} {{ number_format($product->selling_price, 2) }}
+                                                    </span>
                                                 </li>
                                             @endforeach
                                         </ul>

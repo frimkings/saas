@@ -387,16 +387,17 @@
 .audit-empty { padding: 20px 16px; text-align: center; font-size: 13px; color: #94A3B8; }
  /* ── Search Dropdown ──────────────────────────────── */
 .search-results-dropdown {
-    position: absolute; top: 100%; left: 0; right: 0;
-    z-index: 1050; max-height: 350px; overflow-y: auto;
+    /* Wider than the narrow search column so product names fit; it overlays the list beside it. */
+    position: absolute; top: 100%; left: 0; width: max(100%, 280px); max-width: calc(100vw - 32px);
+    z-index: 1050; max-height: min(420px, 60vh); overflow-y: auto;
     background: white;
-    border: 1px solid #E2E8F0; border-radius: 10px;
+    border: 1px solid #94A3B8; border-radius: 10px;
     margin-top: 4px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+    box-shadow: 0 12px 32px rgba(15,23,42,0.22);
 }
 .search-results-dropdown .list-group-item {
     border-left: none; border-right: none; border-color: #F1F5F9;
-    padding: 10px 14px; transition: background-color 0.15s;
+    padding: 6px 10px; transition: background-color 0.15s;
     cursor: pointer; font-size: 13px;
 }
 .search-results-dropdown .list-group-item:hover { background-color: #F8FAFC; }
