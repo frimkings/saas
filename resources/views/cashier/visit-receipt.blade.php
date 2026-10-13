@@ -51,7 +51,7 @@
                 @foreach($lines as $line)
                     <tr>
                         <td class="col-item">
-                            {{ \Illuminate\Support\Str::limit($line['name'], 19) }}
+                            {{ $line['name'] }}
                             @if($line['on_hold'])<div class="small muted">(on hold)</div>@endif
                             @if($line['refunded'] > 0)<div class="small muted">({{ $line['refunded'] }} refunded)</div>@endif
                         </td>

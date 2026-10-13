@@ -68,7 +68,7 @@ x-init="initTheme()"
                     <tbody>
                         @foreach($receiptData['items'] as $item)
                             <tr style="border-bottom:1px dotted #eee;">
-                                <td style="padding:3px 2px; font-size:10px;">{{ \Illuminate\Support\Str::limit($item['name'], 18) }}</td>
+                                <td style="padding:3px 2px; font-size:10px; vertical-align:top; overflow-wrap:anywhere;">{{ $item['name'] }}</td>
                                 <td style="text-align:center; padding:3px 2px; font-size:10px;">{{ $item['quantity'] }}</td>
                                 <td style="text-align:right; padding:3px 2px; font-size:10px;">{{ currency() }} {{ number_format($item['selling_price'], 2) }}</td>
                                 <td style="text-align:right; padding:3px 2px; font-size:10px;">{{ currency() }} {{ number_format($item['subtotal'], 2) }}</td>
@@ -148,10 +148,10 @@ window.buildAndPrint = function(d) {
     if (!d) { alert('Receipt data not ready. Please try again.'); return; }
     var itemRows = '';
     d.items.forEach(function(item) {
-        var name  = item.name.length > 18 ? item.name.substring(0, 18) + '...' : item.name;
+        var name  = item.name; // printed in full; a long name wraps within its column
         var price = '{{ currency() }} ' + parseFloat(item.selling_price).toFixed(2);
         var total = '{{ currency() }} ' + parseFloat(item.subtotal).toFixed(2);
-        itemRows += '<tr><td style="padding:3px 2px;font-size:12px;font-weight:bold;">' + name + '</td><td style="text-align:center;padding:3px 2px;">' + item.quantity + '</td><td style="text-align:right;padding:3px 2px;">' + price + '</td><td style="text-align:right;padding:3px 2px;">' + total + '</td></tr>';
+        itemRows += '<tr style="vertical-align:top;"><td style="padding:3px 2px;font-size:12px;font-weight:bold;overflow-wrap:anywhere;">' + name + '</td><td style="text-align:center;padding:3px 2px;">' + item.quantity + '</td><td style="text-align:right;padding:3px 2px;">' + price + '</td><td style="text-align:right;padding:3px 2px;">' + total + '</td></tr>';
     });
     var patientBlock = '';
     if (d.patient) {

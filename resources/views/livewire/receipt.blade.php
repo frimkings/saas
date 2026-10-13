@@ -20,7 +20,7 @@
         <tbody>
             @foreach($sale->items as $item)
                 <tr>
-                    <td>{{ \Illuminate\Support\Str::limit($item->display_product_name, 15) }}</td>
+                    <td style="vertical-align:top; overflow-wrap:anywhere;">{{ $item->display_product_name }}</td>
                     <td style="text-align:center;">{{ $item->quantity }}</td>
                     <td style="text-align:right;">{{ number_format($item->subtotal, 2) }}</td>
                 </tr>
