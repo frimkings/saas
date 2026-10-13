@@ -40,13 +40,20 @@ class AttendancePayroll
         $multiplier = (float) ($settings->overtime_multiplier ?? 1.5);
         $types = AttendanceLeaveType::options();
 
+        // Everyone on a salary: their working days in each month the period touches, read in one go.
+        $salaried = array_map(fn ($row) => $row['staff'], array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked && $row['staff']->pay_type === 'monthly'));
+        $schedules = [];
+        for ($month = $first->startOfMonth(); $salaried && $month->lte($last); $month = $month->addMonthNoOverflow()) {
+            $schedules[$month->format('Y-m')] = $this->analyzer->schedules($salaried, $month, $month->endOfMonth()->startOfDay());
+        }
+
         $rows = [];
         foreach ($report['rows'] as $row) {
             $staff = $row['staff'];
             if (! $staff->is_tracked) {
                 continue;
             }
-            $rates = $staff->pay_type === 'monthly' ? $this->monthRates($staff, $first, $last) : [];
+            $rates = $staff->pay_type === 'monthly' ? $this->monthRates($staff, $first, $last, $schedules) : [];
             $hourly = $staff->pay_type === 'hourly' ? (float) $staff->pay_rate / 60 : null;
             // What a minute, and a working day, are worth on a given date.
             $minute = fn (string $key) => $hourly ?? ($rates[substr($key, 0, 7)]['minute'] ?? 0);
@@ -100,14 +107,14 @@ class AttendancePayroll
      * month, and the salary due for the month's working days inside the period (from their
      * start date). The month's working days are the days they are due in, holidays included.
      */
-    private function monthRates(AttendanceStaff $staff, CarbonImmutable $first, CarbonImmutable $last): array
+    private function monthRates(AttendanceStaff $staff, CarbonImmutable $first, CarbonImmutable $last, array $schedules): array
     {
         $salary = (float) $staff->pay_rate;
         $from = max($first->format('Y-m-d'), $staff->starts_on?->format('Y-m-d') ?? '');
         $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
         $rates = [];
         for ($month = $first->startOfMonth(); $month->lte($last); $month = $month->addMonthNoOverflow()) {
-            $working = array_filter($this->analyzer->schedule($staff, $month, $month->endOfMonth()->startOfDay()));
+            $working = array_filter($schedules[$month->format('Y-m')][$staff->id] ?? []);
             $total = array_sum(array_map(fn ($hours) => max(1, $minutes($hours['end']) - $minutes($hours['start'])), $working));
             $inPeriod = count(array_filter(array_keys($working), fn ($key) => $key >= $from && $key <= $last->format('Y-m-d')));
             $rates[$month->format('Y-m')] = ['day' => $working ? $salary / count($working) : 0, 'minute' => $total ? $salary / $total : 0,

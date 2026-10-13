@@ -89,16 +89,20 @@ class AttendanceAnalyzer
         $punches = [];
         AttendancePunch::query()
             ->whereBetween('punched_at', [$before->format('Y-m-d 00:00:00'), $last->addDay()->format('Y-m-d 23:59:59')])
-            ->orderBy('punched_at')->toBase()->get(['attendance_staff_id', 'punched_at'])
+            ->when($this->only !== null, fn ($query) => $query->whereIn('attendance_staff_id', $this->only))
+            ->orderBy('punched_at')->toBase()->select(['attendance_staff_id', 'punched_at'])->cursor()
             ->each(function ($punch) use (&$punches) {
                 $punches[$punch->attendance_staff_id][substr($punch->punched_at, 0, 10)][] = substr($punch->punched_at, 11, 5);
             });
 
         $shifts = AttendanceShift::query()->get()->keyBy('id');
         $roster = [];
-        AttendanceRoster::query()->whereBetween('date', [$before->format('Y-m-d'), $last->format('Y-m-d')])->get()
+        // Thousands of rows at a hospital: plain rows, no models or date objects.
+        AttendanceRoster::query()->whereBetween('date', [$before->format('Y-m-d'), $last->format('Y-m-d')])
+            ->when($this->only !== null, fn ($query) => $query->whereIn('attendance_staff_id', $this->only))
+            ->toBase()->select(['attendance_staff_id', 'date', 'attendance_shift_id'])->cursor()
             ->each(function ($entry) use (&$roster) {
-                $roster[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = $entry->attendance_shift_id ?? 0;
+                $roster[$entry->attendance_staff_id][substr($entry->date, 0, 10)] = (int) ($entry->attendance_shift_id ?? 0);
             });
 
         $decided = [];
@@ -117,43 +121,60 @@ class AttendanceAnalyzer
         AttendanceLeave::query()->approved()
             ->where('starts_on', '<=', $last->format('Y-m-d'))->where('ends_on', '>=', $first->format('Y-m-d'))->get()
             ->each(function ($entry) use (&$leave, &$leaveTypes, &$away, $days, $unpaidTypes) {
+                [$starts, $ends, $typeName] = [$entry->starts_on->format('Y-m-d'), $entry->ends_on->format('Y-m-d'), $entry->typeName()];
                 if ($entry->isPartDay()) {
-                    $away[$entry->attendance_staff_id][$entry->starts_on->format('Y-m-d')][] = ['from' => $entry->from_time, 'to' => $entry->to_time, 'label' => $entry->typeName(),
+                    $away[$entry->attendance_staff_id][$starts][] = ['from' => $entry->from_time, 'to' => $entry->to_time, 'label' => $typeName,
                         'unpaid' => in_array($entry->type, $unpaidTypes, true)];
 
                     return;
                 }
                 foreach ($days as $key => $day) {
-                    if ($key >= $entry->starts_on->format('Y-m-d') && $key <= $entry->ends_on->format('Y-m-d')) {
-                        $leave[$entry->attendance_staff_id][$key] = $entry->typeName();
+                    if ($key >= $starts && $key <= $ends) {
+                        $leave[$entry->attendance_staff_id][$key] = $typeName;
                         $leaveTypes[$entry->attendance_staff_id][$key] = $entry->type;
                     }
                 }
             });
 
+        // With hundreds of people this loop runs tens of thousands of times, so whatever does not
+        // change from day to day (weekdays, each shift's hours, each person's rules) is worked out once.
+        $calendar = [];
+        foreach ([$before->format('Y-m-d') => $before] + $days as $key => $day) {
+            $calendar[$key] = [$day->dayOfWeekIso, $day->addDay()->format('Y-m-d')];
+        }
+        $shiftHours = $this->shiftHours($shifts);
+        $needsApproval = (bool) ($settings->overtime_needs_approval ?? true);
+
         $rows = [];
         foreach (AttendanceStaff::query()->when($this->only !== null, fn ($query) => $query->whereIn('id', $this->only))->with('unit:id,name')->orderByDesc('is_tracked')->orderBy('name')->get() as $staff) {
             $staffDays = [];
             $from = max($countFrom ?? '9999-12-31', $staff->starts_on?->format('Y-m-d') ?? '');
+            $person = $this->personRules($staff, $settings);
+            $rostered = $roster[$staff->id] ?? [];
+            $onLeave = $leave[$staff->id] ?? [];
+            $partDays = $away[$staff->id] ?? [];
+            $answers = $decided[$staff->id] ?? [];
             // The hours expected of them each day, from the day before the range so a night shift
             // that began then keeps its morning punches; then those punches move to its day.
             $expected = [];
             $mine = $punches[$staff->id] ?? [];
-            foreach ([$before->format('Y-m-d') => $before] + $days as $key => $day) {
-                $expected[$key] = $this->hoursFor($staff, $day, $settings, $shifts, $roster[$staff->id] ?? []);
-                $mine = $this->withNightPunches($mine, $key, $day, $expected[$key]);
+            foreach ($calendar as $key => [$weekday, $next]) {
+                $hours = $expected[$key] = $this->hoursOn($person, $shiftHours, $rostered[$key] ?? null, $weekday);
+                if ($hours && isset($mine[$next]) && $this->minutes($hours['end']) >= 1440) {
+                    $mine = $this->withNightPunches($mine, $key, $next, $hours);
+                }
             }
             foreach ($days as $key => $day) {
                 $state = $key < $from ? null : ($coverage[$key] ?? $assume);
                 $hours = $expected[$key];
-                $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
-                $note = $holidays[$key] ?? $leave[$staff->id][$key] ?? null;
-                $break = $hours['break'] ?? $this->rule($staff, 'break_minutes', $settings) ?? 60;
+                $excused = isset($holidays[$key]) ? 'holiday' : (isset($onLeave[$key]) ? 'leave' : null);
+                $note = $holidays[$key] ?? $onLeave[$key] ?? null;
+                $break = $hours['break'] ?? $person['break_minutes'] ?? 60;
                 // For pay: the length of the working day, the kind of whole-day leave, and unpaid leave for part of the day.
                 $forPay = ['scheduled_minutes' => $hours ? $this->minutes($hours['end']) - $this->minutes($hours['start']) : null,
                     'leave_type' => $excused === 'leave' ? $leaveTypes[$staff->id][$key] : null, 'unpaid_minutes' => 0];
                 // Leave for part of the day: they are expected for the rest of it.
-                if ($hours && ! $excused && $part = $away[$staff->id][$key] ?? null) {
+                if ($hours && ! $excused && $part = $partDays[$key] ?? null) {
                     foreach ($part as $time) {
                         $forPay['unpaid_minutes'] += $time['unpaid'] ? max(0, min($this->minutes($time['to']), $this->minutes($hours['end'])) - max($this->minutes($time['from']), $this->minutes($hours['start']))) : 0;
                     }
@@ -161,9 +182,9 @@ class AttendanceAnalyzer
                     $excused = $allDay ? 'leave' : null;
                     $note = implode(', ', array_map(fn ($a) => $a['label'].' '.self::time($a['from']).' to '.self::time($a['to']), $part));
                 }
-                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $this->rule($staff, 'grace_minutes', $settings), $state, $excused, $break, $this->rule($staff, 'overtime_after_minutes', $settings) ?? 30)
+                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $person['grace_minutes'], $state, $excused, $break, $person['overtime_after_minutes'] ?? 30)
                     + ['note' => $note, 'hours' => $hours] + $forPay;
-                $staffDays[$key] = $this->withOvertimeDecision($staffDays[$key], $decided[$staff->id][$key] ?? null, (bool) ($settings->overtime_needs_approval ?? true));
+                $staffDays[$key] = $this->withOvertimeDecision($staffDays[$key], $answers[$key] ?? null, $needsApproval);
             }
             $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
         }
@@ -226,12 +247,43 @@ class AttendanceAnalyzer
         $shifts = AttendanceShift::query()->get()->keyBy('id');
         $roster = AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->get()
             ->mapWithKeys(fn ($entry) => [$entry->date->format('Y-m-d') => $entry->attendance_shift_id ?? 0])->all();
+        $person = $this->personRules($staff, $settings);
+        $shiftHours = $this->shiftHours($shifts);
         $schedule = [];
         for ($day = $first->startOfDay(); $day->lte($last); $day = $day->addDay()) {
-            $schedule[$day->format('Y-m-d')] = $this->hoursFor($staff, $day, $settings, $shifts, $roster);
+            $key = $day->format('Y-m-d');
+            $schedule[$key] = $this->hoursOn($person, $shiftHours, $roster[$key] ?? null, $day->dayOfWeekIso);
         }
 
         return $schedule;
+    }
+
+    /** The same for many people at once, with one look at the roster: staff id => 'Y-m-d' => hours or null. */
+    public function schedules(iterable $staff, CarbonImmutable $first, CarbonImmutable $last): array
+    {
+        $settings = AttendanceSetting::current();
+        $this->departments = AttendanceDepartment::query()->get()->keyBy('id');
+        $shiftHours = $this->shiftHours(AttendanceShift::query()->get()->keyBy('id'));
+        $people = collect($staff)->keyBy('id');
+        $roster = [];
+        AttendanceRoster::query()->whereIn('attendance_staff_id', $people->keys())->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])
+            ->toBase()->select(['attendance_staff_id', 'date', 'attendance_shift_id'])->cursor()
+            ->each(function ($entry) use (&$roster) {
+                $roster[$entry->attendance_staff_id][substr($entry->date, 0, 10)] = (int) ($entry->attendance_shift_id ?? 0);
+            });
+        $calendar = [];
+        for ($day = $first->startOfDay(); $day->lte($last); $day = $day->addDay()) {
+            $calendar[$day->format('Y-m-d')] = $day->dayOfWeekIso;
+        }
+        $schedules = [];
+        foreach ($people as $id => $person) {
+            $rules = $this->personRules($person, $settings);
+            foreach ($calendar as $key => $weekday) {
+                $schedules[$id][$key] = $this->hoursOn($rules, $shiftHours, $roster[$id][$key] ?? null, $weekday);
+            }
+        }
+
+        return $schedules;
     }
 
     /**
@@ -269,37 +321,54 @@ class AttendanceAnalyzer
      */
     private function hoursFor(AttendanceStaff $staff, CarbonImmutable $day, AttendanceSetting $settings, $shifts, array $roster): ?array
     {
-        $choice = $roster[$day->format('Y-m-d')] ?? null;
+        return $this->hoursOn($this->personRules($staff, $settings), $this->shiftHours($shifts), $roster[$day->format('Y-m-d')] ?? null, $day->dayOfWeekIso);
+    }
+
+    /** Each shift as the working hours of a day, by shift id. */
+    private function shiftHours($shifts): array
+    {
+        return $shifts->map(fn (AttendanceShift $shift) => $shift->hours())->all();
+    }
+
+    /**
+     * What is fixed for one person whatever the day: their weekly shifts, the hours they follow
+     * on a day without a shift (their own, else their department's, else the branch's), and the
+     * grace, break and overtime rules that apply to them (their department's, else the branch's).
+     */
+    private function personRules(AttendanceStaff $staff, AttendanceSetting $settings): array
+    {
+        $department = $this->departments?->get($staff->attendance_department_id);
+
+        return [
+            'week' => $staff->shift_week ?? [],
+            'hours' => $staff->hours ?: ($department?->hours ?: ($settings->hours ?? [])),
+            'grace_minutes' => $department?->grace_minutes ?? $settings->grace_minutes,
+            'break_minutes' => $department?->break_minutes ?? $settings->break_minutes,
+            'overtime_after_minutes' => $department?->overtime_after_minutes ?? $settings->overtime_after_minutes,
+        ];
+    }
+
+    /** One day's hours for a person: $rostered is the roster's shift id for the date (0 = day off), or null for none. */
+    private function hoursOn(array $person, array $shiftHours, ?int $rostered, int $weekday): ?array
+    {
+        $choice = $rostered;
         if ($choice === null) {
-            $week = $staff->shift_week ?? [];
-            $choice = $week[$day->dayOfWeekIso] ?? $week[(string) $day->dayOfWeekIso] ?? null;
+            $choice = $person['week'][$weekday] ?? null;
             $choice = $choice === null || $choice === '' ? null : (int) $choice;
         }
         if ($choice === 0) {
             return null;
         }
-        if ($choice !== null && $shift = $shifts->get($choice)) {
-            return $shift->hours();
-        }
 
-        if ($staff->hours) {
-            return AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso);
-        }
-        $department = $this->departments?->get($staff->attendance_department_id);
-
-        return $department?->hours ? AttendanceSetting::dayHours($department->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
+        return $choice !== null && isset($shiftHours[$choice]) ? $shiftHours[$choice] : ($person['hours'][$weekday] ?? null);
     }
 
     /**
      * On a night shift, the next morning's punches up to a little after the shift ends are moved
      * to the day the shift began, written past midnight ('05:58' becomes '29:58').
      */
-    private function withNightPunches(array $punches, string $key, CarbonImmutable $day, ?array $hours): array
+    private function withNightPunches(array $punches, string $key, string $next, array $hours): array
     {
-        if (! $hours || $this->minutes($hours['end']) < 1440) {
-            return $punches;
-        }
-        $next = $day->addDay()->format('Y-m-d');
         $until = $this->minutes($hours['end']) - 1440 + self::NIGHT_SHIFT_TAIL_MINUTES;
         foreach ($punches[$next] ?? [] as $i => $time) {
             if ($this->minutes($time) <= $until) {

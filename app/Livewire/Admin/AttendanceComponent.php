@@ -36,6 +36,12 @@ class AttendanceComponent extends Component
     #[Url]
     public string $view = 'summary';
     public string $show = 'all';
+    /** Part of a name or Employee ID, to find people in a long list. */
+    public string $search = '';
+    // Long lists of people come a page at a time: the main list, the roster and payroll.
+    public int $page = 1;
+    public int $rosterPage = 1;
+    public int $payPage = 1;
     /** The department on show: '' everyone, an id, or 'none' for people in no department. */
     #[Url]
     public string $department = '';
@@ -188,6 +194,32 @@ class AttendanceComponent extends Component
     }
 
 
+    /** A change to what is listed starts again from the first page. */
+    public function updated(string $name): void
+    {
+        if (in_array($name, ['search', 'department', 'show', 'view', 'from', 'to'], true)) {
+            $this->page = $this->rosterPage = $this->payPage = 1;
+        }
+    }
+
+    private function matches(AttendanceStaff $staff): bool
+    {
+        $search = mb_strtolower(trim($this->search));
+
+        return $search === '' || str_contains(mb_strtolower($staff->name), $search) || str_contains(mb_strtolower((string) $staff->employee_no), $search);
+    }
+
+    /** One page of a list, and where it is: [items, [page, pages, total, from, to]]. */
+    private function paged(array $items, int &$page, int $perPage = 50): array
+    {
+        $total = count($items);
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $pages));
+
+        return [array_slice($items, ($page - 1) * $perPage, $perPage),
+            ['page' => $page, 'pages' => $pages, 'total' => $total, 'from' => $total ? ($page - 1) * $perPage + 1 : 0, 'to' => min($total, $page * $perPage)]];
+    }
+
     /** Day by day: the month before or after, within the days picked. */
     public function shiftCalendar(int $by): void
     {
@@ -252,6 +284,7 @@ class AttendanceComponent extends Component
     {
         $this->authorizeView();
         $this->rosterWeek = $this->period()[1]->startOfWeek(\Carbon\CarbonInterface::MONDAY)->format('Y-m-d');
+        $this->rosterPage = 1;
         $this->showRoster = true;
     }
 
@@ -458,8 +491,9 @@ class AttendanceComponent extends Component
         }
         $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
         $warnings = [];
+        $schedules = $analyzer->schedules(array_map(fn ($row) => $row['staff'], $rows), $monday->subDays(max(1, (int) $maxNights)), $monday->addDays(6));
         foreach ($rows as $row) {
-            $schedule = $analyzer->schedule($row['staff'], $monday->subDays(max(1, (int) $maxNights)), $monday->addDays(6));
+            $schedule = $schedules[$row['staff']->id] ?? [];
             $keys = array_keys($schedule);
             $nights = 0;
             foreach ($keys as $i => $key) {
@@ -499,8 +533,12 @@ class AttendanceComponent extends Component
         $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
         [$cover, $gaps] = $this->rosterCover($rows, $report['days']);
 
-        return ['days' => $report['days'], 'set' => $set, 'notes' => $notes, 'holidays' => $report['holidays'], 'rows' => $rows, 'cover' => $cover, 'gaps' => $gaps,
-            'warnings' => $this->restWarnings($analyzer, $rows, $monday, $report['settings']),
+        // Cover counts everyone; the grid shows a page of them, and only those are checked for rest.
+        [$shown, $pager] = $this->paged(array_values(array_filter($rows, fn ($row) => $this->matches($row['staff']))), $this->rosterPage, 25);
+
+        return ['days' => $report['days'], 'set' => $set, 'notes' => $notes, 'holidays' => $report['holidays'], 'rows' => $rows, 'shown' => $shown, 'pager' => $pager,
+            'cover' => $cover, 'gaps' => $gaps,
+            'warnings' => $this->restWarnings($analyzer, $shown, $monday, $report['settings']),
             'patterns' => $this->showPattern ? \App\Models\AttendancePattern::query()->orderBy('name')->get() : collect()];
     }
 
@@ -1460,11 +1498,19 @@ class AttendanceComponent extends Component
         }
         $report = $analyzer->range($first, $last);
 
-        $rows = array_values(array_filter($report['rows'], fn ($row) => match ($this->show) {
+        $rows = array_values(array_filter($report['rows'], fn ($row) => $this->matches($row['staff']) && match ($this->show) {
             'late' => $row['staff']->is_tracked && $row['totals']['late'] > 0,
             'absent' => $row['staff']->is_tracked && $row['totals']['absent'] > 0,
             default => true,
         }));
+        [$rows, $pager] = $this->paged($rows, $this->page);
+
+        $trends = $this->view === 'trends' ? app(\App\Services\Attendance\AttendanceTrends::class)->only($only)->months(min($last, CarbonImmutable::now($timezone)->startOfDay())) : null;
+        if ($trends) {
+            [$trends['people'], $pager] = $this->paged(array_values(array_filter($trends['people'], fn ($person) => $this->matches($person['staff']))), $this->page);
+        }
+        $payroll = $this->showPayroll && $user?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null;
+        $overtime = $this->overtimeList($report);
 
         return view('livewire.admin.attendance-component', [
             'first' => $first,
@@ -1476,7 +1522,8 @@ class AttendanceComponent extends Component
             'departmentSummary' => $manager && $departments->isNotEmpty() && $this->department === '' && $this->view === 'summary' ? $this->departmentSummary($report, $departments) : [],
             'departmentPeople' => $this->showDepartments ? AttendanceStaff::query()->where('is_tracked', true)->with('unit:id,name')->orderBy('name')->get() : collect(),
             'terminalLabels' => $this->showDepartments ? AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->distinct()->count('department') : 0,
-            'trends' => $this->view === 'trends' ? app(\App\Services\Attendance\AttendanceTrends::class)->only($only)->months(min($last, CarbonImmutable::now($timezone)->startOfDay())) : null,
+            'trends' => $trends,
+            'pager' => $pager,
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
@@ -1486,9 +1533,13 @@ class AttendanceComponent extends Component
             'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
             // Payroll gets its own button once anyone has been given a salary or an hourly rate.
             'paysStaff' => AttendanceStaff::query()->whereNotNull('pay_type')->exists(),
-            'payroll' => $this->showPayroll && auth()->user()?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null,
+            'payroll' => $payroll,
+            'payrollTotal' => $payroll ? array_sum(array_map(fn ($line) => $line['gross'] ?? 0, $payroll['rows'])) : 0,
+            'payrollPage' => $payroll ? $this->paged(array_values(array_filter($payroll['rows'], fn ($line) => $this->matches($line['staff']))), $this->payPage) : [[], null],
             'currency' => \App\Models\Setting::currency(),
-            'overtime' => $overtime = $this->overtimeList($report),
+            // Those waiting come first; a long list shows its first fifty.
+            'overtime' => array_slice($overtime, 0, 50),
+            'overtimeCount' => count($overtime),
             'overtimeWaiting' => count(array_filter($overtime, fn ($item) => $item['day']['overtime_status'] === 'pending')),
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,

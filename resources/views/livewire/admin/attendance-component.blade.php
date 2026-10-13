@@ -96,7 +96,7 @@
                     @foreach($groups as $group => [$label, $colour, $people])
                         <div>
                             <p class="!mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $label }} <span class="ml-1 rounded px-1.5 py-0.5 {{ $colour }}">{{ $people->count() }}</span></p>
-                            @forelse($people as $person)
+                            @forelse($people->take(40) as $person)
                                 <button type="button" class="mb-1 block w-full rounded-lg border border-slate-100 px-2 py-1 text-left text-sm hover:bg-slate-50" wire:click="openStaff({{ $person['staff']->id }})" wire:key="board-{{ $person['staff']->id }}">
                                     <span class="font-medium text-slate-800">{{ $person['staff']->name }}</span>
                                     <span class="block text-xs text-slate-500">
@@ -124,6 +124,7 @@
                             @empty
                                 <p class="!mb-0 text-sm text-slate-400">Nobody</p>
                             @endforelse
+                            @if($people->count() > 40)<p class="!mb-0 text-xs text-slate-500">And {{ $people->count() - 40 }} more. Pick a department to see them all.</p>@endif
                         </div>
                     @endforeach
                 </div>
@@ -147,6 +148,7 @@
                             @if($manager)<option value="none">No department</option>@endif
                         </select>
                     @endif
+                    @if($totals['staff'] > 20 || $search !== '')<input type="search" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live.debounce.400ms="search" placeholder="Find by name or ID" aria-label="Find a person">@endif
                     <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
                         <option value="all">Everyone</option>
                         <option value="late">Late at least once</option>
@@ -260,6 +262,7 @@
                             </tbody>
                         </table>
                     </div>
+                    @include('livewire.admin.partials.attendance-pager', ['pager' => $pager, 'model' => 'page'])
                 </div>
             @elseif($view === 'grid')
                 {{-- A month at a time, Monday to Sunday: how each day went for the branch. Clicking a day lists everyone. --}}
@@ -395,6 +398,7 @@
                             </tbody>
                         </table>
                     </div>
+                    @include('livewire.admin.partials.attendance-pager', ['pager' => $pager, 'model' => 'page'])
                     <p class="!mb-0 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">Each month shows late arrivals (L) and absences (A). People with the most of both come first. The six months end at the last day picked above.</p>
                 </div>
             @endif
@@ -672,7 +676,7 @@
                     <table class="table ui-table ui-table-sm mb-0">
                         <thead><tr><th>Staff</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}@if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-slate-500">Holiday</span>@endif</th>@endforeach</tr></thead>
                         <tbody>
-                            @foreach($rosterGrid['rows'] as $row)
+                            @foreach($rosterGrid['shown'] as $row)
                                 <tr wire:key="roster-{{ $row['staff']->id }}">
                                     <td class="whitespace-nowrap font-medium text-slate-800">{{ $row['staff']->name }}</td>
                                     @foreach($rosterDays as $day)
@@ -700,6 +704,7 @@
                         </tbody>
                     </table>
                 </div>
+                @include('livewire.admin.partials.attendance-pager', ['pager' => $rosterGrid['pager'], 'model' => 'rosterPage'])
                 {{-- roster-extras --}}
                 @if($rosterGrid['cover'])
                     <div>
@@ -838,6 +843,7 @@
                 @empty
                     <p class="!mb-0 text-sm text-slate-500">Nobody worked overtime in {{ $periodLabel }}.</p>
                 @endforelse
+                @if($overtimeCount > count($overtime))<p class="!mb-0 text-sm text-slate-500">Showing the first {{ count($overtime) }} of {{ number_format($overtimeCount) }} days, those waiting first. Answer these, pick a department or choose fewer days to see the rest.</p>@endif
             </div>
         </x-ui.modal>
     @endif
@@ -899,7 +905,7 @@
                         <thead><tr><th>Staff</th><th>Paid</th><th>Rate ({{ $currency }})</th><th class="text-right">Present</th><th class="text-right">Absent</th><th class="text-right">Late</th><th class="text-right">Overtime</th>
                             <th class="text-right">Basic</th><th class="text-right">Overtime pay</th><th class="text-right">Taken off</th><th class="text-right">Gross</th></tr></thead>
                         <tbody>
-                            @foreach($payroll['rows'] as $line)
+                            @foreach($payrollPage[0] as $line)
                                 @php $id = $line['staff']->id; @endphp
                                 <tr wire:key="pay-{{ $id }}">
                                     <td class="font-medium text-slate-800">{{ $line['staff']->name }}</td>
@@ -922,9 +928,10 @@
                                 </tr>
                             @endforeach
                         </tbody>
-                        <tfoot><tr><td colspan="10" class="text-right font-semibold">Total gross</td><td class="text-right ui-number font-semibold">{{ number_format(array_sum(array_map(fn ($line) => $line['gross'] ?? 0, $payroll['rows'])), 2) }}</td></tr></tfoot>
+                        <tfoot><tr><td colspan="10" class="text-right font-semibold">Total gross{{ $payrollPage[1]['pages'] > 1 ? ', everyone' : '' }}</td><td class="text-right ui-number font-semibold">{{ number_format($payrollTotal, 2) }}</td></tr></tfoot>
                     </table>
                 </div>
+                @include('livewire.admin.partials.attendance-pager', ['pager' => $payrollPage[1], 'model' => 'payPage'])
                 <p class="!mb-0 text-xs text-slate-500">On a salary, a working day is worth the month's salary divided by that month's working days. By the hour, people are paid for hours on site up to the end of the day, plus approved overtime; leave and holidays are not added.</p>
                 <div class="flex flex-wrap items-center justify-end gap-2">
                     <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.export', ['format' => 'payroll', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Download for Excel</a>

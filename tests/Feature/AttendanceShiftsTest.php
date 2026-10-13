@@ -120,6 +120,27 @@ class AttendanceShiftsTest extends TestCase
         $this->assertSame([true, 120], [$early['left_early'], $early['early_minutes']]);
     }
 
+    public function test_a_long_staff_list_comes_a_page_at_a_time_and_can_be_searched(): void
+    {
+        // A small branch has no search box and no pages.
+        Livewire::test(AttendanceComponent::class)->assertDontSee('Find by name or ID')->assertDontSee('Page 1 of');
+
+        for ($n = 1; $n <= 59; $n++) {
+            AttendanceStaff::create(['employee_no' => sprintf('9%02d', $n), 'name' => sprintf('Staff %02d', $n), 'is_tracked' => true]);
+        }
+        AttendanceShift::create(['name' => 'Morning', 'starts_at' => '08:00', 'ends_at' => '14:00']);
+        // Sixty people: fifty on the first page ("Ama Owusu" sorts first), the rest on the second.
+        $row = fn (string $name) => 'wire:key="summary-'.AttendanceStaff::where('name', $name)->value('id').'"';
+        Livewire::test(AttendanceComponent::class)->assertSee('Find by name or ID')->assertSee('Showing 1 to 50 of 60 people')
+            ->assertSeeHtml($row('Ama Owusu'))->assertSeeHtml($row('Staff 49'))->assertDontSeeHtml($row('Staff 50'))
+            ->set('page', 2)->assertSee('Showing 51 to 60 of 60 people')->assertSeeHtml($row('Staff 59'))->assertDontSeeHtml($row('Staff 49'))
+            // Searching goes back to the first page and finds by name or by Employee ID.
+            ->set('search', 'staff 07')->assertSet('page', 1)->assertSeeHtml($row('Staff 07'))->assertDontSeeHtml($row('Staff 08'))->assertDontSee('Page 1 of')
+            ->set('search', '959')->assertSeeHtml($row('Staff 59'))->assertDontSeeHtml($row('Staff 07'))
+            // The roster shows twenty-five at a time.
+            ->set('search', '')->call('openRoster')->assertSee('Showing 1 to 25 of 60 people')->set('rosterPage', 3)->assertSee('Showing 51 to 60 of 60 people');
+    }
+
     public function test_buttons_appear_only_once_a_branch_uses_what_they_open(): void
     {
         // A small clinic that only follows who was late: no Roster, Overtime or Payroll buttons; pay sits under Set up.
