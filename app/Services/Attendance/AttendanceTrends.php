@@ -12,7 +12,16 @@ class AttendanceTrends
 {
     public const WEEKDAYS = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
 
-    public function __construct(private readonly AttendanceAnalyzer $analyzer) {}
+    public function __construct(private AttendanceAnalyzer $analyzer) {}
+
+    /** The same, for these people only (a department's, or a head's own): null = everyone. */
+    public function only(?array $staffIds): static
+    {
+        $limited = clone $this;
+        $limited->analyzer = $this->analyzer->forStaff($staffIds);
+
+        return $limited;
+    }
 
     /**
      * ['months' => 'Y-m' => [label, expected, present, late, absent, leave, rate (% or null), late_minutes, overtime_minutes],

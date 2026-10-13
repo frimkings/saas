@@ -21,7 +21,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class AttendancePayroll
 {
-    public function __construct(private readonly AttendanceAnalyzer $analyzer) {}
+    public function __construct(private AttendanceAnalyzer $analyzer) {}
+
+    /** The same, for these people only (a department's, or a head's own): null = everyone. */
+    public function only(?array $staffIds): static
+    {
+        $limited = clone $this;
+        $limited->analyzer = $this->analyzer->forStaff($staffIds);
+
+        return $limited;
+    }
 
     /** ['rows' => one per followed person, 'settings', 'pending' (overtime minutes still unanswered), 'unrecorded' (working days with nothing received)]. */
     public function for(CarbonImmutable $first, CarbonImmutable $last): array
@@ -137,7 +146,7 @@ class AttendancePayroll
                 $staff = $line['staff'];
                 $money = fn ($amount) => $line['pay_type'] ? number_format($amount, 2, '.', '') : null;
                 fputcsv($out, [ctype_digit($staff->employee_no) && str_starts_with($staff->employee_no, '0') ? '="'.$staff->employee_no.'"' : $staff->employee_no,
-                    $staff->name, $staff->department, ['monthly' => 'Monthly salary', 'hourly' => 'By the hour'][$line['pay_type']] ?? 'Not set', $money($line['rate'] ?? 0),
+                    $staff->name, $staff->unit?->name ?? $staff->department, ['monthly' => 'Monthly salary', 'hourly' => 'By the hour'][$line['pay_type']] ?? 'Not set', $money($line['rate'] ?? 0),
                     $line['expected'], $line['present'], $line['absent'], $line['paid_leave'], $line['unpaid_leave'], $line['holidays'], round($line['minutes_worked'] / 60, 2),
                     $line['late_minutes'], round($line['overtime_minutes'] / 60, 2), round($line['overtime_pending'] / 60, 2), $money($line['basic']), $money($line['overtime_pay']),
                     $money($line['absence']), $money($line['unpaid']), $money($line['lateness']), $money($line['gross'] ?? 0),

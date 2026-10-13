@@ -2,6 +2,7 @@
 
 namespace App\Services\Attendance;
 
+use App\Models\AttendanceDepartment;
 use App\Models\AttendanceDevice;
 use App\Models\AttendanceHoliday;
 use App\Models\AttendanceImport;
@@ -25,6 +26,27 @@ use Carbon\CarbonImmutable;
  */
 class AttendanceAnalyzer
 {
+    /** Staff ids to report on; null = everyone at the branch. */
+    private ?array $only = null;
+
+    /** The branch's departments by id, read at the start of each report. */
+    private $departments = null;
+
+    /** The same analyzer limited to these people: a department's, for its head. Null = everyone. */
+    public function forStaff(?array $staffIds): static
+    {
+        $limited = clone $this;
+        $limited->only = $staffIds;
+
+        return $limited;
+    }
+
+    /** A rule for one person: their department's if it sets one, else the branch's. */
+    private function rule(AttendanceStaff $staff, string $rule, AttendanceSetting $settings)
+    {
+        return $this->departments?->get($staff->attendance_department_id)?->{$rule} ?? $settings->{$rule};
+    }
+
     /** Punches this close together are one punch: the terminal recognising the same person twice. */
     public const SAME_PUNCH_MINUTES = 2;
 
@@ -51,6 +73,7 @@ class AttendanceAnalyzer
         $first = $first->startOfDay();
         $last = $last->startOfDay();
         $settings = AttendanceSetting::current();
+        $this->departments = AttendanceDepartment::query()->get()->keyBy('id');
 
         $days = [];
         for ($day = $first; $day->lte($last); $day = $day->addDay()) {
@@ -109,7 +132,7 @@ class AttendanceAnalyzer
             });
 
         $rows = [];
-        foreach (AttendanceStaff::query()->orderByDesc('is_tracked')->orderBy('name')->get() as $staff) {
+        foreach (AttendanceStaff::query()->when($this->only !== null, fn ($query) => $query->whereIn('id', $this->only))->with('unit:id,name')->orderByDesc('is_tracked')->orderBy('name')->get() as $staff) {
             $staffDays = [];
             $from = max($countFrom ?? '9999-12-31', $staff->starts_on?->format('Y-m-d') ?? '');
             // The hours expected of them each day, from the day before the range so a night shift
@@ -125,7 +148,7 @@ class AttendanceAnalyzer
                 $hours = $expected[$key];
                 $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
                 $note = $holidays[$key] ?? $leave[$staff->id][$key] ?? null;
-                $break = $hours['break'] ?? $settings->break_minutes ?? 60;
+                $break = $hours['break'] ?? $this->rule($staff, 'break_minutes', $settings) ?? 60;
                 // For pay: the length of the working day, the kind of whole-day leave, and unpaid leave for part of the day.
                 $forPay = ['scheduled_minutes' => $hours ? $this->minutes($hours['end']) - $this->minutes($hours['start']) : null,
                     'leave_type' => $excused === 'leave' ? $leaveTypes[$staff->id][$key] : null, 'unpaid_minutes' => 0];
@@ -138,7 +161,7 @@ class AttendanceAnalyzer
                     $excused = $allDay ? 'leave' : null;
                     $note = implode(', ', array_map(fn ($a) => $a['label'].' '.self::time($a['from']).' to '.self::time($a['to']), $part));
                 }
-                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break, $settings->overtime_after_minutes ?? 30)
+                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $this->rule($staff, 'grace_minutes', $settings), $state, $excused, $break, $this->rule($staff, 'overtime_after_minutes', $settings) ?? 30)
                     + ['note' => $note, 'hours' => $hours] + $forPay;
                 $staffDays[$key] = $this->withOvertimeDecision($staffDays[$key], $decided[$staff->id][$key] ?? null, (bool) ($settings->overtime_needs_approval ?? true));
             }
@@ -199,6 +222,7 @@ class AttendanceAnalyzer
     public function schedule(AttendanceStaff $staff, CarbonImmutable $first, CarbonImmutable $last): array
     {
         $settings = AttendanceSetting::current();
+        $this->departments = AttendanceDepartment::query()->get()->keyBy('id');
         $shifts = AttendanceShift::query()->get()->keyBy('id');
         $roster = AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->get()
             ->mapWithKeys(fn ($entry) => [$entry->date->format('Y-m-d') => $entry->attendance_shift_id ?? 0])->all();
@@ -214,6 +238,7 @@ class AttendanceAnalyzer
     public function expectedHours(AttendanceStaff $staff, CarbonImmutable $day): ?array
     {
         $entry = AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereDate('date', $day->format('Y-m-d'))->first();
+        $this->departments = AttendanceDepartment::query()->get()->keyBy('id');
 
         return $this->hoursFor($staff, $day, AttendanceSetting::current(), AttendanceShift::query()->get()->keyBy('id'),
             $entry ? [$day->format('Y-m-d') => $entry->attendance_shift_id ?? 0] : []);
@@ -221,7 +246,7 @@ class AttendanceAnalyzer
 
     /**
      * The hours expected of someone on a day: the roster for that date, else their weekly shift
-     * pattern, else their own hours, else the branch's. Null is a day off. A shift adds its name
+     * pattern, else their own hours, else their department's, else the branch's. Null is a day off. A shift adds its name
      * and break allowance; a night shift's end runs past midnight ('30:00' = 6 AM next morning).
      *
      * @param  array<string, int>  $roster  'Y-m-d' => shift id, 0 for a day off
@@ -241,7 +266,12 @@ class AttendanceAnalyzer
             return $shift->hours();
         }
 
-        return $staff->hours ? AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
+        if ($staff->hours) {
+            return AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso);
+        }
+        $department = $this->departments?->get($staff->attendance_department_id);
+
+        return $department?->hours ? AttendanceSetting::dayHours($department->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
     }
 
     /**
@@ -330,7 +360,7 @@ class AttendanceAnalyzer
             } elseif (in_array($day['status'], ['leave', 'holiday', 'off'], true)) {
                 $person['state'] = $day['status'];
             } else {
-                $person['state'] = ! $hours ? 'off' : ($clock >$this->minutes($hours['start']) + $settings->grace_minutes ? 'missing' : 'due');
+                $person['state'] = ! $hours ? 'off' : ($clock > $this->minutes($hours['start']) + $this->rule($row['staff'], 'grace_minutes', $settings) ? 'missing' : 'due');
             }
             $people[] = $person;
         }

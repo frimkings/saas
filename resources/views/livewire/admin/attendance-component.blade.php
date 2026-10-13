@@ -20,14 +20,15 @@
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="!mb-0 text-xl font-semibold text-slate-900">Attendance</h1>
-                <p class="!mb-0 text-sm text-slate-500">Who was on time, late or absent, from the attendance terminal.</p>
+                <p class="!mb-0 text-sm text-slate-500">{{ $manager ? 'Who was on time, late or absent, from the attendance terminal.' : 'Your department: '.$departments->pluck('name')->implode(', ').'.' }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 {{-- Each of these appears once the branch uses it, so a small clinic sees a short page. --}}
                 @if($shifts->isNotEmpty())<button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>@endif
                 @if($overtime)<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
                 @if($canPay && $paysStaff)<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
-                {{-- Things set once and seldom changed. --}}
+                {{-- Things set once and seldom changed: the owner and managers only. --}}
+                @if($manager)
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
                     <button type="button" class="ui-button ui-button-secondary" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"><i class="fas fa-sliders" aria-hidden="true"></i>Set up<i class="fas fa-chevron-down ml-1 text-xs" aria-hidden="true"></i></button>
                     <div x-show="open" x-cloak @click="open = false" class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg" role="menu">
@@ -38,6 +39,7 @@
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
                             ['openPhone', 'fa-mobile-screen', 'Phone clock-in'],
+                            ['openDepartments', 'fa-sitemap', 'Departments'],
                             ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff],
                         ] as $item)
                             @continue(($item[3] ?? true) === false)
@@ -47,6 +49,7 @@
                     </div>
                 </div>
                 <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
+                @endif
             </div>
         </div>
 
@@ -133,6 +136,13 @@
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <x-date-range from="from" to="to" presets="finance" />
                 <div class="flex flex-wrap items-center gap-2">
+                    @if($departments->isNotEmpty() && ($manager || $departments->count() > 1))
+                        <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="department" aria-label="Department">
+                            <option value="">{{ $manager ? 'All departments' : 'All my departments' }}</option>
+                            @foreach($departments as $unit)<option value="{{ $unit->id }}">{{ $unit->name }}</option>@endforeach
+                            @if($manager)<option value="none">No department</option>@endif
+                        </select>
+                    @endif
                     <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
                         <option value="all">Everyone</option>
                         <option value="late">Late at least once</option>
@@ -143,8 +153,8 @@
                             <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
                         @endforeach
                     </div>
-                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')]) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
-                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')]) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
                 </div>
             </div>
 
@@ -164,6 +174,32 @@
                     Recorded up to {{ $coveredUntil->format('D j M Y') }}{{ ($report['coverage'][$report['covered_until']] ?? '') === 'partial' ? ', a day still in progress' : '' }}.
                     Later days show no data until the terminal sends more or a newer report is uploaded.
                 </p>
+            @endif
+
+            @if($departmentSummary)
+                <div class="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <h2 class="!mb-0 border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Departments</h2>
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table ui-table-sm mb-0">
+                            <thead><tr><th>Department</th><th class="text-right">Staff</th><th class="text-right">Attendance</th><th class="text-right">Late</th><th class="text-right">Time late</th><th class="text-right">Absent</th><th class="text-right">Overtime</th><th><span class="sr-only">Open</span></th></tr></thead>
+                            <tbody>
+                                @foreach($departmentSummary as $unit)
+                                    @php $rate = $unit['expected'] ? (int) round($unit['present'] / $unit['expected'] * 100) : null; @endphp
+                                    <tr wire:key="unit-{{ $unit['key'] }}">
+                                        <td class="font-medium text-slate-800">{{ $unit['name'] }}</td>
+                                        <td class="text-right ui-number">{{ $unit['staff'] }}</td>
+                                        <td class="text-right ui-number">@if($rate !== null)<span @class(['rounded px-1.5 py-0.5 font-semibold', 'bg-emerald-50 text-emerald-800' => $rate >= 95, 'bg-amber-100 text-amber-900' => $rate < 95 && $rate >= 85, 'bg-red-100 text-red-800' => $rate < 85])>{{ $rate }}%</span>@else – @endif</td>
+                                        <td class="text-right ui-number">{{ $unit['late'] }}</td>
+                                        <td class="text-right ui-number">{{ $unit['late_minutes'] ? AttendanceAnalyzer::duration($unit['late_minutes']) : '–' }}</td>
+                                        <td class="text-right ui-number">{{ $unit['absent'] }}</td>
+                                        <td class="text-right ui-number">{{ $unit['overtime_minutes'] ? AttendanceAnalyzer::duration($unit['overtime_minutes']) : '–' }}</td>
+                                        <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="$set('department', '{{ $unit['key'] }}')">Show</button></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             @endif
 
             @if($view === 'summary')
@@ -195,7 +231,7 @@
                                             <strong>{{ $staff->name }}</strong>
                                             @unless($staff->is_tracked)<span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Not followed</span>@endunless
                                             @if($staff->hours)<span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Own hours</span>@endif
-                                            <br><small class="text-slate-500">ID {{ $staff->employee_no }}@if($staff->department) · {{ $staff->department }}@endif</small>
+                                            <br><small class="text-slate-500">ID {{ $staff->employee_no }}{{ ($unitName = $staff->unit?->name ?? $staff->department) ? ' · '.$unitName : '' }}</small>
                                         </td>
                                         @if($staff->is_tracked)
                                             <td class="text-right ui-number">{{ $t['present'] }}<span class="text-slate-400"> / {{ $t['expected'] }}</span></td>
@@ -783,7 +819,7 @@
                 </div>
                 <p class="!mb-0 text-xs text-slate-500">On a salary, a working day is worth the month's salary divided by that month's working days. By the hour, people are paid for hours on site up to the end of the day, plus approved overtime; leave and holidays are not added.</p>
                 <div class="flex flex-wrap items-center justify-end gap-2">
-                    <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.export', ['format' => 'payroll', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')]) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Download for Excel</a>
+                    <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.export', ['format' => 'payroll', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Download for Excel</a>
                     <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePayroll">Save and work out again</x-ui.button>
                 </div>
             </form>
@@ -833,6 +869,92 @@
                         @error('phoneUserId')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
                     </form>
                 </div>
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showDepartments)
+        <style>.clinic-ui .ui-dialog:has(.attendance-departments) { width: min(900px, calc(100% - 32px)); }</style>
+        <x-ui.modal title="Departments" state="showDepartments">
+            <div class="attendance-departments space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">For larger places: group staff into departments such as Nursing, Laboratory or Pharmacy. The head of a department opens Attendance and sees only their own people; they set the roster, correct punches and answer leave and overtime for them. Everything else stays with you and your managers. With no departments, nothing changes.</p>
+                @if($terminalLabels)
+                    <div class="flex flex-wrap items-center justify-between gap-2 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+                        <span>The terminal already has {{ $terminalLabels }} department {{ $terminalLabels === 1 ? 'name' : 'names' }} for people who are in no department here.</span>
+                        <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="departmentsFromTerminal" wire:loading.attr="disabled">Make departments from them</button>
+                    </div>
+                @endif
+                @if($departments->isNotEmpty())
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table ui-table-sm mb-0">
+                            <thead><tr><th>Department</th><th>Headed by</th><th class="text-right">People</th><th>Rules</th><th class="text-right">Action</th></tr></thead>
+                            <tbody>
+                                @foreach($departments as $unit)
+                                    <tr wire:key="department-{{ $unit->id }}">
+                                        <td class="font-medium text-slate-800">{{ $unit->name }}</td>
+                                        <td class="text-sm">{{ $accounts->whereIn('id', $unit->heads ?? [])->pluck('name')->implode(', ') ?: 'Nobody yet' }}</td>
+                                        <td class="text-right ui-number">{{ $unit->staff_count }}</td>
+                                        <td class="text-sm">{{ $unit->hasOwnRules() ? 'Its own' : "The branch's" }}</td>
+                                        <td class="whitespace-nowrap text-right">
+                                            <button type="button" wire:click="editDepartment({{ $unit->id }})" class="text-xs text-teal-700 underline">Edit</button>
+                                            <button type="button" wire:click="removeDepartment({{ $unit->id }})" wire:confirm="Delete {{ $unit->name }}? Its people stay followed, in no department." class="ml-2 text-xs text-red-700 underline">Delete</button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+                <form wire:submit="saveDepartment" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p class="!mb-0 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $departmentEditId ? 'Change '.$departmentName : 'Add a department' }}</p>
+                    <div>
+                        <label for="department-name" class="mb-1 block text-xs font-semibold text-slate-600">Name</label>
+                        <input id="department-name" type="text" maxlength="60" wire:model="departmentName" placeholder="e.g. Nursing" class="ui-input !w-72">
+                        @error('departmentName')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <fieldset>
+                            <legend class="mb-1 text-xs font-semibold text-slate-600">Headed by</legend>
+                            <div class="max-h-44 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+                                @foreach($accounts as $account)
+                                    <label class="flex items-center gap-2 py-0.5 text-sm text-slate-800" wire:key="head-{{ $account->id }}"><input type="checkbox" value="{{ $account->id }}" wire:model="departmentHeads"> {{ $account->name }}</label>
+                                @endforeach
+                            </div>
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">Any user of yours, whatever their role. They find "Department attendance" in their menu.</p>
+                        </fieldset>
+                        <fieldset>
+                            <legend class="mb-1 text-xs font-semibold text-slate-600">People in it</legend>
+                            <div class="max-h-44 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+                                @forelse($departmentPeople as $person)
+                                    <label class="flex items-center gap-2 py-0.5 text-sm text-slate-800" wire:key="member-{{ $person->id }}"><input type="checkbox" value="{{ $person->id }}" wire:model="departmentMembers"> {{ $person->name }}
+                                        @if($person->unit && $person->attendance_department_id !== $departmentEditId)<span class="text-xs text-slate-400">now in {{ $person->unit->name }}</span>@endif</label>
+                                @empty
+                                    <p class="!mb-0 text-sm text-slate-500">Nobody is followed yet.</p>
+                                @endforelse
+                            </div>
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">A person is in one department; ticking them here moves them.</p>
+                        </fieldset>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="departmentOwnRules"> This department has rules of its own</label>
+                    @if($departmentOwnRules)
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div><label for="department-grace" class="mb-1 block text-xs font-semibold text-slate-600">Grace period (minutes)</label><input id="department-grace" type="number" min="0" max="240" class="ui-input !w-32" wire:model="departmentGrace" placeholder="Branch: {{ $settings->grace_minutes }}"></div>
+                            <div><label for="department-break" class="mb-1 block text-xs font-semibold text-slate-600">Break allowed (minutes)</label><input id="department-break" type="number" min="0" max="480" class="ui-input !w-32" wire:model="departmentBreak" placeholder="Branch: {{ $settings->break_minutes ?? 60 }}"></div>
+                            <div><label for="department-overtime" class="mb-1 block text-xs font-semibold text-slate-600">Overtime starts after (minutes)</label><input id="department-overtime" type="number" min="1" max="480" class="ui-input !w-32" wire:model="departmentOvertimeAfter" placeholder="Branch: {{ $settings->overtime_after_minutes ?? 30 }}"></div>
+                            <p class="!mb-0 w-full text-xs text-slate-500">Leave one empty to follow the branch.</p>
+                        </div>
+                        @foreach(['departmentGrace', 'departmentBreak', 'departmentOvertimeAfter'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                        <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="departmentOwnHours"> It works different hours from the branch</label>
+                        @if($departmentOwnHours)
+                            @include('livewire.admin.partials.attendance-hours', ['model' => 'departmentHours', 'values' => $departmentHours])
+                            <p class="!mb-0 text-xs text-slate-500">For departments on shifts, use Shifts and the Roster instead; these hours apply on days a person has no shift.</p>
+                        @endif
+                    @endif
+                    <div class="flex items-center justify-end gap-2">
+                        @if($departmentEditId)<x-ui.button type="button" wire:click="openDepartments">Cancel</x-ui.button>@endif
+                        <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveDepartment">{{ $departmentEditId ? 'Save' : 'Add department' }}</x-ui.button>
+                    </div>
+                </form>
             </div>
         </x-ui.modal>
     @endif
@@ -910,6 +1032,7 @@
         <style>.clinic-ui .ui-dialog:has(.attendance-person) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="$detail['staff']->name.' · '.$periodLabel" state="showStaff">
             <div class="attendance-person space-y-4 p-4">
+                @if($manager)
                 <form wire:submit="saveStaff" class="space-y-3 rounded-lg bg-slate-50 p-3">
                     <div class="flex flex-wrap items-end gap-3">
                         <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="staffTracked"> Follow this person's attendance</label>
@@ -928,7 +1051,16 @@
                         <p class="!mb-0 mt-1 text-xs text-slate-500">Once linked, this person sees their own attendance on their profile page.</p>
                         @error('staffUserId')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     </div>
-                    <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="staffOwnHours"> Works different hours from the branch</label>
+                    @if($departments->isNotEmpty())
+                        <div>
+                            <label for="attendance-department" class="mb-1 block text-xs font-medium text-slate-600">Department</label>
+                            <select id="attendance-department" class="ui-input !w-72 !py-1.5 !text-sm" wire:model="staffDepartmentId">
+                                <option value="">No department</option>
+                                @foreach($departments as $unit)<option value="{{ $unit->id }}">{{ $unit->name }}</option>@endforeach
+                            </select>
+                        </div>
+                    @endif
+                    <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="staffOwnHours"> Works different hours from the {{ $departments->isNotEmpty() ? 'department or branch' : 'branch' }}</label>
                     @if($staffOwnHours)
                         @include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])
                     @endif
@@ -956,6 +1088,7 @@
                         <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveStaff">Save</x-ui.button>
                     </div>
                 </form>
+                @endif
 
                 <div>
                     <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Leave</p>

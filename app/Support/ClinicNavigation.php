@@ -35,6 +35,7 @@ class ClinicNavigation
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         if (! $user?->hasAnyRole(['Super Admin', 'Manager'])) {
             return [
+                ...self::departmentAttendance(),
                 ['label' => 'My attendance', 'route' => 'user.profile', 'icon' => 'fa-user-clock'],
                 ['label' => 'Messages', 'route' => 'staff.messages', 'icon' => 'fa-envelope'],
             ];
@@ -66,6 +67,7 @@ class ClinicNavigation
 
         return [
             ['label' => 'Dashboard', 'route' => 'secretary.dashboard', 'icon' => 'fa-tachometer-alt'],
+            ...self::departmentAttendance(),
             ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0],
             ['label' => 'Patients', 'icon' => 'fa-users', 'items' => [
                 ['label' => 'Registry Hub', 'route' => 'secretary.patients'],
@@ -90,6 +92,7 @@ class ClinicNavigation
 
         return [
             ['label' => 'Dashboard', 'route' => 'doctor.dashboard', 'icon' => 'fa-tachometer-alt'],
+            ...self::departmentAttendance(),
             ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0, 'active' => 'attention*'],
             ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
                 ['label' => 'Patient Queue', 'route' => 'doctor.patient-awaiting', 'active' => ['doctor.patient-awaiting', 'doctor.patient-records']],
@@ -207,6 +210,18 @@ class ClinicNavigation
         }
 
         return self::visible($menu);
+    }
+
+    /** For the head of a department who is not a manager: the link to their department's attendance. */
+    private static function departmentAttendance(): array
+    {
+        $user = auth()->user();
+        if (! $user || $user->hasAnyRole(['Super Admin', 'Manager']) || ! \App\Services\LicenseService::has(Feature::ATTENDANCE)
+            || ! \App\Support\AttendanceScope::headed($user)) {
+            return [];
+        }
+
+        return [['label' => 'Department attendance', 'route' => 'admin.attendance', 'icon' => 'fa-user-clock', 'active' => 'admin.attendance*']];
     }
 
     /** Drops hidden links and groups left empty. */

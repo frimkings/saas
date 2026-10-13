@@ -11,8 +11,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /** The attendance sheet for a run of days as a file: a CSV that opens in Excel, or a PDF to print. Staff not followed are left out. */
 class AttendanceExporter
 {
-    public function __construct(private readonly AttendanceAnalyzer $analyzer)
+    public function __construct(private AttendanceAnalyzer $analyzer)
     {
+    }
+
+    /** The same, for these people only (a department's, or a head's own): null = everyone. */
+    public function only(?array $staffIds): static
+    {
+        $limited = clone $this;
+        $limited->analyzer = $this->analyzer->forStaff($staffIds);
+
+        return $limited;
     }
 
     public function csv(CarbonImmutable $first, CarbonImmutable $last): StreamedResponse
@@ -33,7 +42,7 @@ class AttendanceExporter
                 'Left early', 'Missing punch', 'Worked on days off', 'Usual arrival', 'Hours on site', 'Long breaks', 'Hours on break', 'Overtime hours (approved)', 'Overtime hours (waiting)']);
             foreach ($rows as $row) {
                 $t = $row['totals'];
-                fputcsv($out, [$this->text($row['staff']->employee_no), $row['staff']->name, $row['staff']->department, $t['expected'], $t['present'], $t['on_time'], $t['late'],
+                fputcsv($out, [$this->text($row['staff']->employee_no), $row['staff']->name, $row['staff']->unit?->name ?? $row['staff']->department, $t['expected'], $t['present'], $t['on_time'], $t['late'],
                     $t['late_minutes'], $t['absent'], $t['leave'], $t['left_early'], $t['no_clock_out'], $t['worked_off'], AttendanceAnalyzer::time($t['average_arrival']),
                     round($t['minutes_worked'] / 60, 2), $t['long_breaks'], round($t['break_minutes'] / 60, 2),
                     round($t['overtime_minutes'] / 60, 2), round($t['overtime_pending'] / 60, 2)]);
