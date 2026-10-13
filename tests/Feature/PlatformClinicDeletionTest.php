@@ -73,20 +73,60 @@ class PlatformClinicDeletionTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $admin->id]);
     }
 
-    public function test_clinics_with_data_or_an_import_cannot_be_deleted(): void
+    public function test_a_clinic_that_has_ceased_operation_is_erased_with_its_records_and_a_reason(): void
     {
-        [$withPatients, $patientsAdmin] = $this->clinicWithAdmin('has-patients', 'patients-admin@example.test');
-        DB::table('patients')->insert(['uuid' => (string) Str::uuid(), 'clinic_id' => $withPatients->id, 'user_id' => $patientsAdmin->id, 'name' => 'Real Patient', 'pxnumber' => 'PX-1', 'gender' => 'Female', 'contact' => '0240000000', 'created_at' => now(), 'updated_at' => now()]);
+        [$closed, $admin] = $this->clinicWithAdmin('has-patients', 'patients-admin@example.test');
+        $branch = $closed->branches()->firstOrFail();
+        DB::table('patients')->insert(['uuid' => (string) Str::uuid(), 'clinic_id' => $closed->id, 'user_id' => $admin->id, 'name' => 'Real Patient', 'pxnumber' => 'PX-1', 'gender' => 'Female', 'contact' => '0240000000', 'created_at' => now(), 'updated_at' => now()]);
+        \App\Models\PlatformInvoice::create(['number' => 'INV-OWED', 'clinic_id' => $closed->id, 'period_start' => now()->subMonths(2), 'period_end' => now()->subMonth(), 'due_date' => now()->subMonth(), 'subtotal' => 300, 'tax' => 0, 'total' => 300, 'amount_paid' => 100, 'currency' => 'GHS', 'status' => 'partial']);
+        [$open, $openAdmin] = $this->clinicWithAdmin('still-open', 'open-admin@example.test');
+        DB::table('patients')->insert(['uuid' => (string) Str::uuid(), 'clinic_id' => $open->id, 'user_id' => $openAdmin->id, 'name' => 'Other Patient', 'pxnumber' => 'PX-2', 'gender' => 'Male', 'contact' => '0240000001', 'created_at' => now(), 'updated_at' => now()]);
+
+        // The developer is shown what will be lost and what is still owed, and must say why.
+        $panel = Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
+            ->call('selectClinic', $closed->id)->call('setPanelTab', 'danger')
+            ->assertSee('This clinic has records: 1 patients')->assertSee('Erase clinic and all its records')->assertSee('200.00')->assertSee('is still owed')
+            ->set('deleteClinicConfirmation', 'DELETE has-patients')->call('deleteClinic', $closed->id)->assertHasErrors('deleteClinicReason');
+        $this->assertDatabaseHas('clinics', ['id' => $closed->id]);
+        $panel->set('deleteClinicReason', 'short')->call('deleteClinic', $closed->id)->assertHasErrors('deleteClinicReason');
+        $panel->set('deleteClinicReason', 'Ceased operation in September; owner confirmed by phone')->set('deleteClinicAccounts', true)
+            ->call('deleteClinic', $closed->id)->assertHasNoErrors();
+
+        // Everything of the closed clinic is gone, and nothing of the other clinic is touched.
+        $this->assertDatabaseMissing('clinics', ['id' => $closed->id]);
+        $this->assertSame(0, DB::table('patients')->where('clinic_id', $closed->id)->count());
+        $this->assertSame(0, DB::table('branches')->where('id', $branch->id)->count());
+        $this->assertSame(0, DB::table('platform_invoices')->where('clinic_id', $closed->id)->count());
+        $this->assertDatabaseMissing('users', ['id' => $admin->id]);
+        $this->assertDatabaseHas('clinics', ['id' => $open->id]);
+        $this->assertSame(1, DB::table('patients')->where('clinic_id', $open->id)->count());
+        $this->assertDatabaseHas('users', ['id' => $openAdmin->id]);
+
+        // What remains is one audit entry: who, why, what it held and what it had been billed.
+        $entry = \App\Models\PlatformAuditLog::where('action', 'clinic.deleted')->latest('id')->firstOrFail();
+        $this->assertSame($this->developer->id, $entry->user_id);
+        $this->assertSame('Ceased operation in September; owner confirmed by phone', $entry->reason);
+        $this->assertSame(['patients' => 1], $entry->old_values['records']);
+        $this->assertEquals(['invoices' => 1, 'billed' => 300, 'paid' => 100, 'outstanding' => 200], $entry->old_values['billing']);
+        $this->assertSame('HAS-PATIENTS', $entry->old_values['clinic_name']);
+    }
+
+    public function test_an_imported_clinic_is_rolled_back_not_deleted(): void
+    {
         [$imported] = $this->clinicWithAdmin('imported', 'imported-admin@example.test');
-        LegacyImportBatch::create(['uuid' => Str::uuid(), 'created_by' => $this->developer->id, 'original_filename' => 'x.sql', 'stored_path' => 'legacy-imports/x.sql', 'checksum' => str_repeat('a', 64), 'status' => 'committed', 'clinic_id' => $imported->id, 'committed_at' => now(), 'analysis' => []]);
+        LegacyImportBatch::create(['uuid' => Str::uuid(), 'created_by' => $this->developer->id, 'original_filename' => 'x.sql', 'stored_path' => 'legacy-imports/x.sql', 'checksum' => str_repeat('a', 64), 'status' => 'committed', 'clinic_id' => $imported->id]);
 
-        $component = Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class);
-        $component->call('selectClinic', $withPatients->id)->call('setPanelTab', 'danger')->assertSee('Use Cancellation')->assertDontSee('Delete clinic permanently')
-            ->set('deleteClinicConfirmation', 'DELETE has-patients')->call('deleteClinic', $withPatients->id)->assertHasErrors('deleteClinic');
-        $component->call('selectClinic', $imported->id)->call('setPanelTab', 'danger')->assertSee('Roll the import back')
-            ->set('deleteClinicConfirmation', 'DELETE imported')->call('deleteClinic', $imported->id)->assertHasErrors('deleteClinic');
-
-        $this->assertDatabaseHas('clinics', ['id' => $withPatients->id]);
+        Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
+            ->call('selectClinic', $imported->id)->call('setPanelTab', 'danger')->assertSee('Roll the import back')->assertDontSee('Erase clinic and all its records')
+            ->set('deleteClinicConfirmation', 'DELETE imported')->set('deleteClinicReason', 'Ceased operation, confirmed by the owner')
+            ->call('deleteClinic', $imported->id)->assertHasErrors('deleteClinic');
         $this->assertDatabaseHas('clinics', ['id' => $imported->id]);
+
+        // The service itself still refuses a clinic with records unless told to erase them.
+        [$withRecords, $admin] = $this->clinicWithAdmin('guarded', 'guarded-admin@example.test');
+        DB::table('patients')->insert(['uuid' => (string) Str::uuid(), 'clinic_id' => $withRecords->id, 'user_id' => $admin->id, 'name' => 'Kept Patient', 'pxnumber' => 'PX-3', 'gender' => 'Female', 'contact' => '0240000002', 'created_at' => now(), 'updated_at' => now()]);
+        $service = app(\App\Services\LegacyClinicImportService::class);
+        $this->assertStringContainsString('has patients', (string) $service->clinicDeletionBlocker($withRecords->id));
+        $this->assertNull($service->clinicDeletionBlocker($withRecords->id, true));
     }
 }

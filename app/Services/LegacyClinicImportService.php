@@ -210,9 +210,10 @@ class LegacyClinicImportService
 
     // Permanently deletes a clinic that has no import behind it (e.g. an empty duplicate created by hand),
     // together with the given accounts once they belong to no other clinic.
-    public function deleteClinic(int $clinicId,array $userIds=[]): array
+    // $withRecords erases a clinic that has patients, sales or consultations (one that has ceased operation); without it only an empty clinic goes.
+    public function deleteClinic(int $clinicId,array $userIds=[],bool $withRecords=false): array
     {
-        $blocker=$this->clinicDeletionBlocker($clinicId);
+        $blocker=$this->clinicDeletionBlocker($clinicId,$withRecords);
         abort_if($blocker!==null,422,$blocker);
         $summary=DB::transaction(function()use($clinicId,$userIds){
             $summary=$this->deleteClinicRows($clinicId);
@@ -223,14 +224,23 @@ class LegacyClinicImportService
         return $summary;
     }
 
-    // Only empty clinics may be deleted outright; anything with real data goes through rollback or offboarding.
-    public function clinicDeletionBlocker(int $clinicId): ?string
+    // What a clinic holds, for the warning shown before it is erased and for the audit entry kept afterwards. Only what exists is listed.
+    public function clinicRecordCounts(int $clinicId): array
+    {
+        $counts=[];
+        foreach(['patients'=>'patients','consultations'=>'consultations','sales'=>'sales','lens_orders'=>'spectacle orders'] as $table=>$label)
+            if(Schema::hasTable($table)&&Schema::hasColumn($table,'clinic_id')&&($n=DB::table($table)->where('clinic_id',$clinicId)->count()))$counts[$label]=$n;
+        return $counts;
+    }
+
+    // An empty clinic may be deleted outright. One with records needs $withRecords, the platform developer's deliberate erase; an imported or offline clinic never goes this way.
+    public function clinicDeletionBlocker(int $clinicId,bool $withRecords=false): ?string
     {
         $clinic=DB::table('clinics')->where('id',$clinicId)->first();
         if(!$clinic)return 'This clinic no longer exists.';
         if(LegacyImportBatch::where('clinic_id',$clinicId)->exists())return 'This clinic came from a legacy import. Roll the import back from Legacy Imports instead.';
         if($clinic->deployment_mode==='local')return 'This is an offline installation clinic and cannot be deleted here.';
-        foreach(['patients'=>'patients','sales'=>'sales','consultations'=>'consultations'] as $table=>$label)
+        if(!$withRecords)foreach(['patients'=>'patients','sales'=>'sales','consultations'=>'consultations'] as $table=>$label)
             if(Schema::hasTable($table)&&DB::table($table)->where('clinic_id',$clinicId)->exists())return "This clinic has {$label}. Use Cancellation & Clinic Offboarding instead.";
         return null;
     }
