@@ -12,13 +12,15 @@ class AttendanceStaff extends Model
 
     protected $table = 'attendance_staff';
 
-    protected $fillable = ['employee_no', 'name', 'department', 'user_id', 'is_tracked', 'starts_on', 'hours'];
+    protected $fillable = ['employee_no', 'name', 'department', 'user_id', 'is_tracked', 'starts_on', 'hours', 'shift_week'];
 
     protected $casts = [
         'is_tracked' => 'boolean',
         'starts_on' => 'date',
         // Working hours of their own, shaped like AttendanceSetting::hours; null = the branch's.
         'hours' => 'array',
+        // ISO weekday => shift id, or 0 for a day off; a weekday left out follows the usual hours.
+        'shift_week' => 'array',
     ];
 
     public function punches()

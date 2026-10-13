@@ -74,6 +74,18 @@ class AttendanceComponent extends Component
     public bool $showRequests = false;
     public array $reviewNotes = [];
 
+    // Shifts, a person's weekly pattern of them, and the dated roster.
+    public bool $showShifts = false;
+    public string $shiftName = '';
+    public string $shiftStart = '';
+    public string $shiftEnd = '';
+    public string $shiftBreak = '';
+    /** ISO weekday => '' (usual hours), '0' (day off) or a shift id. */
+    public array $staffShiftWeek = [];
+    public bool $showRoster = false;
+    /** The Monday of the week on the roster, 'Y-m-d'. */
+    public string $rosterWeek = '';
+
     // Correcting one person's punches on one day.
     public bool $showPunches = false;
     public ?int $punchStaffId = null;
@@ -119,6 +131,85 @@ class AttendanceComponent extends Component
         }
         $this->dayKey = $date;
         $this->showDay = true;
+    }
+
+    public function addShift(): void
+    {
+        $this->authorizeAccess();
+        $this->shiftName = trim($this->shiftName);
+        $this->validate([
+            'shiftName' => ['required', 'string', 'max:60', \Illuminate\Validation\Rule::unique('attendance_shifts', 'name')->where('branch_id', app(\App\Support\Tenancy\TenantContext::class)->branchId())],
+            'shiftStart' => 'required|date_format:H:i', 'shiftEnd' => 'required|date_format:H:i|different:shiftStart',
+            'shiftBreak' => 'nullable|integer|min:0|max:600',
+        ], ['shiftEnd.different' => 'A shift cannot start and end at the same time.', 'shiftName.unique' => 'There is already a shift with that name.'],
+            ['shiftName' => 'name', 'shiftStart' => 'start', 'shiftEnd' => 'end', 'shiftBreak' => 'break']);
+        \App\Models\AttendanceShift::create(['name' => $this->shiftName, 'starts_at' => $this->shiftStart, 'ends_at' => $this->shiftEnd,
+            'break_minutes' => $this->shiftBreak === '' ? null : (int) $this->shiftBreak, 'is_active' => true]);
+        $this->reset('shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak');
+    }
+
+    /** A shift no longer offered stays on the days and people already given it. */
+    public function toggleShift(int $id): void
+    {
+        $this->authorizeAccess();
+        $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
+        $shift->update(['is_active' => ! $shift->is_active]);
+    }
+
+    public function removeShift(int $id): void
+    {
+        $this->authorizeAccess();
+        $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
+        $inUse = \App\Models\AttendanceRoster::query()->where('attendance_shift_id', $shift->id)->exists()
+            || AttendanceStaff::query()->whereNotNull('shift_week')->get()->contains(fn ($staff) => in_array($shift->id, array_map('intval', $staff->shift_week ?? []), true));
+        if ($inUse) {
+            $this->addError('shiftName', "{$shift->name} is on the roster or in someone's week, so it can't be deleted. Stop offering it instead.");
+
+            return;
+        }
+        $shift->delete();
+    }
+
+    /** The roster opens on the week of the last day on show. */
+    public function openRoster(): void
+    {
+        $this->authorizeAccess();
+        $this->rosterWeek = $this->period()[1]->startOfWeek(\Carbon\CarbonInterface::MONDAY)->format('Y-m-d');
+        $this->showRoster = true;
+    }
+
+    public function shiftRosterWeek(int $by): void
+    {
+        $this->rosterWeek = CarbonImmutable::parse($this->rosterWeek ?: 'today')->startOfWeek(\Carbon\CarbonInterface::MONDAY)->addWeeks($by < 0 ? -1 : 1)->format('Y-m-d');
+    }
+
+    /** One person's shift on one date: '' follows their usual hours, '0' is a day off, else a shift. */
+    public function setRoster(int $staffId, string $date, string $choice): void
+    {
+        $this->authorizeAccess();
+        abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1, 404);
+        $staff = AttendanceStaff::query()->findOrFail($staffId);
+        if ($choice === '') {
+            \App\Models\AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereDate('date', $date)->delete();
+
+            return;
+        }
+        $shiftId = $choice === '0' ? null : \App\Models\AttendanceShift::query()->findOrFail((int) $choice)->id;
+        \App\Models\AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $date],
+            ['attendance_shift_id' => $shiftId, 'set_by' => auth()->id()]);
+    }
+
+    /** The roster week: each followed person's hours on each day, and what the roster sets. */
+    private function rosterGrid(AttendanceAnalyzer $analyzer): array
+    {
+        $monday = CarbonImmutable::parse($this->rosterWeek)->startOfWeek(\Carbon\CarbonInterface::MONDAY);
+        $report = $analyzer->range($monday, $monday->addDays(6));
+        $set = [];
+        \App\Models\AttendanceRoster::query()->whereBetween('date', [$monday->format('Y-m-d'), $monday->addDays(6)->format('Y-m-d')])->get()
+            ->each(function ($entry) use (&$set) { $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0); });
+
+        return ['days' => $report['days'], 'set' => $set, 'holidays' => $report['holidays'],
+            'rows' => array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked))];
     }
 
     /** One person's punches on one day, to add a missed punch, change a time or remove a mistake. */
@@ -417,6 +508,11 @@ class AttendanceComponent extends Component
         $this->staffOwnHours = (bool) $staff->hours;
         // Their own hours start as a copy of the branch's, to adjust.
         $this->staffHours = $this->hoursForm($staff->hours ?: (AttendanceSetting::current()->hours ?? []));
+        $this->staffShiftWeek = [];
+        foreach (array_keys(AttendanceSetting::DAYS) as $weekday) {
+            $choice = $staff->shift_week[$weekday] ?? $staff->shift_week[(string) $weekday] ?? '';
+            $this->staffShiftWeek[$weekday] = (string) $choice;
+        }
         $this->reset('leaveFrom', 'leaveTo', 'leaveType', 'leaveNote', 'leaveFromTime', 'leaveToTime');
         $this->resetValidation();
         $this->showStaff = true;
@@ -442,10 +538,21 @@ class AttendanceComponent extends Component
             return;
         }
 
+        // Weekly shifts: only the weekdays given a shift or a day off are kept.
+        $shiftIds = \App\Models\AttendanceShift::query()->pluck('id')->all();
+        $week = [];
+        foreach (array_keys(AttendanceSetting::DAYS) as $weekday) {
+            $choice = (string) ($this->staffShiftWeek[$weekday] ?? '');
+            if ($choice === '0' || (ctype_digit($choice) && in_array((int) $choice, $shiftIds, true))) {
+                $week[$weekday] = (int) $choice;
+            }
+        }
+
         AttendanceStaff::query()->findOrFail($this->staffId)->update([
             'is_tracked' => $this->staffTracked,
             'starts_on' => $this->staffStartsOn ?: null,
             'hours' => $hours,
+            'shift_week' => $week ?: null,
             'user_id' => $userId,
         ]);
         $this->dispatch('notify', type: 'success', message: 'Saved.');
@@ -541,6 +648,8 @@ class AttendanceComponent extends Component
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
+            'shifts' => \App\Models\AttendanceShift::query()->orderBy('starts_at')->orderBy('name')->get(),
+            'rosterGrid' => $this->showRoster && $this->rosterWeek ? $this->rosterGrid($analyzer) : null,
             'report' => $report,
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,

@@ -24,6 +24,8 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <button type="button" class="ui-button ui-button-secondary" wire:click="editHours"><i class="fas fa-clock" aria-hidden="true"></i>Working hours</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showShifts', true)"><i class="fas fa-layer-group" aria-hidden="true"></i>Shifts</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showHolidays', true)"><i class="fas fa-calendar-day" aria-hidden="true"></i>Holidays</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showDevices', true)"><i class="fas fa-fingerprint" aria-hidden="true"></i>Terminals</button>
                 <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
@@ -380,6 +382,88 @@
         </x-ui.modal>
     @endif
 
+    @if($showShifts)
+        <x-ui.modal title="Shifts" state="showShifts">
+            <div class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">Name the shifts people work at this branch. An end time earlier than the start is the next morning, for night shifts. Give people a shift per weekday on their own page, or set single days on the roster.</p>
+                <div class="ui-table-wrap">
+                    <table class="table ui-table ui-table-sm mb-0">
+                        <thead><tr><th>Shift</th><th>Hours</th><th>Break allowed</th><th class="text-right">Action</th></tr></thead>
+                        <tbody>
+                            @forelse($shifts as $shift)
+                                <tr wire:key="shift-{{ $shift->id }}" @class(['text-slate-400' => ! $shift->is_active])>
+                                    <td class="font-medium">{{ $shift->name }}@unless($shift->is_active) <span class="text-xs font-normal">(not offered)</span>@endunless</td>
+                                    <td class="whitespace-nowrap">{{ AttendanceAnalyzer::time($shift->starts_at) }} to {{ AttendanceAnalyzer::time($shift->ends_at) }}@if($shift->overnight()) <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-800">next morning</span>@endif</td>
+                                    <td>{{ $shift->break_minutes !== null ? AttendanceAnalyzer::duration($shift->break_minutes) : 'Branch allowance' }}</td>
+                                    <td class="whitespace-nowrap text-right">
+                                        <button type="button" wire:click="toggleShift({{ $shift->id }})" class="text-xs text-teal-700 underline">{{ $shift->is_active ? 'Stop offering' : 'Offer again' }}</button>
+                                        <button type="button" wire:click="removeShift({{ $shift->id }})" wire:confirm="Delete the {{ $shift->name }} shift?" class="ml-2 text-xs text-red-700 underline">Delete</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="text-center text-sm text-slate-500">No shifts yet. Everyone follows the branch's working hours.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <form wire:submit="addShift" class="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div class="min-w-[10rem] flex-1"><label for="shift-name" class="mb-1 block text-xs font-semibold text-slate-600">Name</label><input id="shift-name" type="text" maxlength="60" wire:model="shiftName" placeholder="e.g. Morning" class="ui-input w-full"></div>
+                    <div><label for="shift-start" class="mb-1 block text-xs font-semibold text-slate-600">Starts</label><input id="shift-start" type="time" wire:model="shiftStart" class="ui-input !w-32"></div>
+                    <div><label for="shift-end" class="mb-1 block text-xs font-semibold text-slate-600">Ends</label><input id="shift-end" type="time" wire:model="shiftEnd" class="ui-input !w-32"></div>
+                    <div><label for="shift-break" class="mb-1 block text-xs font-semibold text-slate-600">Break (minutes)</label><input id="shift-break" type="number" min="0" max="600" wire:model="shiftBreak" placeholder="Branch" class="ui-input !w-28"></div>
+                    <x-ui.button type="submit" variant="primary">Add shift</x-ui.button>
+                    @foreach(['shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak'] as $field)@error($field)<p class="!mb-0 w-full text-xs text-red-600">{{ $message }}</p>@enderror @endforeach
+                </form>
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showRoster && $rosterGrid)
+        <style>.clinic-ui .ui-dialog:has(.attendance-roster) { width: min(1100px, calc(100% - 32px)); }</style>
+        <x-ui.modal title="Roster" state="showRoster">
+            <div class="attendance-roster space-y-3 p-4">
+                @php $rosterDays = array_values($rosterGrid['days']); @endphp
+                <div class="flex flex-wrap items-center gap-2">
+                    <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Previous week">‹</x-ui.button>
+                    <strong class="text-sm text-slate-800">Week of {{ $rosterDays[0]->format('j M') }} to {{ $rosterDays[6]->format('j M Y') }}</strong>
+                    <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Next week">›</x-ui.button>
+                    <span class="text-xs text-slate-500">Each box shows what the person is due to work. Change one to set that day only; "As usual" goes back to their weekly shifts or hours.</span>
+                </div>
+                @if($shifts->isEmpty())<p class="!mb-0 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">Add shifts first (Shifts button), then roster people onto them here.</p>@endif
+                <div class="ui-table-wrap">
+                    <table class="table ui-table ui-table-sm mb-0">
+                        <thead><tr><th>Staff</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}@if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-slate-500">Holiday</span>@endif</th>@endforeach</tr></thead>
+                        <tbody>
+                            @foreach($rosterGrid['rows'] as $row)
+                                <tr wire:key="roster-{{ $row['staff']->id }}">
+                                    <td class="whitespace-nowrap font-medium text-slate-800">{{ $row['staff']->name }}</td>
+                                    @foreach($rosterDays as $day)
+                                        @php
+                                            $key = $day->format('Y-m-d');
+                                            $due = $row['days'][$key]['hours'];
+                                            $chosen = $rosterGrid['set'][$row['staff']->id][$key] ?? '';
+                                        @endphp
+                                        <td class="text-center align-top">
+                                            <select class="ui-input !py-1 !text-xs {{ $chosen !== '' ? '!border-teal-600 !bg-teal-50' : '' }}" aria-label="{{ $row['staff']->name }} on {{ $day->format('l j F') }}"
+                                                    wire:change="setRoster({{ $row['staff']->id }}, '{{ $key }}', $event.target.value)" wire:key="roster-{{ $row['staff']->id }}-{{ $key }}-{{ $chosen }}">
+                                                <option value="" @selected($chosen === '')>As usual</option>
+                                                @foreach($shifts as $shift)
+                                                    @if($shift->is_active || $chosen === (string) $shift->id)<option value="{{ $shift->id }}" @selected($chosen === (string) $shift->id)>{{ $shift->name }}</option>@endif
+                                                @endforeach
+                                                <option value="0" @selected($chosen === '0')>Day off</option>
+                                            </select>
+                                            <span class="mt-0.5 block text-[10px] leading-tight text-slate-500">@if($due){{ $due['shift'] ?? 'Hours' }} {{ AttendanceAnalyzer::time($due['start']) }}–{{ AttendanceAnalyzer::time($due['end']) }}@else Off @endif</span>
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </x-ui.modal>
+    @endif
+
     @if($showPunches && $punchDay)
         <style>.clinic-ui .ui-dialog:has(.attendance-punches) { width: min(720px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="'Correct punches · '.$punchDay['staff']->name.' · '.$punchDay['date']->format('D j M Y')" state="showPunches">
@@ -530,6 +614,26 @@
                     <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="staffOwnHours"> Works different hours from the branch</label>
                     @if($staffOwnHours)
                         @include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])
+                    @endif
+                    @if($shifts->isNotEmpty())
+                        <div>
+                            <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Weekly shifts</p>
+                            <p class="!mb-2 text-xs text-slate-500">The shift worked on each weekday. "Usual hours" follows the hours above; the roster can change single days.</p>
+                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                @foreach(\App\Models\AttendanceSetting::DAYS as $weekday => $dayName)
+                                    <div>
+                                        <label for="shift-week-{{ $weekday }}" class="mb-1 block text-xs font-medium text-slate-600">{{ $dayName }}</label>
+                                        <select id="shift-week-{{ $weekday }}" class="ui-input !py-1.5 !text-sm" wire:model="staffShiftWeek.{{ $weekday }}">
+                                            <option value="">Usual hours</option>
+                                            @foreach($shifts as $shift)
+                                                @if($shift->is_active || (string) $shift->id === ($staffShiftWeek[$weekday] ?? ''))<option value="{{ $shift->id }}">{{ $shift->name }}</option>@endif
+                                            @endforeach
+                                            <option value="0">Day off</option>
+                                        </select>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     @endif
                     <div class="flex justify-end">
                         <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveStaff">Save</x-ui.button>

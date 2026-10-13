@@ -140,10 +140,14 @@ class UserProfileComponent extends Component
         [$from, $to] = [$this->leaveFromTime ?: null, $this->leaveToTime ?: null];
         if (in_array($this->leaveKind, ['morning', 'afternoon'], true)) {
             // Half of their working day on that date.
-            $weekday = \Carbon\CarbonImmutable::parse($this->leaveFrom)->dayOfWeekIso;
-            $hours = $staff->hours ? \App\Models\AttendanceSetting::dayHours($staff->hours, $weekday) : \App\Models\AttendanceSetting::current()->hoursOn($weekday);
+            $hours = app(\App\Services\Attendance\AttendanceAnalyzer::class)->expectedHours($staff, \Carbon\CarbonImmutable::parse($this->leaveFrom));
             if (! $hours) {
                 $this->addError('leaveFrom', 'That is not one of your working days.');
+
+                return;
+            }
+            if ((int) substr($hours['end'], 0, 2) >= 24) {
+                $this->addError('leaveFrom', 'You are on a night shift that day. Ask for the whole day or for a few hours instead.');
 
                 return;
             }

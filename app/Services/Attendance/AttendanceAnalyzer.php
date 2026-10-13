@@ -7,7 +7,9 @@ use App\Models\AttendanceHoliday;
 use App\Models\AttendanceImport;
 use App\Models\AttendanceLeave;
 use App\Models\AttendancePunch;
+use App\Models\AttendanceRoster;
 use App\Models\AttendanceSetting;
+use App\Models\AttendanceShift;
 use App\Models\AttendanceStaff;
 use Carbon\CarbonImmutable;
 
@@ -57,12 +59,21 @@ class AttendanceAnalyzer
         $firstPunch = AttendancePunch::query()->min('punched_at');
         $countFrom = $firstPunch ? CarbonImmutable::parse($firstPunch)->format('Y-m-d') : null;
 
+        // A day either side as well: a night shift's punches after midnight count on the day it began.
+        $before = $first->subDay();
         $punches = [];
         AttendancePunch::query()
-            ->whereBetween('punched_at', [$first->format('Y-m-d 00:00:00'), $last->format('Y-m-d 23:59:59')])
+            ->whereBetween('punched_at', [$before->format('Y-m-d 00:00:00'), $last->addDay()->format('Y-m-d 23:59:59')])
             ->orderBy('punched_at')->toBase()->get(['attendance_staff_id', 'punched_at'])
             ->each(function ($punch) use (&$punches) {
                 $punches[$punch->attendance_staff_id][substr($punch->punched_at, 0, 10)][] = substr($punch->punched_at, 11, 5);
+            });
+
+        $shifts = AttendanceShift::query()->get()->keyBy('id');
+        $roster = [];
+        AttendanceRoster::query()->whereBetween('date', [$before->format('Y-m-d'), $last->format('Y-m-d')])->get()
+            ->each(function ($entry) use (&$roster) {
+                $roster[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = $entry->attendance_shift_id ?? 0;
             });
 
         $holidays = AttendanceHoliday::query()
@@ -89,19 +100,27 @@ class AttendanceAnalyzer
         foreach (AttendanceStaff::query()->orderByDesc('is_tracked')->orderBy('name')->get() as $staff) {
             $staffDays = [];
             $from = max($countFrom ?? '9999-12-31', $staff->starts_on?->format('Y-m-d') ?? '');
+            // The hours expected of them each day, from the day before the range so a night shift
+            // that began then keeps its morning punches; then those punches move to its day.
+            $expected = [];
+            $mine = $punches[$staff->id] ?? [];
+            foreach ([$before->format('Y-m-d') => $before] + $days as $key => $day) {
+                $expected[$key] = $this->hoursFor($staff, $day, $settings, $shifts, $roster[$staff->id] ?? []);
+                $mine = $this->withNightPunches($mine, $key, $day, $expected[$key]);
+            }
             foreach ($days as $key => $day) {
                 $state = $key < $from ? null : ($coverage[$key] ?? $assume);
-                $hours = $staff->hours ? AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
+                $hours = $expected[$key];
                 $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
                 $note = $holidays[$key] ?? $leave[$staff->id][$key] ?? null;
-                $break = $settings->break_minutes ?? 60;
+                $break = $hours['break'] ?? $settings->break_minutes ?? 60;
                 // Leave for part of the day: they are expected for the rest of it.
                 if ($hours && ! $excused && $part = $away[$staff->id][$key] ?? null) {
                     [$hours, $break, $allDay] = $this->lessTimeAway($hours, $part, $break);
                     $excused = $allDay ? 'leave' : null;
                     $note = implode(', ', array_map(fn ($a) => $a['label'].' '.self::time($a['from']).' to '.self::time($a['to']), $part));
                 }
-                $staffDays[$key] = $this->day($punches[$staff->id][$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break)
+                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break)
                     + ['note' => $note, 'hours' => $hours];
             }
             $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
@@ -127,6 +146,67 @@ class AttendanceAnalyzer
                 'expected' => $sum('expected'),
             ],
         ];
+    }
+
+    /** How long after a night shift ends a punch still belongs to it (a late clock-out). */
+    public const NIGHT_SHIFT_TAIL_MINUTES = 180;
+
+    /** The hours expected of one person on one date (see hoursFor), for asking outside a report. */
+    public function expectedHours(AttendanceStaff $staff, CarbonImmutable $day): ?array
+    {
+        $entry = AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereDate('date', $day->format('Y-m-d'))->first();
+
+        return $this->hoursFor($staff, $day, AttendanceSetting::current(), AttendanceShift::query()->get()->keyBy('id'),
+            $entry ? [$day->format('Y-m-d') => $entry->attendance_shift_id ?? 0] : []);
+    }
+
+    /**
+     * The hours expected of someone on a day: the roster for that date, else their weekly shift
+     * pattern, else their own hours, else the branch's. Null is a day off. A shift adds its name
+     * and break allowance; a night shift's end runs past midnight ('30:00' = 6 AM next morning).
+     *
+     * @param  array<string, int>  $roster  'Y-m-d' => shift id, 0 for a day off
+     */
+    private function hoursFor(AttendanceStaff $staff, CarbonImmutable $day, AttendanceSetting $settings, $shifts, array $roster): ?array
+    {
+        $choice = $roster[$day->format('Y-m-d')] ?? null;
+        if ($choice === null) {
+            $week = $staff->shift_week ?? [];
+            $choice = $week[$day->dayOfWeekIso] ?? $week[(string) $day->dayOfWeekIso] ?? null;
+            $choice = $choice === null || $choice === '' ? null : (int) $choice;
+        }
+        if ($choice === 0) {
+            return null;
+        }
+        if ($choice !== null && $shift = $shifts->get($choice)) {
+            return $shift->hours();
+        }
+
+        return $staff->hours ? AttendanceSetting::dayHours($staff->hours, $day->dayOfWeekIso) : $settings->hoursOn($day->dayOfWeekIso);
+    }
+
+    /**
+     * On a night shift, the next morning's punches up to a little after the shift ends are moved
+     * to the day the shift began, written past midnight ('05:58' becomes '29:58').
+     */
+    private function withNightPunches(array $punches, string $key, CarbonImmutable $day, ?array $hours): array
+    {
+        if (! $hours || $this->minutes($hours['end']) < 1440) {
+            return $punches;
+        }
+        $next = $day->addDay()->format('Y-m-d');
+        $until = $this->minutes($hours['end']) - 1440 + self::NIGHT_SHIFT_TAIL_MINUTES;
+        foreach ($punches[$next] ?? [] as $i => $time) {
+            if ($this->minutes($time) <= $until) {
+                $punches[$key][] = self::clock($this->minutes($time) + 1440);
+                unset($punches[$next][$i]);
+            }
+        }
+        if (isset($punches[$next])) {
+            $punches[$next] = array_values($punches[$next]);
+        }
+
+        return $punches;
     }
 
     /**
@@ -162,15 +242,25 @@ class AttendanceAnalyzer
     public function today(CarbonImmutable $now): array
     {
         $key = $now->format('Y-m-d');
-        $clock = $this->minutes($now->format('H:i'));
+        $lastNight = $now->subDay()->format('Y-m-d');
+        $now0 = $this->minutes($now->format('H:i'));
         $settings = AttendanceSetting::current();
         $people = [];
-        foreach ($this->range($now, $now, 'partial')['rows'] as $row) {
+        foreach ($this->range($now->subDay(), $now, 'partial')['rows'] as $row) {
             $staff = $row['staff'];
             if (! $staff->is_tracked || ($staff->starts_on && $staff->starts_on->format('Y-m-d') > $key)) {
                 continue;
             }
             $day = $row['days'][$key];
+            $clock = $now0;
+            // Still on the night shift that began yesterday: that is the day they are on.
+            $night = $row['days'][$lastNight];
+            if (! $day['punches'] && $night['hours'] && $this->minutes($night['hours']['end']) >= 1440
+                && $now0 + 1440 <= $this->minutes($night['hours']['end']) + self::NIGHT_SHIFT_TAIL_MINUTES
+                && ! in_array($night['status'], ['leave', 'holiday'], true)) {
+                $day = $night;
+                $clock = $now0 + 1440;
+            }
             $hours = $day['hours'];
             $last = $day['punches'] ? end($day['punches']) : null;
             $person = ['staff' => $staff, 'time' => $last['time'] ?? null, 'in' => $day['in'], 'late_minutes' => $day['late_minutes'],
@@ -348,15 +438,17 @@ class AttendanceAnalyzer
         return sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
     }
 
-    /** '17:05' -> '5:05 PM', for showing; times are kept as 24-hour 'HH:MM'. */
+    /** '17:05' -> '5:05 PM', for showing; times are kept as 24-hour 'HH:MM'. '29:58' (a night shift's next morning) -> '5:58 AM +1'. */
     public static function time(?string $time): ?string
     {
         if (! $time) {
             return null;
         }
         $hour = (int) substr($time, 0, 2);
+        $nextDay = $hour >= 24;
+        $hour %= 24;
 
-        return sprintf('%d:%s %s', $hour % 12 ?: 12, substr($time, 3, 2), $hour < 12 ? 'AM' : 'PM');
+        return sprintf('%d:%s %s%s', $hour % 12 ?: 12, substr($time, 3, 2), $hour < 12 ? 'AM' : 'PM', $nextDay ? ' +1' : '');
     }
 
     /** 135 -> '2h 15m', 60 -> '1h', 40 -> '40m'. */
