@@ -380,6 +380,69 @@
         </x-ui.modal>
     @endif
 
+    @if($showPunches && $punchDay)
+        <style>.clinic-ui .ui-dialog:has(.attendance-punches) { width: min(720px, calc(100% - 32px)); }</style>
+        <x-ui.modal :title="'Correct punches · '.$punchDay['staff']->name.' · '.$punchDay['date']->format('D j M Y')" state="showPunches">
+            <div class="attendance-punches space-y-4 p-4">
+                @if($punchDay['day'])
+                    @php $counted = $punchDay['day']; @endphp
+                    <p class="!mb-0 text-sm text-slate-700">Now counted as
+                        <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $counted['status'] === 'none' ? 'bg-slate-100 text-slate-600' : $tone[$counted['status']] }}">{{ AttendanceAnalyzer::STATUSES[$counted['status']] }}</span>
+                        @if($counted['minutes_worked'] !== null) · {{ AttendanceAnalyzer::duration($counted['minutes_worked']) }} on site @endif
+                        @if($counted['no_clock_out']) · <span class="text-amber-800">a punch is missing</span>@endif
+                    </p>
+                @endif
+
+                <div class="ui-table-wrap">
+                    <table class="table ui-table ui-table-sm mb-0">
+                        <thead><tr><th>Time</th><th>From</th><th>Note</th><th class="text-right">Action</th></tr></thead>
+                        <tbody>
+                            @forelse($punchDay['punches'] as $punch)
+                                <tr wire:key="punch-{{ $punch->id }}" @class(['text-slate-400' => $punch->voided_at])>
+                                    <td class="whitespace-nowrap tabular-nums @if($punch->voided_at) line-through @endif">{{ $punch->punched_at->format('g:i A') }}</td>
+                                    <td class="whitespace-nowrap">{{ \App\Models\AttendancePunch::SOURCES[$punch->source] ?? 'Terminal' }}</td>
+                                    <td class="text-xs">
+                                        @if($punch->source === 'manual')Added by {{ $punch->creator?->name ?? 'a manager' }}: {{ $punch->reason }}@endif
+                                        @if($punch->voided_at)<span class="block">Removed by {{ $punch->voider?->name ?? 'a manager' }} on {{ $punch->voided_at->setTimezone($timezone)->format('j M, g:i A') }}: {{ $punch->void_reason }}</span>@endif
+                                    </td>
+                                    <td class="whitespace-nowrap text-right">
+                                        @unless($punch->voided_at)
+                                            <button type="button" wire:click="editPunch({{ $punch->id }})" class="text-xs text-teal-700 underline">Change time</button>
+                                            <button type="button" wire:click="removePunch({{ $punch->id }})" wire:confirm="Remove the {{ $punch->punched_at->format('g:i A') }} punch? It stays in the history as removed." class="ml-2 text-xs text-red-700 underline">Remove</button>
+                                        @endunless
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="text-center text-sm text-slate-500">No punches on this day.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <form wire:submit="savePunch" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $punchEditId ? 'Change the time of a punch' : 'Add a missed punch' }}</p>
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label for="punch-time" class="mb-1 block text-xs font-semibold text-slate-600">{{ $punchEditId ? 'Correct time' : 'Time' }}</label>
+                            <input id="punch-time" type="time" wire:model="punchTime" class="ui-input !w-32">
+                        </div>
+                        <div class="min-w-[14rem] flex-1">
+                            <label for="punch-reason" class="mb-1 block text-xs font-semibold text-slate-600">Reason (also needed to remove a punch)</label>
+                            <input id="punch-reason" type="text" wire:model="punchReason" maxlength="255" placeholder="e.g. Forgot to clock out, left at 5 PM" class="ui-input w-full">
+                        </div>
+                        <x-ui.button type="submit" variant="primary">{{ $punchEditId ? 'Save new time' : 'Add punch' }}</x-ui.button>
+                        @if($punchEditId)<x-ui.button type="button" wire:click="cancelPunchEdit">Cancel</x-ui.button>@endif
+                    </div>
+                    @error('punchTime')<p class="!mb-0 mt-2 text-xs text-red-600">{{ $message }}</p>@enderror
+                    @error('punchReason')<p class="!mb-0 mt-2 text-xs text-red-600">{{ $message }}</p>@enderror
+                    <p class="!mb-0 mt-2 text-xs text-slate-500">Nothing is deleted: a removed or changed punch stays here, crossed out, with who changed it and why. Every correction is in the audit trail.</p>
+                </form>
+
+                @if($punchBack)<div class="text-right"><x-ui.button type="button" wire:click="closePunches">Back to {{ $punchBack === 'day' ? 'the day' : $punchDay['staff']->name }}</x-ui.button></div>@endif
+            </div>
+        </x-ui.modal>
+    @endif
+
     @if($showDay && $dayList)
         <style>.clinic-ui .ui-dialog:has(.attendance-day) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="$dayList['date']->format('l j F Y').($dayList['holiday'] ? ' · '.$dayList['holiday'] : '')" state="showDay">
@@ -391,7 +454,8 @@
                             @foreach($dayList['people'] as $person)
                                 @php $day = $person['day']; @endphp
                                 <tr wire:key="day-{{ $person['staff']->id }}">
-                                    <td class="font-medium text-slate-800">{{ $person['staff']->name }}</td>
+                                    <td class="font-medium text-slate-800">{{ $person['staff']->name }}
+                                        <button type="button" wire:click="openPunches({{ $person['staff']->id }}, '{{ $dayList['date']->format('Y-m-d') }}')" class="ml-1 text-xs font-normal text-teal-700 underline" aria-label="Correct {{ $person['staff']->name }}'s punches">Correct</button></td>
                                     <td class="text-center">
                                         @foreach($day['punches'] as $punch)
                                             <span @class(['mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs tabular-nums', 'bg-emerald-50 text-emerald-800' => $punch['kind'] === 'in', 'bg-slate-100 text-slate-700' => $punch['kind'] === 'out'])>{{ $punch['kind'] === 'in' ? 'In' : 'Out' }} {{ AttendanceAnalyzer::time($punch['time']) }}</span>
@@ -522,7 +586,8 @@
                                 @foreach($detail['days'] as $key => $day)
                                     @continue($day['status'] === 'none' || $day['status'] === 'off')
                                     <tr wire:key="detail-{{ $key }}">
-                                        <td class="whitespace-nowrap">{{ $report['days'][$key]->format('D j M') }}</td>
+                                        <td class="whitespace-nowrap">{{ $report['days'][$key]->format('D j M') }}
+                                            <button type="button" wire:click="openPunches({{ $detail['staff']->id }}, '{{ $key }}')" class="ml-1 text-xs text-teal-700 underline" aria-label="Correct punches on {{ $report['days'][$key]->format('j F') }}">Correct</button></td>
                                         <td>
                                             @foreach($day['punches'] as $punch)
                                                 <span @class(['mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs tabular-nums', 'bg-emerald-50 text-emerald-800' => $punch['kind'] === 'in', 'bg-slate-100 text-slate-700' => $punch['kind'] === 'out'])>{{ $punch['kind'] === 'in' ? 'In' : 'Out' }} {{ AttendanceAnalyzer::time($punch['time']) }}</span>

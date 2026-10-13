@@ -74,6 +74,16 @@ class AttendanceComponent extends Component
     public bool $showRequests = false;
     public array $reviewNotes = [];
 
+    // Correcting one person's punches on one day.
+    public bool $showPunches = false;
+    public ?int $punchStaffId = null;
+    public string $punchDate = '';
+    public string $punchTime = '';
+    public string $punchReason = '';
+    public ?int $punchEditId = null;
+    /** The window the corrections were opened from ('day' or 'staff'), to go back to. */
+    public string $punchBack = '';
+
     public function mount(): void
     {
         $this->authorizeAccess();
@@ -109,6 +119,87 @@ class AttendanceComponent extends Component
         }
         $this->dayKey = $date;
         $this->showDay = true;
+    }
+
+    /** One person's punches on one day, to add a missed punch, change a time or remove a mistake. */
+    public function openPunches(int $staffId, string $date): void
+    {
+        $this->authorizeAccess();
+        abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1 && AttendanceStaff::query()->whereKey($staffId)->exists(), 404);
+        $this->punchBack = $this->showDay ? 'day' : ($this->showStaff ? 'staff' : '');
+        $this->showDay = $this->showStaff = false;
+        $this->punchStaffId = $staffId;
+        $this->punchDate = $date;
+        $this->reset('punchTime', 'punchReason', 'punchEditId');
+        $this->resetValidation();
+        $this->showPunches = true;
+    }
+
+    /** Back to the day or the person the corrections were opened from. */
+    public function closePunches(): void
+    {
+        $this->showPunches = false;
+        if ($this->punchBack === 'day') $this->showDay = true;
+        if ($this->punchBack === 'staff') $this->showStaff = true;
+    }
+
+    public function editPunch(int $id): void
+    {
+        $this->authorizeAccess();
+        $punch = \App\Models\AttendancePunch::query()->where('attendance_staff_id', $this->punchStaffId)->findOrFail($id);
+        $this->punchEditId = $punch->id;
+        $this->punchTime = $punch->punched_at->format('H:i');
+        $this->resetValidation();
+    }
+
+    public function cancelPunchEdit(): void
+    {
+        $this->reset('punchEditId', 'punchTime');
+        $this->resetValidation();
+    }
+
+    /** Add a punch, or save the new time of the one being changed. */
+    public function savePunch(\App\Services\Attendance\AttendanceCorrections $corrections): void
+    {
+        $this->authorizeAccess();
+        $this->validate(['punchTime' => 'required|date_format:H:i', 'punchReason' => 'required|string|min:5|max:255'],
+            ['punchTime.required' => 'Enter the time.', 'punchTime.date_format' => 'Enter the time as hours and minutes.', 'punchReason.required' => 'Say why.', 'punchReason.min' => 'Say why, in at least 5 characters.']);
+        $staff = AttendanceStaff::query()->findOrFail($this->punchStaffId);
+        $at = CarbonImmutable::parse($this->punchDate.' '.$this->punchTime.':00');
+        $now = CarbonImmutable::parse(CarbonImmutable::now($this->timezone())->format('Y-m-d H:i:s'));
+        if ($this->punchEditId) {
+            $corrections->move(\App\Models\AttendancePunch::query()->where('attendance_staff_id', $staff->id)->findOrFail($this->punchEditId), $at, $this->punchReason, $now);
+        } else {
+            $corrections->add($staff, $at, $this->punchReason, $now);
+        }
+        $this->reset('punchTime', 'punchReason', 'punchEditId');
+        $this->dispatch('notify', type: 'success', message: 'Punch saved.');
+    }
+
+    public function removePunch(int $id, \App\Services\Attendance\AttendanceCorrections $corrections): void
+    {
+        $this->authorizeAccess();
+        $this->validate(['punchReason' => 'required|string|min:5|max:255'], ['punchReason.required' => 'Say why the punch is being removed.', 'punchReason.min' => 'Say why, in at least 5 characters.']);
+        $corrections->void(\App\Models\AttendancePunch::query()->where('attendance_staff_id', $this->punchStaffId)->findOrFail($id), $this->punchReason);
+        $this->reset('punchTime', 'punchReason', 'punchEditId');
+        $this->dispatch('notify', type: 'success', message: 'Punch removed. It stays in the history.');
+    }
+
+    /** The day being corrected: how it now counts, and every punch on it, removed ones included. */
+    private function punchDay(AttendanceAnalyzer $analyzer, array $report): ?array
+    {
+        $staff = AttendanceStaff::query()->find($this->punchStaffId);
+        if (! $staff) {
+            return null;
+        }
+        $date = CarbonImmutable::parse($this->punchDate);
+        $row = collect(isset($report['days'][$this->punchDate]) ? $report['rows'] : $analyzer->range($date, $date)['rows'])
+            ->first(fn ($row) => $row['staff']->id === $staff->id);
+
+        return ['staff' => $staff, 'date' => $date, 'day' => $row['days'][$this->punchDate] ?? null,
+            'punches' => \App\Models\AttendancePunch::withVoided()->with(['creator:id,name', 'voider:id,name'])
+                ->where('attendance_staff_id', $staff->id)
+                ->whereBetween('punched_at', [$this->punchDate.' 00:00:00', $this->punchDate.' 23:59:59'])->orderBy('punched_at')->orderBy('id')->get()];
     }
 
     /** The first day of the month the calendar is on: the one chosen, or the latest month of the days picked. */
@@ -449,6 +540,7 @@ class AttendanceComponent extends Component
             'periodLabel' => AttendancePeriod::label($first, $last),
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
+            'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
             'report' => $report,
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,
