@@ -21,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        \App\Support\PublicFiles::configure();
         $this->app->bind(\App\Services\Messaging\SmsDriver::class, \App\Services\Messaging\Drivers\EazismsDriver::class);
         $this->app->scoped(
             \App\Support\Tenancy\TenantContext::class,

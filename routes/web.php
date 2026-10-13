@@ -467,3 +467,12 @@ Route::get('/refraction/print/{consultation}', function($consultationID){
     return view('livewire.doctor.refraction-print', compact('consultation', 'refraction', 'patient'));
 })->name('refraction.print');
 });
+
+// Clinic logos and profile pictures (App\Support\PublicFiles). On hosted installs they live in
+// a bucket, not under the web root, so the app serves them. No session: a page shows several.
+Route::get('/storage/{path}', function (string $path) {
+    abort_unless(\App\Support\PublicFiles::servable($path), 404);
+    $disk = \Illuminate\Support\Facades\Storage::disk('public');
+    abort_unless($disk->exists($path), 404);
+    return $disk->response($path, null, ['Cache-Control' => 'public, max-age=86400']);
+})->where('path', '.*')->withoutMiddleware('web')->name('storage.public');

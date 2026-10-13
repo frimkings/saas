@@ -41,7 +41,11 @@ return [
             'root' => storage_path('app'),
         ],
 
-        'public' => [
+        // Clinic logos, profile pictures and expense receipts. A public bucket when
+        // PUBLIC_AWS_BUCKET is set; otherwise the server's own storage, which on Laravel Cloud
+        // App\Support\PublicFiles moves into the attached bucket. Without a bucket name the S3
+        // driver can't even be built, and every save failed.
+        'public' => env('PUBLIC_AWS_BUCKET') ? [
             'driver' => 's3',
             'key' => env('PUBLIC_AWS_ACCESS_KEY_ID'),
             'secret' => env('PUBLIC_AWS_SECRET_ACCESS_KEY'),
@@ -51,6 +55,12 @@ return [
             'endpoint' => env('PUBLIC_AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('PUBLIC_AWS_USE_PATH_STYLE_ENDPOINT', false),
             'visibility' => 'public',
+        ] : [
+            'driver' => 'local',
+            'root' => storage_path('app/public'),
+            'url' => env('APP_URL').'/storage',
+            'visibility' => 'public',
+            'throw' => false,
         ],
 
         'local_public' => [
