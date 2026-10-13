@@ -6,6 +6,7 @@ use App\Models\AttendanceDevice;
 use App\Models\AttendanceHoliday;
 use App\Models\AttendanceImport;
 use App\Models\AttendanceLeave;
+use App\Models\AttendanceOvertime;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRoster;
 use App\Models\AttendanceSetting;
@@ -76,6 +77,12 @@ class AttendanceAnalyzer
                 $roster[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = $entry->attendance_shift_id ?? 0;
             });
 
+        $decided = [];
+        AttendanceOvertime::query()->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->get()
+            ->each(function ($entry) use (&$decided) {
+                $decided[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = $entry;
+            });
+
         $holidays = AttendanceHoliday::query()
             ->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->orderBy('date')->get()
             ->mapWithKeys(fn ($holiday) => [$holiday->date->format('Y-m-d') => $holiday->name])->all();
@@ -120,8 +127,9 @@ class AttendanceAnalyzer
                     $excused = $allDay ? 'leave' : null;
                     $note = implode(', ', array_map(fn ($a) => $a['label'].' '.self::time($a['from']).' to '.self::time($a['to']), $part));
                 }
-                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break)
+                $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break, $settings->overtime_after_minutes ?? 30)
                     + ['note' => $note, 'hours' => $hours];
+                $staffDays[$key] = $this->withOvertimeDecision($staffDays[$key], $decided[$staff->id][$key] ?? null, (bool) ($settings->overtime_needs_approval ?? true));
             }
             $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
         }
@@ -146,6 +154,31 @@ class AttendanceAnalyzer
                 'expected' => $sum('expected'),
             ],
         ];
+    }
+
+    /**
+     * What counts of a day's overtime. 'overtime_minutes' is what was worked past the end of the
+     * day; 'overtime_approved' what counts, and 'overtime_status' is 'pending' while a manager
+     * has still to answer, else 'approved' or 'declined'. Where the branch doesn't ask for
+     * approval it all counts unless a manager has said otherwise.
+     */
+    private function withOvertimeDecision(array $day, ?AttendanceOvertime $decision, bool $needsApproval): array
+    {
+        $day += ['overtime_status' => null, 'overtime_approved' => 0];
+        if (! $day['overtime_minutes']) {
+            return $day;
+        }
+        if ($decision) {
+            $day['overtime_status'] = $decision->status;
+            $day['overtime_approved'] = $decision->status === AttendanceOvertime::APPROVED ? min($decision->minutes, $day['overtime_minutes']) : 0;
+        } elseif ($needsApproval) {
+            $day['overtime_status'] = 'pending';
+        } else {
+            $day['overtime_status'] = AttendanceOvertime::APPROVED;
+            $day['overtime_approved'] = $day['overtime_minutes'];
+        }
+
+        return $day;
     }
 
     /** How long after a night shift ends a punch still belongs to it (a late clock-out). */
@@ -325,14 +358,16 @@ class AttendanceAnalyzer
      * One person's day. $times are that day's punches as 'HH:MM', in order; $hours the working
      * hours or null on a day off; $state 'complete', 'partial' or null when the day is not covered;
      * $excused 'holiday' or 'leave' when a working day is not expected of them; $breakAllowed the
-     * minutes they may be out between punches before it is flagged.
+     * minutes they may be out between punches before it is flagged; $overtimeAfter how long past
+     * the end of the day they must stay before it is overtime ('overtime_minutes', counted from
+     * the end of the day; on a day off or a holiday, all the time on site).
      *
      * 'punches' lists every punch as ['time', 'kind' => 'in' | 'out']. 'out' is the departure: the
      * last punch when they pair up, null when one is missing ('no_clock_out').
      */
-    public function day(array $times, ?array $hours, int $grace, ?string $state, ?string $excused = null, int $breakAllowed = 60): array
+    public function day(array $times, ?array $hours, int $grace, ?string $state, ?string $excused = null, int $breakAllowed = 60, int $overtimeAfter = 30): array
     {
-        $day = ['status' => 'none', 'in' => null, 'out' => null, 'late_minutes' => 0, 'early_minutes' => 0,
+        $day = ['status' => 'none', 'in' => null, 'out' => null, 'late_minutes' => 0, 'early_minutes' => 0, 'overtime_minutes' => 0,
             'left_early' => false, 'no_clock_out' => false, 'minutes_worked' => null, 'in_progress' => $state === 'partial',
             'punches' => [], 'break_minutes' => 0, 'long_break' => false];
         if ($state === null) {
@@ -365,6 +400,7 @@ class AttendanceAnalyzer
         $day['long_break'] = $day['break_minutes'] > $breakAllowed;
         if (! $hours || $excused) {
             $day['status'] = 'worked_off';
+            $day['overtime_minutes'] = $paired && $worked >= max(1, $overtimeAfter) ? $worked : 0;
 
             return $day;
         }
@@ -373,6 +409,8 @@ class AttendanceAnalyzer
         $late = $in > $start + $grace;
         $day['status'] = $late ? 'late' : 'on_time';
         $day['late_minutes'] = $late ? $in - $start : 0;
+        $beyond = $out !== null ? $out - $this->minutes($hours['end']) : 0;
+        $day['overtime_minutes'] = $beyond >= max(1, $overtimeAfter) ? $beyond : 0;
         if ($state === 'complete') {
             $day['no_clock_out'] = $out === null;
             $end = $this->minutes($hours['end']);
@@ -403,7 +441,8 @@ class AttendanceAnalyzer
     private function totals(array $days): array
     {
         $totals = ['on_time' => 0, 'late' => 0, 'absent' => 0, 'leave' => 0, 'holiday' => 0, 'worked_off' => 0, 'late_minutes' => 0,
-            'left_early' => 0, 'no_clock_out' => 0, 'minutes_worked' => 0, 'long_breaks' => 0, 'break_minutes' => 0];
+            'left_early' => 0, 'no_clock_out' => 0, 'minutes_worked' => 0, 'long_breaks' => 0, 'break_minutes' => 0,
+            'early_minutes' => 0, 'overtime_minutes' => 0, 'overtime_pending' => 0];
         $arrivals = [];
         foreach ($days as $day) {
             if (isset($totals[$day['status']])) {
@@ -415,6 +454,10 @@ class AttendanceAnalyzer
             $totals['minutes_worked'] += (int) $day['minutes_worked'];
             $totals['long_breaks'] += (int) $day['long_break'];
             $totals['break_minutes'] += $day['break_minutes'];
+            $totals['early_minutes'] += $day['early_minutes'];
+            // Overtime that counts, and overtime still waiting for a manager's answer.
+            $totals['overtime_minutes'] += $day['overtime_approved'] ?? 0;
+            $totals['overtime_pending'] += ($day['overtime_status'] ?? null) === 'pending' ? $day['overtime_minutes'] : 0;
             if (in_array($day['status'], ['on_time', 'late'], true)) {
                 $arrivals[] = $this->minutes($day['in']);
             }

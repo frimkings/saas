@@ -26,6 +26,7 @@
                 <button type="button" class="ui-button ui-button-secondary" wire:click="editHours"><i class="fas fa-clock" aria-hidden="true"></i>Working hours</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showShifts', true)"><i class="fas fa-layer-group" aria-hidden="true"></i>Shifts</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showHolidays', true)"><i class="fas fa-calendar-day" aria-hidden="true"></i>Holidays</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showDevices', true)"><i class="fas fa-fingerprint" aria-hidden="true"></i>Terminals</button>
                 <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
@@ -43,6 +44,13 @@
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
                 <span><i class="fas fa-envelope-open-text mr-1" aria-hidden="true"></i><strong>{{ $requests->count() }}</strong> leave {{ $requests->count() === 1 ? 'request is' : 'requests are' }} waiting for an answer.</span>
                 <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="$set('showRequests', true)">Review</button>
+            </div>
+        @endif
+
+        @if($overtimeWaiting)
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <span><i class="fas fa-hourglass-half mr-1" aria-hidden="true"></i><strong>{{ $overtimeWaiting }}</strong> {{ $overtimeWaiting === 1 ? 'day of overtime is' : 'days of overtime are' }} waiting for your answer in {{ $periodLabel }}.</span>
+                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="$set('showOvertime', true)">Review</button>
             </div>
         @endif
 
@@ -157,6 +165,7 @@
                                     <th class="text-right">Left early</th>
                                     <th class="text-right">Long breaks</th>
                                     <th class="text-right">Missing punch</th>
+                                    <th class="text-right">Overtime</th>
                                     <th class="text-right">Usual arrival</th>
                                     <th><span class="sr-only">Open</span></th>
                                 </tr>
@@ -181,14 +190,15 @@
                                             <td class="text-right ui-number">{{ $t['left_early'] }}</td>
                                             <td class="text-right ui-number">@if($t['long_breaks'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['long_breaks'] }}</span>@else 0 @endif</td>
                                             <td class="text-right ui-number">{{ $t['no_clock_out'] }}</td>
+                                            <td class="text-right ui-number">{{ $t['overtime_minutes'] ? AttendanceAnalyzer::duration($t['overtime_minutes']) : '–' }}@if($t['overtime_pending'])<span class="block text-xs font-normal text-amber-700">{{ AttendanceAnalyzer::duration($t['overtime_pending']) }} waiting</span>@endif</td>
                                             <td class="text-right ui-number">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
                                         @else
-                                            <td colspan="10" class="text-right text-sm text-slate-400">–</td>
+                                            <td colspan="11" class="text-right text-sm text-slate-400">–</td>
                                         @endif
                                         <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="openStaff({{ $staff->id }})">Open</button></td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="12" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
+                                    <tr><td colspan="13" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -294,6 +304,13 @@
                     <input id="attendance-break" type="number" min="0" max="480" class="ui-input !w-32" wire:model="breakMinutes">
                     <p class="!mb-0 mt-1 text-xs text-slate-500">Staff punch out when they leave and in when they return. Time out longer than this in a day is flagged.</p>
                     @error('breakMinutes')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="attendance-overtime-after" class="mb-1 block text-sm font-medium text-slate-700">Overtime starts after (minutes)</label>
+                    <input id="attendance-overtime-after" type="number" min="1" max="480" class="ui-input !w-32" wire:model="overtimeAfter">
+                    <p class="!mb-0 mt-1 text-xs text-slate-500">Staying at least this long past the end of the day is overtime, counted from the end of the day. Time on site on a day off or a holiday is overtime too.</p>
+                    @error('overtimeAfter')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    <label class="mt-2 flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="overtimeNeedsApproval"> Overtime counts only when a manager approves it</label>
                 </div>
                 <div class="flex items-center justify-end gap-2">
                     <x-ui.button wire:click="$set('showHours', false)">Cancel</x-ui.button>
@@ -527,6 +544,51 @@
         </x-ui.modal>
     @endif
 
+    @if($showOvertime)
+        <style>.clinic-ui .ui-dialog:has(.attendance-overtime) { width: min(900px, calc(100% - 32px)); }</style>
+        <x-ui.modal :title="'Overtime · '.$periodLabel" state="showOvertime">
+            <div class="attendance-overtime space-y-3 p-4">
+                <p class="!mb-0 text-sm text-slate-600">
+                    Staying {{ AttendanceAnalyzer::duration($settings->overtime_after_minutes ?? 30) }} or more past the end of the working day is overtime, as is time on site on a day off or a holiday.
+                    @if($settings->overtime_needs_approval ?? true) It counts only once you approve it; you can approve fewer minutes than were worked. @else It counts by itself here; turn a day down if it should not. @endif
+                    Change the rule under Working hours.
+                </p>
+                @forelse($overtime as $item)
+                    @php $day = $item['day']; $decision = $item['decision']; @endphp
+                    <div class="rounded-lg border border-slate-200 p-3" wire:key="overtime-{{ $item['key'] }}-{{ $day['overtime_status'] }}">
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <p class="!mb-0 text-sm"><strong class="text-slate-900">{{ $item['staff']->name }}</strong> · {{ $item['date']->format('D j M Y') }}</p>
+                            <span @class(['rounded px-1.5 py-0.5 text-xs font-medium', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-100 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-600' => $day['overtime_status'] === 'declined'])>
+                                {{ ['pending' => 'Waiting', 'approved' => 'Approved '.AttendanceAnalyzer::duration($day['overtime_approved']), 'declined' => 'Not approved'][$day['overtime_status']] ?? '' }}
+                            </span>
+                        </div>
+                        <p class="!mb-0 text-sm text-slate-700">
+                            {{ AttendanceAnalyzer::duration($day['overtime_minutes']) }} overtime ·
+                            @if($day['status'] === 'worked_off') on site {{ AttendanceAnalyzer::time($day['in']) }} to {{ AttendanceAnalyzer::time($day['out']) }} on {{ $day['note'] ?: 'a day off' }}
+                            @else left at {{ AttendanceAnalyzer::time($day['out']) }}, the day ends at {{ AttendanceAnalyzer::time($day['hours']['end']) }}@if($day['hours']['shift'] ?? null) ({{ $day['hours']['shift'] }} shift)@endif
+                            @endif
+                        </p>
+                        @if($decision)
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">{{ $decision->decider->name ?? 'A manager' }}, {{ $decision->updated_at->diffForHumans() }}@if($decision->note) · “{{ $decision->note }}”@endif
+                                <button type="button" class="ml-1 text-teal-700 underline" wire:click="reopenOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}')">Change</button></p>
+                        @else
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                <label class="text-xs text-slate-600" for="overtime-minutes-{{ $item['key'] }}">Minutes to approve</label>
+                                <input id="overtime-minutes-{{ $item['key'] }}" type="number" min="1" max="{{ $day['overtime_minutes'] }}" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="overtimeMinutes.{{ $item['key'] }}" placeholder="{{ $day['overtime_minutes'] }}">
+                                <input type="text" maxlength="255" class="ui-input min-w-[10rem] flex-1 !py-1.5 !text-sm" wire:model="overtimeNotes.{{ $item['key'] }}" placeholder="Note (optional)" aria-label="Note">
+                                <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}', false)" wire:loading.attr="disabled" wire:target="decideOvertime">Don't approve</button>
+                                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}', true)" wire:loading.attr="disabled" wire:target="decideOvertime">Approve</button>
+                            </div>
+                            @error('overtimeMinutes.'.$item['key'])<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                        @endif
+                    </div>
+                @empty
+                    <p class="!mb-0 text-sm text-slate-500">Nobody worked overtime in {{ $periodLabel }}.</p>
+                @endforelse
+            </div>
+        </x-ui.modal>
+    @endif
+
     @if($showDay && $dayList)
         <style>.clinic-ui .ui-dialog:has(.attendance-day) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="$dayList['date']->format('l j F Y').($dayList['holiday'] ? ' · '.$dayList['holiday'] : '')" state="showDay">
@@ -554,6 +616,7 @@
                                         @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                         @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
                                         @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
+                                        @if($day['overtime_minutes'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -706,6 +769,7 @@
                                             @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                             @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
                                             @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
+                                            @if($day['overtime_minutes'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                             @if($day['in_progress'])<span class="ml-1 text-xs text-slate-400">Day in progress</span>@endif
                                         </td>
                                     </tr>

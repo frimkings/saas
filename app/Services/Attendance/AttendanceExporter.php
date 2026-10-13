@@ -30,17 +30,18 @@ class AttendanceExporter
 
             fputcsv($out, ['SUMMARY']);
             fputcsv($out, ['Employee ID', 'Name', 'Department', 'Days expected', 'Present', 'On time', 'Late', 'Minutes late', 'Absent', 'On leave',
-                'Left early', 'Missing punch', 'Worked on days off', 'Usual arrival', 'Hours on site', 'Long breaks', 'Hours on break']);
+                'Left early', 'Missing punch', 'Worked on days off', 'Usual arrival', 'Hours on site', 'Long breaks', 'Hours on break', 'Overtime hours (approved)', 'Overtime hours (waiting)']);
             foreach ($rows as $row) {
                 $t = $row['totals'];
                 fputcsv($out, [$this->text($row['staff']->employee_no), $row['staff']->name, $row['staff']->department, $t['expected'], $t['present'], $t['on_time'], $t['late'],
                     $t['late_minutes'], $t['absent'], $t['leave'], $t['left_early'], $t['no_clock_out'], $t['worked_off'], AttendanceAnalyzer::time($t['average_arrival']),
-                    round($t['minutes_worked'] / 60, 2), $t['long_breaks'], round($t['break_minutes'] / 60, 2)]);
+                    round($t['minutes_worked'] / 60, 2), $t['long_breaks'], round($t['break_minutes'] / 60, 2),
+                    round($t['overtime_minutes'] / 60, 2), round($t['overtime_pending'] / 60, 2)]);
             }
             fputcsv($out, []);
 
             fputcsv($out, ['DAILY']);
-            fputcsv($out, ['Employee ID', 'Name', 'Date', 'Day', 'In', 'Out', 'Hours on site', 'Status', 'Minutes late', 'Left early (minutes)', 'Missing punch', 'Note', 'Break (minutes)', 'Long break', 'All punches']);
+            fputcsv($out, ['Employee ID', 'Name', 'Date', 'Day', 'In', 'Out', 'Hours on site', 'Status', 'Minutes late', 'Left early (minutes)', 'Missing punch', 'Note', 'Break (minutes)', 'Long break', 'All punches', 'Overtime (minutes)', 'Overtime approved (minutes)']);
             foreach ($rows as $row) {
                 foreach ($row['days'] as $key => $day) {
                     if (in_array($day['status'], ['none', 'off'], true)) {
@@ -50,7 +51,8 @@ class AttendanceExporter
                         $day['minutes_worked'] !== null ? round($day['minutes_worked'] / 60, 2) : null, AttendanceAnalyzer::STATUSES[$day['status']],
                         $day['late_minutes'] ?: null, $day['early_minutes'] ?: null, $day['no_clock_out'] ? 'Yes' : null, $day['note'],
                         $day['break_minutes'] ?: null, $day['long_break'] ? 'Yes' : null,
-                        implode(' ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'In ' : 'Out ').AttendanceAnalyzer::time($punch['time']).';', $day['punches']))]);
+                        implode(' ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'In ' : 'Out ').AttendanceAnalyzer::time($punch['time']).';', $day['punches'])),
+                        $day['overtime_minutes'] ?: null, $day['overtime_minutes'] && $day['overtime_status'] !== 'pending' ? $day['overtime_approved'] : null]);
                 }
             }
             fclose($out);

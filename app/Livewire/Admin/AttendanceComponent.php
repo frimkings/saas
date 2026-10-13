@@ -49,6 +49,13 @@ class AttendanceComponent extends Component
     public array $hours = [];
     public int|string $graceMinutes = 15;
     public int|string $breakMinutes = 60;
+    public int|string $overtimeAfter = 30;
+    public bool $overtimeNeedsApproval = true;
+
+    // Overtime in the days on show, to approve or turn down. Keys are 'staff id-Y-m-d'.
+    public bool $showOvertime = false;
+    public array $overtimeMinutes = [];
+    public array $overtimeNotes = [];
 
     public bool $showDevices = false;
     public string $deviceName = '';
@@ -402,6 +409,8 @@ class AttendanceComponent extends Component
         $this->hours = $this->hoursForm($settings->hours ?? []);
         $this->graceMinutes = $settings->grace_minutes;
         $this->breakMinutes = $settings->break_minutes ?? 60;
+        $this->overtimeAfter = $settings->overtime_after_minutes ?? 30;
+        $this->overtimeNeedsApproval = (bool) ($settings->overtime_needs_approval ?? true);
         $this->resetValidation();
         $this->showHours = true;
     }
@@ -412,13 +421,15 @@ class AttendanceComponent extends Component
         $this->validate([
             'graceMinutes' => 'required|integer|min:0|max:240',
             'breakMinutes' => 'required|integer|min:0|max:480',
-        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed']);
+            'overtimeAfter' => 'required|integer|min:1|max:480',
+        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed', 'overtimeAfter' => 'overtime threshold']);
         if (! $hours = $this->hoursFrom('hours')) {
             return;
         }
 
         $settings = AttendanceSetting::current();
-        $settings->fill(['hours' => $hours, 'grace_minutes' => (int) $this->graceMinutes, 'break_minutes' => (int) $this->breakMinutes])->save();
+        $settings->fill(['hours' => $hours, 'grace_minutes' => (int) $this->graceMinutes, 'break_minutes' => (int) $this->breakMinutes,
+            'overtime_after_minutes' => (int) $this->overtimeAfter, 'overtime_needs_approval' => $this->overtimeNeedsApproval])->save();
         $this->showHours = false;
         $this->dispatch('notify', type: 'success', message: 'Working hours saved.');
     }
@@ -606,6 +617,71 @@ class AttendanceComponent extends Component
         $this->dispatch('notify', type: 'success', message: $approve ? 'Leave approved.' : 'Leave not approved.');
     }
 
+    /**
+     * Approve one person's overtime on one day, for all of it or fewer minutes, or turn it down.
+     * It counts on their hours only once approved.
+     */
+    public function decideOvertime(int $staffId, string $date, bool $approve, AttendanceAnalyzer $analyzer): void
+    {
+        $this->authorizeAccess();
+        abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1, 404);
+        $staff = AttendanceStaff::query()->findOrFail($staffId);
+        $day = CarbonImmutable::parse($date);
+        $worked = collect($analyzer->range($day, $day)['rows'])->first(fn ($row) => $row['staff']->id === $staff->id)['days'][$date]['overtime_minutes'] ?? 0;
+        abort_unless($worked > 0, 404);
+
+        $key = $staffId.'-'.$date;
+        $minutes = trim((string) ($this->overtimeMinutes[$key] ?? ''));
+        $minutes = $minutes === '' ? $worked : $minutes;
+        if ($approve && (! ctype_digit((string) $minutes) || (int) $minutes < 1 || (int) $minutes > $worked)) {
+            $this->addError('overtimeMinutes.'.$key, 'Approve between 1 and '.$worked.' minutes, the overtime worked that day.');
+
+            return;
+        }
+        $note = mb_substr(trim((string) ($this->overtimeNotes[$key] ?? '')), 0, 255) ?: null;
+        $decision = \App\Models\AttendanceOvertime::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $date], [
+            'status' => $approve ? \App\Models\AttendanceOvertime::APPROVED : \App\Models\AttendanceOvertime::DECLINED,
+            'minutes' => $approve ? (int) $minutes : 0, 'note' => $note, 'decided_by' => auth()->id(),
+        ]);
+        \App\Models\AuditTrail::record($approve ? 'attendance.overtime_approved' : 'attendance.overtime_declined',
+            ($approve ? 'Approved '.AttendanceAnalyzer::duration((int) $minutes).' of overtime' : 'Did not approve overtime')." for {$staff->name} on ".$day->format('j M Y').($note ? ": {$note}" : ''),
+            $decision, [], ['worked_minutes' => $worked, 'approved_minutes' => $decision->minutes], null, true);
+        unset($this->overtimeMinutes[$key], $this->overtimeNotes[$key]);
+        $this->resetValidation('overtimeMinutes.'.$key);
+    }
+
+    /** Take back an answer on overtime, so it waits for one again. */
+    public function reopenOvertime(int $staffId, string $date): void
+    {
+        $this->authorizeAccess();
+        $decision = \App\Models\AttendanceOvertime::query()->where('attendance_staff_id', $staffId)->whereDate('date', $date)->with('staff:id,name')->firstOrFail();
+        \App\Models\AuditTrail::record('attendance.overtime_reopened', 'Took back the answer on overtime for '.($decision->staff->name ?? 'someone').' on '.$decision->date->format('j M Y'),
+            $decision, ['status' => $decision->status, 'approved_minutes' => $decision->minutes], [], null, true);
+        $decision->delete();
+    }
+
+    /** Every day in the report with overtime, newest first, with the manager's answer if there is one. */
+    private function overtimeList(array $report): array
+    {
+        $notes = \App\Models\AttendanceOvertime::query()->whereBetween('date', [array_key_first($report['days']), array_key_last($report['days'])])
+            ->with('decider:id,name')->get()->keyBy(fn ($entry) => $entry->attendance_staff_id.'-'.$entry->date->format('Y-m-d'));
+        $list = [];
+        foreach ($report['rows'] as $row) {
+            if (! $row['staff']->is_tracked) {
+                continue;
+            }
+            foreach ($row['days'] as $key => $day) {
+                if ($day['overtime_minutes'] > 0) {
+                    $list[] = ['key' => $row['staff']->id.'-'.$key, 'staff' => $row['staff'], 'date' => $report['days'][$key], 'day' => $day,
+                        'decision' => $notes[$row['staff']->id.'-'.$key] ?? null];
+                }
+            }
+        }
+        usort($list, fn ($a, $b) => [$a['day']['overtime_status'] !== 'pending', $b['date'], $a['staff']->name] <=> [$b['day']['overtime_status'] !== 'pending', $a['date'], $b['staff']->name]);
+
+        return $list;
+    }
+
     public function removeLeave(int $id): void
     {
         $this->authorizeAccess();
@@ -651,6 +727,8 @@ class AttendanceComponent extends Component
             'shifts' => \App\Models\AttendanceShift::query()->orderBy('starts_at')->orderBy('name')->get(),
             'rosterGrid' => $this->showRoster && $this->rosterWeek ? $this->rosterGrid($analyzer) : null,
             'report' => $report,
+            'overtime' => $overtime = $this->overtimeList($report),
+            'overtimeWaiting' => count(array_filter($overtime, fn ($item) => $item['day']['overtime_status'] === 'pending')),
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,
             'leaves' => $this->showStaff ? AttendanceLeave::query()->where('attendance_staff_id', $this->staffId)->orderByDesc('starts_on')->limit(20)->get() : collect(),
