@@ -36,4 +36,21 @@ class LegacyImportArchiveTest extends TestCase
   try{Livewire::actingAs($admin)->test(LegacyImportManagerComponent::class)->call('archive',$running->id);}catch(\Symfony\Component\HttpKernel\Exception\HttpException $e){$this->assertSame(422,$e->getStatusCode());}
   $this->assertNull($running->fresh()->archived_at);
  }
+
+ /** The live database ran out of sort memory selecting every column of every batch, sorted by date. */
+ public function test_the_batch_list_loads_only_what_it_shows_newest_first():void
+ {
+  $admin=User::factory()->create(['is_platform_admin'=>true]);
+  $old=$this->batch($admin,'Older Clinic','committed');$new=$this->batch($admin,'Newer Clinic','failed');
+  $old->update(['analysis'=>['tables'=>array_fill(0,200,str_repeat('x',500))]]);
+  $queries=[];\Illuminate\Support\Facades\DB::listen(function($query)use(&$queries){$queries[]=$query->sql;});
+  Livewire::actingAs($admin)->test(LegacyImportManagerComponent::class)->assertSeeInOrder(['Newer Clinic','Older Clinic'])
+   ->assertViewHas('batches',fn($batches)=>$batches->pluck('id')->all()===[$new->id,$old->id]&&!array_key_exists('analysis',$batches->first()->getAttributes()));
+  $list=collect($queries)->first(fn($sql)=>str_contains($sql,'from `legacy_import_batches`')&&str_contains($sql,'order by'));
+  $this->assertNotNull($list);
+  $this->assertStringNotContainsString('select *',$list);
+  $this->assertStringContainsString('order by `id` desc',$list);
+  // Opening a batch still loads all of it.
+  Livewire::actingAs($admin)->test(LegacyImportManagerComponent::class)->call('selectBatch',$old->id)->assertViewHas('selected',fn($batch)=>count($batch->analysis['tables'])===200);
+ }
 }
