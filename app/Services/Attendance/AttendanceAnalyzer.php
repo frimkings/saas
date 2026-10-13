@@ -353,7 +353,7 @@ class AttendanceAnalyzer
             $hours = $day['hours'];
             $last = $day['punches'] ? end($day['punches']) : null;
             $person = ['staff' => $staff, 'time' => $last['time'] ?? null, 'in' => $day['in'], 'late_minutes' => $day['late_minutes'],
-                'note' => $day['note'], 'expected' => $hours['start'] ?? null, 'left' => false];
+                'note' => $day['note'], 'expected' => $hours['start'] ?? null, 'left' => false, 'shift' => $hours['shift'] ?? null];
             if ($last) {
                 $person['state'] = $last['kind'];
                 $person['left'] = $last['kind'] === 'out' && (! $hours || $clock >= $this->minutes($hours['end']));

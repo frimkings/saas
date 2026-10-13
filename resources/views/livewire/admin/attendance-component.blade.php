@@ -88,6 +88,9 @@
                     <h2 class="!mb-0 text-sm font-semibold text-slate-900">Today, {{ $today->format('D j M') }}</h2>
                     <span class="text-xs text-slate-500">As of {{ $today->format('g:i A') }}, from the terminal's punches. Updates every minute.</span>
                 </div>
+                @foreach($shortNow as $gap)
+                    <p class="!mb-2 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-900" role="alert" wire:key="short-{{ $gap['department'] }}-{{ $gap['shift'] }}"><i class="fas fa-triangle-exclamation mr-1" aria-hidden="true"></i><strong>{{ $gap['department'] }}</strong> is short on the {{ $gap['shift'] }} shift: {{ $gap['in'] }} in, {{ $gap['need'] }} needed.</p>
+                @endforeach
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     @foreach($groups as $group => [$label, $colour, $people])
                         <div>
@@ -618,6 +621,32 @@
                         </tbody>
                     </table>
                 </div>
+                {{-- roster-extras --}}
+                @if($rosterGrid['cover'])
+                    <div>
+                        <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cover
+                            @if($rosterGrid['gaps'])<span class="ml-1 rounded bg-red-100 px-1.5 py-0.5 normal-case text-red-800">{{ $rosterGrid['gaps'] }} {{ $rosterGrid['gaps'] === 1 ? 'shift is' : 'shifts are' }} short this week</span>
+                            @else<span class="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 normal-case text-emerald-800">Every shift is covered</span>
+                            @endif
+                        </p>
+                        <div class="ui-table-wrap">
+                            <table class="table ui-table ui-table-sm mb-0">
+                                <thead><tr><th>Department · shift</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}</th>@endforeach</tr></thead>
+                                <tbody>
+                                    @foreach($rosterGrid['cover'] as $line)
+                                        <tr wire:key="cover-{{ $line['department'] }}-{{ $line['shift'] }}">
+                                            <td class="whitespace-nowrap font-medium text-slate-800">{{ $line['department'] }} · {{ $line['shift'] }}</td>
+                                            @foreach($line['days'] as $key => $count)
+                                                <td class="text-center"><span @class(['rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums', 'bg-red-100 text-red-800' => $count['have'] < $count['need'], 'bg-emerald-50 text-emerald-800' => $count['have'] >= $count['need']]) title="{{ $count['have'] }} rostered, {{ $count['need'] }} needed">{{ $count['have'] }} / {{ $count['need'] }}</span></td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">People rostered on the shift against the minimum set for the department. Anyone on approved leave that day is not counted.</p>
+                    </div>
+                @endif
             </div>
         </x-ui.modal>
     @endif
@@ -935,6 +964,24 @@
                             <p class="!mb-0 mt-1 text-xs text-slate-500">A person is in one department; ticking them here moves them.</p>
                         </fieldset>
                     </div>
+                    @if($shifts->isNotEmpty())
+                        <fieldset>
+                            <legend class="mb-1 text-xs font-semibold text-slate-600">Minimum cover: how many must be on each shift</legend>
+                            <div class="flex flex-wrap gap-3">
+                                @foreach($shifts->where('is_active', true) as $shift)
+                                    <div class="rounded border border-slate-200 bg-white p-2" wire:key="cover-form-{{ $shift->id }}">
+                                        <p class="!mb-1 text-xs font-medium text-slate-700">{{ $shift->name }}</p>
+                                        <div class="flex items-end gap-2">
+                                            <div><label for="cover-min-{{ $shift->id }}" class="block text-[11px] text-slate-500">Each day</label><input id="cover-min-{{ $shift->id }}" type="number" min="0" max="500" class="ui-input !w-20 !py-1 !text-sm" wire:model="departmentCover.{{ $shift->id }}.min" placeholder="None"></div>
+                                            <div><label for="cover-weekend-{{ $shift->id }}" class="block text-[11px] text-slate-500">Sat and Sun</label><input id="cover-weekend-{{ $shift->id }}" type="number" min="0" max="500" class="ui-input !w-20 !py-1 !text-sm" wire:model="departmentCover.{{ $shift->id }}.weekend" placeholder="Same"></div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">The roster then shows where the department is short, and the board at the top of the page when it is short right now. Leave empty for no minimum.</p>
+                            @foreach(['departmentCover.*.min', 'departmentCover.*.weekend'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                        </fieldset>
+                    @endif
                     <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="departmentOwnRules"> This department has rules of its own</label>
                     @if($departmentOwnRules)
                         <div class="flex flex-wrap items-end gap-3">

@@ -53,6 +53,8 @@ class AttendanceComponent extends Component
     public string $departmentBreak = '';
     public string $departmentOvertimeAfter = '';
     public string $staffDepartmentId = '';
+    /** Shift id => ['min' => string, 'weekend' => string]: how many of the department must be on each shift. */
+    public array $departmentCover = [];
 
     // Day by day: the month on the calendar ('Y-m') and the day whose list is open ('Y-m-d').
     public string $calendarMonth = '';
@@ -254,8 +256,73 @@ class AttendanceComponent extends Component
         \App\Models\AttendanceRoster::query()->whereBetween('date', [$monday->format('Y-m-d'), $monday->addDays(6)->format('Y-m-d')])->get()
             ->each(function ($entry) use (&$set) { $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0); });
 
-        return ['days' => $report['days'], 'set' => $set, 'holidays' => $report['holidays'],
-            'rows' => array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked))];
+        $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
+        [$cover, $gaps] = $this->rosterCover($rows, $report['days']);
+
+        return ['days' => $report['days'], 'set' => $set, 'holidays' => $report['holidays'], 'rows' => $rows, 'cover' => $cover, 'gaps' => $gaps];
+    }
+
+    /** The departments on show: all for a manager with no filter, one when filtered, a head's own. */
+    private function departmentsOnShow(): array
+    {
+        $user = auth()->user();
+        if ($this->department === 'none') {
+            return [];
+        }
+        $all = \App\Support\AttendanceScope::manager($user) ? \App\Models\AttendanceDepartment::query()->pluck('id')->all() : \App\Support\AttendanceScope::headed($user);
+
+        return ctype_digit($this->department) ? array_values(array_intersect($all, [(int) $this->department])) : $all;
+    }
+
+    /**
+     * For each department and shift with a minimum: how many are rostered on it each day against
+     * how many are needed. People on leave that day are not counted. Returns [lines, days short].
+     */
+    private function rosterCover(array $rows, array $days): array
+    {
+        $lines = [];
+        $gaps = 0;
+        $covers = \App\Models\AttendanceCover::query()->whereIn('attendance_department_id', $this->departmentsOnShow() ?: [0])->with(['department:id,name', 'shift'])->get()
+            ->filter(fn ($cover) => $cover->department && $cover->shift)->sortBy(fn ($cover) => [$cover->department->name, $cover->shift->starts_at]);
+        foreach ($covers as $cover) {
+            $line = ['department' => $cover->department->name, 'shift' => $cover->shift->name, 'days' => []];
+            foreach ($days as $key => $day) {
+                $have = count(array_filter($rows, fn ($row) => $row['staff']->attendance_department_id === $cover->attendance_department_id
+                    && ($row['days'][$key]['hours']['shift'] ?? null) === $cover->shift->name && ! $row['days'][$key]['leave_type']));
+                $line['days'][$key] = ['have' => $have, 'need' => $need = $cover->neededOn($day)];
+                $gaps += (int) ($have < $need);
+            }
+            $lines[] = $line;
+        }
+
+        return [$lines, $gaps];
+    }
+
+    /** Departments short on a shift that is running right now: fewer people in than its minimum. */
+    private function shortNow(array $board, CarbonImmutable $now): array
+    {
+        $short = [];
+        $clock = (int) $now->format('H') * 60 + (int) $now->format('i');
+        $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
+        foreach (\App\Models\AttendanceCover::query()->whereIn('attendance_department_id', $this->departmentsOnShow() ?: [0])->with(['department:id,name', 'shift'])->get() as $cover) {
+            if (! $cover->department || ! $cover->shift) {
+                continue;
+            }
+            [$start, $end] = [$minutes($cover->shift->starts_at), $minutes($cover->shift->ends_at)];
+            // A night shift is running late in the evening and again before it ends in the morning.
+            $running = $cover->shift->overnight() ? ($clock >= $start || $clock < $end) : ($clock >= $start && $clock < $end);
+            if (! $running) {
+                continue;
+            }
+            $day = $cover->shift->overnight() && $clock < $end ? $now->subDay() : $now;
+            $in = count(array_filter($board, fn ($person) => $person['state'] === 'in' && $person['shift'] === $cover->shift->name
+                && $person['staff']->attendance_department_id === $cover->attendance_department_id));
+            if ($in < $need = $cover->neededOn($day)) {
+                $short[] = ['department' => $cover->department->name, 'shift' => $cover->shift->name, 'in' => $in, 'need' => $need];
+            }
+        }
+
+        return $short;
     }
 
     /** One person's punches on one day, to add a missed punch, change a time or remove a mistake. */
@@ -945,7 +1012,7 @@ class AttendanceComponent extends Component
     public function openDepartments(): void
     {
         $this->authorizeAccess();
-        $this->reset('departmentEditId', 'departmentName', 'departmentHeads', 'departmentMembers', 'departmentOwnRules', 'departmentOwnHours', 'departmentGrace', 'departmentBreak', 'departmentOvertimeAfter');
+        $this->reset('departmentEditId', 'departmentName', 'departmentHeads', 'departmentMembers', 'departmentOwnRules', 'departmentOwnHours', 'departmentGrace', 'departmentBreak', 'departmentOvertimeAfter', 'departmentCover');
         $this->departmentHours = $this->hoursForm(AttendanceSetting::current()->hours ?? []);
         $this->resetValidation();
         $this->showDepartments = true;
@@ -965,6 +1032,10 @@ class AttendanceComponent extends Component
         $this->departmentGrace = (string) ($department->grace_minutes ?? '');
         $this->departmentBreak = (string) ($department->break_minutes ?? '');
         $this->departmentOvertimeAfter = (string) ($department->overtime_after_minutes ?? '');
+        $this->departmentCover = [];
+        foreach (\App\Models\AttendanceCover::query()->where('attendance_department_id', $department->id)->get() as $cover) {
+            $this->departmentCover[$cover->attendance_shift_id] = ['min' => (string) $cover->minimum, 'weekend' => (string) ($cover->weekend_minimum ?? '')];
+        }
         $this->resetValidation();
     }
 
@@ -979,8 +1050,11 @@ class AttendanceComponent extends Component
             'departmentGrace' => 'nullable|integer|min:0|max:240',
             'departmentBreak' => 'nullable|integer|min:0|max:480',
             'departmentOvertimeAfter' => 'nullable|integer|min:1|max:480',
+            'departmentCover.*.min' => 'nullable|integer|min:0|max:500',
+            'departmentCover.*.weekend' => 'nullable|integer|min:0|max:500',
         ], ['departmentName.unique' => 'There is already a department with that name.'],
-            ['departmentName' => 'name', 'departmentGrace' => 'grace period', 'departmentBreak' => 'break allowed', 'departmentOvertimeAfter' => 'overtime threshold']);
+            ['departmentName' => 'name', 'departmentGrace' => 'grace period', 'departmentBreak' => 'break allowed', 'departmentOvertimeAfter' => 'overtime threshold',
+                'departmentCover.*.min' => 'minimum cover', 'departmentCover.*.weekend' => 'weekend cover']);
         $hours = null;
         if ($this->departmentOwnRules && $this->departmentOwnHours && ! $hours = $this->hoursFrom('departmentHours')) {
             return;
@@ -997,6 +1071,16 @@ class AttendanceComponent extends Component
         ];
         $department = $this->departmentEditId ? \App\Models\AttendanceDepartment::query()->findOrFail($this->departmentEditId) : new \App\Models\AttendanceDepartment();
         $department->fill($values)->save();
+
+        // Minimum cover: one line per shift that has a number.
+        \App\Models\AttendanceCover::query()->where('attendance_department_id', $department->id)->delete();
+        foreach (\App\Models\AttendanceShift::query()->pluck('id') as $shiftId) {
+            $cover = $this->departmentCover[$shiftId] ?? [];
+            if (trim((string) ($cover['min'] ?? '')) !== '' && (int) $cover['min'] > 0) {
+                \App\Models\AttendanceCover::create(['attendance_department_id' => $department->id, 'attendance_shift_id' => $shiftId, 'minimum' => (int) $cover['min'],
+                    'weekend_minimum' => trim((string) ($cover['weekend'] ?? '')) === '' ? null : (int) $cover['weekend']]);
+            }
+        }
 
         // Its people: those ticked join it (leaving any other department); those unticked leave it.
         $members = array_map('intval', $this->departmentMembers);
@@ -1157,8 +1241,9 @@ class AttendanceComponent extends Component
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),
             'silent' => $manager ? AttendanceDevice::silent(now()->setTimezone($timezone)) : collect(),
             // The live board needs a terminal that sends punches as they happen.
-            'board' => $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
+            'board' => $board = $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
                 ? $analyzer->today(CarbonImmutable::now($timezone)) : [],
+            'shortNow' => $board ? $this->shortNow($board, CarbonImmutable::now($timezone)) : [],
             'today' => CarbonImmutable::now($timezone),
             'requests' => AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->when($only !== null, fn ($query) => $query->whereIn('attendance_staff_id', $only))
                 ->with('staff:id,name')->orderBy('starts_on')->get(),
