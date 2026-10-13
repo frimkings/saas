@@ -15,7 +15,7 @@
     <div class="ui-panel bg-white">
         <div class="oo-toolbar">
             <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search order ID, customer, phone, frame or service…" class="ui-input text-sm" aria-label="Search orders">
-            <span class="ui-muted" wire:loading.delay wire:target="searchTerm,setFilter,datePreset,dateFrom,dateTo,dateField,sourceFilter,partnerFilter,clearFilters">Updating…</span>
+            <span class="ui-muted" wire:loading.delay wire:target="searchTerm,setFilter,datePreset,dateFrom,dateTo,dateField,sourceFilter,partnerFilter,creatorFilter,clearFilters">Updating…</span>
         </div>
         <div class="oo-filters">
             <label class="oo-f"><span>Date</span>
@@ -30,6 +30,9 @@
                     <select wire:model.live="partnerFilter" class="ui-input text-sm"><option value="">All partner clinics</option>@foreach($partners as $partner)<option value="{{ $partner->id }}">{{ $partner->name }}{{ $partner->is_active ? '' : ' (inactive)' }}</option>@endforeach</select>
                 </label>
             @endif
+            <label class="oo-f"><span>Created by</span>
+                <select wire:model.live="creatorFilter" class="ui-input text-sm"><option value="">All staff</option>@foreach($creators as $creator)<option value="{{ $creator->id }}">{{ $creator->name }}</option>@endforeach</select>
+            </label>
             <div class="oo-presets">
                 
                 @if($narrowed || $statusFilter)<button type="button" class="oo-link" style="color:#b91c1c" wire:click="clearFilters">Clear all</button>@endif
@@ -39,6 +42,8 @@
             @foreach(\App\Livewire\Optical\OpticalOrdersComponent::FILTERS as $key => $label)
                 <button type="button" wire:click="setFilter('{{ $key }}')" class="oo-chip {{ $statusFilter === $key ? 'active' : '' }}" aria-pressed="{{ $statusFilter === $key ? 'true' : 'false' }}">{{ $label }}@if($filterCounts[$key] !== null)<b>{{ $filterCounts[$key] }}</b>@endif</button>
             @endforeach
+            {{-- Awaiting Collection left the menu: its reminders and partner messages open from here. --}}
+            <a href="{{ route('optical.collections') }}" wire:navigate class="oo-link" style="margin-left:auto">Awaiting collection &amp; reminders →</a>
         </div>
 
         <div class="overflow-x-auto">
@@ -73,7 +78,7 @@
                         <tr wire:key="order-{{ $ord->id }}" class="{{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
                             <td>
                                 <span class="oo-id" style="{{ $ord->status === 'Quotation' ? 'color:#6b21a8' : '' }}">{{ $ord->order_id }}</span>
-                                <span class="oo-sub">{{ $ord->created_at?->format('d M Y') }}@if($ord->remakeOf) · <span style="color:#92400e;font-weight:700">Remake</span>@endif</span>
+                                <span class="oo-sub">{{ $ord->created_at?->format('d M Y') }}@if($ord->user) · by {{ $ord->user->name }}@endif @if($ord->remakeOf) · <span style="color:#92400e;font-weight:700">Remake</span>@endif</span>
                             </td>
                             <td><b>{{ $ord->display_customer_name }}</b>@if($ord->display_customer_phone)<span class="oo-sub">{{ $ord->display_customer_phone }}</span>@endif @if($ord->order_source === 'partner')<span class="oo-sub" style="color:#6b21a8;font-weight:700">Partner · {{ $ord->partnerClinic?->name ?? $ord->partner_clinic_name ?? '—' }}</span>@elseif($ord->order_source === 'walk_in')<span class="oo-sub">Walk-in</span>@endif</td>
                             <td><span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ $ord->frame_model_number ?: ($ord->serviceLines->pluck('description')->join(', ') ?: '—') }}</span></td>
@@ -87,7 +92,7 @@
                             <td style="white-space:nowrap">{{ $pickup?->format('d M Y') ?? '—' }}@if($late)<span class="oo-sub" style="color:#b91c1c;font-weight:700">Late</span>@elseif($isReady && $ord->ready_at)<span class="oo-sub">Waiting {{ (int) $ord->ready_at->diffInDays(now()) }}d</span>@endif</td>
                             <td>
                                 <span class="oo-badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
-                                @if($awaiting)<span class="oo-sub" style="color:#92400e;font-weight:700">Awaiting {{ $awaiting }} lens</span>@endif
+                                @if($awaiting)<span class="oo-sub" style="color:#92400e;font-weight:700">Awaiting {{ $awaiting }} {{ $awaiting === 1 ? 'lens' : 'lenses' }}</span>@endif
                             </td>
                             <td onclick="event.stopPropagation()">
                                 <div class="oo-row-actions">

@@ -19,9 +19,13 @@ class LoginHistoryComponent extends Component
     public $userId = '';
     public $fromDate;
     public $toDate;
+    /** Opened from the optical menu: shown in the optical layout. */
+    #[\Livewire\Attributes\Locked]
+    public bool $optical = false;
 
     public function mount()
     {
+        if (request()->routeIs('optical.*')) $this->optical = true;
         $this->fromDate = '';
         $this->toDate = '';
         $this->recordCurrentSessionIfMissing();
@@ -113,6 +117,6 @@ class LoginHistoryComponent extends Component
             'logs'        => $this->query()->paginate(20),
             'users'       => User::whereIn('id', LoginLog::query()->select('user_id'))
                 ->orderBy('name')->get(['id', 'name', 'email']),
-        ])->layout('layouts.admin.admin-layout');
+        ])->layout($this->optical ? 'layouts.optical' : 'layouts.admin.admin-layout');
     }
 }

@@ -243,4 +243,40 @@ class OpticalLensExcelImportTest extends TestCase
         $this->assertSame(5, $result['quantities'][61][2]); // SPH +0.25, CYL -0.50
         $this->assertSame(5, $result['quantities'][84][2]); // SPH +6.00, CYL -0.50
     }
+
+    public function test_a_half_pair_is_one_loose_lens_and_only_pairs_may_be_halved(): void
+    {
+        $service = new OpticalLensExcelImportService();
+        $sheet = ['name' => 'BLUE BLOCK', 'rows' => [
+            4 => [1 => '(-)', 2 => '0.00', 3 => '-0.25', 4 => '-0.50', 11 => 'FINAL'],
+            5 => [1 => '-0.25', 2 => '3.5', 3 => '4'],
+            6 => [1 => '-0.50', 4 => '0.5'],
+        ]];
+
+        // Single vision in pairs: 3.5 pairs is 7 lenses, 0.5 is 1.
+        $result = $service->previewTemplate($sheet, 'Single Vision', 'pairs');
+        $this->assertSame([7, 8], [$result['quantities'][59][0], $result['quantities'][59][1]]);
+        $this->assertSame(1, $result['quantities'][58][2]);
+        $this->assertSame([8, 16, 2, []], [$result['sourceTotal'], $result['total'], $result['halves'], $result['odd']]);
+        $manual = $service->preview([1 => [1 => 'SPH', 2 => '0', 3 => '-0.25'], 2 => [1 => '-0.25', 2 => '3.5', 3 => '4']], 1, 1, 'Single Vision', 'pairs');
+        $this->assertSame([7, 8, 7.5, 15], [$manual['quantities'][59][0], $manual['quantities'][59][1], $manual['sourceTotal'], $manual['total']]);
+
+        // Half a lens means nothing, and neither does a third of a pair.
+        foreach ([['pieces', $sheet], ['pairs', ['name' => 'X', 'rows' => [4 => $sheet['rows'][4], 5 => [1 => '-0.25', 2 => '0.3', 3 => '1']]]]] as [$unit, $bad]) {
+            try {
+                $service->previewTemplate($bad, 'Single Vision', $unit);
+                $this->fail('A fraction that is not a half pair should block the preview.');
+            } catch (ValidationException $e) {
+                $this->assertStringContainsString($unit === 'pairs' ? 'B5 ("0.3"). Use whole or half pairs' : 'Invalid quantity in 2 cells: B5 ("3.5"), D6 ("0.5")', $e->errors()['excelFile'][0]);
+            }
+        }
+
+        // A design made per eye keeps the whole pairs, and each half is a loose lens waiting for its eye.
+        $bifocal = ['name' => 'BIFOCAL', 'rows' => [5 => [1 => '+', 2 => '1.00', 3 => '1.25'], 6 => [1 => '0', 2 => '3.5', 3 => '0.5']]];
+        $result = $service->previewTemplate($bifocal, 'Bifocal', 'pairs');
+        $this->assertSame([3, 0], [$result['quantities'][60][3], $result['quantities'][60][4]]);
+        $this->assertSame(['60:3', '60:4'], array_keys($result['odd']));
+        $this->assertSame(['+0.00', '+1.25'], [$result['odd']['60:4']['sphere'], $result['odd']['60:4']['power']]);
+        $this->assertSame([4, 8], [$result['sourceTotal'], $result['total']]);
+    }
 }

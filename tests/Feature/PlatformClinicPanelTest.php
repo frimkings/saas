@@ -147,6 +147,50 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertDatabaseHas('clinic_subscriptions', ['clinic_id' => $clinic->id, 'subscription_plan_id' => $this->basic->id, 'status' => 'trial']);
     }
 
+    public function test_an_owner_who_already_has_an_account_can_be_given_a_second_separate_business(): void
+    {
+        $onboard = fn (string $name, string $email) => Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
+            ->call('openOnboarding')->set('newClinicName', $name)->set('newBranchTimezone', 'Africa/Accra')->set('onboardingStep', 3)
+            ->set('newAdminName', 'Typed Name')->set('newAdminEmail', $email)->set('newPlanId', $this->basic->id);
+        $onboard('First Eye Clinic', 'owner@example.test')->call('onboardClinic')->assertHasNoErrors();
+        $owner = \App\Models\User::where('email', 'owner@example.test')->firstOrFail();
+        $owner->forceFill(['name' => 'Dr Owner', 'must_change_password' => false, 'password' => \Illuminate\Support\Facades\Hash::make('their-own-password')])->save();
+        $first = Clinic::where('slug', 'first-eye-clinic')->firstOrFail();
+
+        // The same email again: refused until the platform admin says it is the same person.
+        $second = $onboard('Second Optical Shop', 'Owner@Example.test')
+            ->assertSee('Dr Owner')->assertSee('already has an account with this email')->assertSee('First Eye Clinic')
+            ->call('onboardClinic')->assertHasErrors(['newAdminEmail']);
+        $this->assertNull(Clinic::where('slug', 'second-optical-shop')->first());
+        $second->set('newAdminLinkExisting', true)->call('onboardClinic')->assertHasNoErrors()
+            ->assertSee('they sign in with their usual password');
+
+        // One account, two businesses; nothing about the sign-in changed.
+        $shop = Clinic::where('slug', 'second-optical-shop')->firstOrFail();
+        $this->assertSame(1, \App\Models\User::whereRaw('LOWER(email) = ?', ['owner@example.test'])->count());
+        $owner->refresh();
+        $this->assertSame('Dr Owner', $owner->name);
+        $this->assertFalse((bool) $owner->must_change_password);
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('their-own-password', $owner->password));
+        $this->assertEqualsCanonicalizing([$first->id, $shop->id], $owner->clinics()->pluck('clinics.id')->all());
+        $this->assertDatabaseHas('clinic_user', ['clinic_id' => $shop->id, 'user_id' => $owner->id, 'clinic_role' => 'Super Admin', 'status' => 'active']);
+        $branch = $shop->branches()->firstOrFail();
+        $this->assertSame(['Super Admin'], app(\App\Support\Tenancy\BranchRoleManager::class)->roles($owner, $branch)->pluck('name')->all());
+        $this->assertSame($first->id, app(\App\Support\Tenancy\ClinicMembershipManager::class)->ensureDefault($owner)->id, 'Their first business stays the default.');
+        // Each business has its own subscription.
+        $this->assertSame(2, \App\Models\ClinicSubscription::whereIn('clinic_id', [$first->id, $shop->id])->count());
+
+        // Signed in, they are offered both and can move to the new one.
+        $this->actingAs($owner)->get(route('tenant.clinic.select'))->assertOk()->assertSee('First Eye Clinic')->assertSee('Second Optical Shop');
+        $this->actingAs($owner)->post(route('tenant.clinic.switch'), ['clinic_id' => $shop->id])->assertRedirect();
+        $this->assertSame($shop->id, (int) session(config('tenancy.session_keys.clinic')));
+
+        // Changing the email clears the tick, so it can't carry over to a different person.
+        $onboard('Third Shop', 'owner@example.test')->set('newAdminLinkExisting', true)->set('newAdminEmail', 'someone.new@example.test')
+            ->assertSet('newAdminLinkExisting', false)->call('onboardClinic')->assertHasNoErrors();
+        $this->assertTrue((bool) \App\Models\User::where('email', 'someone.new@example.test')->value('must_change_password'));
+    }
+
     public function test_slug_stops_following_the_name_once_edited(): void
     {
         Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)->call('openOnboarding')

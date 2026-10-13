@@ -625,6 +625,7 @@ class MessagingTest extends TestCase
             'glazing_fee' => 0, 'discount_amount' => 0, 'paid_amount' => 100, 'payment_method' => 'cash',
             'pickup_date' => now()->addWeek()->toDateString(),
         ]);
+        $order->lensLines()->update(['status' => 'received', 'received_at' => now()]); // the special-order lenses have arrived
         app(\App\Services\OpticalOrderWorkflowService::class)->transition($order->id, 'In Production');
         return $order;
     }
@@ -725,6 +726,7 @@ class MessagingTest extends TestCase
             'frame_model_number' => 'Frame Q', 'frame_price' => 100, 'lens_price' => 50, 'glazing_fee' => 0, 'discount_amount' => 0,
             'paid_amount' => 150, 'payment_method' => 'cash', 'pickup_date' => now()->subDay()->toDateString(),
         ]);
+        $queued->lensLines()->update(['status' => 'received', 'received_at' => now()]); // the special-order lenses have arrived
 
         $page = Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)
             ->assertSee($onBench->order_id)->assertSee($queued->order_id)->assertSee('Late by 1d')->assertSee('past the pickup date')
@@ -835,6 +837,7 @@ class MessagingTest extends TestCase
         $first = $job('Esi Wearer', 'NORTH-1');
         $second = $job('Yaw Wearer', 'NORTH-2');
         foreach ([$first, $second] as $order) {
+            $order->lensLines()->update(['status' => 'received', 'received_at' => now()]); // the special-order lenses have arrived
             $workflow->transition($order->id, 'In Production');
             $workflow->transition($order->id, 'Ready for Collection');
         }

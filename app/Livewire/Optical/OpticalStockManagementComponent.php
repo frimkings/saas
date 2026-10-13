@@ -74,6 +74,8 @@ class OpticalStockManagementComponent extends Component
         $this->excelUnit = ($specs['unit'] ?? '') ?: (in_array($specs['eye'] ?? '', ['R', 'L'], true) ? 'pieces' : 'pairs');
         if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->syncEyeToUnit();
     }
+    /** @var array<string, string> "row:column" => R or L, chosen for each odd lens in the preview */
+    public array $oddEyes = [];
     public int $excelHeaderRow = 2;
     public int $excelSphereColumn = 1;
     #[\Livewire\Attributes\Locked]
@@ -101,7 +103,7 @@ class OpticalStockManagementComponent extends Component
         $this->excelPreview = [];
         $this->validate(['excelFile' => 'required|file|mimes:xlsx,zip|max:5120', 'excelSheet' => 'required|integer|min:0',
             'excelHeaderRow' => 'required|integer|between:1,2000', 'excelSphereColumn' => 'required|integer|between:1,100',
-            'lensDesign' => 'required|in:Single Vision,Bifocal,Progressive',
+            'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
             'lensEye' => $this->eyeRule(),
             'excelUnit' => 'required|in:pieces,pairs', 'excelLayout' => 'required|in:template,manual']);
         if (! $this->eyeMatchesUnit($this->excelUnit)) return;
@@ -111,20 +113,12 @@ class OpticalStockManagementComponent extends Component
         if ($this->excelLayout === 'template') {
             $this->excelPreview = $service->previewTemplate($sheets[$this->excelSheet], $this->lensDesign, $this->excelUnit);
         } else {
-            $this->excelPreview = $service->preview($sheets[$this->excelSheet]['rows'], $this->excelHeaderRow, $this->excelSphereColumn, $this->lensDesign);
-            $this->excelPreview['sourceTotal'] = $this->excelPreview['total'];
-            $this->excelPreview['perEye'] = $this->lensEye === 'B';
-            if ($this->excelUnit === 'pairs') {
-                $this->excelPreview['total'] *= 2;
-                // Eye-specific pairs keep the pair count per cell: one right and one left lens each.
-                if (! $this->excelPreview['perEye']) {
-                    foreach ($this->excelPreview['quantities'] as &$cells) foreach ($cells as &$quantity) $quantity *= 2;
-                    unset($cells, $quantity);
-                    foreach ($this->excelPreview['lines'] as &$line) $line['quantity'] *= 2;
-                    unset($line);
-                }
-            }
+            // Eye-specific pairs keep the pair count per cell: one right and one left lens each.
+            $this->excelPreview = $service->preview($sheets[$this->excelSheet]['rows'], $this->excelHeaderRow, $this->excelSphereColumn, $this->lensDesign,
+                $this->excelUnit, $this->lensEye === 'B');
         }
+        // A half pair of a design made per eye is one loose lens: its eye is asked for, and choices already made are kept.
+        $this->oddEyes = array_intersect_key($this->oddEyes, $this->excelPreview['odd']);
         $this->excelPreview['sheet'] = $sheets[$this->excelSheet]['name'];
         $this->resetValidation();
     }
@@ -135,12 +129,20 @@ class OpticalStockManagementComponent extends Component
         if (! $this->excelPreview) { $this->addError('excelFile', 'Preview the workbook before applying it.'); return; }
         $this->previewExcel();
         if (! empty($this->excelPreview['warnings']) && ! $this->excelWarningsAccepted) { $this->addError('excelFile', 'Review and acknowledge the workbook warnings before applying.'); return; }
+        $odd = [];
+        foreach ($this->excelPreview['odd'] as $cell => $lens) {
+            if (! in_array($this->oddEyes[$cell] ?? '', ['R', 'L'], true)) { $this->addError('oddEyes', 'Choose the eye for each odd lens before applying.'); return; }
+            $odd[$cell] = $this->oddEyes[$cell];
+        }
         $this->importedSummary = $this->excelPreview['sheet'].'; '.$this->excelPreview['sourceTotal'].' '.$this->excelUnit.' = '.$this->excelPreview['total'].' pieces';
         $this->importSource = [
             'filename' => mb_substr(basename($this->excelFile->getClientOriginalName()), 0, 255),
             'worksheet' => $this->excelPreview['sheet'], 'unit' => $this->excelUnit,
             'source_quantity' => $this->excelPreview['sourceTotal'], 'quantities' => $this->excelPreview['quantities'],
+            // "row:column" => R or L, for each half pair of a design made per eye.
+            'odd' => $odd,
         ];
+        $this->oddEyes = [];
         $this->repeatDeliveryReason = '';
         $this->bulkQuantities = $this->excelPreview['quantities'];
         $this->bulkCosts = [];
@@ -150,8 +152,25 @@ class OpticalStockManagementComponent extends Component
         $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs']);
     }
 
+    /** Set every odd lens in the preview to one eye. */
+    public function setOddEyes(string $eye): void
+    {
+        $this->assertManager();
+        abort_unless(in_array($eye, ['R', 'L'], true), 422);
+        $this->oddEyes = array_fill_keys(array_keys($this->excelPreview['odd'] ?? []), $eye);
+        $this->resetErrorBag('oddEyes');
+    }
+
+    /** @return array<string, string> "row:column" => R or L: the loose lenses of the applied import */
+    private function oddLenses(): array
+    {
+        $bothEyes = $this->entryMode === 'bulk' && $this->lensEye === 'B' && \App\Support\LensDesign::isEyeSpecific($this->lensDesign);
+        return $bothEyes ? array_filter($this->importSource['odd'] ?? [], fn ($eye) => in_array($eye, ['R', 'L'], true)) : [];
+    }
+
     public function cancelExcel(): void
     {
+        $this->oddEyes = [];
         foreach ($this->excelOriginalSpecs as $field => $value) $this->$field = $value;
         $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs']);
         $this->resetValidation();
@@ -239,25 +258,106 @@ class OpticalStockManagementComponent extends Component
             $pieces += $quantity;
             $cost += $quantity * $amount(($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost);
         }
-        return ['pieces' => $pieces * $pairFactor, 'cost' => $cost * $pairFactor];
+        $pieces *= $pairFactor; $cost *= $pairFactor;
+        foreach (array_keys($this->oddLenses()) as $cell) {
+            [$r, $c] = explode(':', $cell);
+            $pieces++;
+            $cost += $amount(($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost);
+        }
+        return ['pieces' => $pieces, 'cost' => $cost];
+    }
+
+    /** @return \Illuminate\Support\Collection<int, string> the lens ranges already received, as spelled on their stock */
+    private function knownRanges()
+    {
+        // The manufacturer list (Lens options), which starts with every range already on stock.
+        return $this->rangesThisRequest ??= \App\Support\Optical\LensOptions::all('manufacturer')->pluck('code')
+            ->map(fn ($range) => trim((string) $range))->filter()->unique()->sort()->values();
+    }
+
+    /** Ranges for this request only; a private property is not kept between requests. */
+    private ?\Illuminate\Support\Collection $rangesThisRequest = null;
+
+    /**
+     * A typed range in the spelling its stock already uses: "canada  opticals" is the
+     * existing "CANADA OPTICALS", so one range never becomes two stocks by capitals or spaces.
+     */
+    private function canonicalRange(string $typed): string
+    {
+        $typed = trim(preg_replace('/\s+/', ' ', $typed));
+        return $this->knownRanges()->first(fn ($range) => mb_strtolower($range) === mb_strtolower($typed)) ?? $typed;
+    }
+
+    /** Shown under the range box when the name is new: it will be separate stock, and the closest existing name. */
+    public function rangeHint(): ?array
+    {
+        $typed = trim($this->lensRange);
+        if ($typed === '' || $this->knownRanges()->contains($typed)) return null;
+        $lower = mb_strtolower($typed);
+        $closest = $this->knownRanges()
+            ->map(fn ($range) => ['range' => $range, 'distance' => levenshtein(mb_strtolower($range), $lower), 'contains' => str_contains(mb_strtolower($range), $lower) || str_contains($lower, mb_strtolower($range))])
+            ->filter(fn ($match) => $match['contains'] || $match['distance'] <= max(2, (int) floor(mb_strlen($typed) / 4)))
+            ->sortBy('distance')->first();
+        return ['typed' => $typed, 'suggest' => $closest['range'] ?? null];
+    }
+
+    public function useRange(string $range): void
+    {
+        abort_unless($this->knownRanges()->contains($range), 422);
+        $this->lensRange = $range;
+        $this->updatedLensRange();
     }
 
     public function updatedLensRange(): void
     {
-        $saved = OpticalProduct::whereNotNull('lens_specs')->get()->first(fn ($p) => data_get($p->lens_specs, 'range') === trim($this->lensRange));
-        if ($saved) {
-            $this->lensDesign = $saved->lens_specs['design'];
-            $this->lensIndex = $saved->lens_specs['index'];
-            $this->lensCoating = $saved->lens_specs['coating'];
-            $this->lensDiameter = (string) $saved->lens_specs['diameter'];
-            $this->updatedLensDesign();
+        $this->lensRange = $this->canonicalRange($this->lensRange);
+        $this->resetErrorBag('lensRange');
+        // Lens type, form and treatment are chosen first; the manufacturer's last delivery of
+        // that lens (or any of its lenses) fills the index and diameter.
+        $saved = OpticalProduct::whereNotNull('lens_specs')->latest('id')->get()->filter(fn ($p) => data_get($p->lens_specs, 'range') === $this->lensRange);
+        $same = $saved->first(fn ($p) => data_get($p->lens_specs, 'design') === $this->lensDesign && data_get($p->lens_specs, 'coating') === $this->lensCoating
+            && (string) data_get($p->lens_specs, 'form') === (string) \App\Support\Optical\LensOptions::storedForm($this->lensForm)) ?? $saved->first();
+        if ($same) {
+            $this->lensIndex = (string) $same->lens_specs['index'];
+            $this->lensDiameter = (string) $same->lens_specs['diameter'];
         }
+    }
+
+    /** The lens form (Optical → Settings → Lens options); Standard is not written on stock. */
+    public string $lensForm = \App\Support\Optical\LensOptions::STANDARD_FORM;
+
+    /** A manufacturer added while receiving (managers). */
+    public string $newManufacturer = '';
+
+    public function addManufacturer(): void
+    {
+        $this->assertManager();
+        $name = trim(preg_replace('/\s+/', ' ', $this->newManufacturer !== '' ? $this->newManufacturer : $this->lensRange));
+        $this->resetErrorBag('newManufacturer');
+        if ($name === '' || mb_strlen($name) > 100) { $this->addError('newManufacturer', 'Enter the manufacturer name, up to 100 characters.'); return; }
+        $existing = \App\Models\OpticalLensOption::where('kind', 'manufacturer')->get()->first(fn ($option) => mb_strtolower($option->code) === mb_strtolower($name) || mb_strtolower($option->name) === mb_strtolower($name));
+        if ($existing && ! $existing->is_active) $existing->update(['is_active' => true]);
+        $option = $existing ?? \App\Models\OpticalLensOption::create(['kind' => 'manufacturer', 'code' => $name, 'name' => $name, 'is_active' => true,
+            'sort_order' => (int) \App\Models\OpticalLensOption::where('kind', 'manufacturer')->max('sort_order') + 1]);
+        if (! $existing) \App\Models\AuditTrail::record('optical.lens_manufacturer_created', 'Added lens manufacturer '.$name, $option, [], ['name' => $name]);
+        \App\Support\Optical\LensOptions::forget();
+        $this->rangesThisRequest = null;
+        $this->newManufacturer = '';
+        $this->lensRange = $option->code;
+        $this->updatedLensRange();
+    }
+
+    public function updatedLensForm(): void
+    {
+        $this->updatedLensRange();
     }
 
     public function updatedLensDesign(): void
     {
         $this->lensPower = $this->lensDesign === 'Single Vision' ? '0.00' : '1.00';
         if (! \App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->lensEye = '';
+        // Forms belong to a lens type: one that doesn't fit the new type goes back to Standard.
+        if (! array_key_exists($this->lensForm, \App\Support\Optical\LensOptions::choices('form', null, $this->lensDesign))) $this->lensForm = \App\Support\Optical\LensOptions::STANDARD_FORM;
         $this->importedSummary = '';
         $this->importSource = [];
         $this->bulkQuantities = [];
@@ -272,6 +372,8 @@ class OpticalStockManagementComponent extends Component
             'diameter' => (int) $this->lensDiameter,
             'sphere' => number_format((float) $sphere, 2, '.', ''),
             'power' => number_format((float) $power, 2, '.', '')];
+        // A form other than Standard (e.g. invisible bifocal) is separate stock.
+        if ($form = \App\Support\Optical\LensOptions::storedForm($this->lensForm)) $specs['form'] = $form;
         // Progressive and bifocal lenses are made per eye and stocked per eye.
         if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $specs['eye'] = $eye ?? $this->lensEye;
         return $specs;
@@ -372,11 +474,17 @@ class OpticalStockManagementComponent extends Component
     private function saveLensReceipt(): void
     {
         if ($this->excelFile) { $this->addError('excelFile', 'Preview and apply the uploaded workbook, or cancel the import before receiving stock.'); return; }
+        // Also covers a range filled from a workbook or a link, which skips updatedLensRange.
+        $this->lensRange = $this->canonicalRange($this->lensRange);
         $this->validate([
-            'lensRange' => 'required|string|max:100', 'lensDesign' => 'required|in:Single Vision,Bifocal,Progressive',
+            // Lens type, form, treatment and manufacturer come from Optical → Settings → Lens options.
+            'lensRange' => ['required', 'string', 'max:100', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('manufacturer')))],
+            'lensDesign' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('design')))],
+            'lensForm' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('form', null, $this->lensDesign)))],
             'lensEye' => $this->eyeRule(),
             'lensIndex' => 'required|in:1.50,1.56,1.60,1.61,1.67,1.74',
-            'lensCoating' => 'required|in:AR,Photo AR,Photo Gray,Photochromic,Blue AR,BlueCut,Transitions,HC',
+            // Designs and treatments shown under Optical → Settings → Lens options.
+            'lensCoating' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Support\Optical\LensOptions::choices('treatment')))],
             'lensDiameter' => 'required|integer|between:40,100',
             'unitCost' => 'required|numeric|min:0|max:99999999',
             'unitPrice' => ($this->rangePriceList() ? 'nullable' : 'required').'|numeric|min:0|max:99999999',
@@ -386,6 +494,10 @@ class OpticalStockManagementComponent extends Component
             'productId' => 'nullable|integer',
             'entryMode' => 'required|in:single,bulk', 'updateSellingPrice' => 'boolean',
             'repeatDeliveryReason' => 'nullable|string|max:1000',
+        ], [
+            'lensRange.required' => 'Choose the manufacturer.',
+            'lensRange.in' => '“'.$this->lensRange.'” is not in your manufacturers. Add it as a new manufacturer, or choose one from the list.',
+            'lensForm.in' => 'Choose a form for this lens type.',
         ]);
         if ($this->importSource && $this->entryMode === 'bulk' && ! $this->eyeMatchesUnit($this->importSource['unit'])) return;
         $lines = [];
@@ -404,6 +516,12 @@ class OpticalStockManagementComponent extends Component
                     if ((int) $quantity > 0) array_push($lines, ...$this->eyeLines([-15 + $r * 0.25, $columns[$c], (int) $quantity, ($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost, ($this->bulkPrices[$r][$c] ?? '') !== '' ? $this->bulkPrices[$r][$c] : $this->unitPrice]));
                 }
             }
+            // The loose lens of each half pair, for the eye chosen when the sheet was applied.
+            foreach ($this->oddLenses() as $cell => $eye) {
+                [$r, $c] = array_map('intval', explode(':', $cell) + [1 => -1]);
+                abort_unless($r >= 0 && $r <= 120 && array_key_exists($c, $columns), 422);
+                $lines[] = [-15 + $r * 0.25, $columns[$c], 1, ($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost, ($this->bulkPrices[$r][$c] ?? '') !== '' ? $this->bulkPrices[$r][$c] : $this->unitPrice, $eye];
+            }
             if (! $lines) { $this->addError('bulkQuantities', 'Enter at least one received quantity.'); return; }
         }
         if ($this->importSource && $this->entryMode === 'bulk') {
@@ -412,16 +530,23 @@ class OpticalStockManagementComponent extends Component
                 'batch_number' => trim($this->batchNumber) ?: null,
                 'notes' => trim($this->notes."\nExcel: ".$this->importedSummary),
             ], $this->updateSellingPrice, $this->repeatDeliveryReason);
-        } else \Illuminate\Support\Facades\DB::transaction(function () use ($lines) {
-            foreach ($lines as $line) {
-                [$sphere, $power, $quantity, $cost, $price] = $line;
-                app(\App\Services\OpticalLensReceivingService::class)->receive($this->lensSpecs($sphere, $power, $line[5] ?? null), $quantity, [
-                    'unit_cost' => round((float) $cost, 2), 'unit_price' => round((float) $price, 2),
-                    'supplier' => trim($this->supplier), 'reference' => trim($this->reference) ?: null,
-                    'batch_number' => trim($this->batchNumber) ?: null, 'notes' => trim($this->notes.($this->importedSummary ? "\nExcel: ".$this->importedSummary : '')) ?: null,
-                ], $this->updateSellingPrice, $this->entryMode === 'single' ? $this->productId : null);
-            }
-        });
+        } else {
+            $details = fn ($cost, $price) => [
+                'unit_cost' => round((float) $cost, 2), 'unit_price' => round((float) $price, 2),
+                'supplier' => trim($this->supplier), 'reference' => trim($this->reference) ?: null,
+                'batch_number' => trim($this->batchNumber) ?: null, 'notes' => trim($this->notes.($this->importedSummary ? "\nExcel: ".$this->importedSummary : '')) ?: null,
+            ];
+            if ($this->entryMode === 'single') \Illuminate\Support\Facades\DB::transaction(function () use ($lines, $details) {
+                foreach ($lines as $line) {
+                    [$sphere, $power, $quantity, $cost, $price] = $line;
+                    app(\App\Services\OpticalLensReceivingService::class)->receive($this->lensSpecs($sphere, $power, $line[5] ?? null), $quantity, $details($cost, $price), $this->updateSellingPrice, $this->productId);
+                }
+            });
+            // A grid can hold a whole supplier sheet, so it is saved in one batch.
+            else app(\App\Services\OpticalLensReceivingService::class)->receiveMany(array_map(fn ($line) => [
+                'specs' => $this->lensSpecs($line[0], $line[1], $line[5] ?? null), 'quantity' => $line[2], 'details' => $details($line[3], $line[4]),
+            ], $lines), $this->updateSellingPrice);
+        }
         $this->showForm = false;
         $this->resetPage();
         session()->flash('success', 'Lens stock received. The power matrix and stock ledger now show the same inventory.');
@@ -547,7 +672,7 @@ class OpticalStockManagementComponent extends Component
             'fullPage' => $this->fullPage,
             'duplicateImport' => $this->importSource ? app(\App\Services\OpticalLensImportReceiptService::class)
                 ->matches(app(\App\Services\OpticalLensImportReceiptService::class)->fingerprint($this->lensSpecs(0, 0), $this->importSource['quantities']))->latest('id')->first() : null,
-            'lensRanges' => OpticalProduct::whereNotNull('lens_specs')->get()->pluck('lens_specs.range')->unique()->sort()->values(),
+            'lensRanges' => $this->knownRanges(),
             'productMatches' => $this->showForm && $this->productId === null
                 ? OpticalProduct::where('is_active', true)
                     ->when(trim($this->productSearch) !== '', fn ($query) => $query->where(fn ($q) => $q

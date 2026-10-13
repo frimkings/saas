@@ -21,6 +21,12 @@
                 <input id="audit-search" type="search" class="{{ $fs }}" wire:model.live.debounce.400ms="search" placeholder="Event, user, patient…">
             </div>
             <div class="min-w-[9rem] flex-1">
+                <label for="audit-area" class="{{ $fl }}">Area</label>
+                <select id="audit-area" class="{{ $fs }}" wire:model.live="area">
+                    @foreach(\App\Livewire\Admin\AuditTrailViewerComponent::AREAS as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach
+                </select>
+            </div>
+            <div class="min-w-[9rem] flex-1">
                 <label for="audit-event" class="{{ $fl }}">Event</label>
                 <select id="audit-event" class="{{ $fs }}" wire:model.live="event">
                     <option value="">All events</option>

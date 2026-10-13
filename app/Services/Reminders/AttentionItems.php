@@ -53,6 +53,7 @@ class AttentionItems
         'appt_soon'           => ['Appointments coming up', 'Make sure these patients are on their way.', 'appointment'],
         'appt_missed'         => ['Missed today', 'Call to find out, and rebook.', 'appointment'],
         'order_late'          => ['Spectacles past their promised date', 'Chase the lab and tell the patient the new date.', 'lens_order'],
+        'lens_unordered'      => ['Special-order lenses not yet ordered', 'Put them on a supplier order in Purchasing, or the job cannot be made.', 'lens_order'],
         'order_due'           => ['Spectacles due soon', 'Check they will be ready on time.', 'lens_order'],
         'order_uncollected'   => ['Ready, not collected', 'Call the patient to come in.', 'lens_order'],
         'stock_expired'       => ['Expired stock', 'Take it off the shelf now. A Super Admin removes it from stock.', 'stock'],
@@ -138,6 +139,21 @@ class AttentionItems
             ->orderByRaw('COALESCE(ready_at, updated_at)')->limit(self::PER_GROUP)->get()
             ->map(fn ($o) => $this->orderItem($o, 'order_uncollected', 'Ready for ' . $o->daysAwaitingCollection() . ' days'));
 
+        if ($line === self::OPTICAL) {
+            // Paid-for jobs whose lenses must be bought in and are on no supplier order yet (Purchasing's list).
+            $buyer = Auth::user()?->hasAnyRole(['Manager', 'Super Admin']);
+            $groups['lens_unordered'] = app(\App\Services\OpticalPurchasingService::class)->specialOrderBacklog()
+                ->groupBy(fn ($row) => $row['order']->id)->take(self::PER_GROUP)
+                ->map(function ($rows) use ($buyer) {
+                    $order = $rows->first()['order'];
+                    $eyes = $rows->pluck('eye')->filter()->map(fn ($eye) => strtoupper($eye))->implode(' and ');
+                    $detail = ($eyes !== '' ? $eyes.' '.($rows->count() === 1 ? 'lens' : 'lenses') : 'Both lenses').' · placed '.$order->created_at->format('j M')
+                        .($order->pickUpDate ? ' · promised '.Carbon::parse($order->pickUpDate)->format('j M') : '');
+                    // Only managers buy; everyone else is taken to the job.
+                    return ['url' => $buyer ? route('optical.purchasing', ['tab' => 'special']) : route('optical.orders')] + $this->orderItem($order, 'lens_unordered', $detail);
+                })->values();
+        }
+
         foreach ($this->stockItems($line)->groupBy('rule') as $rule => $items) {
             $groups[$rule] = $items->take(self::PER_GROUP)->values();
         }
@@ -171,9 +187,10 @@ class AttentionItems
                 'appt_missed'  => $n('appt_missed'),
                 'order_due'    => $n('order_due'),
                 'order_late'   => $n('order_late'),
+                'lens_unordered' => $n('lens_unordered'),
                 'uncollected'  => $n('order_uncollected'),
                 // Badge: problems, not things merely coming up.
-                'orders'       => $n('order_late') + $n('order_uncollected'),
+                'orders'       => $n('order_late') + $n('order_uncollected') + $n('lens_unordered'),
                 'stock_expired'  => $n('stock_expired'),
                 'stock_expiring' => $n('stock_expiring_soon') + $n('stock_expiring'),
                 'stale'        => $this->staleQuery($line)->count(),

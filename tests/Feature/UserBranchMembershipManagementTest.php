@@ -94,6 +94,32 @@ class UserBranchMembershipManagementTest extends TestCase
         }
     }
 
+    public function test_each_branch_starts_with_its_own_empty_role_list_so_roles_tick_one_at_a_time(): void
+    {
+        [$admin, $clinic, $main, $east] = $this->tenantFixture();
+        Role::firstOrCreate(['name' => 'Doctor', 'guard_name' => 'web']);
+
+        // A new staff member, switched to "Different roles per branch": every chosen branch has a list
+        // to tick into. Without one, the first tick turned the whole branch on.
+        $form = Livewire::actingAs($admin)->test(UserRoleManagerComponent::class)->call('create')
+            ->set('roleAssignmentMode', 'custom')->assertSet("branchRoles.{$main->id}", [])
+            ->set('selectedBranchIds', [$main->id, $east->id])->assertSet("branchRoles.{$east->id}", []);
+        // What the browser sends for one tick, and for a tick on a list that was never set up.
+        $form->set("branchRoles.{$main->id}", ['Doctor'])->assertSet("branchRoles.{$main->id}", ['Doctor'])->assertSet("branchRoles.{$east->id}", []);
+        $form->set("branchRoles.{$east->id}", true)->assertSet("branchRoles.{$east->id}", []);
+
+        // The boxes themselves: one tick is one role on one branch, and ticking it again takes it off.
+        Role::firstOrCreate(['name' => 'Cashier', 'guard_name' => 'web']);
+        $form->call('toggleBranchRole', $east->id, 'Cashier')->assertSet("branchRoles.{$east->id}", ['Cashier'])->assertSet("branchRoles.{$main->id}", ['Doctor'])
+            ->assertSeeHtml('wire:click="toggleBranchRole('.$east->id.', ')->assertDontSeeHtml('wire:model.live="branchRoles.')
+            ->call('toggleBranchRole', $east->id, 'Doctor')->assertSet("branchRoles.{$east->id}", ['Cashier', 'Doctor'])
+            ->call('toggleBranchRole', $east->id, 'Cashier')->assertSet("branchRoles.{$east->id}", ['Doctor']);
+        // A branch left as a bare yes/no by the old boxes is cleaned up when the form is saved, not refused as "must be an array".
+        $form->set('name', 'Tick Test')->set('email', 'tick@example.test')->set('password', 'password123')->set('password_confirmation', 'password123')
+            ->set('defaultBranchId', $main->id)->set("branchRoles.{$east->id}", true)->call('store')->assertSet("branchRoles.{$east->id}", []);
+        $this->assertStringNotContainsString('must be an array', implode(' ', $form->errors()->all()));
+    }
+
     public function test_custom_mode_assigns_different_multiple_roles_per_branch(): void
     {
         [$admin, $clinic, $main, $east] = $this->tenantFixture();

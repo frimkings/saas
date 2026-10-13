@@ -64,12 +64,11 @@ class OpticalLensExcelImportService
         $detected = $this->specifications($sheet);
         if (isset($detected['design']) && $detected['design'] !== $design) $this->fail('The selected lens design does not match this worksheet.');
         $columns = []; $quantities = []; $lines = []; $seen = []; $section = 0; $sign = 1;
-        $warnings = []; $sectionTotals = []; $rawTotal = 0; $invalid = []; $blank = []; $unheaded = [];
+        $warnings = []; $sectionTotals = []; $rawTotal = 0; $invalid = []; $blank = []; $unheaded = []; $odd = []; $halves = 0;
         // A single vision pair is two interchangeable lenses of one power. A progressive or
         // bifocal pair is one right and one left lens, so its grid cells keep the pair count
         // and receiving adds that many lenses to each eye.
         $perEye = $unit === 'pairs' && \App\Support\LensDesign::isEyeSpecific($design);
-        $cellFactor = $unit === 'pairs' && ! $perEye ? 2 : 1;
         foreach ($sheet['rows'] as $row => $cells) {
             $label = trim($cells[1] ?? '');
             $marker = preg_replace('/[\s()]/', '', $label);
@@ -121,19 +120,21 @@ class OpticalLensExcelImportService
             foreach ($columns as $col => $power) {
                 $value = $cells[$col] ?? '';
                 if ($value === '') continue;
-                $quantity = $this->number($value);
-                if ($quantity === null || $quantity < 0 || $quantity > 100000 || floor($quantity) !== $quantity) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
+                $cell = $this->cellQuantity($value, $unit, $perEye);
+                if ($cell === null) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
+                [$pieces, $quantity, $half] = $cell;
                 if ($quantity == 0) continue;
                 $c = $design === 'Single Vision' ? (int) round(-$power * 4) : (int) round(($power - .25) * 4);
-                $pieces = (int) $quantity * $cellFactor;
+                if ($half) $halves++;
+                if ($half && $perEye) $odd["$r:$c"] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'row' => $row];
                 if (isset($quantities[$r][$c])) {
                     if ($r !== 60) $this->fail("Duplicate non-zero sphere/power across sections at row $row.");
                     $warnings['plano'] = 'Plus-zero and minus-zero quantities are combined into one 0.00 stock balance.';
                 }
                 $quantities[$r][$c] = ($quantities[$r][$c] ?? 0) + $pieces;
                 if ($quantities[$r][$c] > 100000) $this->fail('A power exceeds the maximum receipt quantity of 100000 pieces.');
-                $rawTotal += (int) $quantity; $sectionTotals[$section] += (int) $quantity;
-                $lines[] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'quantity' => $pieces, 'source_quantity' => (int) $quantity, 'row' => $row];
+                $rawTotal += $quantity; $sectionTotals[$section] += $quantity;
+                $lines[] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'quantity' => $pieces, 'source_quantity' => $this->tidy($quantity), 'half' => $half, 'row' => $row];
             }
         }
         if ($unheaded) {
@@ -144,15 +145,44 @@ class OpticalLensExcelImportService
             }
             $this->fail('Missing power heading: '.implode('; ', $shown).'. Enter the power in the heading cell or clear that column.');
         }
-        $this->failOnInvalidQuantities($invalid, 'Use whole quantities; paste formulas as values in quantity cells.');
+        $this->failOnInvalidQuantities($invalid, $this->quantityHint($unit));
         if (! $lines) $this->fail('No quantities found. Use the ST PAT layout or switch to manual header selection.');
         foreach ($sheet['rows'] as $row => $cells) foreach ($cells as $col => $value) {
             $declared = null;
             if (preg_match('/total\s*=\s*(\d+)/i', $value, $m)) $declared = (int) $m[1];
             if ($col > 11 && preg_match('/^total$/i', $value)) $declared = $sheet['cached'][$row][$col + 1] ?? $cells[$col + 1] ?? null;
-            if (is_numeric($declared) && (int) $declared !== $rawTotal) $warnings[] = "Worksheet summary at row $row shows $declared; quantity cells total $rawTotal. The import uses the quantity cells.";
+            if (is_numeric($declared) && (float) $declared != $rawTotal) $warnings[] = "Worksheet summary at row $row shows $declared; quantity cells total $rawTotal. The import uses the quantity cells.";
             if (preg_match('/\bpairs\b/i', $value) && $unit === 'pieces') $warnings['units'] = 'The worksheet mentions pairs, but pieces was selected. Confirm the quantity unit before applying.';        }
-        return ['quantities' => $quantities, 'lines' => $lines, 'total' => $rawTotal * ($unit === 'pairs' ? 2 : 1), 'sourceTotal' => $rawTotal, 'unit' => $unit, 'perEye' => $perEye, 'sectionTotals' => array_values($sectionTotals), 'warnings' => array_values($warnings)];
+        return ['quantities' => $quantities, 'lines' => $lines, 'total' => (int) round($rawTotal * ($unit === 'pairs' ? 2 : 1)), 'sourceTotal' => $this->tidy($rawTotal), 'unit' => $unit, 'perEye' => $perEye,
+            'sectionTotals' => array_map(fn ($total) => $this->tidy($total), array_values($sectionTotals)), 'warnings' => array_values($warnings), 'odd' => $odd, 'halves' => $halves];
+    }
+
+    /**
+     * One quantity cell as [quantity for the grid, quantity as written, ends in a half pair], or
+     * null when it can't be used. Pieces are whole. Pairs may end in .5, a pair plus one loose
+     * lens: for single vision that is simply an odd number of lenses; for a design made per eye
+     * the grid keeps the whole pairs and the loose lens needs its eye chosen.
+     */
+    private function cellQuantity($value, string $unit, bool $perEye): ?array
+    {
+        $quantity = $this->number($value);
+        if ($quantity === null || $quantity < 0 || $quantity > 100000) return null;
+        $lenses = $unit === 'pairs' ? $quantity * 2 : $quantity;
+        if (floor($lenses) !== $lenses) return null;
+        return [$perEye ? (int) floor($quantity) : (int) $lenses, $quantity, floor($quantity) !== $quantity];
+    }
+
+    private function quantityHint(string $unit): string
+    {
+        return $unit === 'pairs'
+            ? 'Use whole or half pairs (3 or 3.5; a half is one loose lens); paste formulas as values in quantity cells.'
+            : 'Use whole quantities; paste formulas as values in quantity cells.';
+    }
+
+    /** 12.0 reads as 12; 12.5 stays as it is. */
+    private function tidy(float|int $number): float|int
+    {
+        return floor($number) == $number ? (int) $number : $number;
     }
 
     private function validHeading(float $power, string $design): bool
@@ -265,8 +295,10 @@ class OpticalLensExcelImportService
         return is_numeric($value) ? (float) $value : null;
     }
 
-    public function preview(array $rows, int $headerRow, int $sphereColumn, string $design): array
+    /** Quantities are pieces unless $unit is pairs; $perEye keeps pair counts for a both-eyes receipt. */
+    public function preview(array $rows, int $headerRow, int $sphereColumn, string $design, string $unit = 'pieces', bool $perEye = false): array
     {
+        $perEye = $perEye && $unit === 'pairs';
         $columns = [];
         $seen = [];
         foreach ($rows[$headerRow] ?? [] as $col => $value) {
@@ -285,7 +317,7 @@ class OpticalLensExcelImportService
         $quantities = [];
         $lines = [];
         $seenRows = [];
-        $invalid = [];
+        $invalid = []; $odd = []; $halves = 0; $sourceTotal = 0;
         foreach ($rows as $row => $cells) {
             if ($row <= $headerRow) continue;
             $label = $cells[$sphereColumn] ?? '';
@@ -300,17 +332,22 @@ class OpticalLensExcelImportService
             foreach ($columns as $col => $power) {
                 $value = $cells[$col] ?? '';
                 if ($value === '') continue;
-                $quantity = $this->number($value);
-                if ($quantity === null || $quantity < 0 || $quantity > 100000 || floor($quantity) !== $quantity) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
+                $cell = $this->cellQuantity($value, $unit, $perEye);
+                if ($cell === null) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
+                [$pieces, $quantity, $half] = $cell;
                 if ($quantity == 0) continue;
                 $c = $design === 'Single Vision' ? (int) round(-$power * 4) : (int) round(($power - 0.25) * 4);
-                $quantities[$r][$c] = (int) $quantity;
-                $lines[] = ['sphere' => sprintf('%+.2f', $sphere), 'power' => sprintf('%+.2f', $power), 'quantity' => (int) $quantity, 'row' => $row];
+                if ($half) $halves++;
+                if ($half && $perEye) $odd["$r:$c"] = ['sphere' => sprintf('%+.2f', $sphere), 'power' => sprintf('%+.2f', $power), 'row' => $row];
+                $quantities[$r][$c] = $pieces;
+                $sourceTotal += $quantity;
+                $lines[] = ['sphere' => sprintf('%+.2f', $sphere), 'power' => sprintf('%+.2f', $power), 'quantity' => $pieces, 'half' => $half, 'row' => $row];
             }
         }
-        $this->failOnInvalidQuantities($invalid, 'Enter whole pieces from 0 to 100000; formulas must be pasted as values.');
+        $this->failOnInvalidQuantities($invalid, $unit === 'pairs' ? $this->quantityHint($unit) : 'Enter whole pieces from 0 to 100000; formulas must be pasted as values.');
         if (! $lines) $this->fail('The selected grid contains no positive quantities.');
-        return ['quantities' => $quantities, 'lines' => $lines, 'total' => array_sum(array_column($lines, 'quantity'))];
+        return ['quantities' => $quantities, 'lines' => $lines, 'total' => (int) round($sourceTotal * ($unit === 'pairs' ? 2 : 1)), 'sourceTotal' => $this->tidy($sourceTotal),
+            'perEye' => $perEye, 'odd' => $odd, 'halves' => $halves];
     }
 
     private function extendTemplateSphereRows(\DOMDocument $doc): void

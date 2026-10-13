@@ -102,7 +102,7 @@ class OpticalPurchasingService
                     throw ValidationException::withMessages(['receive' => "Receive between 0 and {$line->outstanding()} of {$line->description}."]);
                 }
                 if ($line->isSpecialOrder()) {
-                    $this->receiveForJob($line, $order, $invoiceReference);
+                    $this->receiveForJob($line, $order, $invoiceReference, $quantity);
                 } else {
                     app(OpticalStockLedgerService::class)->receive($line->product, $quantity, [
                         'unit_cost' => (float) $line->unit_cost, 'unit_price' => (float) $line->product->selling_price,
@@ -141,24 +141,32 @@ class OpticalPurchasingService
      * Customer jobs whose lenses must be bought in and are not yet on an open supplier order:
      * the special-order eye of a half pair, or both lenses of a special-order job.
      *
-     * @return Collection<int, array{order: LensOrder, eye: ?string, description: string}>
+     * `price` is what the customer was charged for that lens (or the pair), as entered on the order.
+     *
+     * @return Collection<int, array{order: LensOrder, eye: ?string, description: string, price: float}>
      */
     public function specialOrderBacklog(): Collection
     {
         $linked = OpticalPurchaseOrderLine::whereHas('purchaseOrder', fn ($q) => $q->where('status', '!=', 'cancelled'))
             ->whereNotNull('lens_order_id')->get(['lens_order_id', 'eye'])
             ->map(fn ($line) => $line->lens_order_id.'|'.($line->eye ?? ''))->flip();
-        $jobs = LensOrder::with(['lensLines', 'patient', 'partnerClinic'])
+        $jobs = LensOrder::with(['lensLines', 'patient', 'partnerClinic', 'user'])
             ->whereIn('status', self::OPEN_JOB_STATUSES)->where('work_type', 'prescription')
             ->where(fn ($q) => $q->where('lens_supply_source', 'outside')->orWhereHas('lensLines', fn ($l) => $l->where('source', 'special_order')->where('status', 'ordered')))
             ->oldest()->orderBy('id')->get();
 
         $rows = collect();
         foreach ($jobs as $job) {
-            $eyes = $job->lensLines->where('source', 'special_order')->where('status', 'ordered')->pluck('eye')->all();
-            foreach ($eyes ?: [null] as $eye) {
-                if ($linked->has($job->id.'|'.($eye ?? ''))) continue;
-                $rows->push(['order' => $job, 'eye' => $eye, 'description' => $this->jobDescription($job, $eye)]);
+            // The pair is already on a supplier order.
+            if ($linked->has($job->id.'|')) continue;
+            $awaited = $job->lensLines->where('source', 'special_order')->where('status', 'ordered');
+            $eyes = $awaited->pluck('eye')->reject(fn ($eye) => $linked->has($job->id.'|'.$eye))->values()->all();
+            // Both lenses of a job are bought as one pair: one row here, one line on the supplier
+            // order. A single eye (the other came from stock, or is ordered already) is its own row.
+            if (count($eyes) === 2 || $awaited->isEmpty()) $eyes = [null];
+            foreach ($eyes as $eye) {
+                $rows->push(['order' => $job, 'eye' => $eye, 'description' => $this->jobDescription($job, $eye),
+                    'price' => (float) ($eye ? $awaited->firstWhere('eye', $eye)?->unit_price : ($awaited->isEmpty() ? $job->lens_price : $awaited->sum('unit_price')))]);
             }
         }
         return $rows;
@@ -191,9 +199,16 @@ class OpticalPurchasingService
         return trim($powers.($design ? ' · '.$design : '').' · job '.$job->order_id.($job->display_customer_name ? ' ('.$job->display_customer_name.')' : ''));
     }
 
-    private function receiveForJob(OpticalPurchaseOrderLine $line, OpticalPurchaseOrder $order, ?string $invoiceReference): void
+    private function receiveForJob(OpticalPurchaseOrderLine $line, OpticalPurchaseOrder $order, ?string $invoiceReference, int $quantity): void
     {
-        if (! $line->eye) return;
+        if (! $line->eye) {
+            // A pair line: once both lenses are in, the job's awaited lenses have arrived.
+            if ($quantity >= $line->outstanding()) {
+                OpticalOrderLensLine::where('lens_order_id', $line->lens_order_id)->where('source', 'special_order')->where('status', 'ordered')
+                    ->update(['status' => 'received', 'received_at' => now()]);
+            }
+            return;
+        }
         $lens = OpticalOrderLensLine::where('lens_order_id', $line->lens_order_id)->where('eye', $line->eye)
             ->where('source', 'special_order')->latest('id')->first();
         if (! $lens || $lens->status === 'ordered') {

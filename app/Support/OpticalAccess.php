@@ -53,7 +53,7 @@ final class OpticalAccess
         'optical.partners.statement' => [self::SALES],
         'optical.partners.statement.print' => [self::SALES],
         'optical.catalogue' => [self::SALES, self::LAB, self::STOCK],
-        'optical.categories' => [self::STOCK],
+        'optical.lens-grid' => [self::SALES, self::LAB, self::STOCK],
         'optical.products' => [self::STOCK],
         'optical.stock' => [self::STOCK],
         'optical.stock-counts' => [self::STOCK],
@@ -67,6 +67,8 @@ final class OpticalAccess
         'optical.profit' => self::MANAGER_ONLY,
         'optical.profit.export' => self::MANAGER_ONLY,
         'optical.settings' => self::MANAGER_ONLY,
+        'optical.audit-trail' => self::MANAGER_ONLY,
+        'optical.login-history' => self::MANAGER_ONLY,
     ];
 
     /**

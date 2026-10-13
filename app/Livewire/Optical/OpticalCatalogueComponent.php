@@ -3,7 +3,6 @@
 namespace App\Livewire\Optical;
 
 use App\Models\OpticalProduct;
-use App\Models\OpticalCategory;
 use App\Models\LensOption;
 use App\Models\OpticalService;
 use App\Services\ClinicAccessService;
@@ -16,11 +15,15 @@ class OpticalCatalogueComponent extends Component
     use WithPagination;
 
     public $activeTab = 'frames';
+    /** True on the grid's own page (OpticalLensGridComponent): only the lens grid is drawn. */
+    public bool $gridOnly = false;
     public $searchTerm = '';
     public $matrixIndex = '1.56';
     public $matrixCoating = 'AR';
     public $matrixDesign = 'Single Vision';
     public $matrixRange = '';
+    /** The lens form shown ('' = Standard); a form other than Standard is its own stock. */
+    public string $matrixForm = '';
     public $matrixDiameter = 0;
     public string $matrixEye = 'R';
     /** The stocked lens range shown; choosing it sets design, range, index, coating and diameter together. */
@@ -53,6 +56,7 @@ class OpticalCatalogueComponent extends Component
     {
         $specs = ['range' => trim((string) $this->matrixRange), 'design' => $this->matrixDesign,
             'index' => $this->matrixIndex, 'coating' => $this->matrixCoating, 'diameter' => (int) $this->matrixDiameter];
+        if ($this->matrixForm !== '') $specs['form'] = $this->matrixForm;
         if (\App\Support\LensDesign::isEyeSpecific($this->matrixDesign)) $specs['eye'] = $this->matrixEye;
         return $specs;
     }
@@ -124,6 +128,7 @@ class OpticalCatalogueComponent extends Component
         $specs = $product->lens_specs;
         $this->matrixRange = $specs['range'];
         $this->matrixDesign = $specs['design'];
+        $this->matrixForm = (string) ($specs['form'] ?? '');
         $this->matrixIndex = $specs['index'];
         $this->matrixCoating = $specs['coating'];
         $this->matrixDiameter = $specs['diameter'];
@@ -141,6 +146,7 @@ class OpticalCatalogueComponent extends Component
         if (! $range) return;
         $this->matrixRange = $range['specs']['range'];
         $this->matrixDesign = $range['specs']['design'];
+        $this->matrixForm = (string) ($range['specs']['form'] ?? '');
         $this->matrixIndex = $range['specs']['index'];
         $this->matrixCoating = $range['specs']['coating'];
         $this->matrixDiameter = $range['specs']['diameter'];
@@ -231,13 +237,15 @@ class OpticalCatalogueComponent extends Component
     {
         return app(\App\Services\OpticalLensPriceList::class)->rangeSpecs([
             'range' => $this->matrixRange, 'design' => $this->matrixDesign, 'index' => $this->matrixIndex,
-            'coating' => $this->matrixCoating, 'diameter' => $this->matrixDiameter,
+            'coating' => $this->matrixCoating, 'diameter' => $this->matrixDiameter, 'form' => $this->matrixForm,
         ]);
     }
 
     /** Stock for the selected range, shared by the grid and its ordering actions. */
     private function matrixState(): array
     {
+        // A link's ?matrixIndex=1.56 arrives as a number; stock keeps the index as text ("1.56", "1.50").
+        if (is_numeric($this->matrixIndex)) $this->matrixIndex = number_format((float) $this->matrixIndex, 2, '.', '');
         $matrixProducts = $this->matrixProducts();
         if (trim((string) $this->matrixRange) === '' && $matrixProducts->isNotEmpty()) {
             $default = $matrixProducts->first(fn ($p) => $p->stocks->sum('quantity') > 0) ?? $matrixProducts->first();
@@ -250,7 +258,8 @@ class OpticalCatalogueComponent extends Component
             ->filter(fn ($product) => data_get($product->lens_specs, 'design') === $this->matrixDesign
                 && trim((string) data_get($product->lens_specs, 'range')) === trim((string) $this->matrixRange)
                 && data_get($product->lens_specs, 'index') === $this->matrixIndex
-                && data_get($product->lens_specs, 'coating') === $this->matrixCoating);
+                && data_get($product->lens_specs, 'coating') === $this->matrixCoating
+                && (string) data_get($product->lens_specs, 'form') === $this->matrixForm);
 
         // The chosen range is never swapped for another: an empty selection shows an empty state.
         if ($this->matrixDiameter == 0 && $matchingProducts->isNotEmpty()) {
@@ -305,9 +314,10 @@ class OpticalCatalogueComponent extends Component
     private function completeMatrixSpecification($stockedRanges): void
     {
         $priceList = app(\App\Services\OpticalLensPriceList::class);
-        $current = ['range' => $this->matrixRange, 'design' => $this->matrixDesign, 'index' => $this->matrixIndex, 'coating' => $this->matrixCoating, 'diameter' => $this->matrixDiameter];
+        $current = ['range' => $this->matrixRange, 'design' => $this->matrixDesign, 'index' => $this->matrixIndex, 'coating' => $this->matrixCoating, 'diameter' => $this->matrixDiameter, 'form' => $this->matrixForm];
         if ($stockedRanges->contains('key', $priceList->rangeKey($current))) return;
-        $sameRange = $stockedRanges->filter(fn ($r) => $r['specs']['range'] === trim((string) $this->matrixRange) && $r['specs']['design'] === $this->matrixDesign);
+        $sameRange = $stockedRanges->filter(fn ($r) => $r['specs']['range'] === trim((string) $this->matrixRange) && $r['specs']['design'] === $this->matrixDesign
+            && (string) ($r['specs']['form'] ?? '') === $this->matrixForm);
         $match = $sameRange->first(fn ($r) => $r['specs']['index'] === $this->matrixIndex && $r['specs']['coating'] === $this->matrixCoating)
             ?? $sameRange->first(fn ($r) => $r['specs']['coating'] === $this->matrixCoating)
             ?? $sameRange->first();
@@ -375,10 +385,16 @@ class OpticalCatalogueComponent extends Component
     public bool $serviceRequiresFrame = false;
     public bool $serviceActive = true;
 
-    protected $queryString = ['stockFilter' => ['except' => ''], 'activeTab', 'searchTerm', 'matrixRange', 'matrixDesign', 'matrixDiameter', 'matrixIndex', 'matrixCoating', 'matrixEye'];
+    protected $queryString = ['stockFilter' => ['except' => ''], 'activeTab', 'searchTerm', 'matrixRange', 'matrixDesign', 'matrixForm', 'matrixDiameter', 'matrixIndex', 'matrixCoating', 'matrixEye'];
 
     public function mount(): void
     {
+        // The lens grid has its own page; old links to it as a catalogue tab land there.
+        if (! $this->gridOnly && request()->query('activeTab') === 'lens-matrix') {
+            $this->redirectRoute('optical.lens-grid', request()->only(['matrixRange', 'matrixDesign', 'matrixForm', 'matrixDiameter', 'matrixIndex', 'matrixCoating', 'matrixEye']));
+            $this->activeTab = 'frames';
+            return;
+        }
         OpticalService::ensureTemplates();
         if (! request()->hasAny(['matrixRange', 'matrixDesign', 'matrixDiameter', 'matrixIndex', 'matrixCoating'])) {
             $products = $this->matrixProducts();
@@ -388,7 +404,7 @@ class OpticalCatalogueComponent extends Component
 
     public function setTab($tab)
     {
-        abort_unless(in_array($tab, ['frames', 'lenses', 'options', 'lens-matrix', 'lens-prices', 'services'], true), 422);
+        abort_unless(in_array($tab, ['frames', 'lenses', 'options', 'lens-prices', 'services'], true), 422);
         $this->activeTab = $tab;
         $this->viewProductId = null;
         $this->showServiceForm = false;
@@ -466,7 +482,7 @@ class OpticalCatalogueComponent extends Component
         $service->requires_rx = $this->serviceRequiresRx;
         $service->requires_frame = $this->serviceRequiresFrame;
         $service->is_active = $this->serviceActive;
-        $service->save();
+        \App\Models\AuditTrail::recordSave($service, 'optical.service', 'optical service '.$service->name);
         $this->showServiceForm = false;
         session()->flash('success', 'Optical service saved. Existing order prices remain unchanged.');
     }
@@ -484,7 +500,7 @@ class OpticalCatalogueComponent extends Component
     /** Only what the open tab shows is loaded: the product list, the lens grid, options or services. */
     public function render()
     {
-        $viewProduct = $this->viewProductId ? OpticalProduct::with(['category', 'stocks'])->find($this->viewProductId) : null;
+        $viewProduct = $this->viewProductId ? OpticalProduct::with('stocks')->find($this->viewProductId) : null;
         $data = [
             'viewProduct' => $viewProduct,
             'viewMovements' => $viewProduct ? \App\Models\OpticalProductStockMovement::with('user')->where('optical_product_id', $viewProduct->id)->latest()->limit(8)->get() : collect(),
@@ -492,17 +508,16 @@ class OpticalCatalogueComponent extends Component
             'opticalServices' => $this->activeTab === 'services' ? OpticalService::orderBy('name')->get() : collect(),
         ];
         if (in_array($this->activeTab, ['frames', 'lenses'], true)) $data += $this->productListData();
-        if ($this->activeTab === 'lens-matrix') $data += $this->lensGridData();
+        if ($this->gridOnly) $data += $this->lensGridData();
 
         return view('livewire.optical.optical-catalogue-component', $data)->layout('layouts.optical');
     }
 
     private function productListData(): array
     {
-        $categories = OpticalCategory::all();
-        $groups = $this->activeTab === 'frames' ? ['frames'] : ['single_vision', 'progressive', 'bifocal'];
-        $productsQuery = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)
-            ->whereIn('optical_category_id', $categories->filter(fn ($category) => in_array($category->group, $groups, true))->pluck('id'));
+        $type = $this->activeTab === 'frames' ? 'frame' : 'lens';
+        $productsQuery = OpticalProduct::with('stocks')->where('is_active', true)
+            ->where('type', $type);
         if (! empty($this->searchTerm)) {
             $productsQuery->where(function ($q) {
                 $q->where('name', 'like', '%'.$this->searchTerm.'%')
@@ -542,7 +557,7 @@ class OpticalCatalogueComponent extends Component
             'all' => ['value' => $cells->sum('value'), 'extra' => $cells->sum('extra')],
         ];
         $priceList = app(\App\Services\OpticalLensPriceList::class);
-        $currentSpecs = ['range' => $this->matrixRange, 'design' => $this->matrixDesign, 'index' => $this->matrixIndex, 'coating' => $this->matrixCoating, 'diameter' => $this->matrixDiameter];
+        $currentSpecs = ['range' => $this->matrixRange, 'design' => $this->matrixDesign, 'index' => $this->matrixIndex, 'coating' => $this->matrixCoating, 'diameter' => $this->matrixDiameter, 'form' => $this->matrixForm];
         $this->matrixRangeKey = $priceList->rangeKey($currentSpecs);
         $selectionGrid = $this->selectionGrid($inRange, $pairCells);
 

@@ -82,15 +82,23 @@ class OpticalOrderCreateComponent extends Component
     public $lens_coatings = '';
     public $lens_price = 0;
     public string $stock_coating = 'AR';
-    public string $lens_fulfilment_source = 'external';
+    /** The chosen stock lens's form ('' = Standard). */
+    public string $stock_form = '';
+    /** New orders start on branch stock; the lens choice resets to it when the prescription changes. */
+    public string $lens_fulfilment_source = 'stock';
     public array $lensAvailability = [];
     public array $stockLensOptions = [];
     public string $stock_lens_key = '';
+    /** The lens the customer wants, "design|coating" (e.g. "Single Vision|Photo AR"); '' = any stocked lens. */
+    public string $wantedLens = '';
+    /** Typed price of each special-order eye of the chosen stock lens (it has no stock price). */
+    public array $specialPrices = ['od' => '', 'os' => ''];
+    /** The lens a whole pair was switched to special order for, shown with the special-order price. */
+    public string $specialOrderLens = '';
+    /** How a special-ordered lens moved the pickup date (or why it could not), shown with the lens and the date. */
+    public string $leadTimeNote = '';
 
     // Step 5: Fitting / Lab Details (Matches screenshot)
-    public $pd_right = '';
-    public $pd_left = '';
-    public $fitting_height = '';
     public $segment_height = '';
     public $pickUpDate;
     public $lab_instructions = '';
@@ -269,7 +277,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lensAvailability = [];
         $this->stockLensOptions = [];
         $this->stock_lens_key = '';
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         foreach (['od', 'os'] as $eye) foreach (['sph', 'cyl', 'axis', 'add'] as $field) {
             $key = "rx_{$eye}_{$field}";
             $this->{$key} = data_get($rx, "{$eye}.{$field}", '');
@@ -290,21 +298,16 @@ class OpticalOrderCreateComponent extends Component
         $this->lensAvailability = [];
         $this->stockLensOptions = [];
         $this->stock_lens_key = '';
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
     }
 
     public function chooseOpticalCategory($id): void
     {
         $this->optical_category_id = null;
         $this->lensAvailability = [];
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
-        $category = OpticalCategory::where('is_active', true)->findOrFail((int) $id);
-        abort_unless(in_array($category->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
-        $this->optical_category_id = $category->id;
-        $this->lens_type = [
-            'single_vision' => 'Single Vision', 'progressive' => 'Progressive', 'bifocal' => 'Bifocal',
-        ][$category->group];
+        $this->optical_category_id = OpticalCategory::findOrFail((int) $id)->id;
     }
 
     public function selectFrameOpticalProduct($id): void
@@ -313,7 +316,7 @@ class OpticalOrderCreateComponent extends Component
         $this->frame_product_id = null;
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
-        abort_unless($product->category?->group === 'frames', 404);
+        abort_unless($product->isFrame(), 404);
         $this->frame_optical_product_id = $product->id;
         $this->frame_source = 'stock';
         $this->frame_model_number = $product->name;
@@ -324,10 +327,10 @@ class OpticalOrderCreateComponent extends Component
     {
         $this->lens_optical_product_id = null;
         $this->lens_product_id = null;
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
-        abort_unless(in_array($product->category?->group, ['single_vision', 'progressive', 'bifocal'], true), 404);
+        abort_unless($product->isLens(), 404);
         // A stock lens item is one lens; stock lenses are matched per eye from the prescription.
         abort_unless($product->lens_specs === null, 404);
         $this->lens_optical_product_id = $product->id;
@@ -351,7 +354,7 @@ class OpticalOrderCreateComponent extends Component
         $this->frame_product_id = $this->frame_optical_product_id = null;
         $this->frame_price = 0;
         $this->frame_model_number = trim(($order->frame_model_number ?: 'Frame').' (from order '.$order->order_id.')');
-        $this->lens_fulfilment_source = 'external';
+        $this->lens_fulfilment_source = 'stock';
         $this->stock_lens_key = '';
         $this->lensAvailability = $this->stockLensOptions = [];
         $this->notes = '';
@@ -413,12 +416,17 @@ class OpticalOrderCreateComponent extends Component
         $this->optical_category_id = data_get($details, 'lens_details.category_id');
         $this->stock_coating = data_get($details, 'lens_details.stock_coating', $this->stock_coating);
         $this->stock_lens_key = (string) data_get($details, 'lens_details.stock_key', '');
+        $this->stock_form = (string) data_get($details, 'lens_details.stock_form', '');
+        if ($this->stock_lens_key !== '') $this->wantedLens = rtrim($this->lens_type.'|'.$this->stock_coating.'|'.$this->stock_form, '|');
+        $this->specialPrices = array_merge(['od' => '', 'os' => ''], array_map('strval', (array) data_get($details, 'lens_details.special_prices', [])));
         $this->lens_fulfilment_source = $order->lens_supply_source === 'stock'
             ? 'stock'
             : ($order->lens_supply_source === 'customer' ? 'customer' : ($order->lens_optical_product_id ? 'catalogue' : 'external'));
-        $this->pd_right = data_get($details, 'fitting.pd_right', '');
-        $this->pd_left = data_get($details, 'fitting.pd_left', '');
-        $this->fitting_height = data_get($details, 'fitting.fitting_height', '');
+        // Fitting values: the docket's fitting block, falling back to older orders' single fitting height.
+        $this->rx_od_pd = (string) (data_get($details, 'fitting.pd_right') ?: $this->rx_od_pd);
+        $this->rx_os_pd = (string) (data_get($details, 'fitting.pd_left') ?: $this->rx_os_pd);
+        $this->rx_od_hgt = (string) (data_get($details, 'fitting.hgt_right') ?: data_get($details, 'fitting.fitting_height') ?: $this->rx_od_hgt);
+        $this->rx_os_hgt = (string) (data_get($details, 'fitting.hgt_left') ?: data_get($details, 'fitting.fitting_height') ?: $this->rx_os_hgt);
         $this->segment_height = data_get($details, 'fitting.segment_height', '');
         $this->lab_instructions = data_get($details, 'lab.instructions', '');
         $this->frame_structure = data_get($details, 'frame_structure', $this->frame_structure);
@@ -541,6 +549,7 @@ class OpticalOrderCreateComponent extends Component
                         'lens_stock' => 'Neither lens is in stock for this design. Choose special order or customer supplied lenses to continue.',
                     ]);
                 }
+                $this->validateSpecialPrices();
             }
         }
         if ($this->currentStep === 3 && $this->needsFrame()) {
@@ -552,7 +561,9 @@ class OpticalOrderCreateComponent extends Component
                 'frame_price' => 'required|numeric|min:0',
             ]);
         }
+        if ($this->currentStep === 4) $this->validateFitting();
         if ($this->currentStep === 5) $this->validatePricing();
+        if ($this->currentStep === 6) $this->validateDeposit();
         $this->currentStep = $this->nextApplicableStep($this->currentStep, 1);
     }
 
@@ -618,16 +629,12 @@ class OpticalOrderCreateComponent extends Component
                     "rx_{$eye}_sph" => ['required', 'numeric', 'between:-30,30', $quarterStep],
                     "rx_{$eye}_cyl" => ['nullable', 'numeric', 'between:-15,15', $quarterStep],
                     "rx_{$eye}_add" => ['nullable', 'numeric', 'between:0,8', $quarterStep],
-                    "rx_{$eye}_hgt" => ['nullable', 'numeric', 'between:0,60'],
-                    "rx_{$eye}_pd" => ['nullable', 'numeric', 'between:20,80'],
                 ];
                 $messages += [
                     "rx_{$eye}_sph.required" => "Enter the {$label} sphere (SPH).",
                     "rx_{$eye}_sph.between" => "{$label} SPH must be between -30.00 and +30.00.",
                     "rx_{$eye}_cyl.between" => "{$label} CYL must be between -15.00 and +15.00.",
                     "rx_{$eye}_add.between" => "{$label} ADD must be between 0.00 and +8.00.",
-                    "rx_{$eye}_hgt.between" => "{$label} height must be between 0 and 60 mm.",
-                    "rx_{$eye}_pd.between" => "{$label} PD must be between 20 and 80 mm.",
                 ];
             }
         }
@@ -636,9 +643,44 @@ class OpticalOrderCreateComponent extends Component
             'rx_od_sph' => 'right-eye SPH', 'rx_os_sph' => 'left-eye SPH',
             'rx_od_cyl' => 'right-eye CYL', 'rx_os_cyl' => 'left-eye CYL',
             'rx_od_add' => 'right-eye ADD', 'rx_os_add' => 'left-eye ADD',
-            'rx_od_hgt' => 'right-eye height', 'rx_os_hgt' => 'left-eye height',
-            'rx_od_pd' => 'right-eye PD', 'rx_os_pd' => 'left-eye PD',
         ]);
+    }
+
+    /** The shop's minimum deposit (Optical → Settings); partner jobs billed on account need none. */
+    public function minimumDepositPercent(): int
+    {
+        $onAccount = $this->order_source === 'partner' && OpticalPartnerClinic::find($this->partner_id)?->billing_terms === 'on_account';
+        return $onAccount ? 0 : (int) (OpticalSetting::first()?->min_deposit_percentage ?? 0);
+    }
+
+    public function minimumDeposit(): float
+    {
+        return round($this->calculateTotalProperty() * $this->minimumDepositPercent() / 100, 2);
+    }
+
+    /** A deposit of at least the shop minimum and no more than the order total. */
+    private function validateDeposit(): void
+    {
+        $minimum = $this->minimumDeposit();
+        $total = round((float) $this->calculateTotalProperty(), 2);
+        $money = fn ($amount) => currency().' '.number_format($amount, 2);
+        $this->validate(['paid_amount' => ['required', 'numeric', 'min:'.$minimum, 'max:'.max($total, $minimum)]], [
+            'paid_amount.required' => 'Enter the deposit paid'.($minimum > 0 ? ", at least {$money($minimum)}." : ', or 0.'),
+            'paid_amount.min' => "A deposit of at least {$money($minimum)} ({$this->minimumDepositPercent()}% of {$money($total)}) is required. If the customer isn't paying yet, save it as a quotation.",
+            'paid_amount.max' => "The deposit can't be more than the order total of {$money($total)}.",
+        ]);
+    }
+
+    /** Monocular PDs and fitting heights, measured with the frame at fitting. */
+    private function validateFitting(): void
+    {
+        $rules = ['segment_height' => ['nullable', 'numeric', 'between:0,60']];
+        $messages = ['segment_height.between' => 'Segment height must be between 0 and 60 mm.'];
+        foreach (['od' => 'Right-eye', 'os' => 'Left-eye'] as $eye => $label) {
+            $rules += ["rx_{$eye}_pd" => ['nullable', 'numeric', 'between:20,80'], "rx_{$eye}_hgt" => ['nullable', 'numeric', 'between:0,60']];
+            $messages += ["rx_{$eye}_pd.between" => "{$label} PD must be between 20 and 80 mm.", "rx_{$eye}_hgt.between" => "{$label} fitting height must be between 0 and 60 mm."];
+        }
+        $this->validate($rules, $messages);
     }
 
     public function updated($property): void
@@ -666,6 +708,7 @@ class OpticalOrderCreateComponent extends Component
     {
         foreach (['od', 'os'] as $eye) {
             foreach (['sph', 'cyl', 'axis', 'add', 'hgt', 'pd'] as $field) {
+                if (! array_key_exists($field, (array) data_get($input, $eye, []))) continue;
                 $property = "rx_{$eye}_{$field}";
                 $this->{$property} = trim((string) data_get($input, "{$eye}.{$field}", ''));
             }
@@ -682,6 +725,8 @@ class OpticalOrderCreateComponent extends Component
     {
         $input['fulfilment'] = 'stock';
         $this->applyLensStepInput($input);
+        $wanted = (string) ($input['wanted'] ?? '');
+        $this->wantedLens = array_key_exists($wanted, $this->wantedLensChoices()) ? $wanted : '';
         $this->checkLensAvailability();
     }
 
@@ -695,19 +740,69 @@ class OpticalOrderCreateComponent extends Component
     {
         if ($this->work_type !== 'prescription') return;
         $this->validateRxMeasurements();
-        $this->stockLensOptions = app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements());
+        $this->stockLensOptions = $this->withWantedFirst(app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements()));
         $this->stock_lens_key = '';
         $this->lensAvailability = [];
         $usable = collect($this->stockLensOptions)->whereIn('status', ['available', 'partial']);
-        if ($usable->count() === 1) {
-            $this->selectStockLensOption($usable->first()['key']);
-        } elseif ($usable->isEmpty()) {
+        // Only the wanted lens is chosen for staff; an alternative is always their decision.
+        $matching = $usable->where('matches', true);
+        if ($matching->count() === 1) {
+            $this->selectStockLensOption($matching->first()['key']);
+        } elseif ($matching->isEmpty()) {
             $this->lensAvailability = [
                 'status' => 'outside_sourcing',
-                'message' => $this->noStockMessage($this->currentMeasurements()),
+                'message' => $this->wantedLens !== '' && $usable->isNotEmpty()
+                    ? $this->wantedMissingMessage()
+                    : $this->noStockMessage($this->currentMeasurements()),
                 'eyes' => [],
             ];
         }
+    }
+
+    /**
+     * The lens lines this shop stocks, as "design|coating" => label, grouped by design in the
+     * order single vision, progressive, bifocal. Built from received stock, so new lines appear
+     * as soon as they are received.
+     *
+     * @return array<string, string>
+     */
+    public function wantedLensChoices(): array
+    {
+        $designs = ['Single Vision', 'Progressive', 'Bifocal'];
+        return OpticalProduct::whereNotNull('lens_specs')->where('is_active', true)->pluck('lens_specs')
+            ->filter(fn ($specs) => data_get($specs, 'sphere') !== null && in_array(data_get($specs, 'design'), $designs, true) && (string) data_get($specs, 'coating') !== '')
+            // "design|coating", plus "|form" for a form other than Standard.
+            ->map(fn ($specs) => array_filter([data_get($specs, 'design'), (string) data_get($specs, 'coating'), (string) data_get($specs, 'form')], fn ($part) => $part !== ''))
+            ->unique(fn ($line) => implode('|', $line))
+            ->sortBy([fn ($a, $b) => array_search($a[0], $designs) <=> array_search($b[0], $designs), fn ($a, $b) => strcasecmp($a[2] ?? '', $b[2] ?? ''), fn ($a, $b) => strcasecmp($a[1], $b[1])])
+            ->mapWithKeys(fn ($line) => [implode('|', $line) => \App\Support\Optical\LensOptions::label('design', $line[0])
+                .(isset($line[2]) ? ' '.\App\Support\Optical\LensOptions::label('form', $line[2]) : '').' – '.\App\Support\Optical\LensOptions::label('treatment', $line[1])])->all();
+    }
+
+    /** Flags the options that are the wanted lens and lists them first; with nothing wanted, every option matches. */
+    private function withWantedFirst(array $options): array
+    {
+        [$design, $coating, $form] = array_pad(explode('|', $this->wantedLens, 3), 3, '');
+        // An invisible bifocal is never offered as a match for a flat-top one, or the reverse.
+        return collect($options)->map(fn ($option) => $option + ['matches' => $this->wantedLens === ''
+                || (($option['lens_type'] ?? '') === $design && strcasecmp((string) ($option['coating'] ?? ''), $coating) === 0 && (string) ($option['form'] ?? '') === $form)])
+            ->sortBy(fn ($option) => $option['matches'] ? 0 : 1)->values()->all();
+    }
+
+    private function wantedMissingMessage(): string
+    {
+        [$designCode, $coatingCode, $formCode] = array_pad(explode('|', $this->wantedLens, 3), 3, '');
+        // "Bifocal Invisible" reads as one name; a Standard form adds nothing.
+        $design = \App\Support\Optical\LensOptions::label('design', $designCode).($formCode !== '' ? ' '.\App\Support\Optical\LensOptions::label('form', $formCode) : '');
+        $coating = \App\Support\Optical\LensOptions::label('treatment', $coatingCode);
+        $hasAdd = collect($this->currentMeasurements())->contains(fn ($eye) => is_numeric($eye['add'] ?? null) && (float) $eye['add'] != 0);
+        if ($hasAdd && $designCode === 'Single Vision') {
+            return "This prescription has an ADD, so it needs a progressive or bifocal lens, not {$design} {$coating}. Choose another lens wanted, or special order.";
+        }
+        if (! $hasAdd && $designCode !== 'Single Vision') {
+            return "{$design} {$coating} lenses need an ADD in the prescription. Choose a single vision lens wanted, or enter the ADD.";
+        }
+        return "{$design} {$coating} is not in stock at this branch for these powers. Special order it, or offer one of the alternatives below.";
     }
 
     /** Explains why nothing matched, and points reading-only prescriptions at single vision stock. */
@@ -751,7 +846,7 @@ class OpticalOrderCreateComponent extends Component
 
     public function selectStockLensOption(string $key): void
     {
-        $options = app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements());
+        $options = $this->withWantedFirst(app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements()));
         $option = collect($options)->firstWhere('key', $key);
         if (! $option) {
             $this->stockLensOptions = $options;
@@ -766,9 +861,105 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_type = $option['lens_type'];
         $this->lens_index = $option['index'];
         $this->stock_coating = $option['coating'];
+        $this->stock_form = (string) ($option['form'] ?? '');
         $this->base_color = $option['coating'] === 'Transitions' ? 'Photochromic' : 'White';
+        // A special-order eye is charged what staff enter for it. A power the catalogue prices
+        // starts at that price; a made-to-order lens or an unpriced power starts empty and
+        // counts as nothing until priced.
+        $listed = $option;
+        foreach (['od', 'os'] as $eye) {
+            $line = $option['eyes'][$eye] ?? [];
+            if (($line['source'] ?? null) !== 'special_order') $this->specialPrices[$eye] = '';
+            elseif ($this->specialPrices[$eye] === '' && $this->hasListPrice($line)) $this->specialPrices[$eye] = number_format((float) $line['unit_price'], 2, '.', '');
+        }
+        $option = app(OpticalLensAvailabilityService::class)->withSpecialPrices($option, array_map(fn ($price) => is_numeric($price) ? $price : 0, $this->specialPrices));
         $this->lens_price = $option['price'];
         $this->lensAvailability = $this->availabilitySummary($option);
+        foreach ($listed['eyes'] ?? [] as $eye => $line) {
+            $this->lensAvailability['eyes'][$eye]['list_price'] = $this->hasListPrice($line) ? (float) $line['unit_price'] : null;
+        }
+        if ($this->specialOrderEyes()) $this->datePickupForSpecialOrder($key);
+        else $this->leadTimeNote = '';
+    }
+
+    /**
+     * A special-ordered lens can't be ready before the supplier delivers it: move the pickup
+     * date to the range supplier's lead time plus a day to glaze. The date only moves later.
+     */
+    private function datePickupForSpecialOrder(string $key): void
+    {
+        $supplier = app(OpticalLensAvailabilityService::class)->rangeSupplier($key);
+        $days = (int) ($supplier?->lead_time_days ?? 0);
+        if ($days < 1) {
+            $this->leadTimeNote = ($supplier ? "{$supplier->name} has no lead time set" : 'No supplier is known for this lens yet')
+                .', so the pickup date was not moved. Set a lead time under Purchasing → Suppliers.';
+            return;
+        }
+        $ready = today()->addDays($days + 1);
+        if (! $this->pickUpDate || \Illuminate\Support\Carbon::parse($this->pickUpDate)->lt($ready)) $this->pickUpDate = $ready->toDateString();
+        $this->leadTimeNote = "Ready about {$ready->format('j M')}: {$supplier->name} takes {$days} ".($days === 1 ? 'day' : 'days').' to supply the lens, plus a day to glaze.';
+    }
+
+    /** The catalogue has a price for this exact power: it is not made to order or estimated from the range. */
+    private function hasListPrice(array $line): bool
+    {
+        return empty($line['price_estimated']) && empty($line['reason']);
+    }
+
+    /**
+     * Prices staff set by hand: a special-order eye with no catalogue price, or one changed
+     * from it. These are charged and reported to the owner; catalogue prices are not.
+     */
+    private function typedSpecialPrices(): array
+    {
+        $typed = [];
+        foreach ($this->specialOrderEyes() as $eye) {
+            $list = $this->lensAvailability['eyes'][$eye]['list_price'] ?? null;
+            if (is_numeric($this->specialPrices[$eye] ?? null) && ($list === null || round((float) $this->specialPrices[$eye], 2) !== round($list, 2))) {
+                $typed[$eye] = $this->specialPrices[$eye];
+            }
+        }
+        return $typed;
+    }
+
+    public function updatedSpecialPrices(): void
+    {
+        if ($this->stock_lens_key !== '') $this->selectStockLensOption($this->stock_lens_key);
+    }
+
+    /** Eyes of the chosen stock lens that are special-ordered, each needing a typed price. */
+    private function specialOrderEyes(): array
+    {
+        return $this->lens_fulfilment_source === 'stock'
+            ? array_keys(array_filter($this->lensAvailability['eyes'] ?? [], fn ($eye) => ($eye['source'] ?? null) === 'special_order'))
+            : [];
+    }
+
+    private function validateSpecialPrices(): void
+    {
+        $rules = $messages = [];
+        foreach ($this->specialOrderEyes() as $eye) {
+            $rules["specialPrices.$eye"] = 'required|numeric|min:0|max:1000000';
+            $messages["specialPrices.$eye.required"] = 'Enter the price of the special-order '.strtoupper($eye).' lens. It has no stock price.';
+            $messages["specialPrices.$eye.numeric"] = 'The '.strtoupper($eye).' lens price must be a number.';
+        }
+        if ($rules) $this->validate($rules, $messages);
+    }
+
+    /**
+     * A progressive or bifocal pair with one eye made to order: make both eyes on the same
+     * special order, so the two lenses match, and leave the stocked lens on the shelf.
+     */
+    public function specialOrderBothEyes(): void
+    {
+        // Both lenses now come from the supplier, so the date follows its lead time too.
+        if ($this->stock_lens_key !== '') $this->datePickupForSpecialOrder($this->stock_lens_key);
+        $this->lens_fulfilment_source = 'external';
+        $this->specialOrderLens = trim($this->lens_type.' '.$this->stock_coating);
+        $this->stock_lens_key = '';
+        $this->stockLensOptions = $this->lensAvailability = [];
+        $this->specialPrices = ['od' => '', 'os' => ''];
+        $this->lens_price = 0;
     }
 
     private function availabilitySummary(array $option): array
@@ -872,12 +1063,8 @@ class OpticalOrderCreateComponent extends Component
 
     public function createOrder()
     {
+        $this->validateDeposit();
         if ($this->editingQuotationId) {
-            $onAccount = $this->order_source === 'partner' && OpticalPartnerClinic::find($this->partner_id)?->billing_terms === 'on_account';
-            $minimum = $onAccount ? 0 : (int) (OpticalSetting::first()?->min_deposit_percentage ?? 0);
-            if ((float) $this->paid_amount < round($this->calculateTotalProperty() * $minimum / 100, 2)) {
-                throw ValidationException::withMessages(['paid_amount' => "A {$minimum}% deposit is required."]);
-            }
             DB::transaction(function () {
                 $this->saveOrder('Quotation');
                 app(OpticalOrderWorkflowService::class)->activateQuotation($this->editingQuotationId, (float) $this->paid_amount, $this->payment_method);
@@ -899,6 +1086,7 @@ class OpticalOrderCreateComponent extends Component
             if (! $this->stockLensUsable()) {
                 throw ValidationException::withMessages(['lens_stock' => 'These lenses are no longer in stock. Check availability again or choose special order.']);
             }
+            $this->validateSpecialPrices();
         }
         $this->normalizeDiscount();
         $this->validate([
@@ -920,7 +1108,7 @@ class OpticalOrderCreateComponent extends Component
             'frame_model_number' => $this->needsFrame() ? 'required|string|max:255' : 'nullable',
             'frame_price' => 'required|numeric|min:0',
             'lens_price' => 'required|numeric|min:0',
-            'optical_category_id' => ['nullable', Rule::exists('optical_categories', 'id')->where('clinic_id', app(TenantContext::class)->clinicId())->where('is_active', true)],
+            'optical_category_id' => ['nullable', Rule::exists('optical_categories', 'id')->where('clinic_id', app(TenantContext::class)->clinicId())],
             'glazing_fee' => 'required|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'paid_amount' => 'required|numeric|min:0',
@@ -954,8 +1142,8 @@ class OpticalOrderCreateComponent extends Component
             'paid_amount' => $this->paid_amount, 'payment_method' => $this->payment_method,
             'pickup_date' => $this->pickUpDate,
             'docket' => [
-                'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null],
-                'fitting' => ['pd_right' => $this->pd_right, 'pd_left' => $this->pd_left, 'fitting_height' => $this->fitting_height, 'segment_height' => $this->segment_height],
+                'lens_details' => ['category_id' => $this->work_type === 'prescription' ? $this->optical_category_id : null, 'category_name' => $this->optical_category_id ? OpticalCategory::find($this->optical_category_id)?->name : null, 'type' => $this->lens_type, 'index' => $this->lens_index, 'brand' => $this->progressive_brand, 'color' => $this->base_color, 'coatings' => $this->lens_coatings, 'stock_coating' => $this->stock_coating, 'stock_form' => $this->stock_form ?: null, 'stock_key' => $this->lens_fulfilment_source === 'stock' ? $this->stock_lens_key : null, 'stock_split' => $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['split'] ?? null) : null, 'special_prices' => $this->typedSpecialPrices() ?: null],
+                'fitting' => ['pd_right' => $this->rx_od_pd, 'pd_left' => $this->rx_os_pd, 'hgt_right' => $this->rx_od_hgt, 'hgt_left' => $this->rx_os_hgt, 'segment_height' => $this->segment_height],
                 'lab' => ['instructions' => $this->lab_instructions],
                 'frame_structure' => $this->frame_structure, 'notes' => $this->notes,
                 'frame_source' => $this->frame_source,
@@ -971,9 +1159,6 @@ class OpticalOrderCreateComponent extends Component
 
     public function render()
     {
-        $opticalCategories = OpticalCategory::where('is_active', true)->orderBy('name')->get();
-        $frameIds = $opticalCategories->filter(fn ($category) => $category->group === 'frames')->pluck('id');
-        $lensCategories = $opticalCategories->filter(fn ($category) => in_array($category->group, ['single_vision', 'progressive', 'bifocal'], true));
         return view('livewire.optical.optical-order-create-component', [
             'customers' => $this->order_source === 'in_clinic' && strlen(trim($this->customerSearch)) > 0
                 ? Patient::where(function ($query) {
@@ -997,13 +1182,12 @@ class OpticalOrderCreateComponent extends Component
                 ? Refractions::whereHas('consultation', fn ($q) => $q->where('patient_id', $this->patient_id))
                     ->where('dispensing_required', true)->whereNotNull('dispensing_authorized_at')->latest()->get()
                 : collect(),
-            'frames' => OpticalProduct::with('stocks')->where('is_active', true)->whereIn('optical_category_id', $frameIds)->orderBy('name')->get(),
+            'frames' => OpticalProduct::with('stocks')->where('is_active', true)->where('type', 'frame')->orderBy('name')->get(),
             // SKU choices belong only to the finished/catalogued-lens workflow.
             // Branch lens blanks are matched directly from the Rx specification on Next.
             'lenses' => $this->lens_fulfilment_source === 'catalogue'
-                ? OpticalProduct::with('stocks')->where('is_active', true)->whereNull('lens_specs')->whereIn('optical_category_id', $lensCategories->pluck('id'))->orderBy('name')->get()
+                ? OpticalProduct::with('stocks')->where('is_active', true)->whereNull('lens_specs')->where('type', 'lens')->orderBy('name')->get()
                 : collect(),
-            'opticalCategories' => $lensCategories,
             'serviceCatalogue' => OpticalService::where('is_active', true)->orderBy('name')->get(),
             'nextStep' => $this->nextApplicableStep($this->currentStep, 1),
             'previousStep' => $this->nextApplicableStep($this->currentStep, -1),

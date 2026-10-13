@@ -58,7 +58,9 @@ class OpticalSettingsComponent extends Component
             'quote_validity_days' => (int) $this->quote_validity_days,
             'pos_max_discount_percent' => (int) $this->pos_max_discount_percent,
         ];
-        OpticalSetting::firstOrCreate([], $values)->update($values);
+        $settings = OpticalSetting::firstOrNew();
+        $settings->fill($values);
+        \App\Models\AuditTrail::recordSave($settings, 'optical.settings', 'optical settings');
         $this->reminder_schedule = implode(', ', $schedule);
         session()->flash('success', 'Optical module settings saved successfully.');
     }

@@ -25,11 +25,25 @@ class AuditTrailViewerComponent extends Component
     public $userSearch = '';
     public $fromDate;
     public $toDate;
+    /** '' everything, 'optical' the optical shop and staff changes, 'clinic' everything else. */
+    public $area = '';
+    /** Opened from the optical menu: optical layout, optical events first. */
+    #[\Livewire\Attributes\Locked]
+    public bool $optical = false;
+
+    public const AREAS = ['' => 'Everything', 'optical' => 'Optical shop & staff', 'clinic' => 'Clinic'];
 
     public function mount()
     {
         // Fix #12: generic 403 — don't reveal feature flag names
         abort_if(!LicenseService::has(Feature::AUDIT_TRAIL), 403);
+        $this->optical = request()->routeIs('optical.*');
+        $this->area = $this->optical ? 'optical' : '';
+        $this->defaultDates();
+    }
+
+    private function defaultDates(): void
+    {
         $this->fromDate = Carbon::today()->subDays(30)->toDateString();
         $this->toDate = Carbon::today()->toDateString();
     }
@@ -37,6 +51,7 @@ class AuditTrailViewerComponent extends Component
     public function updatingSearch() { $this->resetPage(); }
     public function updatingEvent() { $this->resetPage(); }
     public function updatingUserId() { $this->resetPage(); }
+    public function updatingArea() { $this->resetPage(); $this->event = ''; }
     public function updatingUserSearch() { $this->resetPage(); }
     public function updatingFromDate() { $this->resetPage(); }
     public function updatingToDate() { $this->resetPage(); }
@@ -47,7 +62,8 @@ class AuditTrailViewerComponent extends Component
         $this->event = '';
         $this->userId = '';
         $this->userSearch = '';
-        $this->mount();
+        $this->area = $this->optical ? 'optical' : '';
+        $this->defaultDates();
         $this->resetPage();
     }
 
@@ -183,11 +199,21 @@ class AuditTrailViewerComponent extends Component
                         ->orWhereHas('patient', fn ($pq) => $pq->where('name', 'like', $search));
                 });
             })
+            ->tap(fn ($query) => $this->inArea($query))
             ->when($this->event, fn ($query) => $query->where('event', $this->event))
             ->when($this->userId, fn ($query) => $query->where('user_id', $this->userId))
             ->when($this->fromDate, fn ($query) => $query->where('created_at', '>=', Carbon::parse($this->fromDate)->startOfDay()))
             ->when($this->toDate, fn ($query) => $query->where('created_at', '<=', Carbon::parse($this->toDate)->endOfDay()))
             ->latest('created_at');
+    }
+
+    private function inArea($query)
+    {
+        return match ($this->area) {
+            'optical' => $query->where(fn ($q) => $q->where('event', 'like', 'optical.%')->orWhere('event', 'like', 'staff.%')),
+            'clinic' => $query->where('event', 'not like', 'optical.%'),
+            default => $query,
+        };
     }
 
     public function render()
@@ -197,7 +223,7 @@ class AuditTrailViewerComponent extends Component
             'users'       => User::whereIn('id', AuditTrail::query()->whereNotNull('user_id')->select('user_id'))->when($this->userSearch, function ($query) {
                 $query->where('name', 'like', '%' . $this->userSearch . '%');
             })->orderBy('name')->get(['id', 'name']),
-            'events'      => AuditTrail::select('event')->distinct()->orderBy('event')->pluck('event'),
-        ])->layout('layouts.admin.admin-layout');
+            'events'      => $this->inArea(AuditTrail::select('event'))->distinct()->orderBy('event')->pluck('event'),
+        ])->layout($this->optical ? 'layouts.optical' : 'layouts.admin.admin-layout');
     }
 }

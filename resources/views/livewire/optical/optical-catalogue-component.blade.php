@@ -1,4 +1,4 @@
-<div class="clinic-ui ui-page space-y-5">
+<div class="clinic-ui ui-page {{ $gridOnly ? 'space-y-2' : 'space-y-5' }}" @if($gridOnly) style="padding-top:.75rem" @endif>
     @include('livewire.optical.partials.order-ui')
     <style>
         .ct-tabs{display:flex;gap:4px;border-bottom:1px solid var(--clinic-line);overflow-x:auto}
@@ -14,14 +14,19 @@
         $stockBadge = fn ($qty, $reorder) => $qty <= 0 ? ['Out of stock', 'oo-b-red'] : ($qty <= $reorder ? ['Low stock', 'oo-b-amber'] : ['In stock', 'oo-b-green']);
     @endphp
 
+    @if($gridOnly)
+        <h1 class="sr-only">Lens stock grid</h1>
+        <x-ui.flash />
+        @include('livewire.optical.partials.lens-blank-matrix')
+    @else
+    <x-optical.catalogue-tabs />
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Catalogue &amp; Stock</h1>
-            <p class="ui-muted text-sm">Frames, lenses, lens blank stock, coatings and service prices for this branch.</p>
+            <p class="ui-muted text-sm">Frames, lenses, lens prices, options and service prices for this branch.</p>
         </div>
         <div class="flex flex-wrap gap-2">
             @if($isManager)
-                <a wire:navigate href="{{ route('optical.categories') }}" class="oo-btn">Categories</a>
                 <a wire:navigate href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
                 @if(in_array($activeTab, ['frames', 'lenses']))<a wire:navigate href="{{ route('optical.products') }}" class="oo-btn primary">+ Add item</a>@endif
             @endif
@@ -31,7 +36,7 @@
     <x-ui.flash />
 
     <nav class="ct-tabs" role="tablist" aria-label="Catalogue sections">
-        @foreach(['frames' => 'Frames', 'lenses' => 'Lenses', 'lens-matrix' => 'Lens blank stock', 'lens-prices' => 'Lens prices', 'options' => 'Coatings & options', 'services' => 'Services & prices'] as $key => $label)
+        @foreach(['frames' => 'Frames', 'lenses' => 'Lenses', 'lens-prices' => 'Lens prices', 'options' => 'Coatings & options', 'services' => 'Services & prices'] as $key => $label)
             <button type="button" role="tab" aria-selected="{{ $activeTab === $key ? 'true' : 'false' }}" class="{{ $activeTab === $key ? 'active' : '' }}" wire:click="setTab('{{ $key }}')">{{ $label }}</button>
         @endforeach
     </nav>
@@ -72,8 +77,6 @@
             </aside>
             </div>
         @endif
-    @elseif($activeTab === 'lens-matrix')
-        @include('livewire.optical.partials.lens-blank-matrix')
     @elseif($activeTab === 'options')
         <div class="ui-panel">
             <div class="ui-panel-heading">
@@ -130,7 +133,7 @@
                             <tr wire:key="product-{{ $product->id }}" class="{{ $viewProductId === $product->id ? 'oo-active' : '' }}" wire:click="openProduct({{ $product->id }})">
                                 <td class="ct-sku"><span class="oo-id" style="color:var(--clinic-ink)" title="{{ $product->sku }}">{{ $product->sku }}</span></td>
                                 <td><b>{{ $product->name }}</b>@if($product->brand)<span class="oo-sub">{{ $product->brand }}</span>@endif</td>
-                                <td>{{ $product->category?->name ?? '—' }}</td>
+                                <td>{{ $product->categoryLabel() }}</td>
                                 <td class="oo-num"><b>{{ currency() }} {{ number_format((float) $product->selling_price, 2) }}</b></td>
                                 <td class="oo-num"><b style="color:{{ $qty <= 0 ? '#b91c1c' : ($qty <= $reorder ? '#92400e' : 'inherit') }}">{{ $qty }}</b><span class="oo-sub">reorder at {{ $reorder }}</span></td>
                                 <td><span class="oo-badge {{ $bc }}">{{ $bl }}</span></td>
@@ -160,7 +163,7 @@
                 <header class="oo-drawer-head">
                     <div>
                         <h2 id="ct-title">{{ $viewProduct->name }}</h2>
-                        <div class="flex flex-wrap items-center gap-2 text-xs ui-muted"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><span class="oo-id" style="color:var(--clinic-ink)">{{ $viewProduct->sku }}</span><span>· {{ $viewProduct->category?->name }}</span></div>
+                        <div class="flex flex-wrap items-center gap-2 text-xs ui-muted"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><span class="oo-id" style="color:var(--clinic-ink)">{{ $viewProduct->sku }}</span><span>· {{ $viewProduct->categoryLabel() }}</span></div>
                     </div>
                     <button type="button" class="oo-x" x-on:click="close()" aria-label="Close">&times;</button>
                 </header>
@@ -203,4 +206,5 @@
             </div>
         @endif
     @endif
+@endif
 </div>

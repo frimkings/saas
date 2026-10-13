@@ -230,7 +230,7 @@ Route::get('/optical/partners/{partner}/statement/print', function (int $partner
 Route::redirect('/optical/customers', '/optical/partners')->name('optical.customers');
 Route::get('/optical/prescriptions', \App\Livewire\Optical\OpticalPrescriptionsComponent::class)->name('optical.prescriptions');
 Route::get('/optical/catalogue', \App\Livewire\Optical\OpticalCatalogueComponent::class)->name('optical.catalogue');
-Route::get('/optical/categories', \App\Livewire\Optical\OpticalCategoriesComponent::class)->name('optical.categories');
+Route::get('/optical/lens-grid', \App\Livewire\Optical\OpticalLensGridComponent::class)->name('optical.lens-grid');
  Route::get('/optical/products', \App\Livewire\Optical\OpticalProductsComponent::class)->name('optical.products');
  Route::get('/optical/stock', \App\Livewire\Optical\OpticalStockManagementComponent::class)->name('optical.stock');
  Route::get('/optical/stock/receive-lenses', \App\Livewire\Optical\OpticalLensReceivingComponent::class)->middleware('role:Manager|Super Admin')->name('optical.stock.receive-lenses');
@@ -273,6 +273,9 @@ Route::get('/optical/reports', \App\Livewire\Optical\OpticalReportsComponent::cl
 Route::get('/optical/reports/{report}/{format}', \App\Http\Controllers\OpticalReportExportController::class)
     ->whereIn('report', array_keys(\App\Http\Controllers\OpticalReportExportController::REPORTS))->whereIn('format', ['print', 'pdf', 'csv'])->name('optical.reports.export');
 Route::get('/optical/settings', \App\Livewire\Optical\OpticalSettingsComponent::class)->middleware('role:Manager|Super Admin')->name('optical.settings');
+// The shared audit screens, shown in the optical layout.
+Route::get('/optical/audit-trail', AuditTrailViewerComponent::class)->middleware(['role:Manager|Super Admin', 'feature:audit_trail'])->name('optical.audit-trail');
+Route::get('/optical/login-history', LoginHistoryComponent::class)->middleware(['role:Manager|Super Admin', 'feature:audit_trail'])->name('optical.login-history');
 });
 
 //admin

@@ -39,7 +39,7 @@ class FinanceScreensBusinessLineTest extends TestCase
         $this->sale('clinic', 'CLINIC-DASH-1', 100, 100);
         $optical = $this->sale('optical', 'OPT-DASH-1', 250, 50);
         $category = \App\Models\OpticalCategory::create(['code' => 'FRAMES', 'name' => 'Frames', 'is_active' => true]);
-        $frame = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Dashboard Frame', 'sku' => 'DF-1', 'selling_price' => 250, 'cost_price' => 100]);
+        $frame = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Dashboard Frame', 'type' => 'frame', 'sku' => 'DF-1', 'selling_price' => 250, 'cost_price' => 100]);
         SaleItem::create(['sale_id' => $optical->id, 'optical_product_id' => $frame->id, 'prescribed_quantity' => 0, 'dispensed_quantity' => 1, 'selling_price' => 250, 'subtotal' => 250]);
 
         Livewire::test(AdminDashboardComponent::class)

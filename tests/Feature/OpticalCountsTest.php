@@ -99,6 +99,36 @@ class OpticalCountsTest extends TestCase
             ->call('setFilter', 'lab')->assertSee('ORD-INLAB')->assertDontSee('OPT-PEND');
     }
 
+    public function test_orders_show_who_created_them_and_who_changed_each_status(): void
+    {
+        $this->user->update(['name' => 'Ama Owusu']);
+        $kofi = User::factory()->create(['name' => 'Kofi Mensah']);
+        $mine = $this->walkIn('OPT-AMA', 'Pending');
+        $this->walkIn('OPT-KOFI', 'Pending', ['user_id' => $kofi->id]);
+
+        Livewire::test(OpticalOrdersComponent::class)
+            ->assertSee('by Ama Owusu')->assertSee('by Kofi Mensah')
+            ->assertViewHas('creators', fn ($creators) => $creators->pluck('name')->all() === ['Ama Owusu', 'Kofi Mensah'])
+            ->set('creatorFilter', (string) $kofi->id)->assertSee('OPT-KOFI')->assertDontSee('OPT-AMA')
+            ->assertViewHas('filterCounts', fn ($counts) => $counts[''] === 1)
+            ->call('clearFilters')->assertSet('creatorFilter', '');
+
+        // Kofi sends Ama's order to the lab; the history names him, not the creator.
+        $this->actingAs($kofi);
+        app(\App\Services\OpticalOrderWorkflowService::class)->transition($mine->id, 'Sent to Lab');
+        $this->actingAs($this->user);
+        $mine->refresh()->update(['status' => 'Cancelled', 'cancellation_reason' => 'Customer changed their mind']);
+        $mine->update(['notes' => 'No status change']);
+
+        $events = $mine->events()->get();
+        $this->assertSame([['Pending', 'Sent to Lab', $kofi->id, null], ['Sent to Lab', 'Cancelled', $this->user->id, 'Customer changed their mind']],
+            $events->map(fn ($e) => [$e->from_status, $e->to_status, $e->user_id, $e->note])->all());
+        $this->assertSame($mine->clinic_id, $events->first()->clinic_id);
+
+        Livewire::test(OpticalOrdersComponent::class)->call('openOrder', $mine->id)
+            ->assertSeeInOrder(['History', 'Created', 'by Ama Owusu', 'Sent to Lab', 'Kofi Mensah', 'Cancelled', 'Ama Owusu', 'Customer changed their mind']);
+    }
+
     public function test_secretary_dashboard_counts_clinic_spectacles_ready_under_both_names_only(): void
     {
         $this->clinicOrder('ORD-READY', 'Ready');

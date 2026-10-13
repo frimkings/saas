@@ -99,7 +99,7 @@
                                 <tr wire:key="count-line-{{ $line->id }}" class="{{ $line->variance() ? ($line->variance() < 0 ? 'bg-red-50' : 'bg-amber-50') : '' }}">
                                     <td class="p-2">{{ $line->product?->sku }} · {{ $line->product?->name }}@if($moved->has($line->optical_product_id)) <span class="text-amber-800" title="Moved since the count started">⚠</span>@endif</td>
                                     @if($showExpected)<td class="p-2 text-right">{{ $line->expectedAtCount() }}</td>@endif
-                                    <td class="p-2 text-right">@if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input w-20 text-right" aria-label="Counted">@else{{ $line->counted_quantity ?? '—' }}@endif</td>
+                                    <td class="p-2 text-right">@if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input !w-20 text-right" aria-label="Counted">@else{{ $line->counted_quantity ?? '—' }}@endif</td>
                                     @if($showExpected)<td class="p-2 text-right font-semibold {{ ($line->variance() ?? 0) < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ $line->variance() ? sprintf('%+d', $line->variance()) : '' }}</td>@endif
                                 </tr>
                             @endforeach

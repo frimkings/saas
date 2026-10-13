@@ -26,12 +26,15 @@ class OpticalOrdersComponent extends Component
     public string $dateTo = '';
     public string $sourceFilter = '';
     public string $partnerFilter = '';
+    /** Staff member who created the order. */
+    public string $creatorFilter = '';
 
     public const SOURCES = ['in_clinic' => 'In clinic', 'walk_in' => 'Walk-in', 'partner' => 'Partner clinic'];
 
     protected $queryString = [
         'searchTerm' => ['except' => ''], 'statusFilter' => ['except' => ''], 'dateField' => ['except' => 'created'],
         'dateFrom' => ['except' => ''], 'dateTo' => ['except' => ''], 'sourceFilter' => ['except' => ''], 'partnerFilter' => ['except' => ''],
+        'creatorFilter' => ['except' => ''],
     ];
 
     public function updatingSearchTerm(): void { $this->resetPage(); }
@@ -39,7 +42,7 @@ class OpticalOrdersComponent extends Component
 
     public function updated($name): void
     {
-        if (in_array($name, ['dateField', 'dateFrom', 'dateTo', 'sourceFilter', 'partnerFilter'], true)) $this->resetPage();
+        if (in_array($name, ['dateField', 'dateFrom', 'dateTo', 'sourceFilter', 'partnerFilter', 'creatorFilter'], true)) $this->resetPage();
         // A partner clinic only makes sense for partner jobs.
         if ($name === 'sourceFilter' && $this->sourceFilter !== 'partner') $this->partnerFilter = '';
     }
@@ -66,11 +69,11 @@ class OpticalOrdersComponent extends Component
 
     public function clearFilters(): void
     {
-        $this->reset(['searchTerm', 'dateField', 'dateFrom', 'dateTo', 'sourceFilter', 'partnerFilter']);
+        $this->reset(['searchTerm', 'dateField', 'dateFrom', 'dateTo', 'sourceFilter', 'partnerFilter', 'creatorFilter']);
         $this->setFilter('');
     }
 
-    /** Search, dates, source and partner: everything except the status chip. */
+    /** Search, dates, source, partner and creator: everything except the status chip. */
     private function baseQuery()
     {
         $column = $this->dateField === 'pickup' ? 'pickUpDate' : 'created_at';
@@ -91,7 +94,8 @@ class OpticalOrdersComponent extends Component
             ->when($this->validDate($this->dateFrom), fn ($q) => $q->whereDateIndexed($column, '>=', $this->dateFrom))
             ->when($this->validDate($this->dateTo), fn ($q) => $q->whereDateIndexed($column, '<=', $this->dateTo))
             ->when(array_key_exists($this->sourceFilter, self::SOURCES), fn ($q) => $q->where('order_source', $this->sourceFilter))
-            ->when($this->sourceFilter === 'partner' && $this->partnerFilter !== '', fn ($q) => $q->where('partner_clinic_id', (int) $this->partnerFilter));
+            ->when($this->sourceFilter === 'partner' && $this->partnerFilter !== '', fn ($q) => $q->where('partner_clinic_id', (int) $this->partnerFilter))
+            ->when(ctype_digit($this->creatorFilter), fn ($q) => $q->where('user_id', (int) $this->creatorFilter));
     }
 
     private function validDate(string $value): bool
@@ -129,7 +133,9 @@ class OpticalOrdersComponent extends Component
                 ->mapWithKeys(fn ($o) => [$o->id => \App\Support\Optical\ClinicSpectacleBilling::summary($o->refraction)]),
             'filterCounts' => collect(array_keys(self::FILTERS))->mapWithKeys(fn ($key) => [$key => $this->applyFilter($this->baseQuery(), $key)->count()]),
             'partners' => $this->sourceFilter === 'partner' ? \App\Models\OpticalPartnerClinic::orderBy('name')->get(['id', 'name', 'is_active']) : collect(),
-            'narrowed' => $this->searchTerm !== '' || $this->dateFrom !== '' || $this->dateTo !== '' || $this->sourceFilter !== '',
+            // Staff who have created orders here, including any who have since left.
+            'creators' => \App\Models\User::whereIn('id', LensOrder::query()->whereNotNull('user_id')->distinct()->select('user_id'))->orderBy('name')->get(['id', 'name']),
+            'narrowed' => $this->searchTerm !== '' || $this->dateFrom !== '' || $this->dateTo !== '' || $this->sourceFilter !== '' || $this->creatorFilter !== '',
             'notifier' => app(\App\Services\OpticalCollectionNotifier::class),
         ])
             ->layout('layouts.optical');

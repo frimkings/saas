@@ -117,7 +117,7 @@
                         <div class="flex items-center justify-between border-b border-slate-100 pb-1">
                             <div>
                                 <p class="font-medium text-slate-800">{{ $product->name }}</p>
-                                <p class="ui-muted">{{ $product->category?->name }}</p>
+                                <p class="ui-muted">{{ $product->categoryLabel() }}</p>
                             </div>
                             <span class="font-bold text-red-600">{{ $product instanceof \App\Models\OpticalProduct ? ($product->stocks->first()?->quantity ?? 0) : app(\App\Services\Inventory\BranchInventoryService::class)->quantity($product) }} left</span>
                         </div>

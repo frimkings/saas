@@ -70,6 +70,18 @@
                             <td>
                                 <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ $ord->frame_model_number ?: ($ord->serviceLines->pluck('description')->join(', ') ?: '—') }}</span>
                                 @if($lensSpec !== '')<span class="oo-sub">{{ $lensSpec }}</span>@endif
+                                @foreach($ord->lensLines as $lens)
+                                    @php
+                                        $lensState = match (true) {
+                                            $lens->source === 'special_order' && $lens->status === 'ordered' => ['awaited from supplier', '#92400e'],
+                                            $lens->source === 'special_order' && $lens->status === 'received' => ['arrived', '#047857'],
+                                            $lens->status === 'held' => ['in stock, held', '#047857'],
+                                            $lens->status === 'consumed' => ['taken from stock', '#475569'],
+                                            default => [$lens->status, '#475569'],
+                                        };
+                                    @endphp
+                                    <span class="oo-sub" style="white-space:nowrap">{{ strtoupper($lens->eye) }} {{ sprintf('%+.2f', $lens->sphere) }} / {{ sprintf('%+.2f', $lens->power) }} · <b style="color:{{ $lensState[1] }}">{{ $lensState[0] }}</b></span>
+                                @endforeach
                             </td>
                             <td style="white-space:nowrap">
                                 {{ $pickup?->format('d M Y') ?? '—' }}

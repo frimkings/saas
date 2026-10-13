@@ -54,6 +54,21 @@ class AuditTrail extends Model
         ]);
     }
 
+    /**
+     * Save a model and record what changed as "{event}_created" or "{event}_updated", with
+     * the old and new values. Nothing is recorded when nothing changed.
+     */
+    public static function recordSave(Model $model, string $event, string $subject, ?int $patientId = null): void
+    {
+        $isNew = ! $model->exists;
+        $changes = array_diff_key($model->getDirty(), array_flip(['created_at', 'updated_at']));
+        $before = $isNew ? [] : array_intersect_key($model->getOriginal(), $changes);
+        $model->save();
+        if ($isNew || $changes) {
+            self::record($event.($isNew ? '_created' : '_updated'), ($isNew ? 'Added ' : 'Changed ').$subject, $model, $before, $changes, $patientId);
+        }
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

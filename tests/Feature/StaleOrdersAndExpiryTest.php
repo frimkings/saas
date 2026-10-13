@@ -208,9 +208,9 @@ class StaleOrdersAndExpiryTest extends TestCase
         $category = DB::table('optical_categories')->insertGetId(['clinic_id' => $this->clinic->id, 'code' => 'CL', 'name' => 'Contact lenses',
             'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $lens = OpticalProduct::create(['clinic_id' => $this->clinic->id, 'optical_category_id' => $category, 'sku' => 'CL-' . Str::random(5),
-            'name' => 'Monthly contact lenses', 'cost_price' => 20, 'selling_price' => 40, 'is_active' => true]);
+            'name' => 'Monthly contact lenses', 'type' => 'lens', 'cost_price' => 20, 'selling_price' => 40, 'is_active' => true]);
         $frame = OpticalProduct::create(['clinic_id' => $this->clinic->id, 'optical_category_id' => $category, 'sku' => 'FR-' . Str::random(5),
-            'name' => 'Frame', 'cost_price' => 20, 'selling_price' => 40, 'is_active' => true]);
+            'name' => 'Frame', 'type' => 'frame', 'cost_price' => 20, 'selling_price' => 40, 'is_active' => true]);
         $ledger = app(OpticalStockLedgerService::class);
         $ledger->receive($lens, 6, ['batch_number' => 'L1', 'expiry_date' => '2026-10-25', 'unit_cost' => 20, 'unit_price' => 40]);
         $ledger->receive($frame, 3, ['unit_cost' => 20, 'unit_price' => 40]);   // frames do not expire

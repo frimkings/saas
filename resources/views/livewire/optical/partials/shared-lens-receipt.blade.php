@@ -1,14 +1,44 @@
 @php $fullPage = $fullPage ?? false; @endphp
 {{-- Totals, row sums and the override list are worked out in the browser (lensReceipt, resources/js/live-totals.js); the server recalculates on save. --}}
 <div class="space-y-4" x-data="lensReceipt(@js(\App\Support\LensDesign::EYE_SPECIFIC))">
-    @if($fullPage)<h2 class="lens-receipt-step">1. Lens range</h2>@endif
-    <p class="text-xs text-slate-600">Receive individual stock lenses supplied to optical shops. Choose a saved range or enter a new manufacturer / range name.</p>
+    @if($fullPage)<h2 class="lens-receipt-step">1. Lens</h2>@endif
+    <p class="text-xs text-slate-600">Choose the lens: type, form, treatment and manufacturer. Each combination is kept as its own stock. Lists are kept under Optical → Settings → Lens options.</p>
+    @php $lensOptions = \App\Support\Optical\LensOptions::class; @endphp
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label class="text-xs">Manufacturer / lens range *<input autocomplete="off" list="lens-ranges" wire:model.live.blur="lensRange" maxlength="100" class="ui-input w-full" placeholder="Select or add a lens range"><datalist id="lens-ranges">@foreach($lensRanges as $range)<option value="{{ $range }}">@endforeach</datalist></label>
-        <label class="text-xs">Design *<select wire:model.live="lensDesign" class="ui-input w-full"><option>Single Vision</option><option>Bifocal</option><option>Progressive</option></select></label>
-        <label class="text-xs">Index *<select wire:model.live="lensIndex" class="ui-input w-full">@foreach(['1.50','1.56','1.60','1.61','1.67','1.74'] as $index)<option>{{ $index }}</option>@endforeach</select></label>
-        <label class="text-xs">Treatment *<select wire:model.live="lensCoating" class="ui-input w-full"><option value="AR">Clear AR</option><option>Photo AR</option><option>Photo Gray</option><option value="Photochromic">Photochromic</option><option value="Blue AR">Blue AR</option><option value="BlueCut">Blue cut</option><option>Transitions</option><option value="HC">Hard coat</option></select></label>
-        <label class="text-xs">Diameter (mm) *<input autocomplete="off" wire:model.live.blur="lensDiameter" type="number" min="40" max="100" class="ui-input w-full"></label>
+        <label class="text-xs">Lens type *<select wire:model.live="lensDesign" class="ui-input w-full">@foreach($lensOptions::choices('design', $lensDesign) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
+        <label class="text-xs">Form *<select wire:model.live="lensForm" class="ui-input w-full">@foreach($lensOptions::choices('form', $lensForm, $lensDesign) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select>@error('lensForm')<span class="text-red-600">{{ $message }}</span>@enderror</label>
+        <label class="text-xs">Treatment *<select wire:model.live="lensCoating" class="ui-input w-full">@foreach($lensOptions::choices('treatment', $lensCoating) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach</select></label>
+        <div class="text-xs" x-data="{ adding: false }">
+            <label for="lens-manufacturer" class="block">Manufacturer *</label>
+            <div class="flex gap-2">
+                <select id="lens-manufacturer" wire:model.live="lensRange" class="ui-input w-full">
+                    <option value="">Choose the manufacturer</option>
+                    @foreach($lensOptions::choices('manufacturer', $lensRange) as $code => $name)<option value="{{ $code }}">{{ $name }}</option>@endforeach
+                    @if($lensRange !== '' && ! array_key_exists($lensRange, $lensOptions::choices('manufacturer', $lensRange)))<option value="{{ $lensRange }}">{{ $lensRange }} (not in list)</option>@endif
+                </select>
+                <button type="button" x-on:click="adding = ! adding" class="ui-button ui-button-secondary !px-3 whitespace-nowrap" :aria-expanded="adding.toString()">+ Add</button>
+            </div>
+            <div x-show="adding" x-cloak class="mt-1 flex gap-2">
+                <label for="new-manufacturer" class="sr-only">New manufacturer</label>
+                <input id="new-manufacturer" wire:model="newManufacturer" maxlength="100" placeholder="New manufacturer name" class="ui-input w-full" x-on:keydown.enter.prevent="$wire.addManufacturer().then(() => adding = false)">
+                <button type="button" wire:click="addManufacturer" x-on:click="adding = false" class="ui-button ui-button-primary !px-3">Save</button>
+            </div>
+            @error('newManufacturer')<span class="text-red-600">{{ $message }}</span>@enderror
+            @error('lensRange')<span class="text-red-600">{{ $message }}</span>@enderror
+            {{-- A manufacturer brought in by a workbook that isn't on the list yet. --}}
+            @if($rangeHint = $this->rangeHint())
+                <span class="mt-1 block rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900" role="status">“{{ $rangeHint['typed'] }}” is not in your manufacturers.
+                    @if($rangeHint['suggest'])Did you mean <button type="button" wire:click="useRange(@js($rangeHint['suggest']))" class="font-semibold underline">{{ $rangeHint['suggest'] }}</button>, or @endif
+                    <button type="button" wire:click="addManufacturer" class="font-semibold underline">add it as a new manufacturer</button>?</span>
+            @endif
+        </div>
+        <details class="text-xs sm:col-span-2" @if($errors->hasAny(['lensIndex', 'lensDiameter'])) open @endif>
+            <summary class="cursor-pointer text-slate-600">More: index {{ $lensIndex }} · diameter {{ $lensDiameter }} mm</summary>
+            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label>Index *<select wire:model.live="lensIndex" class="ui-input w-full">@foreach(['1.50','1.56','1.60','1.61','1.67','1.74'] as $index)<option>{{ $index }}</option>@endforeach</select></label>
+                <label>Diameter (mm) *<input autocomplete="off" wire:model.live.blur="lensDiameter" type="number" min="40" max="100" class="ui-input w-full"></label>
+            </div>
+        </details>
         <label class="text-xs">Entry mode<select wire:model.live="entryMode" class="ui-input w-full"><option value="single">Single power</option><option value="bulk">{{ $fullPage ? 'Bulk grid / Excel import' : 'Bulk grid / Excel import (opens full page)' }}</option></select></label>
         @if(\App\Support\LensDesign::isEyeSpecific($lensDesign))
             <fieldset class="text-xs sm:col-span-2">
@@ -61,18 +91,34 @@
             @if($excelPreview)
                 <p class="text-sm font-semibold">{{ $excelPreview['sheet'] }}: {{ $excelPreview['sourceTotal'] }} {{ $excelUnit }} = {{ $excelPreview['total'] }} pieces</p>
                 @if(!empty($excelPreview['sectionTotals']))<p class="text-xs">Section quantities: {{ implode(' + ', $excelPreview['sectionTotals']) }} {{ $excelUnit }}. Prices below are per individual lens.</p>@endif
+                @if(!empty($excelPreview['halves']) && empty($excelPreview['odd']))<p class="text-xs">{{ $excelPreview['halves'] }} {{ $excelPreview['halves'] === 1 ? 'power has' : 'powers have' }} a half pair: each half is received as one loose lens.</p>@endif
+                @if(!empty($excelPreview['odd']))
+                    <div class="rounded border border-slate-300 p-3 text-xs space-y-2">
+                        <p><strong>{{ count($excelPreview['odd']) }} {{ count($excelPreview['odd']) === 1 ? 'power has' : 'powers have' }} a half pair.</strong> A half pair is one loose lens; choose which eye each one is for.</p>
+                        <div class="flex flex-wrap gap-2"><button type="button" wire:click="setOddEyes('R')" class="ui-button text-xs">All right</button><button type="button" wire:click="setOddEyes('L')" class="ui-button text-xs">All left</button></div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($excelPreview['odd'] as $cell => $lens)
+                                <label wire:key="odd-{{ $cell }}" class="flex items-center gap-1">{{ $lens['sphere'] }} / {{ $lens['power'] }}
+                                    <select wire:model="oddEyes.{{ $cell }}" class="ui-input !w-auto !py-1 text-xs" aria-label="Eye for the odd lens {{ $lens['sphere'] }} / {{ $lens['power'] }}"><option value="">Eye…</option><option value="R">Right</option><option value="L">Left</option></select>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('oddEyes')<p class="text-red-700" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                @endif
                 @if(!empty($excelPreview['warnings']))
                     <div class="rounded border border-amber-300 bg-amber-50 p-3 text-xs" role="alert">@foreach($excelPreview['warnings'] as $warning)<p>{{ $warning }}</p>@endforeach
                     <label class="flex gap-2 mt-2"><input type="checkbox" wire:model="excelWarningsAccepted">I reviewed the quantity units and differences above.</label></div>
                 @endif
                 <p class="text-xs">@if(is_numeric($unitCost))Estimated receipt cost at GHS {{ number_format((float)$unitCost,2) }} per lens: GHS {{ number_format($excelPreview['total'] * (float)$unitCost,2) }}@else Enter unit cost below to calculate receipt cost.@endif</p>
                 <div class="overflow-auto" style="max-height: {{ $fullPage ? '45vh' : '12rem' }}"><table class="ui-table w-full"><thead><tr><th>Sheet row</th><th>SPH</th><th>{{ $lensDesign === 'Single Vision' ? 'CYL' : 'ADD' }}</th><th>{{ !empty($excelPreview['perEye']) ? 'Pairs (R + L)' : 'Pieces' }}</th></tr></thead><tbody>
-                @foreach($excelPreview['lines'] as $line)<tr><td>{{ $line['row'] }}</td><td>{{ $line['sphere'] }}</td><td>{{ $line['power'] }}</td><td>{{ $line['quantity'] }}</td></tr>@endforeach
+                @foreach($excelPreview['lines'] as $line)<tr><td>{{ $line['row'] }}</td><td>{{ $line['sphere'] }}</td><td>{{ $line['power'] }}</td><td>{{ $line['quantity'] }}@if(!empty($excelPreview['perEye']) && !empty($line['half'])) + 1 lens @endif</td></tr>@endforeach
                 </tbody></table></div>
                 <p class="text-xs">Applying replaces the current bulk quantities and clears per-power price overrides. Stock is recorded only when you confirm the receipt.</p>
                 <button type="button" wire:click="applyExcel" wire:loading.attr="disabled" class="ui-button ui-button-primary">Apply preview to bulk grid</button>
             @endif
         </section>
+        @if(!empty($importSource['odd']))<p class="text-xs text-teal-800">Plus {{ count($importSource['odd']) }} loose {{ count($importSource['odd']) === 1 ? 'lens' : 'lenses' }} from half pairs, not shown in the grid: {{ collect($importSource['odd'])->map(function ($eye, $cell) use ($lensDesign) { [$r, $c] = explode(':', $cell); return sprintf('%+.2f', -15 + $r * .25).' / '.sprintf('%+.2f', $lensDesign === 'Single Vision' ? -$c * .25 : .25 + $c * .25).' '.$eye; })->implode(', ') }}.</p>@endif
         @if($importedSummary)<p class="text-xs text-teal-800">Imported: {{ $importedSummary }}. {{ $lensEye === 'B' ? 'All grid quantities below are pairs: each adds one right and one left lens.' : 'All grid quantities below are individual pieces.' }}</p>@endif
         <label class="flex gap-2 text-xs"><input type="checkbox" wire:model.live="templateGrid">Use lens order grid layout</label>
         @if($templateGrid)
@@ -106,11 +152,11 @@
     @php $priceList = $this->rangePriceList(); @endphp
     @if($fullPage)<h2 class="lens-receipt-step">{{ $entryMode === 'bulk' ? '3' : '2' }}. Pricing</h2>@endif
     <div class="grid grid-cols-2 gap-3">
-        <label class="text-xs">{{ $entryMode === 'bulk' ? 'Default unit cost' : 'Unit cost' }} (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model="unitCost" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitCost !== '' && ! isNaN(parseFloat($wire.unitCost))" x-text="'= GHS ' + money(num($wire.unitCost) * 2) + ' per pair'"></span></label>
+        <label class="text-xs">{{ $entryMode === 'bulk' ? 'Default unit cost' : 'Unit cost' }} (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model.blur="unitCost" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitCost !== '' && ! isNaN(parseFloat($wire.unitCost))" x-text="'= GHS ' + money(num($wire.unitCost) * 2) + ' per pair'"></span></label>
         @if($priceList)
         <p class="text-xs rounded border border-teal-200 bg-teal-50 p-2">Selling price comes from the lens price list: GHS {{ number_format((float) $priceList->pair_price, 2) }} per pair (GHS {{ number_format((float) $priceList->pair_price / 2, 2) }} per lens){{ $priceList->rules->isNotEmpty() ? ', with '.$priceList->rules->count().' power exception(s)' : '' }}. Change it in Lens Catalogue → Lens prices.</p>
         @else
-        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model="unitPrice" class="ui-input w-full"></label>
+        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model.blur="unitPrice" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitPrice !== '' && ! isNaN(parseFloat($wire.unitPrice))" x-text="'= GHS ' + money(num($wire.unitPrice) * 2) + ' per pair'"></span></label>
         @endif
     </div>
     @if($entryMode === 'bulk')
@@ -142,7 +188,7 @@
     <h2 class="lens-receipt-step">{{ $entryMode === 'bulk' ? '4' : '3' }}. Supplier &amp; invoice</h2>
     @endunless
     <div class="grid grid-cols-2 gap-3">
-        <label class="text-xs">Supplier *<input autocomplete="off" wire:model="supplier" maxlength="180" class="ui-input w-full"></label>
+        <label class="text-xs">Supplier *<input autocomplete="off" wire:model="supplier" maxlength="180" class="ui-input w-full"><span class="text-slate-500">The company you bought this delivery from. Recorded on this delivery only.</span></label>
         <label class="text-xs">Batch / lot number<input autocomplete="off" wire:model="batchNumber" maxlength="100" class="ui-input w-full"></label>
         <label class="text-xs">Invoice / receipt reference<input autocomplete="off" wire:model="reference" maxlength="100" class="ui-input w-full"></label>
     </div>

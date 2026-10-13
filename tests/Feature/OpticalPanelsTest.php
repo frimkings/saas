@@ -114,9 +114,9 @@ class OpticalPanelsTest extends TestCase
     public function test_catalogue_item_panel_uses_reorder_levels_and_links_to_edit(): void
     {
         $category = \App\Models\OpticalCategory::create(['code' => 'FRAMES', 'name' => 'Frames', 'is_active' => true]);
-        $low = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Low Frame', 'sku' => 'FRM-LOW', 'selling_price' => 100, 'cost_price' => 60, 'is_active' => true]);
-        $fine = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Plenty Frame', 'sku' => 'FRM-OK', 'selling_price' => 80, 'cost_price' => 40, 'is_active' => true]);
-        $empty = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Gone Frame', 'sku' => 'FRM-OUT', 'selling_price' => 90, 'cost_price' => 45, 'is_active' => true]);
+        $low = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Low Frame', 'type' => 'frame', 'sku' => 'FRM-LOW', 'selling_price' => 100, 'cost_price' => 60, 'is_active' => true]);
+        $fine = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Plenty Frame', 'type' => 'frame', 'sku' => 'FRM-OK', 'selling_price' => 80, 'cost_price' => 40, 'is_active' => true]);
+        $empty = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Gone Frame', 'type' => 'frame', 'sku' => 'FRM-OUT', 'selling_price' => 90, 'cost_price' => 45, 'is_active' => true]);
         \App\Models\OpticalProductStock::create(['optical_product_id' => $low->id, 'quantity' => 8, 'reorder_level' => 10]);
         \App\Models\OpticalProductStock::create(['optical_product_id' => $fine->id, 'quantity' => 3, 'reorder_level' => 2]);
         \App\Models\OpticalProductStock::create(['optical_product_id' => $empty->id, 'quantity' => 0, 'reorder_level' => 2]);
@@ -135,7 +135,7 @@ class OpticalPanelsTest extends TestCase
     public function test_stock_count_sheet_can_be_closed(): void
     {
         $category = \App\Models\OpticalCategory::create(['code' => 'FRAMES', 'name' => 'Frames', 'is_active' => true]);
-        $frame = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Count Frame', 'sku' => 'FRM-CNT', 'selling_price' => 100, 'cost_price' => 60, 'is_active' => true]);
+        $frame = \App\Models\OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Count Frame', 'type' => 'frame', 'sku' => 'FRM-CNT', 'selling_price' => 100, 'cost_price' => 60, 'is_active' => true]);
         \App\Models\OpticalProductStock::create(['optical_product_id' => $frame->id, 'quantity' => 4, 'reorder_level' => 2]);
         $count = app(\App\Services\OpticalStockCountService::class)->start('all', null, 'Test count');
 

@@ -51,7 +51,7 @@ class CostAtSaleAndTrackedExpensesTest extends TestCase
         $this->assertEquals(10, $item->fresh()->unit_cost, 'Cost is kept when the item is sold.');
 
         $opticalCategory = OpticalCategory::create(['code' => 'FRAMES', 'name' => 'Frames', 'is_active' => true]);
-        $frame = OpticalProduct::create(['optical_category_id' => $opticalCategory->id, 'name' => 'Cost Frame', 'sku' => 'CF-1', 'selling_price' => 200, 'cost_price' => 80]);
+        $frame = OpticalProduct::create(['optical_category_id' => $opticalCategory->id, 'name' => 'Cost Frame', 'type' => 'frame', 'sku' => 'CF-1', 'selling_price' => 200, 'cost_price' => 80]);
         SaleItem::create(['sale_id' => $this->sale('optical', 'OPOS-COST-1', 200)->id, 'optical_product_id' => $frame->id,
             'prescribed_quantity' => 0, 'dispensed_quantity' => 1, 'selling_price' => 200, 'subtotal' => 200]);
 

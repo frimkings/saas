@@ -74,7 +74,7 @@
     <p><strong>Frame:</strong> {{ $order->frame_model_number }} @if($order->frameOpticalProduct) ({{ $order->frameOpticalProduct->sku }}) @elseif($order->frameProduct) ({{ $order->frameProduct->name }}) @endif</p>
     @endif
     @if($order->work_type !== 'service')
-    <p><strong>Lenses:</strong> {{ data_get($details, 'lens_details.type', '—') }} · Index {{ data_get($details, 'lens_details.index', '—') }} · {{ data_get($details, 'lens_details.coatings', '—') }}</p>
+    <p><strong>Lenses:</strong> {{ trim(data_get($details, 'lens_details.type', '—').' '.data_get($details, 'lens_details.stock_form')) }} · Index {{ data_get($details, 'lens_details.index', '—') }} · {{ data_get($details, 'lens_details.coatings', '—') }}</p>
     @if($order->lensOpticalProduct)<p><strong>Lens SKU:</strong> {{ $order->lensOpticalProduct->sku }} · {{ $order->lensOpticalProduct->name }}</p>@endif
     @endif
     <p><strong>Instructions:</strong> {{ data_get($details, 'lab.instructions', '—') }}</p>

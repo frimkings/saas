@@ -341,6 +341,46 @@ class OwnerAlerts
             $short->isNotEmpty() ? 'Missing stock can mean theft, breakages or sales not recorded. Worth asking the team.' : null);
     }
 
+    /**
+     * Staff typed the price of a special-order lens (there was no stock price for it), so
+     * the owner can check it covers what the lab will charge.
+     *
+     * @param  array<string, string>  $eyes  "OS lens" => "SPH -2.00, ADD +2.50 · GHS 180.00"
+     */
+    public function specialLensPriced(\App\Models\LensOrder $order, array $eyes, string $lens): void
+    {
+        $clinic = $this->currentClinic();
+        if (! $clinic) return;
+        $this->notice($clinic, 'special_lens_priced', 'special_lens:'.$order->id,
+            'Special-order lens priced by staff',
+            (auth()->user()?->name ?? 'Someone')." placed order {$order->order_id} for {$order->display_customer_name} with a special-order lens priced by hand.",
+            array_filter(['Lens' => $lens ?: null] + $eyes + ['Order total' => $this->money($clinic, $order->total), 'Branch' => app(TenantContext::class)->branch()?->name]),
+            'View orders', route('optical.orders'),
+            'Check the price covers what the lab will charge for this lens.');
+    }
+
+    /**
+     * A paid job needs lenses bought in. Nothing is made until someone puts them on a
+     * supplier order, so the owner is told as soon as the order is placed.
+     */
+    public function specialOrderPlaced(\App\Models\LensOrder $order, string $lenses, float $charged): void
+    {
+        $clinic = $this->currentClinic();
+        if (! $clinic) return;
+        $this->notice($clinic, 'special_order_placed', 'special_order:'.$order->id,
+            'Special-order lenses to buy',
+            ($order->user?->name ?? auth()->user()?->name ?? 'Someone')." placed order {$order->order_id} for {$order->display_customer_name}".((float) $order->paid_amount > 0 ? ' and payment has been taken' : '').". Its lenses are not in stock and need to be ordered from a supplier.",
+            array_filter([
+                'Lenses' => $lenses,
+                'Charged to customer' => $this->money($clinic, $charged),
+                'Paid so far' => $this->money($clinic, $order->paid_amount),
+                'Promised for' => $order->pickUpDate ? \Illuminate\Support\Carbon::parse($order->pickUpDate)->format('j M Y') : null,
+                'Branch' => app(TenantContext::class)->branch()?->name,
+            ]),
+            'Order the lenses', route('optical.purchasing', ['tab' => 'special']),
+            'The job cannot be made until these lenses are on a supplier order and have arrived.');
+    }
+
     private const ADMIN_ROLES = ['Manager', 'Super Admin'];
 
     /** Whether a role list gives admin access that the old list didn't. */
