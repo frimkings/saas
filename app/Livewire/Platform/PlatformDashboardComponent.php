@@ -18,6 +18,8 @@ class PlatformDashboardComponent extends Component
  public string $search='',$planFilter='',$statusFilter='',$deploymentFilter='',$limitFilter='',$productFilter=''; public ?int $selectedClinicId=null;
     public string $deleteClinicConfirmation='';
     public bool $deleteClinicAccounts=false;
+    /** Why a clinic that still has records is being erased (required for those; kept in the platform audit log). */
+    public string $deleteClinicReason='';
     // Clinic side panel
     public string $panelTab='overview';
     public array $clinicForm=[];
@@ -54,12 +56,12 @@ class PlatformDashboardComponent extends Component
     public bool $newAdminLinkExisting=false;
 
  public function mount(){if(!in_array($this->tab,['dashboard','clinics','plans','billing','onboarding','audit','licenses'],true))$this->tab='dashboard';} public function updatedSearch(){ $this->resetPage(); } public function resetFilters(){ $this->reset(['search','planFilter','statusFilter','deploymentFilter','limitFilter','productFilter']);$this->resetPage(); } public function setTab(string $v){abort_unless(in_array($v,['dashboard','clinics','plans','billing','onboarding','audit','licenses']),422);$this->tab=$v;$this->selectedClinicId=null;$this->resetPage();} public function selectClinic(int $id){$clinic=Clinic::with('currentSubscription')->findOrFail($id);$this->selectedClinicId=$clinic->id;
-        $this->reset('deleteClinicConfirmation','deleteClinicAccounts','statusReason','panelPlanId','panelReason','renewPayNow','renewReference','panelInvoiceId','panelPaymentAmount','panelPaymentReference');
+        $this->reset('deleteClinicConfirmation','deleteClinicAccounts','deleteClinicReason','statusReason','panelPlanId','panelReason','renewPayNow','renewReference','panelInvoiceId','panelPaymentAmount','panelPaymentReference');
         $this->resetErrorBag();$this->panelTab='overview';
         $this->panelInterval=$clinic->currentSubscription?->billing_interval==='yearly'?'yearly':'monthly';
         $this->clinicForm=$clinic->only(['name','domain','billing_email','billing_phone','billing_legal_name','billing_tax_id','billing_address','default_timezone','default_currency']);}
 
-    public function closeClinic(){$this->reset('selectedClinicId','clinicForm','deleteClinicConfirmation','deleteClinicAccounts','statusReason');$this->resetErrorBag();}
+    public function closeClinic(){$this->reset('selectedClinicId','clinicForm','deleteClinicConfirmation','deleteClinicAccounts','deleteClinicReason','statusReason');$this->resetErrorBag();}
 
     public function setPanelTab(string $tab){abort_unless(in_array($tab,['overview','plan','billing','people','danger'],true),422);$this->panelTab=$tab;$this->resetErrorBag();}
 
@@ -230,20 +232,28 @@ class PlatformDashboardComponent extends Component
     /** A new product choice clears a plan picked for a different product. */
     public function updatedNewClinicProduct(){if($this->newPlanId&&SubscriptionPlan::whereKey($this->newPlanId)->value('product')!==$this->newClinicProduct)$this->newPlanId=null;}
     public function updatedNewClinicSlug(){$this->slugEdited=true;}
+    /** What the clinic still owes on its invoices, shown before it is erased. */
+    public function clinicOutstanding(int $clinicId): float{return round((float)PlatformInvoice::where('clinic_id',$clinicId)->whereNotIn('status',['paid','void','credited'])->get()->sum(fn($i)=>$i->balance()),2);}
     /** The account the Super Admin email already belongs to, if any. */
     public function existingAdmin(): ?User{$email=strtolower(trim($this->newAdminEmail));return $email===''?null:User::whereRaw('LOWER(email) = ?',[$email])->first();}
     public function updatedNewAdminEmail(){$this->newAdminLinkExisting=false;}
     private function onboardingRules(): array{return ['newClinicName'=>'required|max:255','newClinicSlug'=>'required|alpha_dash|unique:clinics,slug','newClinicDomain'=>'nullable|max:255|unique:clinics,domain','newClinicDeployment'=>'required|in:hosted,local','newClinicEmail'=>'nullable|email','newBranchCode'=>'required|max:30','newBranchName'=>'required|max:255','newBranchTimezone'=>'required|timezone','newAdminName'=>'required|max:255','newAdminEmail'=>['required','email',function($attribute,$value,$fail){if($this->existingAdmin()&&!$this->newAdminLinkExisting)$fail('This email already has an account. Tick the box below to make that person the owner of this business too, or use a different email.');}],'newAdminLinkExisting'=>'boolean','newClinicProduct'=>['required',Rule::in(array_keys(\App\Support\PlanProduct::PRODUCTS))],'newPlanId'=>['required',Rule::exists('subscription_plans','id')->where('product',$this->newClinicProduct)->where('is_active',true)]];}
 
-    // Permanently deletes an empty clinic (e.g. a duplicate created by hand). Clinics with data are refused by the service.
+    // Permanently deletes a clinic. An empty one (a duplicate created by hand) needs only the typed phrase. One with patients, sales or
+    // consultations (a clinic that has ceased operation) is erased too, records and all, and needs a reason; what it held, and what it
+    // had been billed and still owed, is written to the platform audit log, which is all that remains of it.
     public function deleteClinic(int $id,LegacyClinicImportService $service,PlatformAuditService $audit){
-        $clinic=Clinic::findOrFail($id);
+        $clinic=Clinic::findOrFail($id);$this->resetErrorBag(['deleteClinic','deleteClinicReason']);
         if($this->deleteClinicConfirmation!=='DELETE '.$clinic->slug){$this->addError('deleteClinic','Type the exact confirmation phrase shown.');return;}
-        if($blocker=$service->clinicDeletionBlocker($clinic->id)){$this->addError('deleteClinic',$blocker);return;}
+        if($blocker=$service->clinicDeletionBlocker($clinic->id,true)){$this->addError('deleteClinic',$blocker);return;}
+        $records=$service->clinicRecordCounts($clinic->id);$reason=trim($this->deleteClinicReason);
+        if($records&&mb_strlen($reason)<10){$this->addError('deleteClinicReason','Say why this clinic is being erased (at least 10 characters). It is kept in the platform audit log.');return;}
+        $invoices=PlatformInvoice::where('clinic_id',$clinic->id)->get();
+        $billing=['invoices'=>$invoices->count(),'billed'=>round((float)$invoices->sum('total'),2),'paid'=>round((float)$invoices->sum('amount_paid'),2),'outstanding'=>$this->clinicOutstanding($clinic->id)];
         $accounts=$this->deleteClinicAccounts?$service->clinicOnlyAccounts($clinic->id)->pluck('id')->all():[];
-        $summary=$service->deleteClinic($clinic->id,$accounts);
-        $audit->record('clinic.deleted',null,['clinic_name'=>$clinic->name,'clinic_slug'=>$clinic->slug],['deleted'=>$summary['deleted'],'deleted_user_count'=>count($summary['deleted_user_ids'])]);
-        $this->reset('selectedClinicId','deleteClinicConfirmation','deleteClinicAccounts');
+        $summary=$service->deleteClinic($clinic->id,$accounts,true);
+        $audit->record('clinic.deleted',null,['clinic_name'=>$clinic->name,'clinic_slug'=>$clinic->slug,'records'=>$records,'billing'=>$billing],['deleted'=>$summary['deleted'],'deleted_user_count'=>count($summary['deleted_user_ids'])],$reason?:null);
+        $this->reset('selectedClinicId','deleteClinicConfirmation','deleteClinicAccounts','deleteClinicReason');
         session()->flash('success',$clinic->name.' was permanently deleted.'.($summary['file_cleanup_errors']?' Some stored files could not be deleted and were logged.':''));
     }
  public function savePlan(){ $d=$this->validate(['planName'=>'required|max:100','planCode'=>['required','alpha_dash',Rule::unique('subscription_plans','code')->ignore($this->editingPlanId)],'includedBranches'=>'nullable|integer|min:1','includedUsers'=>'nullable|integer|min:1','storageLimitMb'=>'nullable|integer|min:1','basePrice'=>'required|numeric|min:0','annualPrice'=>'required|numeric|min:0','additionalBranchPrice'=>'required|numeric|min:0','currency'=>'required|size:3','trialDays'=>'required|integer|min:0','graceDays'=>'required|integer|min:0','taxRate'=>'required|numeric|min:0|max:100','planProduct'=>['required',Rule::in(array_keys(\App\Support\PlanProduct::PRODUCTS))],'planExtras'=>'array','planExtras.*'=>[Rule::in(array_keys(\App\Support\PlanProduct::EXTRAS))],'planAllExtras'=>'boolean'],[],['planProduct'=>'product']);$extras=array_values(array_intersect($d['planExtras']??[],array_keys(\App\Support\PlanProduct::extrasFor($d['planProduct']))));$current=$this->editingPlanId?SubscriptionPlan::findOrFail($this->editingPlanId):null;$old=$current?->toArray()??[];$attributes=['name'=>$d['planName'],'code'=>$d['planCode'],'included_branches'=>$d['includedBranches'],'included_users'=>$d['includedUsers'],'storage_limit_mb'=>$d['storageLimitMb'],'base_price'=>$d['basePrice'],'annual_price'=>$d['annualPrice'],'additional_branch_price'=>$d['additionalBranchPrice'],'currency'=>strtoupper($d['currency']),'trial_days'=>$d['trialDays'],'grace_days'=>0,'tax_rate'=>$d['taxRate'],'product'=>$d['planProduct'],'features'=>\App\Support\PlanProduct::features($d['planProduct'],$extras,(bool)$d['planAllExtras']),'is_active'=>true];$p=app(PlanVersioningService::class)->save($current,$attributes);app(PlatformAuditService::class)->record($current?'PLAN_VERSION_CREATED':'PLAN_CREATED',null,$old,$p->toArray());$this->reset(['editingPlanId','planName','planCode','planExtras','planAllExtras']);if($this->showPlanPanel){$this->openPlan($p->id);session()->flash('panel_message',$current?"Saved as version {$p->version} ({$p->code}). Clinics on earlier versions keep their current terms.":'Plan created.');} }
