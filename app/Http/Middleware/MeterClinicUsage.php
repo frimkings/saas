@@ -32,20 +32,23 @@ class MeterClinicUsage
         $response = $next($request);
 
         // Platform admins in platform mode, guests and the sign-in pages have no clinic.
-        $clinicId = app(TenantContext::class)->clinicId();
-        if ($clinicId) {
+        $context = app(TenantContext::class);
+        if ($clinicId = $context->clinicId()) {
             [$dbMs, $dbQueries] = $meter->database();
             // Livewire sends the header empty, which some servers drop, so check the route too.
             $livewire = $request->hasHeader('X-Livewire') || $request->routeIs('livewire.update', '*.livewire.update');
+            $pageView = ! $livewire && $request->isMethod('GET');
             $request->attributes->set(self::ATTRIBUTE, [$clinicId, [
-                'page_views' => ! $livewire && $request->isMethod('GET') ? 1 : 0,
+                'requests' => 1,
+                'page_views' => $pageView ? 1 : 0,
                 'actions' => $livewire ? 1 : 0,
                 'bytes_out' => $this->responseBytes($response),
                 'bytes_in' => (int) $request->header('Content-Length', 0),
                 'server_ms' => (microtime(true) - $started) * 1000,
                 'db_ms' => $dbMs,
                 'db_queries' => $dbQueries,
-            ]]);
+                // Staff are counted on page views only (one small insert), not on every action.
+            ], $pageView ? $context->user()?->id : null]);
         }
 
         return $response;

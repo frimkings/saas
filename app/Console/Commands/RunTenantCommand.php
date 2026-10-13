@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Branch;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Usage\UsageMeter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 
@@ -37,7 +38,14 @@ class RunTenantCommand extends Command
                     $this->warn("Skipped {$branch->clinic->name}: license or subscription is read-only.");
                     return;
                 }
+                // Platform → Clinic Usage: the time this clinic's run took counts as its scheduled work.
+                $meter = app(UsageMeter::class);
+                $meter->reset();
+                $started = microtime(true);
                 $exit = Artisan::call($command);
+                if (UsageMeter::enabled()) {
+                    UsageMeter::record($branch->clinic_id, ['job_runs' => 1, 'job_ms' => (microtime(true) - $started) * 1000, 'job_db_ms' => $meter->database()[0]]);
+                }
                 $this->output->write(Artisan::output());
                 $failed += $exit === self::SUCCESS ? 0 : 1;
             } finally {

@@ -40,21 +40,30 @@ class UsageMeter
         $this->dbQueries = 0;
     }
 
-    /** Adds one request to the clinic's row for today. Never breaks the request it measures. */
-    public static function record(int $clinicId, array $usage, ?string $date = null): void
+    /**
+     * Adds to the clinic's counters for today: a request (MeterClinicUsage) or a scheduled run
+     * (tenancy:run-scheduled). With a user, also counts them once a day as active staff.
+     * Never breaks the work it measures.
+     */
+    public static function record(int $clinicId, array $usage, ?int $userId = null, ?string $date = null): void
     {
-        $row = ['requests' => 1, 'page_views' => 0, 'actions' => 0, 'bytes_out' => 0, 'bytes_in' => 0,
-            'server_ms' => 0, 'db_ms' => 0, 'db_queries' => 0];
+        $row = ['requests' => 0, 'page_views' => 0, 'actions' => 0, 'bytes_out' => 0, 'bytes_in' => 0,
+            'server_ms' => 0, 'db_ms' => 0, 'db_queries' => 0, 'job_runs' => 0, 'job_ms' => 0, 'job_db_ms' => 0, 'active_staff' => 0];
         foreach ($usage as $key => $value) {
             if (array_key_exists($key, $row)) {
                 $row[$key] = max(0, (int) round($value));
             }
         }
         $now = now();
+        $date ??= $now->toDateString();
 
         try {
+            if ($userId) {
+                $row['active_staff'] = DB::table('clinic_usage_users')
+                    ->insertOrIgnore(['clinic_id' => $clinicId, 'date' => $date, 'user_id' => $userId]);
+            }
             DB::table('clinic_usage_daily')->upsert(
-                [['clinic_id' => $clinicId, 'date' => $date ?? $now->toDateString()] + $row + ['created_at' => $now, 'updated_at' => $now]],
+                [['clinic_id' => $clinicId, 'date' => $date] + $row + ['created_at' => $now, 'updated_at' => $now]],
                 ['clinic_id', 'date'],
                 array_map(fn ($column) => DB::raw("$column + VALUES($column)"), array_combine(array_keys($row), array_keys($row)))
                     + ['updated_at' => $now],
