@@ -66,6 +66,54 @@ class OwnerSummaryService
             fn () => new OwnerSummaryMail($this->build($clinic, $period, $from, $to)));
     }
 
+    /**
+     * Each head of department's own morning email: how yesterday went in the departments they
+     * head, at every branch with attendance. Goes once a day from 10 AM, whatever summaries the
+     * owner gets. Returns how many were due.
+     */
+    public function sendToDepartmentHeads(Clinic $clinic, ?Carbon $now = null): int
+    {
+        $local = ($now ?? Carbon::now())->copy()->setTimezone($this->timezone($clinic));
+        if ($local->hour < self::SEND_HOUR) return 0;
+
+        [$from, $to] = self::period('daily', $local);
+        $before = $from->copy()->subDay();
+        $due = 0;
+        ActAsClinic::eachBranch($clinic, function (Branch $branch) use ($clinic, $from, $to, $before, &$due) {
+            if (! LicenseService::has(Feature::ATTENDANCE)) return;
+            $headed = [];
+            foreach (\App\Models\AttendanceDepartment::query()->orderBy('name')->get() as $department) {
+                foreach ($department->heads ?? [] as $userId) {
+                    $headed[(int) $userId][] = $department;
+                }
+            }
+            foreach ($headed as $userId => $departments) {
+                $head = \App\Models\User::find($userId);
+                $blocks = [];
+                foreach ($departments as $department) {
+                    $people = \App\Models\AttendanceStaff::query()->where('attendance_department_id', $department->id)->pluck('id')->all();
+                    if ($people && $block = app(\App\Services\Attendance\AttendanceDigest::class)->only($people)->block('daily', $from, $to, $before, $before)) {
+                        $blocks[$department->name] = $block;
+                    }
+                }
+                if (! $head || ! $blocks) continue;
+
+                $label = self::periodLabel('daily', $from, $to);
+                $this->mailer->sendToAddress($clinic, $head->email, 'department_summary', "department-summary:{$from->toDateString()}:b{$branch->id}:u{$head->id}",
+                    'Department attendance - ' . implode(', ', array_keys($blocks)) . ' - ' . $label,
+                    fn () => new OwnerSummaryMail([
+                        'clinic' => $clinic->name, 'title' => 'Department attendance', 'attendanceOnly' => true, 'forHead' => true, 'period' => 'daily', 'label' => $label,
+                        'currency' => $clinic->default_currency ?: currency(), 'total' => ['sales' => 0, 'received' => 0, 'expenses' => 0, 'hasClinic' => false],
+                        'change' => ['sales' => null, 'received' => null, 'expenses' => null], 'longView' => false, 'compareWith' => 'the day before', 'branches' => [],
+                        'attendance' => $blocks, 'attendanceUrl' => route('admin.attendance'), 'url' => route('admin.attendance'),
+                    ]));
+                $due++;
+            }
+        });
+
+        return $due;
+    }
+
     /** The period a summary sent on $local covers: yesterday, last week or last month. */
     public static function period(string $period, Carbon $local): array
     {

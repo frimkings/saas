@@ -148,6 +148,38 @@ class AttendanceDepartmentsTest extends TestCase
         $this->assertSame('on_time', $this->day($this->kofi)['status']);
     }
 
+    public function test_each_head_gets_their_own_morning_email_and_the_owner_a_comparison(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        $nursing = AttendanceDepartment::create(['name' => 'Nursing', 'heads' => [$this->esi->id]]);
+        $laboratory = AttendanceDepartment::create(['name' => 'Laboratory']);
+        $this->ama->update(['attendance_department_id' => $nursing->id]);
+        $this->kofi->update(['attendance_department_id' => $laboratory->id]);
+        $clinic = app(TenantContext::class)->clinic();
+        $summaries = app(\App\Services\OwnerSummaryService::class);
+
+        // Before 10 AM nothing goes; after it, Esi hears about Monday the 19th in Nursing only.
+        $this->assertSame(0, $summaries->sendToDepartmentHeads($clinic, \Illuminate\Support\Carbon::parse('2026-10-20 08:00:00')));
+        $this->assertSame(1, $summaries->sendToDepartmentHeads($clinic, \Illuminate\Support\Carbon::parse('2026-10-20 10:30:00')));
+        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\OwnerSummaryMail::class, function ($mail) {
+            $html = $mail->render();
+
+            return $mail->hasTo($this->esi->email) && str_contains($html, 'Department attendance') && str_contains($html, 'Nursing') && str_contains($html, 'Ama Owusu')
+                && str_contains($html, 'head of department') && ! str_contains($html, 'Kofi Boateng') && ! str_contains($html, 'Sales');
+        });
+        // Asked again the same day, it is not sent twice.
+        $summaries->sendToDepartmentHeads($clinic, \Illuminate\Support\Carbon::parse('2026-10-20 11:30:00'));
+        \Illuminate\Support\Facades\Mail::assertSentCount(1);
+        $this->assertSame(1, \App\Models\OwnerEmail::where('kind', 'department_summary')->count());
+
+        // The owner's own summary compares the departments.
+        $day = \Illuminate\Support\Carbon::parse('2026-10-19');
+        $html = (new \App\Mail\OwnerSummaryMail($summaries->build($clinic, 'daily', $day, $day->copy())))->render();
+        foreach (['Department', 'Nursing', 'Laboratory', 'No department'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+    }
+
     public function test_a_head_sees_and_runs_only_their_own_department(): void
     {
         $nursing = AttendanceDepartment::create(['name' => 'Nursing', 'heads' => [$this->esi->id]]);
