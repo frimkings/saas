@@ -965,6 +965,8 @@ class AttendanceComponent extends Component
             'rosterGrid' => $this->showRoster && $this->rosterWeek ? $this->rosterGrid($analyzer) : null,
             'report' => $report,
             'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
+            // Payroll gets its own button once anyone has been given a salary or an hourly rate.
+            'paysStaff' => AttendanceStaff::query()->whereNotNull('pay_type')->exists(),
             'payroll' => $this->showPayroll && auth()->user()?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->for($first, $last) : null,
             'currency' => \App\Models\Setting::currency(),
             'overtime' => $overtime = $this->overtimeList($report),

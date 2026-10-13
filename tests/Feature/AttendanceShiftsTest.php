@@ -120,6 +120,18 @@ class AttendanceShiftsTest extends TestCase
         $this->assertSame([true, 120], [$early['left_early'], $early['early_minutes']]);
     }
 
+    public function test_buttons_appear_only_once_a_branch_uses_what_they_open(): void
+    {
+        // A small clinic that only follows who was late: no Roster, Overtime or Payroll buttons; pay sits under Set up.
+        Livewire::test(AttendanceComponent::class)->assertSee('Set up')
+            ->assertDontSeeHtml('wire:click="openRoster"')->assertDontSeeHtml("showOvertime', true)")->assertDontSeeHtml('</i>Payroll</button>')->assertSeeHtml('wire:click="openPayroll"');
+
+        AttendanceShift::create(['name' => 'Morning', 'starts_at' => '08:00', 'ends_at' => '14:00']);
+        $this->ama->update(['pay_type' => 'hourly', 'pay_rate' => 10]);
+        $this->punch('2026-10-19 08:00:00', '2026-10-19 19:00:00');
+        Livewire::test(AttendanceComponent::class)->assertSeeHtml('wire:click="openRoster"')->assertSeeHtml("showOvertime', true)")->assertSeeHtml('</i>Payroll</button>');
+    }
+
     public function test_shifts_are_managed_and_people_rostered_from_the_page(): void
     {
         $page = Livewire::test(AttendanceComponent::class)->set('showShifts', true)
