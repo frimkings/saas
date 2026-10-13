@@ -281,7 +281,10 @@ class LegacyImportManagerComponent extends Component
     {
         $selected=$this->selectedBatchId ? LegacyImportBatch::with(['cutoverApprover','monitoringChecker'])->find($this->selectedBatchId) : null;
         return view('livewire.platform.legacy-import-manager-component', [
-            'batches' => LegacyImportBatch::with(['clinic','creator'])->when(! $this->showArchived, fn ($query) => $query->whereNull('archived_at'))->latest()->get(),
+            // Only what the list shows, newest first by id. A batch row carries its whole analysis
+            // and reports; selecting and date-sorting every column ran MySQL out of sort memory.
+            'batches' => LegacyImportBatch::select(['id', 'clinic_name', 'original_filename', 'status', 'created_at', 'archived_at', 'committed_at', 'rolled_back_at'])
+                ->when(! $this->showArchived, fn ($query) => $query->whereNull('archived_at'))->orderByDesc('id')->get(),
             'archivedCount' => LegacyImportBatch::whereNotNull('archived_at')->count(),
             'selected' => $selected,
             'workerMissing' => $selected && in_array($selected->status, ['queued', 'importing'], true) && $this->importJobIsWaiting(),
