@@ -35,8 +35,8 @@
     <div class="pp-stats cu-4" style="margin-bottom:16px">
         <div class="pp-stat"><span>Requests</span><b>{{ number_format($totals['requests']) }}</b><small>Page views and actions</small></div>
         <div class="pp-stat"><span>Data sent</span><b>{{ U::bytes($totals['bytes_out']) }}</b><small>Before compression</small></div>
-        <div class="pp-stat"><span>Server time</span><b>{{ U::duration($totals['server_ms']) }}</b><small>Time spent answering requests</small></div>
-        <div class="pp-stat"><span>Active clinics</span><b>{{ $totals['active'] }}</b><small>Used the system in this period</small></div>
+        <div class="pp-stat"><span>Server time</span><b>{{ U::duration($totals['server_ms'] + $totals['job_ms']) }}</b><small>{{ U::duration($totals['server_ms']) }} pages · {{ U::duration($totals['job_ms']) }} scheduled work</small></div>
+        <div class="pp-stat"><span>Active clinics</span><b>{{ $totals['active'] }}</b><small>{{ number_format($totals['staff']) }} staff used the system</small></div>
     </div>
 
     <div class="pp-card">
@@ -47,11 +47,12 @@
                     <th>{!! $sortHead('name', 'Clinic') !!}</th>
                     <th class="cu-num">{!! $sortHead('requests', 'Requests') !!}</th>
                     <th class="cu-num">{!! $sortHead('bytes_out', 'Data sent') !!}</th>
-                    <th class="cu-num">{!! $sortHead('server_ms', 'Server time') !!}</th>
+                    <th class="cu-num">{!! $sortHead('compute_ms', 'Server time') !!}</th>
                     <th class="cu-num">{!! $sortHead('db_ms', 'Database time') !!}</th>
                     <th class="cu-num">Share</th>
                     @if($hostingCost !== '' && is_numeric($hostingCost))<th class="cu-num">Cost share</th>@endif
-                    <th class="cu-num">{!! $sortHead('stored_rows', 'Rows stored') !!}</th>
+                    <th class="cu-num">{!! $sortHead('stored_rows', 'Stored') !!}</th>
+                    <th class="cu-num">{!! $sortHead('staff', 'Staff') !!}</th>
                     <th class="cu-num">Active days</th>
                 </tr></thead>
                 <tbody>
@@ -61,15 +62,16 @@
                             @if($c['status'] !== 'active')<span class="pp-badge grey">{{ ucfirst($c['status']) }}</span>@endif</td>
                         <td class="cu-num">{{ number_format($c['requests']) }}<small>{{ number_format($c['page_views']) }} pages · {{ number_format($c['actions']) }} actions</small></td>
                         <td class="cu-num">{{ U::bytes($c['bytes_out']) }}</td>
-                        <td class="cu-num">{{ U::duration($c['server_ms']) }}</td>
-                        <td class="cu-num">{{ U::duration($c['db_ms']) }}<small>{{ number_format($c['db_queries']) }} queries</small></td>
+                        <td class="cu-num">{{ U::duration($c['compute_ms']) }}<small>{{ U::duration($c['server_ms']) }} pages · {{ U::duration($c['job_ms']) }} scheduled</small></td>
+                        <td class="cu-num">{{ U::duration($c['db_ms'] + $c['job_db_ms']) }}<small>{{ number_format($c['db_queries']) }} page queries</small></td>
                         <td class="cu-num"><span class="cu-share"><span class="cu-meter"><i style="width:{{ round($c['share'] * 100, 1) }}%"></i></span>{{ number_format($c['share'] * 100, 1) }}%</span></td>
                         @if($c['cost'] !== null)<td class="cu-num">{{ number_format($c['cost'], 2) }}</td>@endif
-                        <td class="cu-num">{{ $c['stored_rows'] === null ? '—' : number_format($c['stored_rows']) }}</td>
+                        <td class="cu-num">{{ $c['stored_rows'] === null ? '—' : number_format($c['stored_rows']).' rows' }}<small>{{ $c['file_bytes'] === null ? 'files —' : U::bytes($c['file_bytes']).' files' }}</small></td>
+                        <td class="cu-num">{{ $c['staff'] }}</td>
                         <td class="cu-num">{{ $c['active_days'] }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="pp-empty">No clinics yet.</td></tr>
+                    <tr><td colspan="10" class="pp-empty">No clinics yet.</td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -82,19 +84,20 @@
                 <button type="button" class="pp-btn alt sm" wire:click="showClinic(null)">Close</button></div>
             <div class="pp-table-wrap">
                 <table class="pp-table">
-                    <thead><tr><th>Date</th><th style="width:30%">Requests</th><th class="cu-num">Data sent</th><th class="cu-num">Server time</th><th class="cu-num">Database time</th><th class="cu-num">Rows stored</th></tr></thead>
+                    <thead><tr><th>Date</th><th style="width:30%">Requests</th><th class="cu-num">Data sent</th><th class="cu-num">Server time</th><th class="cu-num">Database time</th><th class="cu-num">Staff</th><th class="cu-num">Stored</th></tr></thead>
                     <tbody>
                     @forelse($days as $d)
                         <tr wire:key="cud-{{ $d->date }}">
                             <td>{{ \Carbon\Carbon::parse($d->date)->format('D j M') }}</td>
                             <td><span class="cu-day" style="width:{{ round($d->requests / $maxDay * 100) }}%"></span><small>{{ number_format($d->requests) }} ({{ number_format($d->page_views) }} pages · {{ number_format($d->actions) }} actions)</small></td>
                             <td class="cu-num">{{ U::bytes($d->bytes_out) }}</td>
-                            <td class="cu-num">{{ U::duration($d->server_ms) }}</td>
-                            <td class="cu-num">{{ U::duration($d->db_ms) }}</td>
-                            <td class="cu-num">{{ $d->stored_rows === null ? '—' : number_format($d->stored_rows) }}</td>
+                            <td class="cu-num">{{ U::duration($d->server_ms + $d->job_ms) }}<small>{{ number_format($d->job_runs) }} scheduled {{ Str::plural('run', $d->job_runs) }}</small></td>
+                            <td class="cu-num">{{ U::duration($d->db_ms + $d->job_db_ms) }}</td>
+                            <td class="cu-num">{{ $d->active_staff }}</td>
+                            <td class="cu-num">{{ $d->stored_rows === null ? '—' : number_format($d->stored_rows) }}<small>{{ $d->file_bytes === null ? '' : U::bytes($d->file_bytes).' files' }}</small></td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="pp-empty">No usage recorded in this period.</td></tr>
+                        <tr><td colspan="7" class="pp-empty">No usage recorded in this period.</td></tr>
                     @endforelse
                     </tbody>
                 </table>

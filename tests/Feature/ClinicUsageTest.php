@@ -10,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\Concerns\GivesClinicsAccess;
 use Tests\TestCase;
@@ -109,6 +110,62 @@ class ClinicUsageTest extends TestCase
         $this->assertSame(0, (int) $this->today($other->id)->requests);
     }
 
+    public function test_staff_are_counted_once_a_day_on_page_views(): void
+    {
+        $this->withClinicContext($this->clinic);
+        $this->meter(Request::create('/patients', 'GET'));
+        $this->meter(Request::create('/patients/5', 'GET'));
+        $this->meter(Request::create('/livewire/update', 'POST', server: ['HTTP_X_LIVEWIRE' => '1']));
+
+        $this->assertSame(1, (int) $this->today($this->clinic->id)->active_staff);
+        $this->assertSame(1, DB::table('clinic_usage_users')->count());
+
+        $this->withClinicContext($this->clinic); // a second staff member
+        $this->meter(Request::create('/patients', 'GET'));
+        $this->assertSame(2, (int) $this->today($this->clinic->id)->active_staff);
+    }
+
+    public function test_scheduled_runs_count_as_the_clinics_scheduled_work(): void
+    {
+        $branch = $this->clinic->branches()->create(['code' => 'MAIN', 'name' => 'Main', 'is_default' => true, 'is_active' => true]);
+        $staff = User::factory()->create();
+        $branch->users()->attach($staff->id, ['status' => 'active', 'is_default' => true]);
+
+        $this->artisan('tenancy:run-scheduled', ['tenantCommand' => 'inspire'])->assertSuccessful();
+        $this->artisan('tenancy:run-scheduled', ['tenantCommand' => 'inspire'])->assertSuccessful();
+
+        $row = $this->today($this->clinic->id);
+        $this->assertSame(2, (int) $row->job_runs);
+        $this->assertSame(0, (int) $row->requests, 'Scheduled work is not a page request.');
+        $this->assertSame(0, (int) $row->active_staff);
+    }
+
+    public function test_storage_snapshot_adds_up_each_clinics_uploaded_files(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $other = $this->activeClinic(['name' => 'Other Clinic', 'slug' => 'other-clinic', 'deployment_mode' => 'hosted']);
+        Storage::disk('public')->put('clinics/'.$this->clinic->uuid.'/branding/logo.png', str_repeat('a', 1200));
+        Storage::disk('local')->put('clinics/'.$this->clinic->uuid.'/patients/1/documents/scan.pdf', str_repeat('b', 300));
+        Storage::disk('public')->put('avatars/someone.png', str_repeat('c', 5000)); // not a clinic's
+
+        $this->artisan('usage:snapshot-storage')->assertSuccessful();
+
+        $this->assertSame(1500, (int) $this->today($this->clinic->id)->file_bytes);
+        $this->assertSame(0, (int) $this->today($other->id)->file_bytes);
+    }
+
+    public function test_readiness_reports_whether_clinic_usage_is_being_counted(): void
+    {
+        $check = fn () => app(\App\Services\DeploymentReadinessService::class)->run(false)['checks']['usage_metering'];
+        $this->assertFalse($check()['passed']);
+        $this->assertSame('No clinic requests counted yet', $check()['detail']);
+
+        $this->withClinicContext($this->clinic);
+        $this->meter(Request::create('/patients', 'GET'));
+        $this->assertTrue($check()['passed']);
+    }
+
     public function test_usage_page_ranks_clinics_and_splits_the_bill_by_server_time(): void
     {
         $busy = $this->activeClinic(['name' => 'Busy Clinic', 'slug' => 'busy-clinic', 'deployment_mode' => 'hosted']);
@@ -118,6 +175,8 @@ class ClinicUsageTest extends TestCase
         $row($this->clinic, today()->toDateString(), 10, 1000);
         $row($busy, today()->toDateString(), 50, 3000);
         $row($busy, today()->subMonthNoOverflow()->toDateString(), 999, 999_000); // outside "this month"
+        // A third of Busy's time today was scheduled work: it still counts toward its share.
+        DB::table('clinic_usage_daily')->where('clinic_id', $busy->id)->where('date', today()->toDateString())->update(['server_ms' => 2000, 'job_ms' => 1000, 'job_runs' => 3]);
 
         $admin = User::factory()->create();
         $admin->forceFill(['is_platform_admin' => true])->save();
