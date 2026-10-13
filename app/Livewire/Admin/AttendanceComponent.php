@@ -64,6 +64,11 @@ class AttendanceComponent extends Component
     public bool $showUpload = false;
     public $file = null;
 
+    // Bringing in a staff list from Excel or CSV, and what the last one did.
+    public bool $showStaffImport = false;
+    public $staffFile = null;
+    public ?array $staffImported = null;
+
     public bool $showHours = false;
     public array $hours = [];
     public int|string $graceMinutes = 15;
@@ -743,6 +748,25 @@ class AttendanceComponent extends Component
             '%s read: %d staff, %d new %s.',
             $import->period_start->format('F Y'), $import->staff_count, $import->new_punches, $import->new_punches === 1 ? 'punch' : 'punches',
         ));
+    }
+
+    public function openStaffImport(): void
+    {
+        $this->authorizeAccess();
+        $this->reset('staffFile', 'staffImported');
+        $this->resetValidation();
+        $this->showStaffImport = true;
+    }
+
+    /** Add or update people, and their departments, from a staff list. Pay columns are read for the owner only. */
+    public function importStaff(\App\Services\Attendance\AttendanceStaffImport $import): void
+    {
+        $this->authorizeAccess();
+        $this->validate(['staffFile' => 'required|file|max:5120'], ['staffFile.required' => 'Choose the file first.'], ['staffFile' => 'file']);
+        $this->staffImported = $import->import($import->rows($this->staffFile), (bool) auth()->user()->hasRole('Super Admin'));
+        \App\Models\AuditTrail::record('attendance.staff_imported', 'Brought in a staff list: '.$this->staffImported['added'].' added, '.$this->staffImported['updated'].' updated, '
+            .$this->staffImported['departments'].' departments made', null, [], ['file' => $this->staffFile->getClientOriginalName()], null, true);
+        $this->reset('staffFile');
     }
 
     public function editHours(): void

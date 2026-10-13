@@ -40,6 +40,7 @@
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
                             ['openPhone', 'fa-mobile-screen', 'Phone clock-in'],
                             ['openDepartments', 'fa-sitemap', 'Departments'],
+                            ['openStaffImport', 'fa-file-import', 'Bring in a staff list'],
                             ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff],
                         ] as $item)
                             @continue(($item[3] ?? true) === false)
@@ -1081,6 +1082,42 @@
                     </div>
                 </form>
             </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showStaffImport)
+        <x-ui.modal title="Bring in a staff list" state="showStaffImport">
+            <form wire:submit="importStaff" class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">For many staff at once: an Excel (.xlsx) or CSV file with one row per person. The first row is headings: <strong>Employee ID</strong> and <strong>Name</strong>, and if you wish <strong>Department</strong>, <strong>Pay type</strong> (monthly or hourly), <strong>Pay rate</strong> and <strong>Start date</strong>.</p>
+                <ul class="!mb-0 list-disc space-y-1 !pl-5 text-sm text-slate-600">
+                    <li>The Employee ID must be the one the person has on the terminal, so their punches find them.</li>
+                    <li>Someone already here with that Employee ID is updated, not added twice.</li>
+                    <li>Departments named in the file and not here yet are made.</li>
+                    <li>Pay columns are read only when the owner brings the file in.</li>
+                </ul>
+                <p class="!mb-0 text-sm"><a class="text-teal-700 underline" download="staff-list-template.csv" href="data:text/csv;charset=utf-8,{{ rawurlencode(\App\Services\Attendance\AttendanceStaffImport::TEMPLATE) }}">Download a template</a> <span class="text-slate-500">with two example rows; up to {{ number_format(\App\Services\Attendance\AttendanceStaffImport::MAX_ROWS) }} people per file.</span></p>
+                <div>
+                    <label for="staff-file" class="mb-1 block text-sm font-medium text-slate-700">Staff list (.xlsx or .csv)</label>
+                    <input id="staff-file" type="file" accept=".xlsx,.csv,text/csv" wire:model="staffFile" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
+                    <p wire:loading wire:target="staffFile" class="!mb-0 mt-1 text-sm text-slate-500" role="status">Reading the file…</p>
+                    @error('staffFile')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                @if($staffImported)
+                    <div class="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
+                        <strong>{{ $staffImported['added'] }}</strong> added, <strong>{{ $staffImported['updated'] }}</strong> updated, <strong>{{ $staffImported['departments'] }}</strong> {{ $staffImported['departments'] === 1 ? 'department' : 'departments' }} made.
+                        @if($staffImported['skipped'])
+                            <ul class="!mb-0 mt-1 list-disc !pl-5 text-amber-900">
+                                @foreach(array_slice($staffImported['skipped'], 0, 20, true) as $line => $reason)<li>Row {{ $line }}: {{ $reason }}.</li>@endforeach
+                                @if(count($staffImported['skipped']) > 20)<li>And {{ count($staffImported['skipped']) - 20 }} more rows.</li>@endif
+                            </ul>
+                        @endif
+                    </div>
+                @endif
+                <div class="flex items-center justify-end gap-2">
+                    <x-ui.button wire:click="$set('showStaffImport', false)">Close</x-ui.button>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="importStaff,staffFile">Bring in</x-ui.button>
+                </div>
+            </form>
         </x-ui.modal>
     @endif
 
