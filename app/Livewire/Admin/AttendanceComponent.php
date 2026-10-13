@@ -135,6 +135,29 @@ class AttendanceComponent extends Component
     /** The Monday of the week on the roster, 'Y-m-d'. */
     public string $rosterWeek = '';
 
+    // Filling the roster from a rotation pattern: the cycle, day by day ('0' = off, else a shift id).
+    public bool $showPattern = false;
+    public array $patternDays = [];
+    public string $patternAddShift = '';
+    public string $patternAddCount = '2';
+    public string $patternFrom = '';
+    public string $patternTo = '';
+    public array $patternPeople = [];
+    public string $patternStagger = '0';
+    public string $patternName = '';
+    public string $patternId = '';
+
+    // Swapping two people's shifts over some days.
+    public bool $showSwap = false;
+    public string $swapA = '';
+    public string $swapB = '';
+    public string $swapFrom = '';
+    public string $swapTo = '';
+
+    // Rest rules the roster warns about; empty = not checked.
+    public string $minRestHours = '';
+    public string $maxNights = '';
+
     // Correcting one person's punches on one day.
     public bool $showPunches = false;
     public ?int $punchStaffId = null;
@@ -244,7 +267,213 @@ class AttendanceComponent extends Component
         }
         $shiftId = $choice === '0' ? null : \App\Models\AttendanceShift::query()->findOrFail((int) $choice)->id;
         \App\Models\AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $date],
-            ['attendance_shift_id' => $shiftId, 'set_by' => auth()->id()]);
+            ['attendance_shift_id' => $shiftId, 'note' => null, 'set_by' => auth()->id()]);
+    }
+
+    public function togglePattern(): void
+    {
+        $this->authorizeView();
+        $this->showPattern = ! $this->showPattern;
+        $this->showSwap = false;
+        if ($this->showPattern && $this->patternFrom === '') {
+            $monday = CarbonImmutable::parse($this->rosterWeek ?: 'today')->startOfWeek(\Carbon\CarbonInterface::MONDAY);
+            [$this->patternFrom, $this->patternTo] = [$monday->format('Y-m-d'), $monday->addDays(27)->format('Y-m-d')];
+        }
+        $this->resetValidation();
+    }
+
+    /** Add so many days of one shift, or of days off, to the end of the cycle. */
+    public function addPatternStep(): void
+    {
+        $this->authorizeView();
+        $this->validate(['patternAddShift' => ['required', 'regex:/^\d+$/'], 'patternAddCount' => 'required|integer|min:1|max:31'],
+            ['patternAddShift.required' => 'Choose a shift or days off.'], ['patternAddShift' => 'shift', 'patternAddCount' => 'days']);
+        abort_unless($this->patternAddShift === '0' || \App\Models\AttendanceShift::query()->whereKey((int) $this->patternAddShift)->exists(), 404);
+        if (count($this->patternDays) + (int) $this->patternAddCount > 62) {
+            $this->addError('patternAddCount', 'A cycle can be up to 62 days long.');
+
+            return;
+        }
+        array_push($this->patternDays, ...array_fill(0, (int) $this->patternAddCount, $this->patternAddShift));
+    }
+
+    public function undoPatternStep(): void
+    {
+        // The last run of the same shift goes together, as it was added.
+        $last = end($this->patternDays);
+        while ($this->patternDays && end($this->patternDays) === $last) {
+            array_pop($this->patternDays);
+        }
+    }
+
+    /** A saved pattern picked from the list. */
+    public function updatedPatternId(): void
+    {
+        $pattern = \App\Models\AttendancePattern::query()->find((int) $this->patternId);
+        $this->patternDays = $pattern ? array_map('strval', $pattern->days ?? []) : [];
+        $this->patternName = $pattern->name ?? '';
+    }
+
+    public function savePattern(): void
+    {
+        $this->authorizeView();
+        $this->patternName = trim($this->patternName);
+        $this->validate(['patternName' => 'required|string|max:60', 'patternDays' => 'required|array|min:1'],
+            ['patternDays.required' => 'Build the cycle first.'], ['patternName' => 'name']);
+        $pattern = \App\Models\AttendancePattern::query()->updateOrCreate(['name' => $this->patternName], ['days' => array_map('intval', $this->patternDays)]);
+        $this->patternId = (string) $pattern->id;
+        $this->dispatch('notify', type: 'success', message: "Pattern {$pattern->name} saved.");
+    }
+
+    public function deletePattern(): void
+    {
+        $this->authorizeView();
+        \App\Models\AttendancePattern::query()->whereKey((int) $this->patternId)->delete();
+        $this->reset('patternId', 'patternName', 'patternDays');
+    }
+
+    /**
+     * Fill the roster for the people ticked, first day to last, by repeating the cycle. Each next
+     * person can start so many days further into it, so they are not all on the same shift.
+     */
+    public function applyPattern(): void
+    {
+        $this->authorizeView();
+        $this->validate([
+            'patternDays' => 'required|array|min:1',
+            'patternFrom' => 'required|date_format:Y-m-d',
+            'patternTo' => 'required|date_format:Y-m-d|after_or_equal:patternFrom',
+            'patternPeople' => 'required|array|min:1',
+            'patternStagger' => 'required|integer|min:0|max:62',
+        ], ['patternDays.required' => 'Build the cycle first.', 'patternPeople.required' => 'Tick the people to fill the roster for.'],
+            ['patternFrom' => 'first day', 'patternTo' => 'last day', 'patternStagger' => 'days apart']);
+        $from = CarbonImmutable::parse($this->patternFrom);
+        $span = (int) $from->diffInDays(CarbonImmutable::parse($this->patternTo)) + 1;
+        if ($span > 93) {
+            $this->addError('patternTo', 'Fill up to three months at a time.');
+
+            return;
+        }
+        $shiftIds = \App\Models\AttendanceShift::query()->pluck('id')->all();
+        $cycle = array_map('intval', $this->patternDays);
+        abort_unless(! array_diff(array_filter($cycle), $shiftIds), 404);
+
+        $people = array_values(array_map(fn ($id) => $this->authorizeStaff((int) $id), $this->patternPeople));
+        usort($people, fn ($a, $b) => strcmp($a->name, $b->name));
+        $context = app(\App\Support\Tenancy\TenantContext::class);
+        $rows = [];
+        foreach ($people as $position => $staff) {
+            for ($day = 0; $day < $span; $day++) {
+                $choice = $cycle[($day + $position * (int) $this->patternStagger) % count($cycle)];
+                $rows[] = ['clinic_id' => $context->clinic()->id, 'branch_id' => $context->branchId(), 'attendance_staff_id' => $staff->id,
+                    'date' => $from->addDays($day)->format('Y-m-d'), 'attendance_shift_id' => $choice ?: null, 'note' => null, 'set_by' => auth()->id(),
+                    'created_at' => now(), 'updated_at' => now()];
+            }
+        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($people, $rows) {
+            \App\Models\AttendanceRoster::query()->whereIn('attendance_staff_id', array_map(fn ($staff) => $staff->id, $people))
+                ->whereBetween('date', [$this->patternFrom, $this->patternTo])->delete();
+            foreach (array_chunk($rows, 500) as $chunk) {
+                \Illuminate\Support\Facades\DB::table('attendance_roster')->insert($chunk);
+            }
+        });
+        \App\Models\AuditTrail::record('attendance.roster_filled', 'Filled the roster from '.$from->format('j M Y').' to '.CarbonImmutable::parse($this->patternTo)->format('j M Y')
+            .' for '.count($people).' people from a '.count($cycle).'-day pattern'.($this->patternName ? " ({$this->patternName})" : ''), null, [], ['people' => array_map(fn ($staff) => $staff->name, $people)], null, true);
+        $this->showPattern = false;
+        $this->patternPeople = [];
+        $this->dispatch('notify', type: 'success', message: 'Roster filled for '.count($people).(count($people) === 1 ? ' person.' : ' people.'));
+    }
+
+    public function toggleSwap(): void
+    {
+        $this->authorizeView();
+        $this->showSwap = ! $this->showSwap;
+        $this->showPattern = false;
+        $this->reset('swapA', 'swapB', 'swapTo');
+        $this->swapFrom = $this->rosterWeek;
+        $this->resetValidation();
+    }
+
+    /** Exchange two people's shifts over a day or a run of days. Done by the head or a manager, never by staff. */
+    public function swapRoster(AttendanceAnalyzer $analyzer): void
+    {
+        $this->authorizeView();
+        $this->validate([
+            'swapA' => 'required|integer', 'swapB' => 'required|integer|different:swapA',
+            'swapFrom' => 'required|date_format:Y-m-d', 'swapTo' => 'nullable|date_format:Y-m-d|after_or_equal:swapFrom',
+        ], ['swapB.different' => 'Choose two different people.'], ['swapA' => 'first person', 'swapB' => 'second person', 'swapFrom' => 'day', 'swapTo' => 'last day']);
+        [$a, $b] = [$this->authorizeStaff((int) $this->swapA), $this->authorizeStaff((int) $this->swapB)];
+        $from = CarbonImmutable::parse($this->swapFrom);
+        $to = CarbonImmutable::parse($this->swapTo ?: $this->swapFrom);
+        if ($from->diffInDays($to) > 31) {
+            $this->addError('swapTo', 'Swap up to a month at a time.');
+
+            return;
+        }
+        $changes = [];
+        for ($day = $from; $day->lte($to); $day = $day->addDay()) {
+            [$mine, $theirs] = [$analyzer->shiftChoice($a, $day), $analyzer->shiftChoice($b, $day)];
+            foreach ([[$a, $mine], [$b, $theirs]] as [$staff, $choice]) {
+                if ($choice === null) {
+                    $this->addError('swapFrom', "{$staff->name} has no shift on ".$day->format('D j M').' (they follow usual hours), so there is nothing to swap.');
+
+                    return;
+                }
+            }
+            if ($mine !== $theirs) {
+                $changes[] = [$day, $mine, $theirs];
+            }
+        }
+        if (! $changes) {
+            $this->addError('swapFrom', 'They are on the same shift on '.($from->eq($to) ? 'that day' : 'those days').' already.');
+
+            return;
+        }
+        foreach ($changes as [$day, $mine, $theirs]) {
+            foreach ([[$a, $theirs, $b], [$b, $mine, $a]] as [$staff, $choice, $other]) {
+                \App\Models\AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $day->format('Y-m-d')],
+                    ['attendance_shift_id' => $choice ?: null, 'note' => 'Swapped with '.$other->name, 'set_by' => auth()->id()]);
+            }
+        }
+        \App\Models\AuditTrail::record('attendance.shifts_swapped', "Swapped the shifts of {$a->name} and {$b->name} on ".$from->format('j M Y').($to->gt($from) ? ' to '.$to->format('j M Y') : '')
+            .' ('.count($changes).(count($changes) === 1 ? ' day' : ' days').')', null, [], ['staff' => [$a->name, $b->name]], null, true);
+        $this->showSwap = false;
+        $this->dispatch('notify', type: 'success', message: "Swapped {$a->name} and {$b->name}.");
+    }
+
+    /**
+     * Staff id => 'Y-m-d' => what the roster breaks for that person that day: too little rest
+     * since the shift before, or more nights in a row than the branch allows. Warnings only.
+     */
+    private function restWarnings(AttendanceAnalyzer $analyzer, array $rows, CarbonImmutable $monday, AttendanceSetting $settings): array
+    {
+        [$minRest, $maxNights] = [$settings->min_rest_hours, $settings->max_nights_in_row];
+        if (! $minRest && ! $maxNights) {
+            return [];
+        }
+        $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
+        $warnings = [];
+        foreach ($rows as $row) {
+            $schedule = $analyzer->schedule($row['staff'], $monday->subDays(max(1, (int) $maxNights)), $monday->addDays(6));
+            $keys = array_keys($schedule);
+            $nights = 0;
+            foreach ($keys as $i => $key) {
+                $hours = $schedule[$key];
+                $nights = $hours && $minutes($hours['end']) >= 1440 ? $nights + 1 : 0;
+                if (! $hours || $key < $monday->format('Y-m-d')) {
+                    continue;
+                }
+                $before = $i > 0 ? $schedule[$keys[$i - 1]] : null;
+                if ($minRest && $before && ($rest = $minutes($hours['start']) + 1440 - $minutes($before['end'])) < $minRest * 60) {
+                    $warnings[$row['staff']->id][$key][] = 'Only '.AttendanceAnalyzer::duration(max(0, $rest)).' rest after '.($before['shift'] ?? 'the day before');
+                }
+                if ($maxNights && $nights > $maxNights) {
+                    $warnings[$row['staff']->id][$key][] = 'Night '.$nights.' in a row';
+                }
+            }
+        }
+
+        return $warnings;
     }
 
     /** The roster week: each followed person's hours on each day, and what the roster sets. */
@@ -253,13 +482,21 @@ class AttendanceComponent extends Component
         $monday = CarbonImmutable::parse($this->rosterWeek)->startOfWeek(\Carbon\CarbonInterface::MONDAY);
         $report = $analyzer->range($monday, $monday->addDays(6));
         $set = [];
+        $notes = [];
         \App\Models\AttendanceRoster::query()->whereBetween('date', [$monday->format('Y-m-d'), $monday->addDays(6)->format('Y-m-d')])->get()
-            ->each(function ($entry) use (&$set) { $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0); });
+            ->each(function ($entry) use (&$set, &$notes) {
+                $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0);
+                if ($entry->note) {
+                    $notes[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = $entry->note;
+                }
+            });
 
         $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
         [$cover, $gaps] = $this->rosterCover($rows, $report['days']);
 
-        return ['days' => $report['days'], 'set' => $set, 'holidays' => $report['holidays'], 'rows' => $rows, 'cover' => $cover, 'gaps' => $gaps];
+        return ['days' => $report['days'], 'set' => $set, 'notes' => $notes, 'holidays' => $report['holidays'], 'rows' => $rows, 'cover' => $cover, 'gaps' => $gaps,
+            'warnings' => $this->restWarnings($analyzer, $rows, $monday, $report['settings']),
+            'patterns' => $this->showPattern ? \App\Models\AttendancePattern::query()->orderBy('name')->get() : collect()];
     }
 
     /** The departments on show: all for a manager with no filter, one when filtered, a head's own. */
@@ -517,6 +754,8 @@ class AttendanceComponent extends Component
         $this->breakMinutes = $settings->break_minutes ?? 60;
         $this->overtimeAfter = $settings->overtime_after_minutes ?? 30;
         $this->overtimeNeedsApproval = (bool) ($settings->overtime_needs_approval ?? true);
+        $this->minRestHours = (string) ($settings->min_rest_hours ?? '');
+        $this->maxNights = (string) ($settings->max_nights_in_row ?? '');
         $this->resetValidation();
         $this->showHours = true;
     }
@@ -528,14 +767,17 @@ class AttendanceComponent extends Component
             'graceMinutes' => 'required|integer|min:0|max:240',
             'breakMinutes' => 'required|integer|min:0|max:480',
             'overtimeAfter' => 'required|integer|min:1|max:480',
-        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed', 'overtimeAfter' => 'overtime threshold']);
+            'minRestHours' => 'nullable|integer|min:1|max:48',
+            'maxNights' => 'nullable|integer|min:1|max:31',
+        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed', 'overtimeAfter' => 'overtime threshold', 'minRestHours' => 'rest between shifts', 'maxNights' => 'nights in a row']);
         if (! $hours = $this->hoursFrom('hours')) {
             return;
         }
 
         $settings = AttendanceSetting::current();
         $settings->fill(['hours' => $hours, 'grace_minutes' => (int) $this->graceMinutes, 'break_minutes' => (int) $this->breakMinutes,
-            'overtime_after_minutes' => (int) $this->overtimeAfter, 'overtime_needs_approval' => $this->overtimeNeedsApproval])->save();
+            'overtime_after_minutes' => (int) $this->overtimeAfter, 'overtime_needs_approval' => $this->overtimeNeedsApproval,
+            'min_rest_hours' => $this->minRestHours === '' ? null : (int) $this->minRestHours, 'max_nights_in_row' => $this->maxNights === '' ? null : (int) $this->maxNights])->save();
         $this->showHours = false;
         $this->dispatch('notify', type: 'success', message: 'Working hours saved.');
     }

@@ -234,6 +234,22 @@ class AttendanceAnalyzer
         return $schedule;
     }
 
+    /**
+     * The shift someone is on that date by the roster, else their weekly shifts: a shift id, 0 for
+     * a day off, or null when they follow usual hours and have no shift.
+     */
+    public function shiftChoice(AttendanceStaff $staff, CarbonImmutable $day): ?int
+    {
+        $entry = AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereDate('date', $day->format('Y-m-d'))->first();
+        if ($entry) {
+            return $entry->attendance_shift_id ?? 0;
+        }
+        $week = $staff->shift_week ?? [];
+        $choice = $week[$day->dayOfWeekIso] ?? $week[(string) $day->dayOfWeekIso] ?? null;
+
+        return $choice === null || $choice === '' ? null : (int) $choice;
+    }
+
     /** The hours expected of one person on one date (see hoursFor), for asking outside a report. */
     public function expectedHours(AttendanceStaff $staff, CarbonImmutable $day): ?array
     {

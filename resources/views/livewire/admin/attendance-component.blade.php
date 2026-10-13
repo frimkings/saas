@@ -456,6 +456,17 @@
                     @error('overtimeAfter')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     <label class="mt-2 flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="overtimeNeedsApproval"> Overtime counts only when a manager approves it</label>
                 </div>
+                @if($shifts->isNotEmpty())
+                    <div>
+                        <p class="!mb-1 text-sm font-medium text-slate-700">Rest, for people on shifts</p>
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div><label for="attendance-rest" class="mb-1 block text-xs text-slate-600">At least this many hours between shifts</label><input id="attendance-rest" type="number" min="1" max="48" class="ui-input !w-28" wire:model="minRestHours" placeholder="Not checked"></div>
+                            <div><label for="attendance-nights" class="mb-1 block text-xs text-slate-600">No more than this many nights in a row</label><input id="attendance-nights" type="number" min="1" max="31" class="ui-input !w-28" wire:model="maxNights" placeholder="Not checked"></div>
+                        </div>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">The roster warns when someone's days break these; it does not stop you.</p>
+                        @foreach(['minRestHours', 'maxNights'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                    </div>
+                @endif
                 <div class="flex items-center justify-end gap-2">
                     <x-ui.button wire:click="$set('showHours', false)">Cancel</x-ui.button>
                     <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveHours">Save</x-ui.button>
@@ -588,9 +599,74 @@
                     <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Previous week">‹</x-ui.button>
                     <strong class="text-sm text-slate-800">Week of {{ $rosterDays[0]->format('j M') }} to {{ $rosterDays[6]->format('j M Y') }}</strong>
                     <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Next week">›</x-ui.button>
+                    @if($shifts->isNotEmpty())
+                        <x-ui.button type="button" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i> Fill from a pattern</x-ui.button>
+                        <x-ui.button type="button" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i> Swap two people</x-ui.button>
+                    @endif
                     <span class="text-xs text-slate-500">Each box shows what the person is due to work. Change one to set that day only; "As usual" goes back to their weekly shifts or hours.</span>
                 </div>
                 @if($shifts->isEmpty())<p class="!mb-0 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">Add shifts first (Shifts button), then roster people onto them here.</p>@endif
+                @if($showPattern)
+                    @php $shiftNames = $shifts->pluck('name', 'id'); @endphp
+                    <div class="space-y-3 rounded-lg border border-teal-200 bg-teal-50/40 p-3">
+                        <p class="!mb-0 text-sm font-semibold text-slate-800">Fill the roster from a rotation pattern</p>
+                        <div class="flex flex-wrap items-end gap-2">
+                            @if($rosterGrid['patterns']->isNotEmpty())
+                                <div><label for="pattern-saved" class="mb-1 block text-xs font-semibold text-slate-600">Saved pattern</label>
+                                    <select id="pattern-saved" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="patternId"><option value="">New pattern</option>@foreach($rosterGrid['patterns'] as $pattern)<option value="{{ $pattern->id }}">{{ $pattern->name }}</option>@endforeach</select></div>
+                            @endif
+                            <div><label for="pattern-shift" class="mb-1 block text-xs font-semibold text-slate-600">Add to the cycle</label>
+                                <select id="pattern-shift" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternAddShift"><option value="">Choose</option>@foreach($shifts->where('is_active', true) as $shift)<option value="{{ $shift->id }}">{{ $shift->name }}</option>@endforeach<option value="0">Days off</option></select></div>
+                            <div><label for="pattern-count" class="mb-1 block text-xs font-semibold text-slate-600">For how many days</label><input id="pattern-count" type="number" min="1" max="31" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternAddCount"></div>
+                            <x-ui.button type="button" wire:click="addPatternStep">Add</x-ui.button>
+                            @if($patternDays)<x-ui.button type="button" wire:click="undoPatternStep">Undo last</x-ui.button>@endif
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1 text-xs" aria-label="The cycle">
+                            @forelse($patternDays as $i => $choice)
+                                <span @class(['rounded px-1.5 py-0.5', 'bg-slate-200 text-slate-600' => $choice === '0', 'bg-white text-teal-900 ring-1 ring-inset ring-teal-300' => $choice !== '0']) wire:key="pattern-day-{{ $i }}">{{ $i + 1 }}. {{ $choice === '0' ? 'Off' : ($shiftNames[(int) $choice] ?? '?') }}</span>
+                            @empty
+                                <span class="text-slate-500">Nothing in the cycle yet. For example: Morning for 2 days, Afternoon for 2, Night for 2, days off for 2.</span>
+                            @endforelse
+                            @if($patternDays)<span class="ml-1 text-slate-500">then it repeats ({{ count($patternDays) }} days)</span>@endif
+                        </div>
+                        <div class="flex flex-wrap items-end gap-2">
+                            <div><label for="pattern-from" class="mb-1 block text-xs font-semibold text-slate-600">First day</label><input id="pattern-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternFrom"></div>
+                            <div><label for="pattern-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day</label><input id="pattern-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternTo"></div>
+                            <div><label for="pattern-stagger" class="mb-1 block text-xs font-semibold text-slate-600">Each next person starts this many days further in</label><input id="pattern-stagger" type="number" min="0" max="62" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternStagger"></div>
+                        </div>
+                        <fieldset>
+                            <legend class="mb-1 text-xs font-semibold text-slate-600">For these people (in name order)</legend>
+                            <div class="flex max-h-32 flex-wrap gap-x-4 gap-y-1 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+                                @foreach($rosterGrid['rows'] as $row)
+                                    <label class="flex items-center gap-1.5 text-sm text-slate-800" wire:key="pattern-person-{{ $row['staff']->id }}"><input type="checkbox" value="{{ $row['staff']->id }}" wire:model="patternPeople"> {{ $row['staff']->name }}</label>
+                                @endforeach
+                            </div>
+                        </fieldset>
+                        @foreach(['patternAddShift', 'patternAddCount', 'patternDays', 'patternFrom', 'patternTo', 'patternPeople', 'patternStagger', 'patternName'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                        <div class="flex flex-wrap items-end justify-between gap-2">
+                            <div class="flex flex-wrap items-end gap-2">
+                                <div><label for="pattern-name" class="mb-1 block text-xs font-semibold text-slate-600">Keep this pattern as</label><input id="pattern-name" type="text" maxlength="60" class="ui-input !w-48 !py-1.5 !text-sm" wire:model="patternName" placeholder="e.g. Ward 2-2-2"></div>
+                                <x-ui.button type="button" wire:click="savePattern">Save pattern</x-ui.button>
+                                @if($patternId)<button type="button" class="pb-2 text-xs text-red-700 underline" wire:click="deletePattern" wire:confirm="Delete this saved pattern? Roster days already filled stay.">Delete pattern</button>@endif
+                            </div>
+                            <x-ui.button type="button" variant="primary" wire:click="applyPattern" wire:confirm="Fill the roster for the people ticked? Days already set for them in these dates are replaced." wire:loading.attr="disabled" wire:target="applyPattern">Fill the roster</x-ui.button>
+                        </div>
+                    </div>
+                @endif
+                @if($showSwap)
+                    <form wire:submit="swapRoster" class="flex flex-wrap items-end gap-2 rounded-lg border border-teal-200 bg-teal-50/40 p-3">
+                        <p class="!mb-0 w-full text-sm font-semibold text-slate-800">Swap two people's shifts</p>
+                        @foreach(['swapA' => 'This person', 'swapB' => 'With this person'] as $model => $label)
+                            <div><label for="{{ $model }}" class="mb-1 block text-xs font-semibold text-slate-600">{{ $label }}</label>
+                                <select id="{{ $model }}" class="ui-input !w-52 !py-1.5 !text-sm" wire:model="{{ $model }}"><option value="">Choose</option>@foreach($rosterGrid['rows'] as $row)<option value="{{ $row['staff']->id }}">{{ $row['staff']->name }}</option>@endforeach</select></div>
+                        @endforeach
+                        <div><label for="swap-from" class="mb-1 block text-xs font-semibold text-slate-600">Day</label><input id="swap-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="swapFrom"></div>
+                        <div><label for="swap-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day (if more than one)</label><input id="swap-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="swapTo"></div>
+                        <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="swapRoster">Swap</x-ui.button>
+                        <p class="!mb-0 w-full text-xs text-slate-500">Each takes the other's shift, or day off, on those days. Only you can do this; staff cannot swap by themselves.</p>
+                        @foreach(['swapA', 'swapB', 'swapFrom', 'swapTo'] as $field)@error($field)<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror @endforeach
+                    </form>
+                @endif
                 <div class="ui-table-wrap">
                     <table class="table ui-table ui-table-sm mb-0">
                         <thead><tr><th>Staff</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}@if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-slate-500">Holiday</span>@endif</th>@endforeach</tr></thead>
@@ -614,6 +690,8 @@
                                                 <option value="0" @selected($chosen === '0')>Day off</option>
                                             </select>
                                             <span class="mt-0.5 block text-[10px] leading-tight text-slate-500">@if($due){{ $due['shift'] ?? 'Hours' }} {{ AttendanceAnalyzer::time($due['start']) }}–{{ AttendanceAnalyzer::time($due['end']) }}@else Off @endif</span>
+                                            @if($swapped = $rosterGrid['notes'][$row['staff']->id][$key] ?? null)<span class="block text-[10px] leading-tight text-indigo-700">{{ $swapped }}</span>@endif
+                                            @foreach($rosterGrid['warnings'][$row['staff']->id][$key] ?? [] as $warning)<span class="block text-[10px] font-medium leading-tight text-amber-700"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {{ $warning }}</span>@endforeach
                                         </td>
                                     @endforeach
                                 </tr>

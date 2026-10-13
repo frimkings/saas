@@ -12,7 +12,7 @@ class AttendanceSetting extends Model
 
     public const DAYS = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
 
-    protected $fillable = ['hours', 'grace_minutes', 'break_minutes', 'overtime_after_minutes', 'overtime_needs_approval',
+    protected $fillable = ['hours', 'grace_minutes', 'break_minutes', 'overtime_after_minutes', 'overtime_needs_approval', 'min_rest_hours', 'max_nights_in_row',
         'overtime_multiplier', 'deduct_lateness', 'deduct_absence',
         'phone_clock_in', 'phone_clock_in_since', 'clock_in_latitude', 'clock_in_longitude', 'clock_in_radius'];
 
@@ -27,6 +27,8 @@ class AttendanceSetting extends Model
         'break_minutes' => 'integer',
         'overtime_after_minutes' => 'integer',
         'overtime_needs_approval' => 'boolean',
+        'min_rest_hours' => 'integer',
+        'max_nights_in_row' => 'integer',
         'overtime_multiplier' => 'float',
         'deduct_lateness' => 'boolean',
         'deduct_absence' => 'boolean',

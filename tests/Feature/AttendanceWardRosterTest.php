@@ -72,6 +72,42 @@ class AttendanceWardRosterTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_the_roster_is_filled_from_a_pattern_then_swapped_and_checked_for_rest(): void
+    {
+        [$m, $n] = [(string) $this->morning->id, (string) $this->night->id];
+        $page = Livewire::test(AttendanceComponent::class)->call('openRoster')->call('togglePattern')->assertSet('patternFrom', '2026-10-19')->assertSee('Fill the roster from a rotation pattern')
+            // Two mornings, two nights, two off.
+            ->set('patternAddShift', $m)->set('patternAddCount', '2')->call('addPatternStep')
+            ->set('patternAddShift', $n)->call('addPatternStep')
+            ->set('patternAddShift', '0')->set('patternAddCount', '3')->call('addPatternStep')->assertCount('patternDays', 7)
+            ->call('undoPatternStep')->assertSet('patternDays', [$m, $m, $n, $n])
+            ->set('patternAddCount', '2')->call('addPatternStep')->assertSet('patternDays', [$m, $m, $n, $n, '0', '0'])
+            ->set('patternTo', '2026-10-30')->call('applyPattern')->assertHasErrors(['patternPeople'])
+            // Kofi starts two days further into the cycle than Ama.
+            ->set('patternPeople', [(string) $this->kofi->id, (string) $this->ama->id])->set('patternStagger', '2')
+            ->set('patternName', 'Ward 2-2-2')->call('savePattern')->assertHasNoErrors()
+            ->call('applyPattern')->assertHasNoErrors()->assertSet('showPattern', false);
+        $this->assertSame([(int) $m, (int) $m, (int) $n, (int) $n, 0, 0], \App\Models\AttendancePattern::where('name', 'Ward 2-2-2')->firstOrFail()->days);
+        $this->assertSame(24, AttendanceRoster::count());
+        $on = fn (AttendanceStaff $staff, string $date) => AttendanceRoster::where('attendance_staff_id', $staff->id)->whereDate('date', $date)->firstOrFail()->attendance_shift_id;
+        $this->assertSame([(int) $m, (int) $n, null, (int) $m], [$on($this->ama, '2026-10-19'), $on($this->ama, '2026-10-21'), $on($this->ama, '2026-10-23'), $on($this->ama, '2026-10-25')]);
+        $this->assertSame([(int) $n, null, (int) $m], [$on($this->kofi, '2026-10-19'), $on($this->kofi, '2026-10-21'), $on($this->kofi, '2026-10-23')]);
+
+        // The head swaps the two on Monday: Ama takes Kofi's night, Kofi her morning.
+        $page->call('toggleSwap')->set('swapA', (string) $this->ama->id)->set('swapB', (string) $this->ama->id)->call('swapRoster')->assertHasErrors(['swapB'])
+            ->set('swapB', (string) $this->kofi->id)->set('swapFrom', '2026-10-19')->call('swapRoster')->assertHasNoErrors()->assertSee('Swapped with Kofi Boateng');
+        $this->assertSame([(int) $n, (int) $m], [$on($this->ama, '2026-10-19'), $on($this->kofi, '2026-10-19')]);
+        $this->assertSame(1, \App\Models\AuditTrail::where('event', 'attendance.shifts_swapped')->count());
+        // Someone on usual hours has no shift to swap.
+        $yaa = AttendanceStaff::create(['employee_no' => '003', 'name' => 'Yaa Mensah', 'is_tracked' => true, 'attendance_department_id' => $this->nursing->id]);
+        $page->call('toggleSwap')->set('swapA', (string) $this->ama->id)->set('swapB', (string) $yaa->id)->set('swapFrom', '2026-10-20')->call('swapRoster')->assertHasErrors(['swapFrom']);
+
+        // Rest rules: 11 hours between shifts, no more than one night in a row.
+        $page->set('showRoster', false)->call('editHours')->set('minRestHours', '11')->set('maxNights', '1')->call('saveHours')->assertHasNoErrors();
+        // Ama now works Monday night (ends 6 AM Tuesday) then Tuesday morning at 7: an hour's rest. Her Wednesday and Thursday are both nights.
+        Livewire::test(AttendanceComponent::class)->call('openRoster')->assertSee('Only 1h rest after Night')->assertSee('Night 2 in a row');
+    }
+
     public function test_the_roster_and_the_board_show_where_a_department_is_short(): void
     {
         // Two on the morning shift each day, one at weekends.
