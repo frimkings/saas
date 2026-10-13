@@ -23,6 +23,19 @@
     </div>
     <div class="mb-4 rounded-lg border border-slate-200 p-3">
         <p class="mb-2 text-sm font-semibold text-slate-800">Ask for time off</p>
+        @if($mine['balances'])
+            <div class="mb-2 flex flex-wrap gap-1.5 text-xs">
+                @foreach($mine['balances'] as $balance)
+                    <span class="rounded border border-slate-200 px-2 py-1 text-slate-700">
+                        <strong>{{ $balance['type']->name }}</strong>
+                        @if($balance['allowance'] !== null) {{ rtrim(rtrim(number_format(max(0, $balance['left']), 2), '0'), '.') }} of {{ rtrim(rtrim(number_format($balance['allowance'], 1), '0'), '.') }} days left
+                        @else {{ rtrim(rtrim(number_format($balance['used'], 2), '0'), '.') }} days taken @endif
+                        @if($balance['pending'] > 0)<span class="text-amber-700">· {{ rtrim(rtrim(number_format($balance['pending'], 2), '0'), '.') }} waiting</span>@endif
+                    </span>
+                @endforeach
+                <span class="self-center text-slate-400">{{ $mine['balanceYear'] }}, working days</span>
+            </div>
+        @endif
         <form wire:submit="requestLeave" class="flex flex-wrap items-end gap-2">
             <div>
                 <label for="my-leave-kind" class="mb-1 block text-xs font-medium text-slate-600">How long</label>
@@ -55,7 +68,7 @@
             <div>
                 <label for="my-leave-type" class="mb-1 block text-xs font-medium text-slate-600">Type</label>
                 <select id="my-leave-type" class="ui-input !w-36 !py-1.5 !text-sm" wire:model="leaveType">
-                    @foreach(\App\Models\AttendanceLeave::TYPES as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
+                    @foreach($mine['leaveTypes'] as $key => $type)<option value="{{ $key }}">{{ $type->name }}</option>@endforeach
                 </select>
             </div>
             <div class="min-w-[12rem] flex-1">

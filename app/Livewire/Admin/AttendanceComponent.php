@@ -79,6 +79,13 @@ class AttendanceComponent extends Component
     public string $leaveToTime = '';
 
     public bool $showRequests = false;
+
+    // The branch's kinds of leave and their yearly allowances.
+    public bool $showLeaveTypes = false;
+    public ?int $leaveTypeEditId = null;
+    public string $leaveTypeName = '';
+    public string $leaveTypeDays = '';
+    public bool $leaveTypePaid = true;
     public array $reviewNotes = [];
 
     // Shifts, a person's weekly pattern of them, and the dated roster.
@@ -519,6 +526,8 @@ class AttendanceComponent extends Component
         $this->staffOwnHours = (bool) $staff->hours;
         // Their own hours start as a copy of the branch's, to adjust.
         $this->staffHours = $this->hoursForm($staff->hours ?: (AttendanceSetting::current()->hours ?? []));
+        $offered = \App\Models\AttendanceLeaveType::offered();
+        $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         $this->staffShiftWeek = [];
         foreach (array_keys(AttendanceSetting::DAYS) as $weekday) {
             $choice = $staff->shift_week[$weekday] ?? $staff->shift_week[(string) $weekday] ?? '';
@@ -575,7 +584,7 @@ class AttendanceComponent extends Component
         $this->validate([
             'leaveFrom' => 'required|date',
             'leaveTo' => 'nullable|date|after_or_equal:leaveFrom',
-            'leaveType' => 'required|in:'.implode(',', array_keys(AttendanceLeave::TYPES)),
+            'leaveType' => 'required|in:'.\App\Models\AttendanceLeaveType::offered()->keys()->implode(','),
             'leaveNote' => 'nullable|string|max:255',
             // Both times for part of one day; neither for whole days.
             'leaveFromTime' => 'nullable|date_format:H:i|required_with:leaveToTime',
@@ -588,8 +597,15 @@ class AttendanceComponent extends Component
             return;
         }
 
-        AttendanceLeave::create([
-            'attendance_staff_id' => AttendanceStaff::query()->findOrFail($this->staffId)->id,
+        $staff = AttendanceStaff::query()->findOrFail($this->staffId);
+        if ($clash = AttendanceLeave::clash($staff->id, $this->leaveFrom, $this->leaveTo ?: $this->leaveFrom, $this->leaveFromTime ?: null, $this->leaveToTime ?: null)) {
+            $this->addError('leaveFrom', 'They already have leave then: '.$clash->when().' ('.$clash->typeName().', '.strtolower(AttendanceLeave::STATUSES[$clash->status]).'). Remove that one first, or pick other days.');
+
+            return;
+        }
+
+        $leave = new AttendanceLeave([
+            'attendance_staff_id' => $staff->id,
             'starts_on' => $this->leaveFrom,
             'ends_on' => $this->leaveTo ?: $this->leaveFrom,
             'from_time' => $this->leaveFromTime ?: null,
@@ -598,7 +614,84 @@ class AttendanceComponent extends Component
             'note' => trim($this->leaveNote) ?: null,
             'created_by' => auth()->id(),
         ]);
+        // A manager may go past the yearly allowance, but is told.
+        $balances = app(\App\Services\Attendance\AttendanceLeaveBalances::class);
+        $left = $balances->for($staff, (int) substr($this->leaveFrom, 0, 4))[$this->leaveType]['left'] ?? null;
+        $days = $balances->daysOf($staff, $leave);
+        $leave->save();
+        if ($left !== null && $days > $left) {
+            $this->dispatch('notify', type: 'warning', message: 'Leave added. It takes '.$balances::days($days).', more than the '.$balances::days(max(0, $left)).' of '.strtolower($leave->typeName()).' they had left this year.');
+        }
         $this->reset('leaveFrom', 'leaveTo', 'leaveNote', 'leaveFromTime', 'leaveToTime');
+    }
+
+    public function openLeaveTypes(): void
+    {
+        $this->authorizeAccess();
+        \App\Models\AttendanceLeaveType::ensureSaved();
+        $this->reset('leaveTypeEditId', 'leaveTypeName', 'leaveTypeDays', 'leaveTypePaid');
+        $this->resetValidation();
+        $this->showLeaveTypes = true;
+    }
+
+    public function editLeaveType(int $id): void
+    {
+        $this->authorizeAccess();
+        $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
+        $this->leaveTypeEditId = $type->id;
+        $this->leaveTypeName = $type->name;
+        $this->leaveTypeDays = $type->days_per_year === null ? '' : (string) (float) $type->days_per_year;
+        $this->leaveTypePaid = $type->is_paid;
+        $this->resetValidation();
+    }
+
+    /** Add a kind of leave, or change one's name, yearly allowance or whether it is paid. */
+    public function saveLeaveType(): void
+    {
+        $this->authorizeAccess();
+        $this->leaveTypeName = trim($this->leaveTypeName);
+        $this->validate([
+            'leaveTypeName' => ['required', 'string', 'max:60', \Illuminate\Validation\Rule::unique('attendance_leave_types', 'name')
+                ->where('branch_id', app(\App\Support\Tenancy\TenantContext::class)->branchId())->ignore($this->leaveTypeEditId)],
+            'leaveTypeDays' => 'nullable|numeric|min:0|max:366',
+        ], ['leaveTypeName.unique' => 'There is already a leave type with that name.'], ['leaveTypeName' => 'name', 'leaveTypeDays' => 'days a year']);
+        $values = ['name' => $this->leaveTypeName, 'days_per_year' => $this->leaveTypeDays === '' ? null : round((float) $this->leaveTypeDays * 2) / 2, 'is_paid' => $this->leaveTypePaid];
+        if ($this->leaveTypeEditId) {
+            \App\Models\AttendanceLeaveType::query()->findOrFail($this->leaveTypeEditId)->update($values);
+        } else {
+            \App\Models\AttendanceLeaveType::create($values + ['code' => \App\Models\AttendanceLeaveType::codeFor($this->leaveTypeName)]);
+        }
+        $this->reset('leaveTypeEditId', 'leaveTypeName', 'leaveTypeDays', 'leaveTypePaid');
+    }
+
+    /** A type no longer offered stays on the leave already given under it. */
+    public function toggleLeaveType(int $id): void
+    {
+        $this->authorizeAccess();
+        $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
+        if ($type->is_active && \App\Models\AttendanceLeaveType::query()->where('is_active', true)->count() === 1) {
+            $this->addError('leaveTypeName', 'Keep at least one leave type on offer.');
+
+            return;
+        }
+        $type->update(['is_active' => ! $type->is_active]);
+    }
+
+    public function removeLeaveType(int $id): void
+    {
+        $this->authorizeAccess();
+        $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
+        if (AttendanceLeave::query()->where('type', $type->code)->exists()) {
+            $this->addError('leaveTypeName', "{$type->name} has been given to someone, so it can't be deleted. Stop offering it instead.");
+
+            return;
+        }
+        if (\App\Models\AttendanceLeaveType::query()->count() === 1) {
+            $this->addError('leaveTypeName', 'Keep at least one leave type.');
+
+            return;
+        }
+        $type->delete();
     }
 
     /** Approve or turn down leave a staff member asked for; they are told by email. */
@@ -688,6 +781,24 @@ class AttendanceComponent extends Component
         AttendanceLeave::query()->where('attendance_staff_id', $this->staffId)->whereKey($id)->delete();
     }
 
+    /** For each request waiting: the working days it takes and what the person has left of that type. */
+    private function requestDays(): array
+    {
+        $balances = app(\App\Services\Attendance\AttendanceLeaveBalances::class);
+        $days = [];
+        foreach (AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->with('staff')->get() as $request) {
+            if (! $request->staff) {
+                continue;
+            }
+            $balance = $balances->for($request->staff, $request->starts_on->year)[$request->type] ?? null;
+            // 'left' already has this request taken off; before is what they have without it.
+            $days[$request->id] = ['days' => $take = $balances->daysOf($request->staff, $request),
+                'before' => $balance && $balance['left'] !== null ? $balance['left'] + $take : null];
+        }
+
+        return $days;
+    }
+
     private function authorizeAccess(): void
     {
         abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
@@ -731,6 +842,11 @@ class AttendanceComponent extends Component
             'overtimeWaiting' => count(array_filter($overtime, fn ($item) => $item['day']['overtime_status'] === 'pending')),
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,
+            'leaveTypes' => \App\Models\AttendanceLeaveType::options(),
+            'balances' => $this->showStaff && ($person = AttendanceStaff::query()->find($this->staffId))
+                ? app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($person, $last->year) : [],
+            'balanceYear' => $last->year,
+            'requestDays' => $this->showRequests ? $this->requestDays() : [],
             'leaves' => $this->showStaff ? AttendanceLeave::query()->where('attendance_staff_id', $this->staffId)->orderByDesc('starts_on')->limit(20)->get() : collect(),
             'accounts' => $this->showStaff ? User::query()->inCurrentClinic()->orderBy('name')->get(['id', 'name']) : collect(),
             'holidayList' => $this->showHolidays ? AttendanceHoliday::query()->whereYear('date', $last->year)->orderBy('date')->get() : collect(),

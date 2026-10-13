@@ -27,6 +27,7 @@
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showShifts', true)"><i class="fas fa-layer-group" aria-hidden="true"></i>Shifts</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>
+                <button type="button" class="ui-button ui-button-secondary" wire:click="openLeaveTypes"><i class="fas fa-umbrella-beach" aria-hidden="true"></i>Leave types</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showHolidays', true)"><i class="fas fa-calendar-day" aria-hidden="true"></i>Holidays</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showDevices', true)"><i class="fas fa-fingerprint" aria-hidden="true"></i>Terminals</button>
                 <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
@@ -589,6 +590,42 @@
         </x-ui.modal>
     @endif
 
+    @if($showLeaveTypes)
+        <x-ui.modal title="Leave types" state="showLeaveTypes">
+            <div class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">The kinds of leave at this branch and how many working days of each a person may take in a calendar year. Leave the days empty for no limit. Days off and holidays inside a leave are not counted; part of a day counts by its share of the day.</p>
+                <div class="ui-table-wrap">
+                    <table class="table ui-table ui-table-sm mb-0">
+                        <thead><tr><th>Type</th><th class="text-right">Days a year</th><th>Paid</th><th class="text-right">Action</th></tr></thead>
+                        <tbody>
+                            @foreach($leaveTypes as $type)
+                                <tr wire:key="leave-type-{{ $type->id }}" @class(['text-slate-400' => ! $type->is_active])>
+                                    <td class="font-medium">{{ $type->name }}@unless($type->is_active) <span class="text-xs font-normal">(not offered)</span>@endunless</td>
+                                    <td class="text-right ui-number">{{ $type->days_per_year === null ? 'No limit' : rtrim(rtrim(number_format($type->days_per_year, 1), '0'), '.') }}</td>
+                                    <td>{{ $type->is_paid ? 'Paid' : 'Unpaid' }}</td>
+                                    <td class="whitespace-nowrap text-right">
+                                        <button type="button" wire:click="editLeaveType({{ $type->id }})" class="text-xs text-teal-700 underline">Edit</button>
+                                        <button type="button" wire:click="toggleLeaveType({{ $type->id }})" class="ml-2 text-xs text-teal-700 underline">{{ $type->is_active ? 'Stop offering' : 'Offer again' }}</button>
+                                        <button type="button" wire:click="removeLeaveType({{ $type->id }})" wire:confirm="Delete {{ $type->name }}?" class="ml-2 text-xs text-red-700 underline">Delete</button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <form wire:submit="saveLeaveType" class="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <p class="!mb-0 w-full text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $leaveTypeEditId ? 'Change this type' : 'Add a type' }}</p>
+                    <div class="min-w-[10rem] flex-1"><label for="leave-type-name" class="mb-1 block text-xs font-semibold text-slate-600">Name</label><input id="leave-type-name" type="text" maxlength="60" wire:model="leaveTypeName" placeholder="e.g. Maternity leave" class="ui-input w-full"></div>
+                    <div><label for="leave-type-days" class="mb-1 block text-xs font-semibold text-slate-600">Days a year</label><input id="leave-type-days" type="number" min="0" max="366" step="0.5" wire:model="leaveTypeDays" placeholder="No limit" class="ui-input !w-28"></div>
+                    <label class="flex items-center gap-2 pb-2 text-sm text-slate-800"><input type="checkbox" wire:model="leaveTypePaid"> Paid</label>
+                    <x-ui.button type="submit" variant="primary">{{ $leaveTypeEditId ? 'Save' : 'Add type' }}</x-ui.button>
+                    @if($leaveTypeEditId)<x-ui.button type="button" wire:click="openLeaveTypes">Cancel</x-ui.button>@endif
+                    @foreach(['leaveTypeName', 'leaveTypeDays'] as $field)@error($field)<p class="!mb-0 w-full text-xs text-red-600">{{ $message }}</p>@enderror @endforeach
+                </form>
+            </div>
+        </x-ui.modal>
+    @endif
+
     @if($showDay && $dayList)
         <style>.clinic-ui .ui-dialog:has(.attendance-day) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="$dayList['date']->format('l j F Y').($dayList['holiday'] ? ' · '.$dayList['holiday'] : '')" state="showDay">
@@ -635,7 +672,13 @@
                 @forelse($requests as $request)
                     <div class="rounded-lg border border-slate-200 p-3" wire:key="request-{{ $request->id }}">
                         <p class="!mb-0 text-sm"><strong class="text-slate-900">{{ $request->staff->name ?? 'Unknown' }}</strong> · {{ $request->typeName() }}</p>
-                        <p class="!mb-0 text-sm text-slate-700">{{ $request->when() }}</p>
+                        <p class="!mb-0 text-sm text-slate-700">{{ $request->when() }}
+                            @if($take = $requestDays[$request->id] ?? null)
+                                <span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-slate-100 text-slate-700' => $take['before'] === null || $take['days'] <= $take['before'], 'bg-red-100 text-red-800' => $take['before'] !== null && $take['days'] > $take['before']])>
+                                    {{ \App\Services\Attendance\AttendanceLeaveBalances::days($take['days']).($take['before'] !== null ? ', '.rtrim(rtrim(number_format(max(0, $take['before']), 2), '0'), '.').' left this year' : '') }}
+                                </span>
+                            @endif
+                        </p>
                         @if($request->note)<p class="!mb-0 mt-1 text-sm text-slate-600">“{{ $request->note }}”</p>@endif
                         <p class="!mb-2 text-xs text-slate-400">Asked {{ $request->created_at->diffForHumans() }}</p>
                         <div class="flex flex-wrap items-center gap-2">
@@ -705,6 +748,19 @@
 
                 <div>
                     <p class="!mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Leave</p>
+                    @if($balances)
+                        <div class="mb-2 flex flex-wrap gap-1.5 text-xs" aria-label="Leave in {{ $balanceYear }}">
+                            @foreach($balances as $balance)
+                                <span @class(['rounded border px-2 py-1', 'border-slate-200 text-slate-700' => $balance['left'] === null || $balance['left'] > 0, 'border-red-200 bg-red-50 text-red-800' => $balance['left'] !== null && $balance['left'] <= 0])>
+                                    <strong>{{ $balance['type']->name }}</strong>
+                                    @if($balance['allowance'] !== null) {{ rtrim(rtrim(number_format($balance['used'], 2), '0'), '.') }} of {{ rtrim(rtrim(number_format($balance['allowance'], 1), '0'), '.') }} days taken, {{ rtrim(rtrim(number_format($balance['left'], 2), '0'), '.') }} left
+                                    @else {{ rtrim(rtrim(number_format($balance['used'], 2), '0'), '.') }} days taken @endif
+                                    @if($balance['pending'] > 0)<span class="text-amber-700">· {{ rtrim(rtrim(number_format($balance['pending'], 2), '0'), '.') }} waiting</span>@endif
+                                </span>
+                            @endforeach
+                            <span class="self-center text-slate-400">{{ $balanceYear }}, working days</span>
+                        </div>
+                    @endif
                     <form wire:submit="addLeave" class="flex flex-wrap items-end gap-2">
                         <div>
                             <label for="leave-from" class="mb-1 block text-xs font-medium text-slate-600">First day</label>
@@ -717,7 +773,7 @@
                         <div>
                             <label for="leave-type" class="mb-1 block text-xs font-medium text-slate-600">Type</label>
                             <select id="leave-type" class="ui-input !w-36 !py-1.5 !text-sm" wire:model="leaveType">
-                                @foreach(\App\Models\AttendanceLeave::TYPES as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
+                                @foreach($leaveTypes->where('is_active', true) as $key => $type)<option value="{{ $key }}">{{ $type->name }}</option>@endforeach
                             </select>
                         </div>
                         <div>

@@ -184,6 +184,21 @@ class AttendanceAnalyzer
     /** How long after a night shift ends a punch still belongs to it (a late clock-out). */
     public const NIGHT_SHIFT_TAIL_MINUTES = 180;
 
+    /** 'Y-m-d' => the hours expected of one person (null on a day off), for each day first to last. */
+    public function schedule(AttendanceStaff $staff, CarbonImmutable $first, CarbonImmutable $last): array
+    {
+        $settings = AttendanceSetting::current();
+        $shifts = AttendanceShift::query()->get()->keyBy('id');
+        $roster = AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->get()
+            ->mapWithKeys(fn ($entry) => [$entry->date->format('Y-m-d') => $entry->attendance_shift_id ?? 0])->all();
+        $schedule = [];
+        for ($day = $first->startOfDay(); $day->lte($last); $day = $day->addDay()) {
+            $schedule[$day->format('Y-m-d')] = $this->hoursFor($staff, $day, $settings, $shifts, $roster);
+        }
+
+        return $schedule;
+    }
+
     /** The hours expected of one person on one date (see hoursFor), for asking outside a report. */
     public function expectedHours(AttendanceStaff $staff, CarbonImmutable $day): ?array
     {
