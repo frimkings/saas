@@ -195,6 +195,7 @@ class UserRoleManagerComponent extends Component
     public function render()
     {
         $clinic = $this->currentClinic();
+        $this->tidyBranchRoles();
         $users = $this->staffQuery($clinic)->paginate($this->perPage);
 
         $allRoles = Role::where('name', 'like', '%' . $this->roleSearch . '%')->get();
@@ -286,9 +287,33 @@ class UserRoleManagerComponent extends Component
         $this->isOpen        = true;
     }
 
+    /**
+     * Every chosen branch has its own list of role names. A branch with anything else (nothing
+     * yet, or a bare yes/no from an old tick box) starts again from an empty list, so one tick
+     * can never stand for every role.
+     */
+    private function tidyBranchRoles(): void
+    {
+        foreach ($this->selectedBranchIds as $branchId) {
+            $roles = $this->branchRoles[$branchId] ?? null;
+            $this->branchRoles[(int) $branchId] = is_array($roles) ? array_values(array_filter($roles, 'is_string')) : [];
+        }
+    }
+
+    /** One tick box under "Different roles per branch": add or remove that one role for that one branch. */
+    public function toggleBranchRole(int $branchId, string $role): void
+    {
+        abort_if(! $this->canManageUsers(), 403);
+        $this->tidyBranchRoles();
+        $roles = $this->branchRoles[$branchId] ?? [];
+        $this->branchRoles[$branchId] = in_array($role, $roles, true) ? array_values(array_diff($roles, [$role])) : [...$roles, $role];
+        $this->resetErrorBag(["branchRoles.{$branchId}", 'branchRoles']);
+    }
+
     public function store()
     {
         abort_if(!$this->canManageUsers(), 403);
+        $this->tidyBranchRoles();
 
         if (!$this->isEdit && config('tenancy.enabled')) {
             try { app(\App\Services\SubscriptionQuotaService::class)->assertUserAvailable($this->currentClinic()); }

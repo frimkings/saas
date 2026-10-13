@@ -485,10 +485,13 @@
                                             @foreach($availableRoles as $role)
                                                 <div class="w-full md:w-6/12 px-2 mb-1">
                                                     <div class="flex items-center gap-2">
+                                                        {{-- Each box asks the server to switch its one role; the key redraws it from what was saved. --}}
+                                                        @php $hasRole = in_array($role->name, (array) ($branchRoles[$branch->id] ?? []), true); @endphp
                                                         <input type="checkbox" class="rounded border-slate-300 text-teal-700"
                                                             id="branch-{{ $branch->id }}-role-{{ $role->id }}"
-                                                            wire:model.live="branchRoles.{{ $branch->id }}"
-                                                            value="{{ $role->name }}">
+                                                            wire:key="branch-{{ $branch->id }}-role-{{ $role->id }}-{{ $hasRole ? 'on' : 'off' }}"
+                                                            wire:click="toggleBranchRole({{ $branch->id }}, @js($role->name))"
+                                                            @checked($hasRole)>
                                                         <label class="" for="branch-{{ $branch->id }}-role-{{ $role->id }}">{{ $role->name }}</label>
                                                     </div>
                                                 </div>
