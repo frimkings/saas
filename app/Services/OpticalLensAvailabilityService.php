@@ -204,6 +204,7 @@ class OpticalLensAvailabilityService
 
     public function reserveForOrder(LensOrder $order): void
     {
+        if ($order->lens_supply_source === 'outside') $this->writeOutsideLensLines($order, true);
         if ($order->lens_supply_source !== 'stock') return;
         $details = json_decode($order->notes ?? '', true) ?: [];
         $stockKey = (string) data_get($details, 'lens_details.stock_key', '');
@@ -317,6 +318,25 @@ class OpticalLensAvailabilityService
         \Illuminate\Support\Facades\DB::afterCommit(fn () => app(\App\Services\OwnerAlerts::class)->specialLensPriced($order, $eyes, $lens));
     }
 
+    /**
+     * A job with lenses to buy in: the owner is emailed, with what to order and what was
+     * charged, once money has been taken for it (the deposit on a new order, or the first
+     * payment after a quotation is converted). Jobs that take no payment here go at once: a
+     * partner on account, or a clinic order paid on the patient's clinic bill. Sent once per job.
+     */
+    public function reportSpecialOrder(LensOrder $order): void
+    {
+        if (in_array($order->status, ['Quotation', 'Cancelled', 'Collected'], true)) return;
+        $paysLater = ($order->order_source === 'partner' && $order->partner_billing_terms === 'on_account') || $order->refraction_id || (float) $order->total <= 0;
+        if ((float) $order->paid_amount <= 0 && ! $paysLater) return;
+        $rows = app(OpticalPurchasingService::class)->specialOrderBacklog()->filter(fn ($row) => $row['order']->id === $order->id);
+        if ($rows->isEmpty()) return;
+        $lenses = $rows->map(fn ($row) => \Illuminate\Support\Str::before($row['description'], ' · job '))->implode('; ');
+        $charged = (float) $rows->sum('price');
+        // Only once the order is really saved.
+        \Illuminate\Support\Facades\DB::afterCommit(fn () => app(\App\Services\OwnerAlerts::class)->specialOrderPlaced($order, $lenses, $charged));
+    }
+
     /** Record the per-eye plan without holding stock (quotations). */
     public function writeLensLines(LensOrder $order, array $option, bool $active): void
     {
@@ -330,6 +350,31 @@ class OpticalLensAvailabilityService
                 'sphere' => $line['sphere'], 'power' => $line['power'],
                 'unit_price' => $line['unit_price'], 'price_estimated' => $line['price_estimated'],
                 'status' => $active ? ($line['source'] === 'stock' ? 'held' : 'ordered') : 'quoted',
+            ]);
+        }
+    }
+
+    /**
+     * A whole pair bought in for the job ("Special order"): one line per eye, just like the
+     * special-order eye of a half pair. The job then waits for each lens to arrive, the bench
+     * and the docket show which lenses it needs, and Purchasing orders them per eye.
+     */
+    public function writeOutsideLensLines(LensOrder $order, bool $active): void
+    {
+        if ($order->lens_supply_source !== 'outside' || $order->work_type !== 'prescription') return;
+        OpticalOrderLensLine::where('lens_order_id', $order->id)->delete();
+        $rx = $order->prescription_snapshot ?? [];
+        $power = \App\Support\LensDesign::isEyeSpecific(data_get(json_decode($order->notes ?? '', true), 'lens_details.type')) ? 'add' : 'cyl';
+        // The pair's price, split between the eyes so the two lines add up to it.
+        $half = round((float) $order->lens_price / 2, 2);
+        foreach (['od' => $half, 'os' => round((float) $order->lens_price - $half, 2)] as $eye => $price) {
+            if (! is_numeric(data_get($rx, "$eye.sph"))) continue;
+            OpticalOrderLensLine::create([
+                'lens_order_id' => $order->id, 'eye' => $eye, 'source' => 'special_order',
+                'sphere' => round((float) data_get($rx, "$eye.sph"), 2),
+                'power' => is_numeric(data_get($rx, "$eye.$power")) ? round((float) data_get($rx, "$eye.$power"), 2) : 0,
+                'unit_price' => $price, 'price_estimated' => false,
+                'status' => $active ? 'ordered' : 'quoted',
             ]);
         }
     }

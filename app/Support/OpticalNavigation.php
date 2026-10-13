@@ -31,8 +31,9 @@ class OpticalNavigation
                 ['optical.jobs', 'Job Tracking', 'fa-hourglass-half'],
             ]],
             ['key' => 'stock', 'label' => 'Stock', 'links' => [
-                // Products and categories are tabs of Catalogue & Stock.
+                // Products is a tab of Catalogue & Stock.
                 ['optical.catalogue', 'Catalogue & Stock', 'fa-boxes'],
+                ['optical.lens-grid', 'View Grid', 'fa-th'],
                 ['optical.stock', 'Receiving & Batches', 'fa-dolly'],
                 ['optical.purchasing', 'Purchasing', 'fa-truck'],
                 ['optical.stock-counts', 'Stock Counts', 'fa-clipboard-check'],
@@ -111,7 +112,7 @@ class OpticalNavigation
     {
         return request()->routeIs($route)
             || ($route === 'optical.orders' && request()->routeIs('optical.orders.*', 'optical.collections'))
-            || ($route === 'optical.catalogue' && request()->routeIs('optical.products', 'optical.categories'))
+            || ($route === 'optical.catalogue' && request()->routeIs('optical.products'))
             || ($route === 'optical.stock' && request()->routeIs('optical.stock.*'))
             || ($route === 'admin.users' && request()->routeIs('admin.users'));
     }

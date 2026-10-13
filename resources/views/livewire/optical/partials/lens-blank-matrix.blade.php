@@ -23,10 +23,11 @@
     $extraBadge = fn ($cell) => $cell['extra'] ? '<span class="lg-extra'.($matrixEyeSpecific ? ' lg-extra-eye' : '').'">+'.$cell['extra'].($cell['extraEye'] ? ' '.$cell['extraEye'] : '').'</span>' : '';
     $inPairs = $matrixView === 'pairs';
 @endphp
-<div class="space-y-4 min-w-0 lg-grid" x-data="lensGrid(@js($browserViews ? ($matrixView === 'lenses' ? 'lenses' : 'pairs') : 'pairs'))"
+<div class="space-y-3 min-w-0 lg-grid" x-data="lensGrid(@js($browserViews ? ($matrixView === 'lenses' ? 'lenses' : 'pairs') : 'pairs'))"
      data-grid="{{ json_encode($selectionGrid) }}" data-receive-url="{{ $receiveUrl }}"
-     :class="{ 'lg-selecting': selecting, 'v-lenses': view === 'lenses' }"
+     :class="{ 'lg-selecting': selecting, 'v-lenses': view === 'lenses', 'lg-full': full, 'lg-large': size === 'large' }"
      x-on:lens-grid-reset.window="clear()" x-on:lens-select-toggle.window="toggleMode()"
+     x-on:resize.window="fit()" x-on:keydown.escape.window="if (full) toggleFull()"
      x-on:visibilitychange.document="refreshIfStale()">
     <style>
         .lg-grid .lg-c{padding:.5rem .75rem;border:1px solid rgb(255 255 255 / .7);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -44,12 +45,30 @@
         .lg-grid .lg-extra{margin-left:.25rem;border-radius:.25rem;padding:0 .25rem;font-size:10px;font-weight:600;color:#fff;background:#334155}
         .lg-grid .lg-extra-eye{background:#7c3aed}
         .lg-grid .lg-order{font-size:10px;line-height:1;font-weight:600;color:#1d4ed8}
+        /* The grid fills the window from where it starts (--lg-top, set by lens-grid.js) down to the legend. */
+        .lg-grid .lg-box{max-height:max(320px, calc(100dvh - var(--lg-top, 280px) - 3.5rem))}
+        .lg-grid.lg-large .lg-table{font-size:.875rem}
+        .lg-grid.lg-large .lg-c{padding:.6rem .9rem}
+        .lg-grid.lg-full{position:fixed;inset:0;z-index:1040;margin:0 !important;padding:.75rem;overflow:auto;background:var(--clinic-surface, #f8fafc)}
+        .lg-grid .lg-chip{display:inline-flex;align-items:center;gap:.35rem;border-radius:9999px;border-width:1px;padding:.3rem .7rem;font-size:.75rem;white-space:nowrap}
+        .lg-grid .lg-seg{display:inline-flex;overflow:hidden;border-radius:.5rem;border:1px solid #cbd5e1}
+        .lg-grid .lg-seg button{padding:.375rem .7rem;font-size:.8125rem;background:#fff;color:#334155}
+        .lg-grid .lg-seg button + button{border-left:1px solid #cbd5e1}
+        .lg-grid .lg-seg button[aria-pressed=true]{background:#0f766e;color:#fff}
     </style>
 
-    {{-- Toolbar: range, view and stock summary in one row so the grid starts near the top. --}}
-    <section class="ui-panel px-4 py-3" aria-label="Lens stock range">
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
-            <select wire:model.live="matrixRangeKey" class="ui-input" style="min-width:18rem;flex:1 1 22rem;max-width:40rem" aria-label="Lens range"
+    {{-- One alert chip for reordering; amber or red only when powers are low or out. --}}
+    @php
+        $outCount = $replenishmentRows->where('quantity', 0)->count();
+        $lowCount = $replenishmentRows->where('low', true)->where('quantity', '>', 0)->count();
+        $suggested = $replenishmentRows->sum('pairs');
+        $alertTone = $outCount ? 'border-red-200 bg-red-50 text-red-900' : ($lowCount ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900');
+    @endphp
+
+    {{-- Everything above the grid is this one toolbar, so the grid starts near the top and fills the window. --}}
+    <section class="ui-panel px-3 py-2" aria-label="Lens stock range">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <select wire:model.live="matrixRangeKey" class="ui-input" style="min-width:16rem;flex:1 1 18rem;max-width:32rem" aria-label="Lens range"
                     title="One lens range at this branch. Lenses are bought in pairs; a single vision pair can be split, a progressive or bifocal pair is one right and one left lens.">
                 @if($stockedRanges->isEmpty())<option value="">No lens stock received yet</option>@endif
                 @unless($currentRange || $stockedRanges->isEmpty())<option value="{{ $matrixRangeKey }}">{{ $matrixRange ?: 'Unspecified range' }} · {{ $matrixDesign }} (no stock)</option>@endunless
@@ -81,6 +100,31 @@
                 <label class="flex gap-1.5 items-center"><input type="checkbox" wire:model.live="matrixFullPowers">Full power range</label>
             </div>
 
+            @if($stockedRanges->isNotEmpty())
+                <span class="lg-chip {{ $alertTone }}" role="status" aria-label="Lens replenishment alerts"
+                      title="Default: reorder at 5 pairs (10 lenses), topping up to 10 pairs. Custom levels per power set the yellow cells. Create supplier order covers powers stocked before; pick any power by hand with Select powers.">
+                    @if($outCount || $lowCount)
+                        <span aria-hidden="true">⚠</span> <strong>{{ $lowCount }}</strong> low · <strong>{{ $outCount }}</strong> out · order <strong>{{ number_format($suggested) }} pairs</strong>
+                    @else
+                        <span aria-hidden="true">✓</span> All above reorder level
+                    @endif
+                </span>
+                @if($isManager)
+                    <button type="button" x-on:click="toggleMode()" :class="selecting ? 'ui-button-primary' : 'bg-white'" :aria-pressed="selecting" class="ui-button" style="padding:5px 12px" x-text="selecting ? 'Done selecting' : 'Select powers'">Select powers</button>
+                    <div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+                        <button type="button" x-ref="reorder" x-on:click="open = ! open" :aria-expanded="open" aria-haspopup="menu" class="ui-button" style="padding:5px 12px;background:#fff">Reorder ▾</button>
+                        <template x-teleport="body">
+                            <div x-show="open" x-cloak x-anchor.bottom-end.offset.4="$refs.reorder" x-on:click.outside="if (! $refs.reorder.contains($event.target)) open = false" role="menu"
+                                 class="clinic-ui z-[1050] w-72 rounded-lg border border-slate-200 bg-white p-1 text-left text-xs shadow-lg">
+                                <button type="button" role="menuitem" wire:click="orderFromReorderList" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50"><b>Create supplier order</b><span class="block text-slate-500">Every low and out power, topped up to target</span></button>
+                                <button type="button" role="menuitem" wire:click="downloadReplenishment" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">Download replenishment order (.xlsx)</button>
+                                <button type="button" role="menuitem" wire:click="editReorderLevels" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">Set reorder levels per power</button>
+                            </div>
+                        </template>
+                    </div>
+                @endif
+            @endif
+
             <div class="ml-auto flex flex-wrap items-center gap-x-3 gap-y-2">
                 <div class="text-right leading-tight">
                     <strong class="text-sm">
@@ -96,7 +140,12 @@
                         · <span wire:loading.remove wire:target="$refresh">updated {{ $matrixRefreshedAt->format('H:i') }}</span><span wire:loading wire:target="$refresh">refreshing…</span>
                     </span>
                 </div>
+                <div class="lg-seg" role="group" aria-label="Cell size">
+                    <button type="button" x-on:click="setSize('compact')" :aria-pressed="size === 'compact'" title="Smaller cells: more powers on screen">Compact</button>
+                    <button type="button" x-on:click="setSize('large')" :aria-pressed="size === 'large'" title="Larger cells: easier to read">Large</button>
+                </div>
                 <button type="button" wire:click="$refresh" x-on:click="_refreshedAt = Date.now()" class="ui-button" style="padding:6px 10px" title="Refresh stock" aria-label="Refresh stock">⟳</button>
+                <button type="button" x-on:click="toggleFull()" :aria-pressed="full" class="ui-button" style="padding:6px 10px" x-text="full ? 'Exit full screen' : 'Full screen'" title="Esc leaves full screen">Full screen</button>
                 @if($isManager)
                     <div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
                         <button type="button" x-ref="receive" x-on:click="open = ! open" :aria-expanded="open" aria-haspopup="menu" class="ui-button ui-button-primary">Receive ▾</button>
@@ -114,6 +163,7 @@
                 @endif
             </div>
         </div>
+        @error('replenishment')<p role="alert" class="mt-2 text-sm text-red-700">{{ $message }}</p>@enderror
     </section>
 
     @if($stockedRanges->isEmpty())
@@ -125,48 +175,13 @@
         </div>
     @endif
 
-    {{-- One alert line for reordering; amber or red only when powers are low or out. --}}
-    @php
-        $outCount = $replenishmentRows->where('quantity', 0)->count();
-        $lowCount = $replenishmentRows->where('low', true)->where('quantity', '>', 0)->count();
-        $suggested = $replenishmentRows->sum('pairs');
-        $alertTone = $outCount ? 'border-red-200 bg-red-50 text-red-900' : ($lowCount ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900');
-    @endphp
-    @if($stockedRanges->isNotEmpty())
-        <section class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-4 py-2 text-sm {{ $alertTone }}" aria-label="Lens replenishment alerts">
-            <span class="flex-1 min-w-0">
-                @if($outCount || $lowCount)
-                    <span aria-hidden="true">⚠</span> <strong>{{ $lowCount }}</strong> {{ \Illuminate\Support\Str::plural('power', $lowCount) }} low · <strong>{{ $outCount }}</strong> out · suggested order <strong>{{ number_format($suggested) }} pairs</strong>
-                @else
-                    <span aria-hidden="true">✓</span> Every stocked power is above its reorder level.
-                @endif
-                <span class="ml-1 cursor-help text-xs opacity-70" tabindex="0" title="Default: reorder at 5 pairs (10 lenses), topping up to 10 pairs. Custom levels per power set the yellow cells. Create supplier order covers powers stocked before; pick any power by hand with Select powers.">ⓘ</span>
-            </span>
-            @if($isManager)
-                <button type="button" x-on:click="toggleMode()" :class="selecting ? 'ui-button-primary' : 'bg-white'" :aria-pressed="selecting" class="ui-button" style="padding:5px 12px" x-text="selecting ? 'Done selecting' : 'Select powers'">Select powers</button>
-                <div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
-                    <button type="button" x-ref="reorder" x-on:click="open = ! open" :aria-expanded="open" aria-haspopup="menu" class="ui-button" style="padding:5px 12px;background:#fff">Reorder ▾</button>
-                    <template x-teleport="body">
-                        <div x-show="open" x-cloak x-anchor.bottom-end.offset.4="$refs.reorder" x-on:click.outside="if (! $refs.reorder.contains($event.target)) open = false" role="menu"
-                             class="clinic-ui z-[1050] w-72 rounded-lg border border-slate-200 bg-white p-1 text-left text-xs shadow-lg">
-                            <button type="button" role="menuitem" wire:click="orderFromReorderList" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50"><b>Create supplier order</b><span class="block text-slate-500">Every low and out power, topped up to target</span></button>
-                            <button type="button" role="menuitem" wire:click="downloadReplenishment" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">Download replenishment order (.xlsx)</button>
-                            <button type="button" role="menuitem" wire:click="editReorderLevels" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">Set reorder levels per power</button>
-                        </div>
-                    </template>
-                </div>
-            @endif
-            @error('replenishment')<p role="alert" class="w-full text-red-700">{{ $message }}</p>@enderror
-        </section>
-    @endif
-
     @if($showReorderSettings)
         {{-- Cancel hides the form at once; the server hears of it with the next request. --}}
         <section class="ui-panel p-4 space-y-3" aria-label="Reorder levels per power" x-data="{ cancel() { this.$root.hidden = true; this.$wire.$set('showReorderSettings', false, false) } }">
             <form wire:submit="saveReorderLevels" class="space-y-3">
                 <div class="overflow-auto max-h-96"><table class="ui-table w-full"><thead><tr><th>SPH</th><th>{{ $matrixDesign === 'Single Vision' ? 'CYL' : 'ADD' }}</th><th>On hand (lenses)</th><th>Reorder at (pairs)</th><th>Target (pairs)</th><th>Order (pairs)</th></tr></thead><tbody>
                 @foreach($replenishmentRows as $row)
-                    <tr wire:key="reorder-{{ $row['id'] }}"><td>{{ $row['sphere'] }}</td><td>{{ $row['power'] }}</td><td>{{ $row['quantity'] }}</td><td><input autocomplete="off" type="number" min="0" max="49999" step="1" wire:model="reorderPairs.{{ $row['id'] }}" class="ui-input w-24" aria-label="Reorder pairs for {{ $row['sphere'] }} / {{ $row['power'] }}">@error('reorderPairs.'.$row['id'])<span class="text-red-700">{{ $message }}</span>@enderror</td><td><input autocomplete="off" type="number" min="1" max="50000" step="1" wire:model="targetPairs.{{ $row['id'] }}" class="ui-input w-24" aria-label="Target pairs for {{ $row['sphere'] }} / {{ $row['power'] }}">@error('targetPairs.'.$row['id'])<span class="text-red-700">{{ $message }}</span>@enderror</td><td>{{ $row['pairs'] }}</td></tr>
+                    <tr wire:key="reorder-{{ $row['id'] }}"><td>{{ $row['sphere'] }}</td><td>{{ $row['power'] }}</td><td>{{ $row['quantity'] }}</td><td><input autocomplete="off" type="number" min="0" max="49999" step="1" wire:model="reorderPairs.{{ $row['id'] }}" class="ui-input !w-24" aria-label="Reorder pairs for {{ $row['sphere'] }} / {{ $row['power'] }}">@error('reorderPairs.'.$row['id'])<span class="text-red-700">{{ $message }}</span>@enderror</td><td><input autocomplete="off" type="number" min="1" max="50000" step="1" wire:model="targetPairs.{{ $row['id'] }}" class="ui-input !w-24" aria-label="Target pairs for {{ $row['sphere'] }} / {{ $row['power'] }}">@error('targetPairs.'.$row['id'])<span class="text-red-700">{{ $message }}</span>@enderror</td><td>{{ $row['pairs'] }}</td></tr>
                 @endforeach
                 </tbody></table></div>
                 <p class="text-xs">Order quantities reflect saved settings. Save changes before downloading.</p>
@@ -205,8 +220,8 @@
         $empty = ['value' => 0, 'extra' => 0, 'extraEye' => null];
     @endphp
 
-    <div class="ui-panel min-w-0 overflow-auto" style="max-height:max(360px, calc(100dvh - 280px))" role="region" aria-label="Lens blank power grid" tabindex="0">
-        <table class="border-collapse text-xs font-mono text-center min-w-max w-full">
+    <div class="ui-panel min-w-0 overflow-auto lg-box" data-grid-box role="region" aria-label="Lens blank power grid" tabindex="0">
+        <table class="lg-table border-collapse text-xs font-mono text-center min-w-max w-full">
             <caption class="sr-only">Stock for {{ $matrixRange ?: 'unspecified range' }}, {{ $matrixDesign }}, index {{ $matrixIndex }}, {{ $matrixCoating }}</caption>
             <thead class="sticky top-0 z-20"><tr>
                 <th scope="col" class="sticky left-0 z-30 bg-slate-900 text-white px-3 py-2 whitespace-nowrap border border-slate-700">SPH / {{ $matrixDesign === 'Single Vision' ? 'CYL' : 'ADD (+)' }}</th>

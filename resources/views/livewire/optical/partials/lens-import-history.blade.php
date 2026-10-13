@@ -25,7 +25,7 @@
             <div class="flex justify-between"><h3 class="font-bold">Import #{{ $importDetail->id }} — {{ $importDetail->worksheet }}</h3><button type="button" x-on:click="dismissCall($el, $wire, 'closeImport')" class="underline">Close details</button></div>
             <p>{{ $importDetail->supplier }} · Invoice: {{ $importDetail->reference ?: 'Not supplied' }} · Batch: {{ $importDetail->batch_number ?: 'Not supplied' }}</p>
             <p>{{ implode(' · ', $importDetail->specifications) }}</p>
-            <p>Worksheet: {{ number_format($importDetail->source_quantity) }} {{ $importDetail->source_unit }}. Received: {{ number_format($importDetail->pieces) }} individual lenses.</p>
+            <p>Worksheet: {{ rtrim(rtrim(number_format((float) $importDetail->source_quantity, 1), '0'), '.') }} {{ $importDetail->source_unit }}. Received: {{ number_format($importDetail->pieces) }} individual lenses.</p>
             <p>Receipt cost: GHS {{ number_format($importDetail->movements->sum(fn ($m) => $m->quantity_change * (float) $m->unit_cost), 2) }}</p>
             @if($importDetail->repeat_reason)<p>Repeat delivery reason: {{ $importDetail->repeat_reason }}</p>@endif
             <div class="ui-table-wrap"><table class="ui-table w-full"><thead><tr><th>Lens / SKU</th><th>Lenses</th><th>Cost / lens</th><th>Price / lens</th><th>Status</th></tr></thead><tbody>

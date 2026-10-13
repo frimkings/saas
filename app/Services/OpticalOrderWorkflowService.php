@@ -44,6 +44,10 @@ class OpticalOrderWorkflowService
                 throw ValidationException::withMessages(['status' => 'Invalid order status transition.']);
             }
             $lenses = app(OpticalLensAvailabilityService::class);
+            // A whole pair that was special-ordered and sent to an outside lab comes back glazed: the lab had the lenses.
+            if ($status === 'Ready for Collection' && $order->status === 'Sent to Lab' && $order->lens_supply_source === 'outside') {
+                foreach ($lenses->awaitedEyes($order) as $eye) $lenses->receiveSpecialOrderLens($order, $eye);
+            }
             // Glazing, or finishing a job that went to an outside lab, needs every lens to have arrived.
             if (in_array($status, ['In Production', 'Ready for Collection'], true) && ($awaited = $lenses->awaitedEyes($order))) {
                 throw ValidationException::withMessages(['status' => 'Mark the special-order '.implode(' and ', array_map('strtoupper', $awaited)).' lens as received '
@@ -175,6 +179,7 @@ class OpticalOrderWorkflowService
             $order->save();
             app(OpticalLensAvailabilityService::class)->reserveForOrder($order);
             app(OpticalLensAvailabilityService::class)->reportTypedPrices($order);
+            app(OpticalLensAvailabilityService::class)->reportSpecialOrder($order);
             AuditTrail::record('optical.quotation_converted', "Quotation {$quoted['order_id']} converted to order {$order->order_id}".($reprice ? ' at current prices' : ''),
                 $order, $quoted + ['status' => 'Quotation'], ['order_id' => $order->order_id, 'status' => 'Pending', 'total' => $order->total, 'repriced' => (bool) $reprice], $order->patient_id);
             return $deposit > 0 ? $this->recordPayment($order->id, $deposit, $method, 'Optical order deposit') : $order;
@@ -231,6 +236,8 @@ class OpticalOrderWorkflowService
             $sale->save();
             AuditTrail::record('optical.payment_recorded', 'Payment of '.currency().' '.number_format($amount, 2)." ({$method}) on order {$order->order_id}",
                 $order, ['paid_amount' => round($order->paid_amount - $amount, 2)], ['paid_amount' => $order->paid_amount, 'amount' => $amount, 'payment_method' => $method], $order->patient_id);
+            // Special-order lenses are reported to the owner once the job is paid for.
+            app(OpticalLensAvailabilityService::class)->reportSpecialOrder($order);
             return $order;
         });
     }

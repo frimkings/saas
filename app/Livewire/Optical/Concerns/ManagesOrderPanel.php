@@ -2,7 +2,12 @@
 
 namespace App\Livewire\Optical\Concerns;
 
+use App\Models\AuditTrail;
 use App\Models\LensOrder;
+use App\Models\Supplier;
+use App\Services\ClinicAccessService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use App\Support\PaymentMethods;
 use App\Services\OpticalCollectionNotifier;
 use App\Services\OpticalOrderWorkflowService;
@@ -34,6 +39,12 @@ trait ManagesOrderPanel
     public ?int $sendToLabOrderId = null;
     public string $labSupplierId = '';
     public string $expectedBack = '';
+    /** The lab list is edited in the Send to lab box. Labs are suppliers, shared with Purchasing. */
+    public bool $managingLabs = false;
+    public ?int $labEditingId = null;
+    public string $labName = '';
+    public string $labLeadDays = '';
+    public string $labPhone = '';
     public bool $showConvertModal = false;
     public ?int $convertOrderId = null;
     public string $convertDeposit = '';
@@ -136,8 +147,63 @@ trait ManagesOrderPanel
         $this->sendToLabOrderId = $order->id;
         $this->labSupplierId = (string) ($order->lab_supplier_id ?? '');
         $this->expectedBack = '';
+        $this->reset(['managingLabs', 'labEditingId', 'labName', 'labLeadDays', 'labPhone']);
         $this->resetValidation();
         $this->showSendToLabModal = true;
+    }
+
+    /** Fill the lab form for one lab, or clear it for a new one. */
+    public function editLab(?int $id = null): void
+    {
+        $lab = $id ? Supplier::where('is_active', true)->findOrFail($id) : null;
+        $this->labEditingId = $lab?->id;
+        $this->labName = $lab->name ?? '';
+        $this->labLeadDays = (string) ($lab->lead_time_days ?? '');
+        $this->labPhone = $lab->phone ?? '';
+        $this->managingLabs = true;
+        $this->resetValidation(['labName', 'labLeadDays', 'labPhone', 'labs']);
+    }
+
+    public function saveLab(): void
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $this->labName = trim(preg_replace('/\s+/', ' ', $this->labName));
+        $this->validate([
+            'labName' => ['required', 'string', 'max:255', Rule::unique('suppliers', 'name')->where('clinic_id', Supplier::clinicIdForWrite())->ignore($this->labEditingId)],
+            'labLeadDays' => 'nullable|integer|min:0|max:365',
+            'labPhone' => 'nullable|string|max:50',
+        ], ['labName.unique' => 'There is already a lab or supplier with this name. If it was removed, a manager can bring it back under Purchasing → Suppliers.'],
+            ['labName' => 'lab name', 'labLeadDays' => 'lead time', 'labPhone' => 'phone']);
+        $lab = $this->labEditingId ? Supplier::where('is_active', true)->findOrFail($this->labEditingId) : new Supplier(['is_active' => true]);
+        $lab->fill(['name' => $this->labName, 'lead_time_days' => $this->labLeadDays === '' ? null : (int) $this->labLeadDays, 'phone' => trim($this->labPhone) ?: null]);
+        AuditTrail::recordSave($lab, 'optical.lab', 'lab '.$lab->name);
+        // The lab just saved is the one being sent to, with its lead time as the return date.
+        $this->labSupplierId = (string) $lab->id;
+        $this->expectedBack = $lab->lead_time_days ? today()->addDays($lab->lead_time_days)->toDateString() : '';
+        $this->reset(['labEditingId', 'labName', 'labLeadDays', 'labPhone']);
+    }
+
+    /**
+     * A lab nothing has used is deleted. One with jobs, purchase orders or returns behind it
+     * is taken off the list instead, so that history still names it.
+     */
+    public function removeLab(int $id): void
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $lab = Supplier::where('is_active', true)->findOrFail($id);
+        $used = LensOrder::withoutGlobalScopes()->where('lab_supplier_id', $lab->id)->exists()
+            || \App\Models\OpticalPurchaseOrder::withoutGlobalScopes()->where('supplier_id', $lab->id)->exists()
+            || DB::table('optical_supplier_returns')->where('supplier_id', $lab->id)->exists()
+            || DB::table('purchase_orders')->where('supplier_id', $lab->id)->exists();
+        if ($used) {
+            $lab->is_active = false;
+            AuditTrail::recordSave($lab, 'optical.lab', 'lab '.$lab->name.' (removed from the list)');
+        } else {
+            $lab->delete();
+            AuditTrail::record('optical.lab_deleted', 'Deleted lab '.$lab->name, $lab, $lab->only(['name', 'lead_time_days', 'phone']), []);
+        }
+        if ($this->labSupplierId === (string) $id) { $this->labSupplierId = ''; $this->expectedBack = ''; }
+        if ($this->labEditingId === $id) $this->reset(['labEditingId', 'labName', 'labLeadDays', 'labPhone']);
     }
 
     /**

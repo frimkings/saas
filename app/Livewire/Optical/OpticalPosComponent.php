@@ -150,7 +150,7 @@ class OpticalPosComponent extends Component
 
     public function render()
     {
-        $opticalProducts = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)->soldIndividually()
+        $opticalProducts = OpticalProduct::with('stocks')->where('is_active', true)->soldIndividually()
             ->when(trim($this->searchTerm) !== '', fn ($q) => $q->where(fn ($search) => $search
                 ->where('name', 'like', '%'.trim($this->searchTerm).'%')
                 ->orWhere('sku', 'like', '%'.trim($this->searchTerm).'%')))

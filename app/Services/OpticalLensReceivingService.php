@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\OpticalCategory;
 use App\Models\OpticalProduct;
 use App\Models\OpticalProductStock;
 use App\Models\OpticalProductStockMovement;
@@ -136,15 +135,13 @@ class OpticalLensReceivingService
             $taken = collect(array_chunk(array_values(array_unique($bases)), 500))
                 ->flatMap(fn ($chunk) => OpticalProduct::withTrashed()->whereIn('sku', $chunk)->pluck('sku'))->flip()->all();
             $priceList = app(OpticalLensPriceList::class);
-            $categories = [];
             $now = now();
             $rows = [];
             foreach ($new as $key => $line) {
                 $specs = $line['specs'];
-                $categories[$specs['design']] ??= $this->category($specs['design'])->id;
                 $sku = isset($taken[$bases[$key]]) ? $bases[$key].'-'.strtoupper(substr($key, 0, 6)) : $bases[$key];
                 $taken[$sku] = true;
-                $rows[] = ['clinic_id' => $clinicId, 'lens_key' => $key, 'optical_category_id' => $categories[$specs['design']],
+                $rows[] = ['clinic_id' => $clinicId, 'lens_key' => $key, 'type' => 'lens',
                     'sku' => $sku, 'name' => $this->itemName($specs), 'lens_specs' => json_encode($specs),
                     'cost_price' => (float) $line['details']['unit_cost'],
                     'selling_price' => (float) ($priceList->lensPrice($specs) ?? $line['details']['unit_price']),
@@ -189,19 +186,13 @@ class OpticalLensReceivingService
 
     private function firstOrCreateItem(array $specs, string $key, float $unitCost, float $unitPrice): OpticalProduct
     {
-        $category = $this->category($specs['design']);
         $existing = OpticalProduct::where('lens_key', $key)->first();
         if ($existing) return $existing;
         return OpticalProduct::create(['lens_key' => $key,
-            'optical_category_id' => $category->id, 'sku' => $this->readableSku($specs, $key),
+            'type' => 'lens', 'sku' => $this->readableSku($specs, $key),
             'name' => $this->itemName($specs),
             'lens_specs' => $specs, 'cost_price' => $unitCost, 'selling_price' => $unitPrice, 'is_active' => true,
         ]);
-    }
-
-    private function category(string $design): OpticalCategory
-    {
-        return OpticalCategory::forStockLenses($design);
     }
 
     private function itemName(array $specs): string

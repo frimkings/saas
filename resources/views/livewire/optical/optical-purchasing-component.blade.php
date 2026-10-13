@@ -89,7 +89,7 @@
             @else
                 <div class="overflow-x-auto">
                     <table class="oo-table w-full" style="min-width:720px">
-                        <thead><tr><th style="width:40px"></th><th>Lens</th><th>Job</th><th class="oo-num" style="width:140px">Unit cost ({{ currency() }})</th></tr></thead>
+                        <thead><tr><th style="width:40px"></th><th>Lens</th><th>Job</th><th class="oo-num" style="width:170px">Charged to customer ({{ currency() }})</th><th class="oo-num" style="width:140px">Unit cost ({{ currency() }})</th></tr></thead>
                         <tbody>
                             @foreach($backlog as $row)
                                 @php $key = $row['order']->id.'|'.($row['eye'] ?? ''); @endphp
@@ -97,6 +97,7 @@
                                     <td><input type="checkbox" wire:model="backlogSelected" value="{{ $key }}" aria-label="Order this lens"></td>
                                     <td><b>{{ $row['description'] }}</b><span class="oo-sub">{{ $row['eye'] ? 'One lens' : 'Pair (2 lenses)' }}</span></td>
                                     <td><span class="oo-id">{{ $row['order']->order_id }}</span><span class="oo-sub">{{ $row['order']->status }} · since {{ $row['order']->created_at->format('d M') }}</span></td>
+                                    <td class="oo-num"><b>{{ number_format($row['price'], 2) }}</b><span class="oo-sub">{{ $row['eye'] ? 'this lens' : 'the pair' }}{{ $row['order']->user ? ' · entered by '.$row['order']->user->name : '' }}</span></td>
                                     <td class="pu-lines"><input autocomplete="off" type="number" min="0" step="0.01" wire:model="backlogCosts.{{ $key }}" aria-label="Unit cost"></td>
                                 </tr>
                             @endforeach

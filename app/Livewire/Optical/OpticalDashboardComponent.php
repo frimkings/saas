@@ -31,7 +31,7 @@ class OpticalDashboardComponent extends Component
         $outstandingCount = LensOrder::balanceDue()->count();
 
         // 4. Low stock items: count them all, list the first 5
-        $lowStock = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)
+        $lowStock = OpticalProduct::with('stocks')->where('is_active', true)
             ->get()->filter(fn ($product) => ($product->stocks->first()?->quantity ?? 0) <= ($product->stocks->first()?->reorder_level ?? 5));
         $lowStockProducts = $lowStock->take(5);
         $lowStockCount = $lowStock->count();

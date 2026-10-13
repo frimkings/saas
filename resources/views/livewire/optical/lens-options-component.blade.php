@@ -4,6 +4,7 @@
         'form' => ['Forms', 'The form of a lens type, e.g. flat top or invisible bifocals, wider corridor progressives. Standard is the plain form of every lens type.'],
         'treatment' => ['Treatments', 'Coatings and treatments, named the way your shop does.'],
         'manufacturer' => ['Manufacturers', 'The makers and product lines you buy lenses from. Each manufacturer’s lenses are kept as their own stock.'],
+        'frame_brand' => ['Frame brands', 'The brands staff choose from when adding a frame.'],
     ];
 @endphp
 <div class="space-y-4">
@@ -28,7 +29,7 @@
                         @if($editingId === $option->id)
                             <form wire:submit="saveName" class="flex flex-1 flex-wrap items-center gap-2">
                                 <label for="lens-option-name-{{ $option->id }}" class="sr-only">Name</label>
-                                <input id="lens-option-name-{{ $option->id }}" wire:model="editingName" maxlength="{{ $kind === 'manufacturer' ? 100 : 40 }}" class="ui-input !w-56 !py-1.5 text-sm" autofocus>
+                                <input id="lens-option-name-{{ $option->id }}" wire:model="editingName" maxlength="{{ in_array($kind, ['manufacturer', 'frame_brand'], true) ? 100 : 40 }}" class="ui-input !w-56 !py-1.5 text-sm" autofocus>
                                 <button type="submit" class="ui-button ui-button-primary !py-1.5 text-xs">Save</button>
                                 <button type="button" wire:click="cancelEdit" class="ui-button ui-button-secondary !py-1.5 text-xs">Cancel</button>
                                 @error('editingName')<span class="w-full text-xs text-red-600">{{ $message }}</span>@enderror
@@ -43,7 +44,7 @@
                             @unless($standard)<button type="button" wire:click="toggle({{ $option->id }})" class="ui-button ui-button-secondary !py-1 text-xs">{{ $option->is_active ? 'Hide' : 'Show' }}</button>@endunless
                             @if($kind !== 'design' && ! $standard)
                                 @if($inUse[$option->id] ?? true)
-                                    <span class="w-16 text-center text-[11px] text-slate-400" title="On lens stock or a price list">In use</span>
+                                    <span class="w-16 text-center text-[11px] text-slate-400" title="{{ $kind === 'frame_brand' ? 'On a frame' : 'On lens stock or a price list' }}">In use</span>
                                 @else
                                     <button type="button" wire:click="delete({{ $option->id }})" wire:confirm="Delete “{{ $option->name }}”?" class="ui-button ui-button-secondary !py-1 text-xs text-red-700">Delete</button>
                                 @endif
@@ -55,8 +56,8 @@
             @if($kind !== 'design')
                 <form wire:submit="add('{{ $kind }}')" class="flex flex-wrap items-center gap-2 border-t border-slate-200 px-4 py-3">
                     <label for="new-{{ $kind }}" class="sr-only">New {{ $kind }}</label>
-                    <input id="new-{{ $kind }}" wire:model="newName.{{ $kind }}" maxlength="{{ $kind === 'manufacturer' ? 100 : 40 }}"
-                           placeholder="{{ ['form' => 'New form, e.g. Executive', 'treatment' => 'New treatment, e.g. Blue cut Photo AR', 'manufacturer' => 'New manufacturer, e.g. ESSILOR'][$kind] }}" class="ui-input !w-72 !py-1.5 text-sm">
+                    <input id="new-{{ $kind }}" wire:model="newName.{{ $kind }}" maxlength="{{ in_array($kind, ['manufacturer', 'frame_brand'], true) ? 100 : 40 }}"
+                           placeholder="{{ ['form' => 'New form, e.g. Executive', 'treatment' => 'New treatment, e.g. Blue cut Photo AR', 'manufacturer' => 'New manufacturer, e.g. ESSILOR', 'frame_brand' => 'New frame brand, e.g. Ray-Ban'][$kind] }}" class="ui-input !w-72 !py-1.5 text-sm">
                     @if($kind === 'form')
                         <label for="new-form-design" class="sr-only">Lens type</label>
                         <select id="new-form-design" wire:model="newFormDesign" class="ui-input !w-auto !py-1.5 text-sm">

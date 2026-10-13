@@ -272,7 +272,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $receiving->receive($bifocal + ['eye' => 'L'], 3, ['unit_cost' => 40, 'unit_price' => 90]);
         $keys = app(OpticalLensPriceList::class);
 
-        $matrix = Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $matrix = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->set('matrixRangeKey', $keys->rangeKey(self::SV))->assertSet('matrixDesign', 'Single Vision')
             ->assertViewHas('matrixCells', fn ($cells) => $cells['0.50|0.00'] === ['value' => 3, 'extra' => 1, 'extraEye' => null])
             ->assertSee('3 pairs + 1 single lens')
@@ -286,11 +286,23 @@ class OpticalLensPairsAndPricingTest extends TestCase
             ->call('$refresh')->assertSet('matrixDesign', 'Bifocal');
 
         // A link naming only the range and design fills in the rest of that range.
-        Livewire::withQueryParams(['activeTab' => 'lens-matrix', 'matrixRange' => 'Flat Top', 'matrixDesign' => 'Bifocal', 'matrixCoating' => 'Photo AR', 'matrixDiameter' => 0])
-            ->test(\App\Livewire\Optical\OpticalCatalogueComponent::class)
+        Livewire::withQueryParams(['matrixRange' => 'Flat Top', 'matrixDesign' => 'Bifocal', 'matrixCoating' => 'Photo AR', 'matrixDiameter' => 0])
+            ->test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->assertSet('matrixDesign', 'Bifocal')->assertSet('matrixCoating', 'AR')->assertSet('matrixDiameter', 65)
             ->assertViewHas('matrixCellTotal', ['value' => 3, 'extra' => 2])
             ->assertDontSeeHtml('wire:poll');
+
+        // The grid is a page of its own: no catalogue title or tabs around it, one toolbar, and
+        // the reorder alert, cell size and full screen all on that toolbar.
+        Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
+            ->assertDontSee('Catalogue & Stock')->assertDontSee('Services & prices')
+            ->assertSee('Full screen')->assertSee('Compact')->assertSee('Select powers')->assertSeeHtml('data-grid-box')
+            ->call('setTab', 'lens-prices')->assertRedirect(route('optical.catalogue', ['activeTab' => 'lens-prices']));
+        // The catalogue no longer has the grid as a tab, and old links to that tab land on the new page.
+        Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->assertDontSee('Lens blank stock')->assertDontSeeHtml('data-grid-box');
+        Livewire::withQueryParams(['activeTab' => 'lens-matrix', 'matrixRange' => 'Flat Top', 'matrixDesign' => 'Bifocal'])
+            ->test(\App\Livewire\Optical\OpticalCatalogueComponent::class)
+            ->assertRedirect(route('optical.lens-grid', ['matrixRange' => 'Flat Top', 'matrixDesign' => 'Bifocal']));
     }
 
     public function test_powers_selected_on_the_grid_are_ordered_in_pairs(): void
@@ -306,7 +318,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $supplier = \App\Models\Supplier::create(['name' => 'Lens Lab', 'is_active' => true]);
 
         // The browser picks powers from this data: [pairs, spare, spare eye, reorder, on order, pair cost].
-        $grid = Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $grid = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->set('matrixRangeKey', $keys->rangeKey(self::SV))
             ;
         $data = $grid->viewData('selectionGrid');
@@ -345,7 +357,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $supplier = \App\Models\Supplier::create(['name' => 'Lens Lab', 'is_active' => true]);
         $products = OpticalProduct::count();
 
-        $grid = Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $grid = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->set('matrixRangeKey', app(OpticalLensPriceList::class)->rangeKey(self::SV))
             ->assertViewHas('selectionGrid', fn ($data) => $data['typical'] == 26.0); // typical lens 13.00 → 26.00 a pair
 
@@ -379,7 +391,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $this->assertStringContainsString('R + L', $lines[0]['label']);
 
         // The reorder list button orders the same powers in pairs for both eyes.
-        $redirect = Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $redirect = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->set('matrixRangeKey', $keys->rangeKey($bifocal))->call('orderFromReorderList')->effects['redirect'];
         parse_str(parse_url($redirect, PHP_URL_QUERY), $query);
         Livewire::withQueryParams($query)->test(\App\Livewire\Optical\OpticalPurchasingComponent::class)
@@ -408,7 +420,7 @@ class OpticalLensPairsAndPricingTest extends TestCase
     {
         $user = $this->manager('quote-reprice');
         $category = OpticalCategory::create(['code' => 'FRM', 'name' => 'Frames', 'is_active' => true]);
-        $frame = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Quote Frame', 'sku' => 'QF-2', 'selling_price' => 200, 'cost_price' => 80, 'is_active' => true]);
+        $frame = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Quote Frame', 'type' => 'frame', 'sku' => 'QF-2', 'selling_price' => 200, 'cost_price' => 80, 'is_active' => true]);
         app(\App\Services\OpticalProductInventoryService::class)->setBalance($frame, 3, 1, 'Opening');
         $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Quote Customer', 'contact' => '0240007790', 'gender' => 'Other']);
         $data = ['patient_id' => $patient->id, 'measurements' => ['od' => ['sph' => '+1.00'], 'os' => ['sph' => '+0.75']],

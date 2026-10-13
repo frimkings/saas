@@ -36,7 +36,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use App\Livewire\Optical\OpticalCatalogueComponent;
-use App\Livewire\Optical\OpticalCategoriesComponent;
 use App\Livewire\Optical\OpticalProductsComponent;
 use App\Livewire\Optical\OpticalStockManagementComponent;
 use App\Livewire\Optical\OpticalReportsComponent;
@@ -345,7 +344,7 @@ class OpticalWorkflowTest extends TestCase
         ]);
 
         $category = OpticalCategory::firstOrCreate(['clinic_id' => $clinic->id, 'code' => 'frames'], ['name' => 'Frames']);
-        $opticalProduct = OpticalProduct::create(['clinic_id' => $clinic->id, 'optical_category_id' => $category->id, 'name' => 'Test Low Stock Frame', 'sku' => 'FRM-LOW-1', 'selling_price' => 100, 'cost_price' => 50, 'is_active' => true]);
+        $opticalProduct = OpticalProduct::create(['clinic_id' => $clinic->id, 'optical_category_id' => $category->id, 'name' => 'Test Low Stock Frame', 'type' => 'frame', 'sku' => 'FRM-LOW-1', 'selling_price' => 100, 'cost_price' => 50, 'is_active' => true]);
         OpticalProductStock::create(['clinic_id' => $clinic->id, 'branch_id' => $branch->id, 'optical_product_id' => $opticalProduct->id, 'quantity' => 2, 'reorder_level' => 5]);
 
         $this->actingAs($user)->get(route('optical.dashboard'))
@@ -399,7 +398,7 @@ class OpticalWorkflowTest extends TestCase
             ->set('lensEye', 'R')->call('save')->assertHasNoErrors();
         $product = OpticalProduct::whereNotNull('lens_key')->firstOrFail();
         $this->assertSame(5, $product->stocks->first()->quantity);
-        Livewire::test(OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->set('matrixRange', 'Factory A')->set('matrixDesign', 'Bifocal')->set('matrixDiameter', 65)
             ->assertViewHas('lensBlankStock', fn ($stock) => $stock['0.00|2.00'] === 5)
             ->set('matrixEye', 'L')->assertViewHas('lensBlankStock', fn ($stock) => ! isset($stock['0.00|2.00']));
@@ -498,7 +497,7 @@ class OpticalWorkflowTest extends TestCase
             'range' => 'Factory Photo', 'design' => 'Single Vision', 'index' => '1.67', 'coating' => 'Photo AR',
             'diameter' => 65, 'sphere' => '-2.00', 'power' => '-1.00',
         ], 8, ['unit_cost' => 10, 'unit_price' => 20]);
-        $matrix = Livewire::test(OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $matrix = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->assertSet('matrixRange', 'Factory Photo')->assertSet('matrixDiameter', 65)
             ->assertSet('matrixIndex', '1.67')->assertViewHas('matrixTotal', 8)
             ->assertViewHas('lensBlankStock', fn ($stock) => $stock['-2.00|-1.00'] === 8)
@@ -647,7 +646,7 @@ class OpticalWorkflowTest extends TestCase
         $rows = $service->rows($specs);
         $this->assertSame([10, 6, 5, 0], $rows->pluck('pairs')->all());
         $this->assertSame([true, true, true, false], $rows->pluck('low')->all());
-        $form = Livewire::test(OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix');
+        $form = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class);
         $form->assertSee('data-tp="y"', false)->assertSee('data-tp="r"', false)->assertSee('21 pairs');
         $form->call('editReorderLevels')->set('reorderPairs.'.$products[3]->id, 6)->set('targetPairs.'.$products[3]->id, 12)
             ->call('saveReorderLevels')->assertHasNoErrors();
@@ -689,7 +688,7 @@ class OpticalWorkflowTest extends TestCase
         $form->set('unitCost', '10')->set('unitPrice', '20')->set('supplier', 'Manufacturer')->call('save')->assertHasNoErrors();
         $this->assertEquals(186, OpticalProductStock::sum('quantity'));
         $this->assertEquals(186, OpticalProductStockMovement::sum('quantity_change'));
-        $matrix = Livewire::test(OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $matrix = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->assertViewHas('matrixTotal', 186)
             ->assertViewHas('lensBlankStock', fn ($stock) => $stock['0.25|0.00'] === 10)
             ->assertViewHas('matrixRowTotals', fn ($totals) => $totals['0.25'] === 46);
@@ -708,7 +707,7 @@ class OpticalWorkflowTest extends TestCase
         Livewire::test(OpticalCatalogueComponent::class)->call('receiveLensBlanks')->assertForbidden();
     }
 
-    public function test_optical_category_crud_maps_products_and_fills_order_lens_choices(): void
+    public function test_clinic_products_stay_out_of_optical_and_staff_no_longer_manage_categories(): void
     {
         config(['tenancy.enabled' => true]);
         $user = User::factory()->create();
@@ -717,35 +716,10 @@ class OpticalWorkflowTest extends TestCase
         $this->actingAs($user);
         Category::create(['user_id' => $user->id, 'name' => 'Single Vision Blue AR', 'type' => 'service', 'is_active' => true]);
 
-        Livewire::test(OpticalCategoriesComponent::class)
-            ->call('add')
-            ->assertSee('Category Name')
-            ->assertSee('Category Code / Slug')
-            ->assertSee('Default Price Markup')
-            ->assertSee('Status')
-            ->assertSee('Category Description & Features')
-            ->assertDontSee('Refractive index')
-            ->assertDontSee('Item group');
-
-        Livewire::test(OpticalCategoriesComponent::class)
-            ->call('add')
-            ->set('code', 'CAT-SV-BAR')
-            ->set('name', 'Single Vision Blue AR')->set('type', 'lens')->set('lensType', 'Single Vision')
-            ->set('markup', '40')
-            ->set('description', 'Blue AR single vision lenses')
-            ->call('save')->assertHasNoErrors();
-        $category = OpticalCategory::where('code', 'CAT-SV-BAR')->firstOrFail();
-        $this->assertSame('single_vision', $category->group);
-        $this->assertSame(1, Category::where('name', 'Single Vision Blue AR')->count());
+        $category = OpticalCategory::create(['code' => 'CAT-SV-BAR', 'name' => 'Single Vision Blue AR']);
         Livewire::test(ProductsComponent::class)
             ->set('state.optical_category_id', $category->id)
             ->assertSet('state.optical_category_id', null);
-
-        Livewire::test(OpticalOrderCreateComponent::class)
-            ->call('chooseOpticalCategory', $category->id)
-            ->assertSet('lens_type', 'Single Vision')
-            ->assertSet('lens_index', '1.56')
-            ->assertSet('stock_coating', 'AR');
 
         Livewire::test(ProductsComponent::class)
             ->set('state.name', 'Blue AR Lens Blank')
@@ -760,16 +734,7 @@ class OpticalWorkflowTest extends TestCase
         $product = Product::where('name', 'Blue AR Lens Blank')->firstOrFail();
         $this->assertNull($product->optical_category_id);
         Livewire::test(OpticalPosComponent::class)->assertDontSee('Blue AR Lens Blank');
-        Livewire::test(OpticalCategoriesComponent::class)
-            ->assertSee('0 SKUs')
-            ->call('edit', $category->id)
-            ->set('name', 'Single Vision Blue AR Updated')
-            ->call('save')->assertHasNoErrors()
-            ->call('toggleActive', $category->id);
-        $this->assertFalse($category->fresh()->is_active);
-        Livewire::test(OpticalCategoriesComponent::class)
-            ->call('delete', $category->id)->assertHasNoErrors();
-        $this->assertSoftDeleted('optical_categories', ['id' => $category->id]);
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('optical.categories'));
     }
 
     public function test_optical_product_crud_keeps_clinic_products_separate_and_tracks_branch_stock(): void
@@ -785,8 +750,9 @@ class OpticalWorkflowTest extends TestCase
             ->call('add')
             ->set('name', 'Gold frame')
             ->set('sku', 'FRM-001')
-            ->set('categoryId', (string) $category->id)
-            ->set('brand', 'Acme')
+            ->set('type', 'frame')
+            ->set('newFrameBrand', 'Acme')->call('addFrameBrand')->assertSet('frameBrand', 'Acme')
+            ->set('frameModel', 'GG0061S')->set('frameColour', 'Gold')->set('frameSize', '54-18-140')
             ->set('costPrice', '100')
             ->set('sellingPrice', '150')
             ->set('quantity', '12')
@@ -800,7 +766,7 @@ class OpticalWorkflowTest extends TestCase
         Livewire::test(OpticalCatalogueComponent::class)->assertSee('Gold frame')->assertSee('FRM-001');
         $lensCategory = OpticalCategory::create(['code' => 'LENSES', 'name' => 'Lenses', 'is_active' => true]);
         $lens = OpticalProduct::create([
-            'name' => 'Clear lens', 'sku' => 'LNS-002', 'optical_category_id' => $lensCategory->id,
+            'name' => 'Clear lens', 'type' => 'lens', 'sku' => 'LNS-002', 'optical_category_id' => $lensCategory->id,
             'brand' => 'Vista', 'specifications' => 'Blue coating', 'cost_price' => 20,
             'selling_price' => 40, 'is_active' => true,
         ]);
@@ -810,7 +776,7 @@ class OpticalWorkflowTest extends TestCase
             ->set('search', 'FRM-001')->assertSee('Gold frame')->assertDontSee('Clear lens')
             ->set('search', 'Blue coating')->assertSee('Clear lens')->assertDontSee('Gold frame')
             ->set('search', '')
-            ->set('categoryFilter', (string) $lensCategory->id)->assertSee('Clear lens')->assertDontSee('Gold frame')
+            ->set('categoryFilter', 'lens')->assertSee('Clear lens')->assertDontSee('Gold frame')
             ->set('stockFilter', 'low')->assertSee('Clear lens')
             ->call('clearFilters')->assertSee('Gold frame')->assertSee('Clear lens');
 
@@ -842,17 +808,17 @@ class OpticalWorkflowTest extends TestCase
         rewind($stream);
         $template = stream_get_contents($stream);
         fclose($stream);
-        $this->assertStringContainsString('sku,name,category_code,brand,cost_price,selling_price,quantity,reorder_level,status,specifications', $template);
+        $this->assertStringContainsString('sku,name,category,brand,cost_price,selling_price,quantity,reorder_level,status,specifications', $template);
         Livewire::test(OpticalProductsComponent::class)->call('downloadTemplate')->assertFileDownloaded('optical_products_template.csv');
 
-        $csv = "sku,name,category_code,brand,cost_price,selling_price,quantity,reorder_level,status,specifications\nFRM-100,Gold frame,CAT-FRM,Acme,100,150,12,3,active,Gold metal\n";
+        $csv = "sku,name,category,brand,cost_price,selling_price,quantity,reorder_level,status,specifications\nFRM-100,Gold frame,frame,Acme,100,150,12,3,active,Gold metal\n";
         Livewire::test(OpticalProductsComponent::class)
             ->call('openImport')->set('importFile', UploadedFile::fake()->createWithContent('products.csv', $csv))
             ->call('importCsv')->assertHasNoErrors();
         $product = OpticalProduct::where('sku', 'FRM-100')->firstOrFail();
         $this->assertSame(12, OpticalProductStock::where('optical_product_id', $product->id)->firstOrFail()->quantity);
 
-        $invalid = "sku,name,category_code,brand,cost_price,selling_price,quantity,reorder_level,status,specifications\nFRM-101,Silver frame,CAT-FRM,Acme,50,75,5,2,active,Silver\nFRM-102,Bad frame,OTHER,Acme,50,75,5,2,active,Bad\n";
+        $invalid = "sku,name,category,brand,cost_price,selling_price,quantity,reorder_level,status,specifications\nFRM-101,Silver frame,frame,Acme,50,75,5,2,active,Silver\nFRM-102,Bad frame,sunglasses,Acme,50,75,5,2,active,Bad\n";
         Livewire::test(OpticalProductsComponent::class)
             ->call('openImport')->set('importFile', UploadedFile::fake()->createWithContent('invalid.csv', $invalid))
             ->call('importCsv')->assertHasErrors(['importFile']);
@@ -873,7 +839,7 @@ class OpticalWorkflowTest extends TestCase
         $export = stream_get_contents($stream);
         fclose($stream);
         $lines = preg_split('/\r?\n/', trim($export));
-        $this->assertSame(['FRM-100', 'Gold frame', 'CAT-FRM', 'Acme', '100.00', '150.00', '7', '2', 'inactive', 'Gold metal'], str_getcsv($lines[1]));
+        $this->assertSame(['FRM-100', 'Gold frame', 'frame', 'Acme', '100.00', '150.00', '7', '2', 'inactive', 'Gold metal'], str_getcsv($lines[1]));
         Livewire::test(OpticalProductsComponent::class)->call('exportCsv')->assertFileDownloaded('optical_products_'.now()->format('Y-m-d').'.csv');
 
         $this->tenant($user, 'optical-csv-other');
@@ -894,7 +860,7 @@ class OpticalWorkflowTest extends TestCase
         $this->actingAs($user);
         $category = OpticalCategory::create(['code' => 'CAT-FRM', 'name' => 'Frames', 'is_active' => true]);
         $product = OpticalProduct::create([
-            'sku' => 'FRM-500', 'name' => 'Test frame', 'optical_category_id' => $category->id,
+            'sku' => 'FRM-500', 'name' => 'Test frame', 'type' => 'frame', 'optical_category_id' => $category->id,
             'cost_price' => 100, 'selling_price' => 150, 'is_active' => true,
         ]);
         try {
@@ -983,7 +949,7 @@ class OpticalWorkflowTest extends TestCase
         ]);
         $category = OpticalCategory::create(['code' => 'FRAMES', 'name' => 'Frames', 'is_active' => true]);
         $frame = OpticalProduct::create([
-            'sku' => 'FRM-10', 'name' => 'Blue frame', 'optical_category_id' => $category->id,
+            'sku' => 'FRM-10', 'name' => 'Blue frame', 'type' => 'frame', 'optical_category_id' => $category->id,
             'cost_price' => 80, 'selling_price' => 150, 'is_active' => true,
         ]);
         app(\App\Services\OpticalProductInventoryService::class)->setBalance($frame, 5, 2, 'Initial optical stock');
@@ -1009,7 +975,7 @@ class OpticalWorkflowTest extends TestCase
 
         $lensCategory = OpticalCategory::create(['code' => 'SINGLE-VISION', 'name' => 'Single Vision Lenses', 'is_active' => true]);
         $lens = OpticalProduct::create([
-            'sku' => 'LNS-10', 'name' => 'Clear lens', 'optical_category_id' => $lensCategory->id,
+            'sku' => 'LNS-10', 'name' => 'Clear lens', 'type' => 'lens', 'optical_category_id' => $lensCategory->id,
             'cost_price' => 60, 'selling_price' => 120, 'is_active' => true,
         ]);
         app(\App\Services\OpticalProductInventoryService::class)->setBalance($lens, 1, 1, 'Initial optical stock');
@@ -1062,26 +1028,6 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame(3, OpticalProductStock::where('optical_product_id', $product->id)->firstOrFail()->quantity);
         $this->assertSame(1, SaleItem::where('sale_id', $sale->id)->firstOrFail()->refunded_quantity);
         $this->assertSame($product->id, $refund->fresh()->stock_restoration[0]['optical_product_id']);
-    }
-
-    public function test_optical_categories_are_tenant_scoped_and_staff_cannot_edit_them(): void
-    {
-        config(['tenancy.enabled' => true]);
-        $user = User::factory()->create();
-        $user->assignRole(Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']));
-        $this->tenant($user, 'optical-category-a');
-        $this->actingAs($user);
-        $category = OpticalCategory::create([
-            'name' => 'Private Optical Frame', 'code' => 'CAT-PRIVATE', 'is_active' => true,
-        ]);
-        $this->tenant($user, 'optical-category-b');
-        $this->assertNull(OpticalCategory::find($category->id));
-        Livewire::test(OpticalCategoriesComponent::class)->assertDontSee('Private Optical Frame');
-
-        $staff = User::factory()->create();
-        $this->tenant($staff, 'optical-category-staff');
-        $this->actingAs($staff);
-        Livewire::test(OpticalCategoriesComponent::class)->call('add')->assertForbidden();
     }
 
     private function opticalManager(string $slug): User
@@ -1390,8 +1336,6 @@ class OpticalWorkflowTest extends TestCase
             ->assertDontSee('wire:click="openOrderForm"', false)->assertDontSee('wire:click="openReturnForm"', false);
 
         // Forms that open in the browser are drawn ready, and their buttons fill them without a call.
-        Livewire::test(\App\Livewire\Optical\OpticalCategoriesComponent::class)
-            ->assertSee('data-category-form', false)->assertSee('openLocal($wire', false)->assertDontSee('wire:click="edit(', false);
         Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->call('setTab', 'services')
             ->assertSee('data-service-form', false)->assertDontSee('wire:click="editService(', false);
     }
@@ -1609,6 +1553,9 @@ class OpticalWorkflowTest extends TestCase
         $backlog = app(\App\Services\OpticalPurchasingService::class)->specialOrderBacklog();
         $this->assertSame([[$job->id, 'os'], [$outside->id, null]], $backlog->map(fn ($row) => [$row['order']->id, $row['eye']])->all());
         $this->assertStringContainsString('OS SPH -0.50', $backlog->first()['description']);
+        // The job itself tracks a right and a left lens; Purchasing buys them as one pair at the pair's price.
+        $this->assertSame(['od', 'os'], $outside->lensLines()->where('status', 'ordered')->pluck('eye')->all());
+        $this->assertSame([(float) $job->lensLines()->where('eye', 'os')->value('unit_price'), 100.0], $backlog->pluck('price')->all());
 
         $page = Livewire::test(\App\Livewire\Optical\OpticalPurchasingComponent::class)->set('tab', 'special')
             ->assertSee($job->order_id)
@@ -1626,6 +1573,85 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame(0, (int) OpticalProductStockMovement::whereNotNull('optical_purchase_order_line_id')->count(), 'Special-order lenses go to the job, not stock.');
         $workflow->transition($job->id, 'In Production');
         $this->assertSame('In Production', $job->fresh()->status);
+        // Receiving the pair marked both of the other job's lenses as arrived.
+        $this->assertSame(['received', 'received'], $outside->lensLines()->pluck('status')->all());
+        $workflow->transition($outside->id, 'In Production');
+    }
+
+    public function test_a_whole_pair_special_order_waits_for_its_lenses_and_the_owner_and_staff_are_told(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        $user = $this->opticalManager('pair-special');
+        app(\App\Support\Tenancy\TenantContext::class)->clinic()->update(['billing_email' => 'owner@example.com']);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Pair Customer', 'contact' => '0240000777', 'gender' => 'Other']);
+        $data = ['measurements' => ['od' => ['sph' => '-13.00', 'cyl' => '-0.50', 'axis' => '90'], 'os' => ['sph' => '-12.50']], 'lens_price' => 1252.01,
+            'docket' => ['lens_details' => ['type' => 'Single Vision', 'index' => '1.56']]] + $this->orderData($patient);
+        $owner = fn (string $heading) => \Illuminate\Support\Facades\Mail::sent(\App\Mail\OwnerNoticeMail::class, fn ($mail) => $mail->heading === $heading);
+
+        // A quotation promises nothing yet: its lenses are planned, not awaited, and nobody is emailed.
+        $quote = app(OpticalOrderService::class)->create($data, true);
+        $this->assertSame(['quoted', 'quoted'], $quote->lensLines()->pluck('status')->all());
+        $this->assertCount(0, $owner('Special-order lenses to buy'));
+
+        // Converted with its deposit: both lenses are awaited, split from the pair's price, and the owner is emailed once.
+        $job = app(OpticalOrderWorkflowService::class)->activateQuotation($quote->id, 500, 'cash');
+        $lines = $job->lensLines()->get();
+        $this->assertSame(['od', 'os'], $lines->pluck('eye')->all());
+        $this->assertSame(['ordered', 'ordered'], $lines->pluck('status')->all());
+        $this->assertEquals([-13.00, -0.50, -12.50, 0.00], [(float) $lines[0]->sphere, (float) $lines[0]->power, (float) $lines[1]->sphere, (float) $lines[1]->power]);
+        $this->assertEquals(1252.01, round($lines->sum('unit_price'), 2));
+        $mail = $owner('Special-order lenses to buy');
+        $this->assertCount(1, $mail);
+        $this->assertSame('1,252.01', \Illuminate\Support\Str::after($mail->first()->details['Charged to customer'], ' '));
+        $this->assertStringContainsString('OD SPH -13.00 CYL -0.50 x 90 / OS SPH -12.50', $mail->first()->details['Lenses']);
+        $this->assertStringContainsString('payment has been taken', $mail->first()->intro);
+        app(OpticalOrderWorkflowService::class)->recordPayment($job->id, 100, 'cash');
+        $this->assertCount(1, $owner('Special-order lenses to buy'), 'A later payment does not email again.');
+
+        // An order placed with nothing paid waits for its first payment before the owner hears.
+        \App\Models\OpticalSetting::query()->update(['min_deposit_percentage' => 0]);
+        $unpaid = app(OpticalOrderService::class)->create(['paid_amount' => 0] + $data);
+        $this->assertCount(1, $owner('Special-order lenses to buy'));
+        app(OpticalOrderWorkflowService::class)->recordPayment($unpaid->id, 50, 'cash');
+        $this->assertCount(2, $owner('Special-order lenses to buy'));
+
+        // Staff see it in Needs Attention; Purchasing lists each job once, as a pair, with what was charged and by whom.
+        $attention = app(\App\Services\Reminders\AttentionItems::class);
+        $group = $attention->groups(\App\Services\Reminders\AttentionItems::OPTICAL)['lens_unordered'];
+        $this->assertSame(2, $group['items']->count());
+        $this->assertStringContainsString('Both lenses · placed', $group['items']->first()['detail']);
+        $this->assertStringContainsString('tab=special', $group['items']->first()['url']);
+        $attention->forgetCounts();
+        $this->assertSame(2, $attention->counts(\App\Services\Reminders\AttentionItems::OPTICAL)['lens_unordered']);
+        Livewire::test(\App\Livewire\Optical\OpticalPurchasingComponent::class)->set('tab', 'special')
+            ->assertSee('Charged to customer')->assertSee('1,252.01')->assertSee('the pair · entered by '.$user->name)->assertDontSee('this lens ·');
+
+        // The bench names each lens and can't start edging until both are in.
+        $bench = Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)
+            ->assertSee('OD -13.00 / -0.50')->assertSee('OS -12.50 / +0.00')->assertSee('awaited from supplier')->assertSee('OD lens arrived');
+        $this->expectsValidationOn(fn () => app(OpticalOrderWorkflowService::class)->transition($job->id, 'In Production'));
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->assertSee('Awaiting 2 lenses')
+            ->call('openOrder', $job->id)->assertSee('not ordered from a supplier yet');
+
+        // On a supplier order: the job says who it was ordered from, and it leaves the attention list.
+        $supplier = \App\Models\Supplier::create(['name' => 'Rx Lab', 'is_active' => true, 'lead_time_days' => 4]);
+        $purchasing = app(\App\Services\OpticalPurchasingService::class);
+        $po = $purchasing->createDraft($supplier->id, [['lens_order_id' => $job->id, 'eye' => null, 'quantity' => 2, 'unit_cost' => 300, 'description' => 'Pair']]);
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)->assertSee('to Rx Lab, which has not been sent yet');
+        $purchasing->place($po->id);
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)->assertSee('ordered from Rx Lab on '.now()->format('j M'));
+        $this->assertSame(1, $attention->groups(\App\Services\Reminders\AttentionItems::OPTICAL)['lens_unordered']['items']->count());
+
+        // One lens of the pair arrives: still waiting. Marked by hand, then the other: edging can start.
+        $bench->call('receiveLens', $job->id, 'od')->assertHasNoErrors()->assertSee('arrived')->assertSee('OS lens arrived');
+        $this->expectsValidationOn(fn () => app(OpticalOrderWorkflowService::class)->transition($job->id, 'In Production'));
+        $bench->call('receiveLens', $job->id, 'os')->assertHasNoErrors()->assertDontSee('OS lens arrived');
+        app(OpticalOrderWorkflowService::class)->transition($job->id, 'In Production');
+
+        // Sent to an outside lab instead, the job comes back glazed: marking it ready counts the lenses as arrived.
+        app(OpticalOrderWorkflowService::class)->transition($unpaid->id, 'Sent to Lab');
+        app(OpticalOrderWorkflowService::class)->transition($unpaid->id, 'Ready for Collection');
+        $this->assertSame(['received', 'received'], $unpaid->lensLines()->pluck('status')->all());
     }
 
     private function expectsValidationOn(callable $callback): void
@@ -1888,6 +1914,7 @@ class OpticalWorkflowTest extends TestCase
             $this->assertArrayHasKey('remake', $exception->errors());
         }
 
+        $order->lensLines()->update(['status' => 'received', 'received_at' => now()]); // the special-order lenses have arrived
         $workflow->transition($order->id, 'In Production');
         $workflow->transition($order->id, 'Ready for Collection');
         $workflow->recordPayment($order->id, $order->total - 50, 'cash');
@@ -2496,7 +2523,7 @@ class OpticalWorkflowTest extends TestCase
         $user = $this->opticalManager('catalogue-cut');
         $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Catalogue Customer', 'contact' => '0240007778', 'gender' => 'Other']);
         $category = OpticalCategory::create(['code' => 'SV', 'name' => 'Single Vision Lenses', 'is_active' => true]);
-        $lens = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'SV Catalogue Lens', 'sku' => 'SV-CAT', 'selling_price' => 100, 'cost_price' => 40, 'is_active' => true]);
+        $lens = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'SV Catalogue Lens', 'type' => 'lens', 'sku' => 'SV-CAT', 'selling_price' => 100, 'cost_price' => 40, 'is_active' => true]);
         app(\App\Services\OpticalProductInventoryService::class)->setBalance($lens, 5, 1, 'Opening');
         $shelf = fn () => (int) OpticalProductStock::where('optical_product_id', $lens->id)->value('quantity');
         $data = $this->orderData($patient);
@@ -2589,7 +2616,7 @@ class OpticalWorkflowTest extends TestCase
     {
         $this->opticalManager('count-during-sale');
         $category = OpticalCategory::create(['code' => 'FRM', 'name' => 'Frames', 'is_active' => true]);
-        $frame = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Count Frame', 'sku' => 'CNT-1', 'selling_price' => 100, 'cost_price' => 40, 'is_active' => true]);
+        $frame = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Count Frame', 'type' => 'frame', 'sku' => 'CNT-1', 'selling_price' => 100, 'cost_price' => 40, 'is_active' => true]);
         $inventory = app(\App\Services\OpticalProductInventoryService::class);
         $inventory->setBalance($frame, 10, 1, 'Opening');
         $counts = app(\App\Services\OpticalStockCountService::class);
@@ -2609,7 +2636,7 @@ class OpticalWorkflowTest extends TestCase
         $user = $this->opticalManager('quote-expiry');
         \App\Models\OpticalSetting::create(['warranty_months' => 0, 'min_deposit_percentage' => 0, 'quote_validity_days' => 5]);
         $category = OpticalCategory::create(['code' => 'FRM', 'name' => 'Frames', 'is_active' => true]);
-        $frame = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Quote Frame', 'sku' => 'QF-1', 'selling_price' => 200, 'cost_price' => 80, 'is_active' => true]);
+        $frame = OpticalProduct::create(['optical_category_id' => $category->id, 'name' => 'Quote Frame', 'type' => 'frame', 'sku' => 'QF-1', 'selling_price' => 200, 'cost_price' => 80, 'is_active' => true]);
         app(\App\Services\OpticalProductInventoryService::class)->setBalance($frame, 3, 1, 'Opening');
         $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Expiry Customer', 'contact' => '0240007780', 'gender' => 'Other']);
         $data = ['frame_optical_product_id' => $frame->id, 'docket' => ['frame_source' => 'stock']] + $this->orderData($patient);
@@ -2632,6 +2659,44 @@ class OpticalWorkflowTest extends TestCase
         $workflow->activateQuotation($reprice->id, 0, 'cash', true);
         $this->assertEquals(260, $reprice->fresh()->frame_price, 'Charged at the current price.');
         $this->assertEquals(260, \App\Models\Sales::find($reprice->fresh()->sale_id)->items()->value('selling_price'));
+    }
+
+    public function test_labs_are_added_changed_and_removed_in_the_send_to_lab_box(): void
+    {
+        $user = $this->opticalManager('lab-list');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Lab List Customer', 'contact' => '0240007782', 'gender' => 'Other']);
+        $order = app(OpticalOrderService::class)->create(['pickup_date' => now()->addDays(10)->toDateString()] + $this->orderData($patient));
+        $old = \App\Models\Supplier::create(['name' => 'Old Lab', 'is_active' => true]);
+
+        $box = Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openSendToLab', $order->id)
+            ->assertSee('Add or change labs')->assertDontSee('New lab')
+            ->set('managingLabs', true)->assertSee('New lab')->assertSee('Old Lab');
+
+        // Add: the new lab is chosen for this job, with its lead time as the return date.
+        $box->call('saveLab')->assertHasErrors(['labName']);
+        $box->set('labName', 'Old Lab')->call('saveLab')->assertHasErrors(['labName']);
+        $box->set('labName', '  Vision   Lab ')->set('labLeadDays', '2')->set('labPhone', '0240000000')->call('saveLab')->assertHasNoErrors();
+        $lab = \App\Models\Supplier::where('name', 'Vision Lab')->firstOrFail();
+        $this->assertSame([2, '0240000000', true], [$lab->lead_time_days, $lab->phone, $lab->is_active]);
+        $box->assertSet('labSupplierId', (string) $lab->id)->assertSet('expectedBack', today()->addDays(2)->toDateString())->assertSet('labName', '');
+
+        // Change.
+        $box->call('editLab', $lab->id)->assertSet('labName', 'Vision Lab')->assertSet('labLeadDays', '2')
+            ->set('labName', 'Vision Lab Accra')->set('labLeadDays', '1')->call('saveLab')->assertHasNoErrors()->assertSee('Vision Lab Accra')->assertSee('1 day');
+        $this->assertSame(['Vision Lab Accra', 1], [$lab->fresh()->name, $lab->fresh()->lead_time_days]);
+
+        // Remove: a lab nothing has used is deleted.
+        $box->call('removeLab', $old->id)->assertHasNoErrors()->assertDontSee('Old Lab');
+        $this->assertNull(\App\Models\Supplier::find($old->id));
+
+        // A lab with a job behind it leaves the list but keeps its record, so the job still names it.
+        $box->call('sendToLab')->assertHasNoErrors();
+        $this->assertSame($lab->id, $order->fresh()->lab_supplier_id);
+        $other = app(OpticalOrderService::class)->create(['pickup_date' => now()->addDays(10)->toDateString()] + $this->orderData($patient));
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openSendToLab', $other->id)->set('managingLabs', true)
+            ->call('removeLab', $lab->id)->assertHasNoErrors()->assertDontSee('Vision Lab Accra');
+        $this->assertFalse($lab->fresh()->is_active);
+        $this->assertSame('Vision Lab Accra', $order->fresh()->labSupplier->name);
     }
 
     public function test_send_to_lab_records_the_lab_and_overdue_jobs_are_tracked(): void
@@ -2820,6 +2885,7 @@ class OpticalWorkflowTest extends TestCase
         $inHouse = collect([2, 3, 60])->map(function ($days) use ($patient, $workflow) {
             $order = app(OpticalOrderService::class)->create($this->orderData($patient));
             $order->forceFill(['created_at' => now()->subDays($days)])->save();
+            $order->lensLines()->update(['status' => 'received', 'received_at' => now()]); // the special-order lenses have arrived
             $workflow->transition($order->id, 'In Production');
             $workflow->transition($order->id, 'Ready for Collection');
             return $order;

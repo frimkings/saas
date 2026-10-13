@@ -24,7 +24,7 @@
                     <div class="ui-panel p-3 flex flex-col justify-between space-y-2" wire:key="pos-product-{{ $isOpticalSku ? 'o' : 'legacy' }}-{{ $prod->id }}">
                         <div>
                             <h3 class="font-bold text-slate-800 text-xs">{{ $prod->name }}</h3>
-                            <p class="ui-muted text-[11px]">{{ $isOpticalSku ? $prod->category?->name : ($prod->opticalCategory?->name ?? $prod->category?->name) }} · {{ $available }} in stock</p>
+                            <p class="ui-muted text-[11px]">{{ $isOpticalSku ? $prod->categoryLabel() : ($prod->opticalCategory?->name ?? $prod->category?->name) }} · {{ $available }} in stock</p>
                         </div>
                         <div class="flex items-center justify-between pt-2 border-t border-slate-100">
                             <span class="font-bold text-slate-900 text-sm">{{ currency() }} {{ number_format($prod->selling_price, 2) }}</span>
@@ -75,7 +75,7 @@
                 </div>
                 <label class="flex items-center justify-between gap-2 text-slate-700">
                     <span>Discount ({{ currency() }})<span class="block text-[10px] text-slate-500">Up to {{ $discountLimit }}% without a manager</span></span>
-                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="discount" class="ui-input w-28 text-right text-xs">
+                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="discount" class="ui-input !w-28 text-right text-xs">
                 </label>
                 <div class="flex justify-between text-slate-900 text-sm font-bold border-t border-slate-200 pt-2">
                     <span>Total Amount:</span>

@@ -91,18 +91,34 @@
             @if($excelPreview)
                 <p class="text-sm font-semibold">{{ $excelPreview['sheet'] }}: {{ $excelPreview['sourceTotal'] }} {{ $excelUnit }} = {{ $excelPreview['total'] }} pieces</p>
                 @if(!empty($excelPreview['sectionTotals']))<p class="text-xs">Section quantities: {{ implode(' + ', $excelPreview['sectionTotals']) }} {{ $excelUnit }}. Prices below are per individual lens.</p>@endif
+                @if(!empty($excelPreview['halves']) && empty($excelPreview['odd']))<p class="text-xs">{{ $excelPreview['halves'] }} {{ $excelPreview['halves'] === 1 ? 'power has' : 'powers have' }} a half pair: each half is received as one loose lens.</p>@endif
+                @if(!empty($excelPreview['odd']))
+                    <div class="rounded border border-slate-300 p-3 text-xs space-y-2">
+                        <p><strong>{{ count($excelPreview['odd']) }} {{ count($excelPreview['odd']) === 1 ? 'power has' : 'powers have' }} a half pair.</strong> A half pair is one loose lens; choose which eye each one is for.</p>
+                        <div class="flex flex-wrap gap-2"><button type="button" wire:click="setOddEyes('R')" class="ui-button text-xs">All right</button><button type="button" wire:click="setOddEyes('L')" class="ui-button text-xs">All left</button></div>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach($excelPreview['odd'] as $cell => $lens)
+                                <label wire:key="odd-{{ $cell }}" class="flex items-center gap-1">{{ $lens['sphere'] }} / {{ $lens['power'] }}
+                                    <select wire:model="oddEyes.{{ $cell }}" class="ui-input !w-auto !py-1 text-xs" aria-label="Eye for the odd lens {{ $lens['sphere'] }} / {{ $lens['power'] }}"><option value="">Eye…</option><option value="R">Right</option><option value="L">Left</option></select>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('oddEyes')<p class="text-red-700" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                @endif
                 @if(!empty($excelPreview['warnings']))
                     <div class="rounded border border-amber-300 bg-amber-50 p-3 text-xs" role="alert">@foreach($excelPreview['warnings'] as $warning)<p>{{ $warning }}</p>@endforeach
                     <label class="flex gap-2 mt-2"><input type="checkbox" wire:model="excelWarningsAccepted">I reviewed the quantity units and differences above.</label></div>
                 @endif
                 <p class="text-xs">@if(is_numeric($unitCost))Estimated receipt cost at GHS {{ number_format((float)$unitCost,2) }} per lens: GHS {{ number_format($excelPreview['total'] * (float)$unitCost,2) }}@else Enter unit cost below to calculate receipt cost.@endif</p>
                 <div class="overflow-auto" style="max-height: {{ $fullPage ? '45vh' : '12rem' }}"><table class="ui-table w-full"><thead><tr><th>Sheet row</th><th>SPH</th><th>{{ $lensDesign === 'Single Vision' ? 'CYL' : 'ADD' }}</th><th>{{ !empty($excelPreview['perEye']) ? 'Pairs (R + L)' : 'Pieces' }}</th></tr></thead><tbody>
-                @foreach($excelPreview['lines'] as $line)<tr><td>{{ $line['row'] }}</td><td>{{ $line['sphere'] }}</td><td>{{ $line['power'] }}</td><td>{{ $line['quantity'] }}</td></tr>@endforeach
+                @foreach($excelPreview['lines'] as $line)<tr><td>{{ $line['row'] }}</td><td>{{ $line['sphere'] }}</td><td>{{ $line['power'] }}</td><td>{{ $line['quantity'] }}@if(!empty($excelPreview['perEye']) && !empty($line['half'])) + 1 lens @endif</td></tr>@endforeach
                 </tbody></table></div>
                 <p class="text-xs">Applying replaces the current bulk quantities and clears per-power price overrides. Stock is recorded only when you confirm the receipt.</p>
                 <button type="button" wire:click="applyExcel" wire:loading.attr="disabled" class="ui-button ui-button-primary">Apply preview to bulk grid</button>
             @endif
         </section>
+        @if(!empty($importSource['odd']))<p class="text-xs text-teal-800">Plus {{ count($importSource['odd']) }} loose {{ count($importSource['odd']) === 1 ? 'lens' : 'lenses' }} from half pairs, not shown in the grid: {{ collect($importSource['odd'])->map(function ($eye, $cell) use ($lensDesign) { [$r, $c] = explode(':', $cell); return sprintf('%+.2f', -15 + $r * .25).' / '.sprintf('%+.2f', $lensDesign === 'Single Vision' ? -$c * .25 : .25 + $c * .25).' '.$eye; })->implode(', ') }}.</p>@endif
         @if($importedSummary)<p class="text-xs text-teal-800">Imported: {{ $importedSummary }}. {{ $lensEye === 'B' ? 'All grid quantities below are pairs: each adds one right and one left lens.' : 'All grid quantities below are individual pieces.' }}</p>@endif
         <label class="flex gap-2 text-xs"><input type="checkbox" wire:model.live="templateGrid">Use lens order grid layout</label>
         @if($templateGrid)
@@ -140,7 +156,7 @@
         @if($priceList)
         <p class="text-xs rounded border border-teal-200 bg-teal-50 p-2">Selling price comes from the lens price list: GHS {{ number_format((float) $priceList->pair_price, 2) }} per pair (GHS {{ number_format((float) $priceList->pair_price / 2, 2) }} per lens){{ $priceList->rules->isNotEmpty() ? ', with '.$priceList->rules->count().' power exception(s)' : '' }}. Change it in Lens Catalogue → Lens prices.</p>
         @else
-        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model.blur="unitPrice" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitPrice !== '' && ! isNaN(parseFloat($wire.unitPrice))" x-text="'= GHS ' + money(num($wire.unitPrice) * 2) + ' per pair'"></span>@if($priceFromMarkup !== '')<span class="block text-teal-700">Suggested from cost {{ $priceFromMarkup }}. Change it if needed.</span>@endif</label>
+        <label class="text-xs">Selling price (GHS / lens) *<input autocomplete="off" type="number" min="0" step="0.01" wire:model.blur="unitPrice" class="ui-input w-full"><span class="text-slate-500" x-show="$wire.unitPrice !== '' && ! isNaN(parseFloat($wire.unitPrice))" x-text="'= GHS ' + money(num($wire.unitPrice) * 2) + ' per pair'"></span></label>
         @endif
     </div>
     @if($entryMode === 'bulk')

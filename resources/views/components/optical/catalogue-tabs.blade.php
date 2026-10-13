@@ -1,9 +1,8 @@
-{{-- Catalogue & Stock, Products and Categories are one place in the menu: these tabs move between them. --}}
+{{-- Catalogue & Stock and Products are one place in the menu: these tabs move between them. --}}
 @php
     $tabs = array_filter([
         'optical.catalogue' => 'Catalogue & Stock',
         'optical.products' => 'Products',
-        'optical.categories' => 'Categories',
     ], fn ($label, $route) => \App\Support\OpticalNavigation::allowed($route), ARRAY_FILTER_USE_BOTH);
 @endphp
 @if(count($tabs) > 1)

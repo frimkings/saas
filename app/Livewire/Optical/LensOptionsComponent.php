@@ -16,15 +16,15 @@ use Livewire\Component;
  * staff choose from when receiving and ordering lenses. Forms, treatments and manufacturers
  * can be added, renamed, hidden, reordered and, while nothing uses them, deleted. Lens types
  * drive stock matching, so they are renamed, hidden and reordered only; Standard is every
- * lens type's plain form and can be renamed but not deleted.
+ * lens type's plain form and can be renamed but not deleted. Frame brands are kept here too.
  */
 class LensOptionsComponent extends Component
 {
     /** Kinds that can be added and deleted. */
-    private const EDITABLE = ['form', 'treatment', 'manufacturer'];
+    private const EDITABLE = ['form', 'treatment', 'manufacturer', 'frame_brand'];
 
     /** @var array<string, string> new option name per kind */
-    public array $newName = ['form' => '', 'treatment' => '', 'manufacturer' => ''];
+    public array $newName = ['form' => '', 'treatment' => '', 'manufacturer' => '', 'frame_brand' => ''];
     /** The lens type a new form belongs to ('' = every lens type). */
     public string $newFormDesign = 'Bifocal';
     public ?int $editingId = null;
@@ -83,6 +83,9 @@ class LensOptionsComponent extends Component
         $this->validateName($name, $option->kind, 'editingName', $option->id);
         $option->name = $name;
         AuditTrail::recordSave($option, 'optical.lens_'.$option->kind, 'lens '.$option->kind.' '.$name);
+        // Products added in the product form show the name as their brand; keep it in step.
+        $onProduct = ['frame_brand' => ['frame', 'details->brand'], 'manufacturer' => ['lens', 'details->range']][$option->kind] ?? null;
+        if ($onProduct) OpticalProduct::whereNull('lens_specs')->where('type', $onProduct[0])->where($onProduct[1], $option->code)->update(['brand' => $name]);
         $this->cancelEdit();
         LensOptions::forget();
         session()->flash('success', 'Name saved. Stock and past orders are unchanged.');
@@ -97,7 +100,7 @@ class LensOptionsComponent extends Component
             throw ValidationException::withMessages(['options' => 'Standard is the form of every plain lens, so it stays available.']);
         }
         if ($option->is_active && OpticalLensOption::where('kind', $option->kind)->where('is_active', true)->count() === 1) {
-            throw ValidationException::withMessages(['options' => 'Keep at least one '.$option->kind.' available.']);
+            throw ValidationException::withMessages(['options' => 'Keep at least one '.str_replace('_', ' ', $option->kind).' available.']);
         }
         $option->is_active = ! $option->is_active;
         AuditTrail::recordSave($option, 'optical.lens_'.$option->kind, 'lens '.$option->kind.' '.$option->name.($option->is_active ? ' (shown)' : ' (hidden)'));
@@ -136,6 +139,10 @@ class LensOptionsComponent extends Component
     private function inUse(OpticalLensOption $option): bool
     {
         if ($option->kind === 'design' || ($option->kind === 'form' && $option->code === LensOptions::STANDARD_FORM)) return true;
+        if ($option->kind === 'frame_brand') {
+            return OpticalProduct::withTrashed()->where('type', 'frame')
+                ->where(fn ($q) => $q->where('details->brand', $option->code)->orWhere('brand', $option->code)->orWhere('brand', $option->name))->exists();
+        }
         $field = LensOptions::SPEC_FIELDS[$option->kind];
         return OpticalProduct::withTrashed()->whereNotNull('lens_specs')->where("lens_specs->{$field}", $option->code)->exists()
             || OpticalLensPrice::where("specs->{$field}", $option->code)->exists();
@@ -143,7 +150,7 @@ class LensOptionsComponent extends Component
 
     private function validateName(string $name, string $kind, string $field, ?int $ignoreId = null): void
     {
-        $max = $kind === 'manufacturer' ? 100 : 40;
+        $max = in_array($kind, ['manufacturer', 'frame_brand'], true) ? 100 : 40;
         if ($name === '' || mb_strlen($name) > $max) {
             throw ValidationException::withMessages([$field => "Enter a name of up to {$max} characters."]);
         }
@@ -155,7 +162,7 @@ class LensOptionsComponent extends Component
     public function render()
     {
         $kinds = [];
-        foreach (['design', 'form', 'treatment', 'manufacturer'] as $kind) {
+        foreach (['design', 'form', 'treatment', 'manufacturer', 'frame_brand'] as $kind) {
             $options = LensOptions::all($kind);
             $kinds[$kind] = ['options' => $options, 'inUse' => $options->mapWithKeys(fn ($option) => [$option->id => $this->inUse($option)])];
         }

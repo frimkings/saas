@@ -74,6 +74,8 @@ class OpticalStockManagementComponent extends Component
         $this->excelUnit = ($specs['unit'] ?? '') ?: (in_array($specs['eye'] ?? '', ['R', 'L'], true) ? 'pieces' : 'pairs');
         if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->syncEyeToUnit();
     }
+    /** @var array<string, string> "row:column" => R or L, chosen for each odd lens in the preview */
+    public array $oddEyes = [];
     public int $excelHeaderRow = 2;
     public int $excelSphereColumn = 1;
     #[\Livewire\Attributes\Locked]
@@ -111,20 +113,12 @@ class OpticalStockManagementComponent extends Component
         if ($this->excelLayout === 'template') {
             $this->excelPreview = $service->previewTemplate($sheets[$this->excelSheet], $this->lensDesign, $this->excelUnit);
         } else {
-            $this->excelPreview = $service->preview($sheets[$this->excelSheet]['rows'], $this->excelHeaderRow, $this->excelSphereColumn, $this->lensDesign);
-            $this->excelPreview['sourceTotal'] = $this->excelPreview['total'];
-            $this->excelPreview['perEye'] = $this->lensEye === 'B';
-            if ($this->excelUnit === 'pairs') {
-                $this->excelPreview['total'] *= 2;
-                // Eye-specific pairs keep the pair count per cell: one right and one left lens each.
-                if (! $this->excelPreview['perEye']) {
-                    foreach ($this->excelPreview['quantities'] as &$cells) foreach ($cells as &$quantity) $quantity *= 2;
-                    unset($cells, $quantity);
-                    foreach ($this->excelPreview['lines'] as &$line) $line['quantity'] *= 2;
-                    unset($line);
-                }
-            }
+            // Eye-specific pairs keep the pair count per cell: one right and one left lens each.
+            $this->excelPreview = $service->preview($sheets[$this->excelSheet]['rows'], $this->excelHeaderRow, $this->excelSphereColumn, $this->lensDesign,
+                $this->excelUnit, $this->lensEye === 'B');
         }
+        // A half pair of a design made per eye is one loose lens: its eye is asked for, and choices already made are kept.
+        $this->oddEyes = array_intersect_key($this->oddEyes, $this->excelPreview['odd']);
         $this->excelPreview['sheet'] = $sheets[$this->excelSheet]['name'];
         $this->resetValidation();
     }
@@ -135,12 +129,20 @@ class OpticalStockManagementComponent extends Component
         if (! $this->excelPreview) { $this->addError('excelFile', 'Preview the workbook before applying it.'); return; }
         $this->previewExcel();
         if (! empty($this->excelPreview['warnings']) && ! $this->excelWarningsAccepted) { $this->addError('excelFile', 'Review and acknowledge the workbook warnings before applying.'); return; }
+        $odd = [];
+        foreach ($this->excelPreview['odd'] as $cell => $lens) {
+            if (! in_array($this->oddEyes[$cell] ?? '', ['R', 'L'], true)) { $this->addError('oddEyes', 'Choose the eye for each odd lens before applying.'); return; }
+            $odd[$cell] = $this->oddEyes[$cell];
+        }
         $this->importedSummary = $this->excelPreview['sheet'].'; '.$this->excelPreview['sourceTotal'].' '.$this->excelUnit.' = '.$this->excelPreview['total'].' pieces';
         $this->importSource = [
             'filename' => mb_substr(basename($this->excelFile->getClientOriginalName()), 0, 255),
             'worksheet' => $this->excelPreview['sheet'], 'unit' => $this->excelUnit,
             'source_quantity' => $this->excelPreview['sourceTotal'], 'quantities' => $this->excelPreview['quantities'],
+            // "row:column" => R or L, for each half pair of a design made per eye.
+            'odd' => $odd,
         ];
+        $this->oddEyes = [];
         $this->repeatDeliveryReason = '';
         $this->bulkQuantities = $this->excelPreview['quantities'];
         $this->bulkCosts = [];
@@ -150,8 +152,25 @@ class OpticalStockManagementComponent extends Component
         $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs']);
     }
 
+    /** Set every odd lens in the preview to one eye. */
+    public function setOddEyes(string $eye): void
+    {
+        $this->assertManager();
+        abort_unless(in_array($eye, ['R', 'L'], true), 422);
+        $this->oddEyes = array_fill_keys(array_keys($this->excelPreview['odd'] ?? []), $eye);
+        $this->resetErrorBag('oddEyes');
+    }
+
+    /** @return array<string, string> "row:column" => R or L: the loose lenses of the applied import */
+    private function oddLenses(): array
+    {
+        $bothEyes = $this->entryMode === 'bulk' && $this->lensEye === 'B' && \App\Support\LensDesign::isEyeSpecific($this->lensDesign);
+        return $bothEyes ? array_filter($this->importSource['odd'] ?? [], fn ($eye) => in_array($eye, ['R', 'L'], true)) : [];
+    }
+
     public function cancelExcel(): void
     {
+        $this->oddEyes = [];
         foreach ($this->excelOriginalSpecs as $field => $value) $this->$field = $value;
         $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs']);
         $this->resetValidation();
@@ -239,7 +258,13 @@ class OpticalStockManagementComponent extends Component
             $pieces += $quantity;
             $cost += $quantity * $amount(($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost);
         }
-        return ['pieces' => $pieces * $pairFactor, 'cost' => $cost * $pairFactor];
+        $pieces *= $pairFactor; $cost *= $pairFactor;
+        foreach (array_keys($this->oddLenses()) as $cell) {
+            [$r, $c] = explode(':', $cell);
+            $pieces++;
+            $cost += $amount(($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost);
+        }
+        return ['pieces' => $pieces, 'cost' => $cost];
     }
 
     /** @return \Illuminate\Support\Collection<int, string> the lens ranges already received, as spelled on their stock */
@@ -422,25 +447,6 @@ class OpticalStockManagementComponent extends Component
             $this->priceFromProduct = (bool) $product;
             $this->updateSellingPrice = false;
         }
-        if ($property === 'unitPrice') $this->priceFromMarkup = '';
-        if (in_array($property, ['unitCost', 'lensDesign'], true)) $this->suggestPriceFromMarkup();
-    }
-
-    /** Set when the selling price came from the lens category's markup: "+40% (Single Vision Lenses)". */
-    public string $priceFromMarkup = '';
-
-    /**
-     * An empty selling price (or one this filled in) follows the cost plus the markup of the
-     * category these lenses are filed in. A price typed by staff is never replaced.
-     */
-    private function suggestPriceFromMarkup(): void
-    {
-        if ($this->stockType !== 'lens' || ($this->unitPrice !== '' && $this->priceFromMarkup === '') || ! is_numeric($this->unitCost)) return;
-        $category = \App\Models\OpticalCategory::stockLensCategory($this->lensDesign);
-        $price = $category?->suggestedPrice((float) $this->unitCost);
-        if ($price === null) return;
-        $this->unitPrice = number_format($price, 2, '.', '');
-        $this->priceFromMarkup = '+'.rtrim(rtrim(number_format((float) $category->default_markup, 2, '.', ''), '0'), '.').'% ('.$category->name.')';
     }
 
     public function pasteGrid(): void
@@ -509,6 +515,12 @@ class OpticalStockManagementComponent extends Component
                     abort_unless(ctype_digit((string) $c) && array_key_exists($c, $columns), 422);
                     if ((int) $quantity > 0) array_push($lines, ...$this->eyeLines([-15 + $r * 0.25, $columns[$c], (int) $quantity, ($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost, ($this->bulkPrices[$r][$c] ?? '') !== '' ? $this->bulkPrices[$r][$c] : $this->unitPrice]));
                 }
+            }
+            // The loose lens of each half pair, for the eye chosen when the sheet was applied.
+            foreach ($this->oddLenses() as $cell => $eye) {
+                [$r, $c] = array_map('intval', explode(':', $cell) + [1 => -1]);
+                abort_unless($r >= 0 && $r <= 120 && array_key_exists($c, $columns), 422);
+                $lines[] = [-15 + $r * 0.25, $columns[$c], 1, ($this->bulkCosts[$r][$c] ?? '') !== '' ? $this->bulkCosts[$r][$c] : $this->unitCost, ($this->bulkPrices[$r][$c] ?? '') !== '' ? $this->bulkPrices[$r][$c] : $this->unitPrice, $eye];
             }
             if (! $lines) { $this->addError('bulkQuantities', 'Enter at least one received quantity.'); return; }
         }

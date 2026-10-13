@@ -204,7 +204,7 @@
                                 @if($selectedService)
                                     <div wire:key="selected-service-{{ $selectedService->id }}" class="flex flex-wrap items-center justify-between gap-3 p-3 border-b border-slate-100 text-xs">
                                         <div><strong>{{ $selectedService->name }}</strong><span class="text-slate-500 ml-2">{{ $selectedService->requires_rx ? 'Rx required' : 'No Rx' }}{{ $selectedService->requires_frame ? ' · Frame details required' : '' }}</span></div>
-                                        <div class="flex items-center gap-3"><label>Qty <input autocomplete="off" type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input w-20 text-xs ml-1"></label><span class="font-mono">{{ currency() }} {{ number_format((float) $selectedService->price, 2) }} each</span></div>
+                                        <div class="flex items-center gap-3"><label>Qty <input autocomplete="off" type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input !w-20 text-xs ml-1"></label><span class="font-mono">{{ currency() }} {{ number_format((float) $selectedService->price, 2) }} each</span></div>
                                     </div>
                                 @endif
                             @endforeach
@@ -561,7 +561,7 @@
                                     <div wire:key="priced-service-{{ $selectedService->id }}" class="flex flex-wrap items-center justify-between gap-3 p-3 text-xs">
                                         <div><strong>{{ $selectedService->name }}</strong><span class="ml-2 font-mono text-slate-500">{{ currency() }} {{ number_format((float) $selectedService->price, 2) }} each</span></div>
                                         <div class="flex items-center gap-3">
-                                            <label>Qty <input autocomplete="off" type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input w-20 text-xs ml-1"></label>
+                                            <label>Qty <input autocomplete="off" type="number" min="1" max="1000" step="1" wire:model="service_lines.{{ $index }}.quantity" class="ui-input !w-20 text-xs ml-1"></label>
                                             @if($work_type === 'prescription')<button type="button" wire:click="removeServiceLine({{ $index }})" class="font-semibold text-red-700 underline">Remove</button>@endif
                                         </div>
                                     </div>
@@ -635,7 +635,7 @@
                         @if($bill_to === 'partner')<p><strong>Partner clinic:</strong> {{ $partner_clinic_name }}</p>@endif
                         @if($work_type === 'service')@foreach($service_lines as $line)@php $reviewService = \App\Models\OpticalService::find((int) ($line['service_id'] ?? 0)); @endphp@if($reviewService)<p><strong>Service:</strong> {{ $reviewService->name }} × {{ $line['quantity'] ?? 1 }}</p>@endif @endforeach @endif
                         @if($frame_model_number)<p><strong>Frame:</strong> {{ $frame_model_number }} ({{ $frame_structure }})</p>@endif
-                        @if($work_type === 'prescription')<p><strong>Lenses:</strong> {{ $lens_type }} {{ $lens_index }} ({{ $base_color }})</p>@if($optical_category_id)<p><strong>Category:</strong> {{ $opticalCategories->firstWhere('id', (int) $optical_category_id)?->name ?? 'Previously selected' }}</p>@endif @endif
+                        @if($work_type === 'prescription')<p><strong>Lenses:</strong> {{ $lens_type }} {{ $lens_index }} ({{ $base_color }})</p>@if($optical_category_id)<p><strong>Category:</strong> {{ \App\Models\OpticalCategory::find((int) $optical_category_id)?->name ?? 'Previously selected' }}</p>@endif @endif
                         @if($work_type === 'prescription')<p><strong>Lens fulfilment:</strong> {{ ['stock' => 'Branch lens stock', 'catalogue' => 'Catalogued lens SKU', 'external' => 'Special order', 'customer' => 'Customer supplied lenses'][$lens_fulfilment_source] ?? 'Special order' }}</p>
                             @if($lens_fulfilment_source === 'stock')@foreach(($lensAvailability['eyes'] ?? []) as $eye => $line)<p class="pl-3">{{ strtoupper($eye) }}: {{ ($line['source'] ?? 'stock') === 'stock' ? 'branch stock' : 'special order' }} · {{ currency() }} {{ number_format($line['unit_price'] ?? 0, 2) }}</p>@endforeach @endif
                         @endif

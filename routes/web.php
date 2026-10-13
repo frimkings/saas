@@ -230,7 +230,7 @@ Route::get('/optical/partners/{partner}/statement/print', function (int $partner
 Route::redirect('/optical/customers', '/optical/partners')->name('optical.customers');
 Route::get('/optical/prescriptions', \App\Livewire\Optical\OpticalPrescriptionsComponent::class)->name('optical.prescriptions');
 Route::get('/optical/catalogue', \App\Livewire\Optical\OpticalCatalogueComponent::class)->name('optical.catalogue');
-Route::get('/optical/categories', \App\Livewire\Optical\OpticalCategoriesComponent::class)->name('optical.categories');
+Route::get('/optical/lens-grid', \App\Livewire\Optical\OpticalLensGridComponent::class)->name('optical.lens-grid');
  Route::get('/optical/products', \App\Livewire\Optical\OpticalProductsComponent::class)->name('optical.products');
  Route::get('/optical/stock', \App\Livewire\Optical\OpticalStockManagementComponent::class)->name('optical.stock');
  Route::get('/optical/stock/receive-lenses', \App\Livewire\Optical\OpticalLensReceivingComponent::class)->middleware('role:Manager|Super Admin')->name('optical.stock.receive-lenses');

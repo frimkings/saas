@@ -17,6 +17,9 @@ use Illuminate\Support\Collection;
  * progressive); "Standard" is every lens type's plain form and is not written on stock.
  * Treatments and manufacturers are the clinic's own lists. A clinic starts with the
  * defaults below plus whatever its stock already uses.
+ *
+ * Frame brands (kind "frame_brand") are kept the same way: the list staff pick a frame's
+ * brand from, starting with the brands already on the clinic's frames.
  */
 class LensOptions
 {
@@ -78,6 +81,21 @@ class LensOptions
         return $form === '' || $form === self::STANDARD_FORM ? null : $form;
     }
 
+    /** The frame brand of this name (whatever its case), shown again if hidden, added to the list if new. */
+    public static function frameBrand(string $name): OpticalLensOption
+    {
+        $option = OpticalLensOption::where('kind', 'frame_brand')->get()
+            ->first(fn ($option) => in_array(mb_strtolower($name), [mb_strtolower($option->code), mb_strtolower($option->name)], true));
+        if ($option && ! $option->is_active) $option->update(['is_active' => true]);
+        if (! $option) {
+            $option = OpticalLensOption::create(['kind' => 'frame_brand', 'code' => $name, 'name' => $name, 'is_active' => true,
+                'sort_order' => (int) OpticalLensOption::where('kind', 'frame_brand')->max('sort_order') + 1]);
+            \App\Models\AuditTrail::record('optical.lens_frame_brand_created', 'Added frame brand '.$name, $option, [], ['name' => $name]);
+        }
+        self::forget();
+        return $option;
+    }
+
     public static function forget(): void
     {
         app()->instance('optical.lens-options', new \ArrayObject());
@@ -95,7 +113,11 @@ class LensOptions
             'form' => array_map(fn ($design) => [null, $design], self::FORMS),
             default => [],
         };
-        if ($kind !== 'design') {
+        if ($kind === 'frame_brand') {
+            OpticalProduct::withTrashed()->where('type', 'frame')->whereNotNull('brand')->pluck('brand')
+                ->map(fn ($brand) => trim((string) $brand))->filter()->unique()->sort()
+                ->each(function ($code) use (&$defaults) { $defaults[$code] ??= [$code, null]; });
+        } elseif ($kind !== 'design') {
             $field = self::SPEC_FIELDS[$kind];
             OpticalProduct::withTrashed()->whereNotNull('lens_specs')->pluck('lens_specs')
                 ->map(fn ($specs) => trim((string) data_get($specs, $field)))->filter()->unique()->sort()

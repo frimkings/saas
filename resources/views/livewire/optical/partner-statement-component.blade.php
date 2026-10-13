@@ -41,7 +41,7 @@
                                 <td class="py-1">{{ $order->order_id }}@if($order->customer_name) · {{ $order->customer_name }}@endif @if($order->partnerReference()) · ref {{ $order->partnerReference() }}@endif</td>
                                 <td class="py-1">{{ $order->created_at->format('d M Y') }}</td>
                                 <td class="py-1 text-right font-mono">{{ number_format($service->balanceOf($order), 2) }}</td>
-                                <td class="py-1 text-right"><input autocomplete="off" type="number" min="0" step="0.01" max="{{ $service->balanceOf($order) }}" wire:model.live.debounce.400ms="allocations.{{ $order->id }}" class="ui-input w-24 text-right" aria-label="Apply to {{ $order->order_id }}"></td>
+                                <td class="py-1 text-right"><input autocomplete="off" type="number" min="0" step="0.01" max="{{ $service->balanceOf($order) }}" wire:model.live.debounce.400ms="allocations.{{ $order->id }}" class="ui-input !w-24 text-right" aria-label="Apply to {{ $order->order_id }}"></td>
                             </tr>
                         @endforeach
                     </tbody>

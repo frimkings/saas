@@ -146,49 +146,64 @@ class OpticalLensOptionsTest extends TestCase
             ->call('delete', OpticalLensOption::where('code', 'Executive')->value('id'))->assertHasNoErrors();
     }
 
-    public function test_categories_have_a_type_and_stock_lenses_file_into_the_clinics_lens_category(): void
+    public function test_every_product_is_a_frame_lens_or_accessory_with_its_own_details(): void
     {
-        // A lens category for single vision, with a 40% markup.
-        Livewire::test(\App\Livewire\Optical\OpticalCategoriesComponent::class)->call('add')
-            ->set('name', 'SV LENSES')->set('code', 'SV')->set('type', 'lens')->set('lensType', 'Single Vision')->set('markup', '40')
-            ->call('save')->assertHasNoErrors();
-        $sv = \App\Models\OpticalCategory::where('code', 'SV')->firstOrFail();
-        $this->assertSame(['lens', 'Single Vision'], [$sv->type, $sv->lens_type]);
-
-        // Received single vision stock goes into it, not an automatic "Stock Lenses" category.
+        // Every received stock lens is in Lenses, whatever its lens type; no category is made for it.
         $this->receive('AR');
-        $this->assertSame($sv->id, OpticalProduct::whereNotNull('lens_specs')->firstOrFail()->optical_category_id);
-        $this->assertSame(0, \App\Models\OpticalCategory::where('code', 'like', 'stock-%')->count());
-
-        // A category holding stock lenses can't stop being a lens category.
-        Livewire::test(\App\Livewire\Optical\OpticalCategoriesComponent::class)->call('edit', $sv->id)->set('type', 'accessory')->call('save')
-            ->assertHasErrors(['type']);
-
-        // Progressive stock with no progressive category gets one made for it.
         app(\App\Services\OpticalLensReceivingService::class)->receiveMany([[
             'specs' => ['range' => 'CANADA', 'design' => 'Progressive', 'index' => '1.56', 'coating' => 'AR', 'diameter' => 65, 'sphere' => '-1.00', 'power' => '1.50', 'eye' => 'R'],
             'quantity' => 1, 'details' => ['unit_cost' => 10, 'unit_price' => 25, 'supplier' => 'Lab'],
         ]]);
-        $made = \App\Models\OpticalCategory::where('lens_type', 'Progressive')->firstOrFail();
-        $this->assertSame(['lens', 'Progressive Lenses'], [$made->type, $made->name]);
+        $first = OpticalProduct::where('lens_specs->design', 'Single Vision')->firstOrFail();
+        $this->assertSame(['lens', 'Lenses'], [$first->type, $first->categoryLabel()]);
+        $this->assertSame(2, OpticalProduct::whereNotNull('lens_specs')->where('type', 'lens')->count());
+        $this->assertSame(0, \App\Models\OpticalCategory::count());
 
-        // Frames and accessories: a name no longer decides; old-style names still get a sensible type.
-        $this->assertSame('frame', \App\Models\OpticalCategory::create(['code' => 'FR', 'name' => 'Designer Frames', 'is_active' => true])->type);
-        $this->assertSame('accessory', \App\Models\OpticalCategory::create(['code' => 'CS', 'name' => 'Cases', 'is_active' => true])->type);
-    }
+        // A stock lens stays in Lenses and keeps the classification it was received with.
+        $page = Livewire::test(\App\Livewire\Optical\OpticalProductsComponent::class);
+        $page->call('edit', $first->id)->assertSet('stockLens', true)->assertSet('lensDesign', 'Single Vision')
+            ->set('type', 'accessory')->call('save')->assertHasErrors(['type']);
 
-    public function test_markup_suggests_a_selling_price_from_cost_and_a_typed_price_is_kept(): void
-    {
-        \App\Models\OpticalCategory::create(['code' => 'SV', 'name' => 'SV LENSES', 'type' => 'lens', 'lens_type' => 'Single Vision', 'default_markup' => 40, 'is_active' => true]);
-        $receive = Livewire::test(OpticalLensReceivingComponent::class)->set('lensDesign', 'Single Vision')
-            ->set('unitCost', '25')->assertSet('unitPrice', '35.00')->assertSee('Suggested from cost +40% (SV LENSES)')
-            ->set('unitCost', '50')->assertSet('unitPrice', '70.00');
-        $receive->set('unitPrice', '80')->set('unitCost', '60')->assertSet('unitPrice', '80')->assertDontSee('Suggested from cost');
+        // The category is required, and is one of the three.
+        $new = fn (string $name, string $sku) => $page->call('add')->set('name', $name)->set('sku', $sku)->set('costPrice', '10')->set('sellingPrice', '20');
+        $new('No category', 'NC-1')->call('save')->assertHasErrors(['type']);
+        $new('Sunglasses', 'SG-1')->set('type', 'sunglasses')->call('save')->assertHasErrors(['type']);
 
-        $frames = \App\Models\OpticalCategory::create(['code' => 'FR', 'name' => 'Frames', 'type' => 'frame', 'default_markup' => 100, 'is_active' => true]);
-        Livewire::test(\App\Livewire\Optical\OpticalProductsComponent::class)->call('add')
-            ->set('categoryId', (string) $frames->id)->set('costPrice', '120')->assertSet('sellingPrice', '240.00')
-            ->assertSee('Suggested from cost +100% (Frames)');
+        // An accessory is just the product: Accessories → Cloth.
+        $new('Cloth', 'CL-1')->set('type', 'accessory')->assertDontSee('Frame details')->assertDontSee('Lens classification')->call('save')->assertHasNoErrors();
+        $this->assertSame(['accessory', null], [OpticalProduct::where('sku', 'CL-1')->value('type'), OpticalProduct::where('sku', 'CL-1')->firstOrFail()->details]);
+
+        // A frame has a brand from the list (added on the spot here), a model, a colour and a size.
+        $new('Aviator', 'FR-1')->set('type', 'frame')->assertSee('Frame details')->call('save')->assertHasErrors(['frameBrand']);
+        $new('Aviator', 'FR-1')->set('type', 'frame')->set('newFrameBrand', 'Ray-Ban')->call('addFrameBrand')->assertSet('frameBrand', 'Ray-Ban')
+            ->set('frameModel', 'RB3025')->set('frameColour', 'Gold')->set('frameSize', '58-14-135')->call('save')->assertHasNoErrors();
+        $frame = OpticalProduct::where('sku', 'FR-1')->firstOrFail();
+        $this->assertEquals(['brand' => 'Ray-Ban', 'model' => 'RB3025', 'colour' => 'Gold', 'size' => '58-14-135'], $frame->details);
+        $this->assertSame(['frame', 'Ray-Ban'], [$frame->type, $frame->brand]);
+        $this->assertSame(1, OpticalLensOption::where('kind', 'frame_brand')->where('name', 'Ray-Ban')->count());
+        $page->call('edit', $frame->id)->assertSet('frameBrand', 'Ray-Ban')->assertSet('frameSize', '58-14-135')
+            ->set('newFrameBrand', 'ray-ban')->call('addFrameBrand')->assertSet('frameBrand', 'Ray-Ban');
+        $this->assertSame(1, OpticalLensOption::where('kind', 'frame_brand')->count());
+        Livewire::test(\App\Livewire\Optical\OpticalOrderCreateComponent::class)
+            ->call('selectFrameOpticalProduct', $frame->id)->assertSet('frame_model_number', 'Aviator');
+        // The brand list is kept with the lens options, and a brand on a frame can't be deleted.
+        Livewire::test(LensOptionsComponent::class)->assertSee('Frame brands')->assertSee('Ray-Ban')
+            ->call('delete', OpticalLensOption::where('kind', 'frame_brand')->value('id'))->assertHasErrors(['options']);
+
+        // A lens added as a product is classified: lens type, form, treatment, manufacturer.
+        OpticalLensOption::create(['kind' => 'manufacturer', 'code' => 'Canada Opticals', 'name' => 'Canada Opticals', 'is_active' => true, 'sort_order' => 99]);
+        LensOptions::forget();
+        $lens = fn () => $new('SV Photo AR', 'SV-PAR')->set('type', 'lens')->assertSee('Lens classification');
+        $lens()->call('save')->assertHasErrors(['lensDesign', 'lensTreatment']);
+        $lens()->set('lensDesign', 'Single Vision')->set('lensForm', 'Flat top')->set('lensTreatment', 'Photo AR')->call('save')->assertHasErrors(['lensForm']);
+        $lens()->set('lensDesign', 'Single Vision')->set('lensTreatment', 'Photo AR')->set('lensManufacturer', 'Canada Opticals')->call('save')->assertHasNoErrors();
+        $saved = OpticalProduct::where('sku', 'SV-PAR')->firstOrFail();
+        $this->assertEquals(['design' => 'Single Vision', 'coating' => 'Photo AR', 'range' => 'Canada Opticals'], $saved->details);
+        $this->assertSame(['lens', 'Canada Opticals', null], [$saved->type, $saved->brand, $saved->lens_specs]);
+        $page->call('edit', $saved->id)->assertSet('lensTreatment', 'Photo AR')->assertSet('lensForm', 'Standard')->assertSet('stockLens', false);
+
+        // The list filters by category.
+        $page->set('categoryFilter', 'accessory')->assertSee('Cloth')->assertDontSee('Aviator')->assertDontSee('SV Photo AR');
     }
 
     public function test_an_invisible_bifocal_is_matched_and_shown_apart_from_a_flat_top(): void
@@ -217,7 +232,7 @@ class OpticalLensOptionsTest extends TestCase
         $order->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Bifocal|AR'])->assertSet('stock_form', '');
 
         // The lens matrix keeps them apart, labelled by form.
-        $matrix = Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->set('activeTab', 'lens-matrix')
+        $matrix = Livewire::test(\App\Livewire\Optical\OpticalLensGridComponent::class)
             ->set('matrixRange', 'CANADA')->set('matrixDesign', 'Bifocal')->set('matrixForm', 'Invisible')->set('matrixDiameter', 65)
             ->assertSee('Invisible · Clear AR · CANADA');
         $matrix->assertViewHas('lensBlankStock', fn ($stock) => $stock['-1.00|2.00'] === 2);
@@ -229,5 +244,41 @@ class OpticalLensOptionsTest extends TestCase
         $staff = User::factory()->create();
         $this->actingAs($staff);
         Livewire::test(LensOptionsComponent::class)->set('newName.treatment', 'Mirror')->call('add', 'treatment')->assertForbidden();
+    }
+
+    public function test_the_odd_lens_of_a_bifocal_half_pair_is_received_for_the_chosen_eye(): void
+    {
+        // A sheet in pairs: 2.5 pairs at +0.00 / +1.00 and half a pair at +0.00 / +1.25.
+        $path = tempnam(sys_get_temp_dir(), 'lens-xlsx-');
+        $zip = new \ZipArchive();
+        $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>');
+        $zip->addFromString('xl/workbook.xml', '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Count" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/></Relationships>');
+        $zip->addFromString('xl/worksheets/sheet1.xml', '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="2"><c r="A2" t="inlineStr"><is><t>SPH</t></is></c><c r="B2"><v>1</v></c><c r="C2"><v>1.25</v></c></row><row r="3"><c r="A3"><v>0</v></c><c r="B3"><v>2.5</v></c><c r="C3"><v>0.5</v></c></row></sheetData></worksheet>');
+        $zip->close();
+        try {
+            $form = Livewire::test(\App\Livewire\Optical\OpticalStockManagementComponent::class)->call('openReceipt')
+                ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'Factory')->call('addManufacturer')
+                ->set('lensDesign', 'Bifocal')->set('lensForm', 'Flat top')
+                ->set('excelFile', \Illuminate\Http\UploadedFile::fake()->createWithContent('count.xlsx', file_get_contents($path)))
+                ->assertSet('excelUnit', 'pairs')->assertSet('lensEye', 'B')->call('previewExcel')->assertHasNoErrors()
+                ->assertSet('excelPreview.total', 6)->assertSet('excelPreview.sourceTotal', 3)
+                ->assertSee('2 powers have a half pair')->assertSee('+ 1 lens');
+            // The grid keeps whole pairs; each loose lens needs an eye before the sheet is applied.
+            $form->call('applyExcel')->assertHasErrors(['oddEyes']);
+            $form->call('setOddEyes', 'R')->set('oddEyes.60:4', 'L')->call('applyExcel')->assertHasNoErrors()
+                ->assertSet('bulkQuantities.60.3', 2)->assertSet('bulkQuantities.60.4', 0)
+                ->assertSee('Plus 2 loose lenses from half pairs');
+            $form->set('unitCost', '10')->set('unitPrice', '30')->set('supplier', 'Factory');
+            $this->assertEquals(['pieces' => 6, 'cost' => 60], $form->instance()->receiptTotals());
+            $form->call('save')->assertHasNoErrors();
+        } finally { if (file_exists($path)) unlink($path); }
+
+        $held = fn (string $power, string $eye) => (int) OpticalProduct::where('lens_specs->power', $power)->where('lens_specs->eye', $eye)->first()?->stocks()->sum('quantity');
+        $this->assertSame([3, 2], [$held('1.00', 'R'), $held('1.00', 'L')]);
+        $this->assertSame([0, 1], [$held('1.25', 'R'), $held('1.25', 'L')]);
+        $import = \App\Models\OpticalLensImport::sole();
+        $this->assertEquals([3.0, 6], [(float) $import->source_quantity, $import->pieces]);
     }
 }

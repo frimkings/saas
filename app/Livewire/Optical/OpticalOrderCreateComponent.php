@@ -307,11 +307,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lensAvailability = [];
         $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
-        $category = OpticalCategory::where('is_active', true)->findOrFail((int) $id);
-        abort_unless($category->isLens(), 404);
-        $this->optical_category_id = $category->id;
-        // A lens category may name its lens type; a general one leaves the type as it was.
-        if ($category->lens_type) $this->lens_type = $category->lens_type;
+        $this->optical_category_id = OpticalCategory::findOrFail((int) $id)->id;
     }
 
     public function selectFrameOpticalProduct($id): void
@@ -320,7 +316,7 @@ class OpticalOrderCreateComponent extends Component
         $this->frame_product_id = null;
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
-        abort_unless((bool) $product->category?->isFrame(), 404);
+        abort_unless($product->isFrame(), 404);
         $this->frame_optical_product_id = $product->id;
         $this->frame_source = 'stock';
         $this->frame_model_number = $product->name;
@@ -334,7 +330,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_fulfilment_source = 'stock';
         if (! $id) return;
         $product = OpticalProduct::where('is_active', true)->findOrFail((int) $id);
-        abort_unless((bool) $product->category?->isLens(), 404);
+        abort_unless($product->isLens(), 404);
         // A stock lens item is one lens; stock lenses are matched per eye from the prescription.
         abort_unless($product->lens_specs === null, 404);
         $this->lens_optical_product_id = $product->id;
@@ -1112,7 +1108,7 @@ class OpticalOrderCreateComponent extends Component
             'frame_model_number' => $this->needsFrame() ? 'required|string|max:255' : 'nullable',
             'frame_price' => 'required|numeric|min:0',
             'lens_price' => 'required|numeric|min:0',
-            'optical_category_id' => ['nullable', Rule::exists('optical_categories', 'id')->where('clinic_id', app(TenantContext::class)->clinicId())->where('is_active', true)],
+            'optical_category_id' => ['nullable', Rule::exists('optical_categories', 'id')->where('clinic_id', app(TenantContext::class)->clinicId())],
             'glazing_fee' => 'required|numeric|min:0',
             'discount_amount' => 'nullable|numeric|min:0',
             'paid_amount' => 'required|numeric|min:0',
@@ -1163,9 +1159,6 @@ class OpticalOrderCreateComponent extends Component
 
     public function render()
     {
-        $opticalCategories = OpticalCategory::where('is_active', true)->orderBy('name')->get();
-        $frameIds = $opticalCategories->where('type', 'frame')->pluck('id');
-        $lensCategories = $opticalCategories->where('type', 'lens');
         return view('livewire.optical.optical-order-create-component', [
             'customers' => $this->order_source === 'in_clinic' && strlen(trim($this->customerSearch)) > 0
                 ? Patient::where(function ($query) {
@@ -1189,13 +1182,12 @@ class OpticalOrderCreateComponent extends Component
                 ? Refractions::whereHas('consultation', fn ($q) => $q->where('patient_id', $this->patient_id))
                     ->where('dispensing_required', true)->whereNotNull('dispensing_authorized_at')->latest()->get()
                 : collect(),
-            'frames' => OpticalProduct::with('stocks')->where('is_active', true)->whereIn('optical_category_id', $frameIds)->orderBy('name')->get(),
+            'frames' => OpticalProduct::with('stocks')->where('is_active', true)->where('type', 'frame')->orderBy('name')->get(),
             // SKU choices belong only to the finished/catalogued-lens workflow.
             // Branch lens blanks are matched directly from the Rx specification on Next.
             'lenses' => $this->lens_fulfilment_source === 'catalogue'
-                ? OpticalProduct::with('stocks')->where('is_active', true)->whereNull('lens_specs')->whereIn('optical_category_id', $lensCategories->pluck('id'))->orderBy('name')->get()
+                ? OpticalProduct::with('stocks')->where('is_active', true)->whereNull('lens_specs')->where('type', 'lens')->orderBy('name')->get()
                 : collect(),
-            'opticalCategories' => $lensCategories,
             'serviceCatalogue' => OpticalService::where('is_active', true)->orderBy('name')->get(),
             'nextStep' => $this->nextApplicableStep($this->currentStep, 1),
             'previousStep' => $this->nextApplicableStep($this->currentStep, -1),

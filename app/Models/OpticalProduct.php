@@ -4,7 +4,6 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToClinic;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -12,26 +11,55 @@ class OpticalProduct extends Model
 {
     use BelongsToClinic, SoftDeletes;
 
+    /**
+     * The category every product belongs to (the `type` column). The three are fixed because
+     * the app treats them differently: frames and lenses go on spectacle orders, and all
+     * three sell at the till. A lens is further classified by lens type, form, treatment and
+     * manufacturer; a frame by brand, model, colour and size.
+     */
+    public const TYPES = ['frame' => 'Frames', 'lens' => 'Lenses', 'accessory' => 'Accessories'];
+
     protected $fillable = [
-        'optical_category_id', 'sku', 'name', 'brand', 'specifications',
-        'cost_price', 'selling_price', 'is_active', 'lens_specs', 'lens_key',
+        'type', 'sku', 'name', 'brand', 'specifications',
+        'cost_price', 'selling_price', 'is_active', 'lens_specs', 'lens_key', 'details',
     ];
 
     protected $casts = [
         'lens_specs' => 'array',
+        // A lens added as a product (no powers): design, form, coating, range. A frame: brand, model, colour, size.
+        'details' => 'array',
         'cost_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
         'is_active' => 'boolean',
     ];
 
-    public function category(): BelongsTo
+    protected static function booted(): void
     {
-        return $this->belongsTo(OpticalCategory::class, 'optical_category_id');
+        // Stock lenses (with powers) are always lenses; anything else made without a type is an accessory.
+        static::saving(function (self $product): void {
+            if ($product->lens_specs !== null) $product->type = 'lens';
+            $product->type ??= 'accessory';
+        });
+    }
+
+    public function categoryLabel(): string
+    {
+        return self::TYPES[$this->type] ?? self::TYPES['accessory'];
     }
 
     public function stocks(): HasMany
     {
         return $this->hasMany(OpticalProductStock::class);
+    }
+
+    public function isFrame(): bool
+    {
+        return $this->type === 'frame';
+    }
+
+    public function isLens(): bool
+    {
+        return $this->type === 'lens';
     }
 
     /**

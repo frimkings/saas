@@ -61,7 +61,7 @@
     @endif
 
     <div class="flex flex-wrap items-end gap-3">
-        <label class="text-xs font-semibold">Search<input autocomplete="off" type="search" x-model="search" placeholder="Order, customer, partner or phone" class="ui-input mt-1 w-64"></label>
+        <label class="text-xs font-semibold">Search<input autocomplete="off" type="search" x-model="search" placeholder="Order, customer, partner or phone" class="ui-input mt-1 !w-64"></label>
         <label class="text-xs font-semibold">Waiting at least
             <select x-model="minDays" class="ui-input mt-1">
                 <option value="0">Any time</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option>

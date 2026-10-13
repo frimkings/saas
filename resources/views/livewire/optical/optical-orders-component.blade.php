@@ -92,7 +92,7 @@
                             <td style="white-space:nowrap">{{ $pickup?->format('d M Y') ?? '—' }}@if($late)<span class="oo-sub" style="color:#b91c1c;font-weight:700">Late</span>@elseif($isReady && $ord->ready_at)<span class="oo-sub">Waiting {{ (int) $ord->ready_at->diffInDays(now()) }}d</span>@endif</td>
                             <td>
                                 <span class="oo-badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
-                                @if($awaiting)<span class="oo-sub" style="color:#92400e;font-weight:700">Awaiting {{ $awaiting }} lens</span>@endif
+                                @if($awaiting)<span class="oo-sub" style="color:#92400e;font-weight:700">Awaiting {{ $awaiting }} {{ $awaiting === 1 ? 'lens' : 'lenses' }}</span>@endif
                             </td>
                             <td onclick="event.stopPropagation()">
                                 <div class="oo-row-actions">

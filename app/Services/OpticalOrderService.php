@@ -99,6 +99,7 @@ class OpticalOrderService
             $this->storeServices($order, $services);
             $order->lensLines()->delete();
             if ($lensOption) app(OpticalLensAvailabilityService::class)->writeLensLines($order, $lensOption, false);
+            else app(OpticalLensAvailabilityService::class)->writeOutsideLensLines($order, false);
             AuditTrail::record('optical.quotation_edited', "Quotation {$order->order_id} edited for {$order->display_customer_name}",
                 $order, $before, $this->auditedPrices($order), $order->patient_id);
             return $order;
@@ -256,8 +257,10 @@ class OpticalOrderService
             ] + ($remake ?? []));
             $this->storeServices($order, $services);
             if ($lensOption && $quotation) app(OpticalLensAvailabilityService::class)->writeLensLines($order, $lensOption, false);
+            if (! $lensOption && $quotation) app(OpticalLensAvailabilityService::class)->writeOutsideLensLines($order, false);
             if (! $quotation) app(OpticalLensAvailabilityService::class)->reserveForOrder($order);
             if (! $quotation) app(OpticalLensAvailabilityService::class)->reportTypedPrices($order);
+            if (! $quotation) app(OpticalLensAvailabilityService::class)->reportSpecialOrder($order);
             if ($remake && $remake['remake_charge'] === 'free') $order->lensLines()->update(['unit_price' => 0]);
             if ((float) $order->discount_amount > 0) {
                 AuditTrail::record('optical.discount_given', 'Discount of '.currency().' '.number_format((float) $order->discount_amount, 2)." on {$order->order_id} for {$order->display_customer_name}",
@@ -348,8 +351,7 @@ class OpticalOrderService
     {
         $categoryId = data_get($data, 'docket.lens_details.category_id');
         if ($categoryId) {
-            $category = OpticalCategory::where('is_active', true)->findOrFail((int) $categoryId);
-            abort_unless($category->isLens(), 404);
+            $category = OpticalCategory::findOrFail((int) $categoryId);
             if (($data['work_type'] ?? 'prescription') !== 'prescription') {
                 throw ValidationException::withMessages(['optical_category_id' => 'Lens categories are only available for prescription orders.']);
             }
@@ -383,10 +385,10 @@ class OpticalOrderService
         if (($frame && $opticalFrame) || ($lens && $opticalLens)) {
             throw ValidationException::withMessages(['product' => 'Choose one catalogue item per frame or lens.']);
         }
-        if ($opticalFrame && ! $opticalFrame->category?->isFrame()) {
+        if ($opticalFrame && ! $opticalFrame->isFrame()) {
             throw ValidationException::withMessages(['frame_optical_product_id' => 'Select an optical frame SKU.']);
         }
-        if ($opticalLens && ! $opticalLens->category?->isLens()) {
+        if ($opticalLens && ! $opticalLens->isLens()) {
             throw ValidationException::withMessages(['lens_optical_product_id' => 'Select an optical lens SKU.']);
         }
         // A stock lens item is a single lens; stock lenses are taken per eye from the prescription match.
@@ -397,15 +399,13 @@ class OpticalOrderService
 
     private function isFrameCategory(Product $product): bool
     {
-        if ($product->opticalCategory) return $product->opticalCategory->isFrame();
-        $category = $product->category;
+        $category = $product->opticalCategory ?? $product->category;
         return $category && ($category->type === 'frame' || str_contains(strtolower($category->name), 'frame'));
     }
 
     private function isLensCategory(Product $product): bool
     {
-        if ($product->opticalCategory) return $product->opticalCategory->isLens();
-        $category = $product->category;
+        $category = $product->opticalCategory ?? $product->category;
         return $category && ($category->type === 'lens' || str_contains(strtolower($category->name), 'lens'));
     }
 

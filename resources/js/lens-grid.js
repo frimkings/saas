@@ -34,6 +34,40 @@ window.lensGrid = (view = 'pairs') => ({
 
     toggleMode() { this.selecting = ! this.selecting; this.clear(); },
 
+    // Layout: the grid fills the window below its toolbar, in the page or over the whole screen.
+    full: false,
+    size: 'large',
+
+    init() {
+        try { this.size = localStorage.getItem('lensGridSize') === 'compact' ? 'compact' : 'large'; } catch (e) { /* private browsing */ }
+        this.$nextTick(() => this.fit());
+        // The toolbar wraps onto more lines on narrow windows and after a range change.
+        this._fitWatch = new ResizeObserver(() => this.fit());
+        this._fitWatch.observe(this.$root);
+    },
+    destroy() { this._fitWatch?.disconnect(); },
+
+    setSize(size) {
+        this.size = size;
+        try { localStorage.setItem('lensGridSize', size); } catch (e) { /* private browsing */ }
+    },
+    toggleFull() { this.full = ! this.full; this.$nextTick(() => this.fit()); },
+
+    /**
+     * Where the grid starts, measured from the top of the window with the page scrolled to its
+     * top. Kept on <html> so a redraw of the page does not lose it.
+     */
+    fit() {
+        const box = this.$root.querySelector('[data-grid-box]');
+        if (! box) return;
+        let top = box.getBoundingClientRect().top;
+        if (! this.full) {
+            top += window.scrollY;
+            for (let el = box.parentElement; el && el !== document.body; el = el.parentElement) top += el.scrollTop;
+        }
+        document.documentElement.style.setProperty('--lg-top', Math.round(top) + 'px');
+    },
+
     /** A cell click: pick it while selecting, otherwise open Receive stock for that power. */
     pick(key, shift = false) {
         if (this.selecting) return this.toggle(key, shift);

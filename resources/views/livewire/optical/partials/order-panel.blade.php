@@ -57,9 +57,15 @@
                 </div>
 
                 @foreach($awaited as $line)
-                    @php $poLine = $o->purchaseOrderLines->first(fn ($pl) => $pl->eye === $line->eye && $pl->purchaseOrder?->status !== 'cancelled'); @endphp
+                    @php $poLine = $o->purchaseOrderLines->first(fn ($pl) => ($pl->eye === $line->eye || $pl->eye === null) && $pl->purchaseOrder?->status !== 'cancelled'); @endphp
                     <div class="oo-note amber flex flex-wrap items-center justify-between gap-2">
-                        <span>Waiting for the {{ strtoupper($line->eye) }} special-order lens ({{ $poLine ? 'on '.$poLine->purchaseOrder->po_number : 'not ordered from a supplier yet' }}). Glazing can't start until it arrives.</span>
+                        @php
+                            $po = $poLine?->purchaseOrder;
+                            $buying = ! $po ? 'not ordered from a supplier yet'
+                                : ($po->status === 'draft' ? 'on supplier order '.$po->po_number.' to '.($po->supplier?->name ?? 'the supplier').', which has not been sent yet'
+                                : 'ordered from '.($po->supplier?->name ?? 'the supplier').' on '.($po->ordered_at ?? $po->created_at)->format('j M').($po->expected_date ? ', expected '.$po->expected_date->format('j M') : '').' · '.$po->po_number);
+                        @endphp
+                        <span>Waiting for the {{ strtoupper($line->eye) }} special-order lens: {{ $buying }}. Glazing can't start until it arrives.</span>
                         @if($open)<button type="button" class="oo-btn warn" wire:click="receiveLens({{ $o->id }}, '{{ $line->eye }}')" wire:confirm="Confirm the {{ strtoupper($line->eye) }} lens has arrived from the supplier?">Mark received</button>@endif
                     </div>
                 @endforeach
@@ -248,8 +254,34 @@
             <form wire:submit.prevent="sendToLab" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true" aria-labelledby="send-lab-title">
                 <h3 id="send-lab-title" class="text-base font-bold text-slate-900">Send to lab</h3>
                 <div><label class="block text-xs font-semibold mb-1" for="lab-supplier">Lab</label>
-                    <select id="lab-supplier" wire:model="labSupplierId" x-data x-on:change="const lead = parseInt($event.target.selectedOptions[0]?.dataset.lead, 10); const back = new Date(); back.setDate(back.getDate() + (lead || 0)); $wire.$set('expectedBack', lead ? back.toLocaleDateString('en-CA') : '', false)" class="ui-input w-full"><option value="">Not recorded</option>@foreach(\App\Models\Supplier::where('is_active', true)->orderBy('name')->get() as $lab)<option value="{{ $lab->id }}" data-lead="{{ $lab->lead_time_days }}">{{ $lab->name }}{{ $lab->lead_time_days ? ' · '.$lab->lead_time_days.' days' : '' }}</option>@endforeach</select>
-                    @error('labSupplierId')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                    <select id="lab-supplier" wire:model="labSupplierId" x-data x-on:change="const lead = parseInt($event.target.selectedOptions[0]?.dataset.lead, 10); const back = new Date(); back.setDate(back.getDate() + (lead || 0)); $wire.$set('expectedBack', lead ? back.toLocaleDateString('en-CA') : '', false)" class="ui-input w-full"><option value="">Not recorded</option>@foreach(\App\Models\Supplier::where('is_active', true)->orderBy('name')->get() as $lab)<option value="{{ $lab->id }}" data-lead="{{ $lab->lead_time_days }}">{{ $lab->name }}{{ $lab->lead_time_days ? ' · '.$lab->lead_time_days.' '.\Illuminate\Support\Str::plural('day', $lab->lead_time_days) : '' }}</option>@endforeach</select>
+                    @error('labSupplierId')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                    <button type="button" wire:click="$toggle('managingLabs')" class="mt-1 text-xs text-teal-700 underline" aria-expanded="{{ $managingLabs ? 'true' : 'false' }}">{{ $managingLabs ? 'Done with the lab list' : 'Add or change labs' }}</button></div>
+                @if($managingLabs)
+                    @php $labs = \App\Models\Supplier::where('is_active', true)->orderBy('name')->get(); @endphp
+                    <div class="rounded-lg border border-slate-200 p-3 space-y-3" role="group" aria-label="Labs">
+                        <ul class="divide-y divide-slate-100 text-sm max-h-40 overflow-auto">
+                            @forelse($labs as $lab)
+                                <li wire:key="lab-{{ $lab->id }}" class="flex items-center gap-2 py-1.5">
+                                    <span class="flex-1 min-w-0 truncate">{{ $lab->name }}<span class="text-xs text-slate-500">{{ $lab->lead_time_days ? ' · '.$lab->lead_time_days.' '.\Illuminate\Support\Str::plural('day', $lab->lead_time_days) : '' }}</span></span>
+                                    <button type="button" wire:click="editLab({{ $lab->id }})" class="text-xs text-amber-700 underline">Edit</button>
+                                    <button type="button" wire:click="removeLab({{ $lab->id }})" wire:confirm="Remove {{ $lab->name }} from the labs? Past jobs keep its name." class="text-xs text-red-700 underline">Remove</button>
+                                </li>
+                            @empty
+                                <li class="py-1.5 text-xs text-slate-500">No labs yet. Add the first one below.</li>
+                            @endforelse
+                        </ul>
+                        <div class="space-y-2 border-t border-slate-200 pt-3">
+                            <p class="text-xs font-semibold">{{ $labEditingId ? 'Change lab' : 'New lab' }}</p>
+                            <div><label class="sr-only" for="lab-name">Lab name</label><input id="lab-name" autocomplete="off" wire:model="labName" wire:keydown.enter.prevent="saveLab" maxlength="255" placeholder="Lab name" class="ui-input w-full">@error('labName')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="sr-only" for="lab-lead">Days to get the job back</label><input id="lab-lead" autocomplete="off" type="number" min="0" max="365" step="1" wire:model="labLeadDays" wire:keydown.enter.prevent="saveLab" placeholder="Days to return" class="ui-input w-full">@error('labLeadDays')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                                <div><label class="sr-only" for="lab-phone">Lab phone</label><input id="lab-phone" autocomplete="off" wire:model="labPhone" wire:keydown.enter.prevent="saveLab" maxlength="50" placeholder="Phone (optional)" class="ui-input w-full">@error('labPhone')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                            </div>
+                            <div class="flex gap-2"><button type="button" wire:click="saveLab" class="oo-btn">{{ $labEditingId ? 'Save changes' : 'Add lab' }}</button>@if($labEditingId)<button type="button" wire:click="editLab" class="oo-btn">Cancel</button>@endif</div>
+                        </div>
+                    </div>
+                @endif
                 <div><label class="block text-xs font-semibold mb-1" for="expected-back">Expected back</label>
                     <input autocomplete="off" id="expected-back" type="date" min="{{ today()->toDateString() }}" wire:model="expectedBack" class="ui-input w-full">
                     <p class="mt-1 text-xs text-slate-500">Filled from the lab lead time. Used for the overdue list in Job Tracking.</p>

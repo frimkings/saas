@@ -89,7 +89,7 @@ class OpticalAuditTrailTest extends TestCase
     {
         $category = OpticalCategory::create(['code' => 'FRM', 'name' => 'Frames', 'is_active' => true]);
         $products = Livewire::test(OpticalProductsComponent::class)->call('add')->set('name', 'Gold frame')->set('sku', 'FRM-001')
-            ->set('categoryId', (string) $category->id)->set('costPrice', '100')->set('sellingPrice', '250')->set('quantity', '3')
+            ->set('type', 'frame')->set('newFrameBrand', 'Acme')->call('addFrameBrand')->set('costPrice', '100')->set('sellingPrice', '250')->set('quantity', '3')
             ->call('save')->assertHasNoErrors();
         $product = \App\Models\OpticalProduct::where('sku', 'FRM-001')->firstOrFail();
         $products->call('edit', $product->id)->set('sellingPrice', '300')->call('save')->assertHasNoErrors();

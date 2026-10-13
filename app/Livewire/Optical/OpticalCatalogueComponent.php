@@ -3,7 +3,6 @@
 namespace App\Livewire\Optical;
 
 use App\Models\OpticalProduct;
-use App\Models\OpticalCategory;
 use App\Models\LensOption;
 use App\Models\OpticalService;
 use App\Services\ClinicAccessService;
@@ -16,6 +15,8 @@ class OpticalCatalogueComponent extends Component
     use WithPagination;
 
     public $activeTab = 'frames';
+    /** True on the grid's own page (OpticalLensGridComponent): only the lens grid is drawn. */
+    public bool $gridOnly = false;
     public $searchTerm = '';
     public $matrixIndex = '1.56';
     public $matrixCoating = 'AR';
@@ -243,6 +244,8 @@ class OpticalCatalogueComponent extends Component
     /** Stock for the selected range, shared by the grid and its ordering actions. */
     private function matrixState(): array
     {
+        // A link's ?matrixIndex=1.56 arrives as a number; stock keeps the index as text ("1.56", "1.50").
+        if (is_numeric($this->matrixIndex)) $this->matrixIndex = number_format((float) $this->matrixIndex, 2, '.', '');
         $matrixProducts = $this->matrixProducts();
         if (trim((string) $this->matrixRange) === '' && $matrixProducts->isNotEmpty()) {
             $default = $matrixProducts->first(fn ($p) => $p->stocks->sum('quantity') > 0) ?? $matrixProducts->first();
@@ -386,6 +389,12 @@ class OpticalCatalogueComponent extends Component
 
     public function mount(): void
     {
+        // The lens grid has its own page; old links to it as a catalogue tab land there.
+        if (! $this->gridOnly && request()->query('activeTab') === 'lens-matrix') {
+            $this->redirectRoute('optical.lens-grid', request()->only(['matrixRange', 'matrixDesign', 'matrixForm', 'matrixDiameter', 'matrixIndex', 'matrixCoating', 'matrixEye']));
+            $this->activeTab = 'frames';
+            return;
+        }
         OpticalService::ensureTemplates();
         if (! request()->hasAny(['matrixRange', 'matrixDesign', 'matrixDiameter', 'matrixIndex', 'matrixCoating'])) {
             $products = $this->matrixProducts();
@@ -395,7 +404,7 @@ class OpticalCatalogueComponent extends Component
 
     public function setTab($tab)
     {
-        abort_unless(in_array($tab, ['frames', 'lenses', 'options', 'lens-matrix', 'lens-prices', 'services'], true), 422);
+        abort_unless(in_array($tab, ['frames', 'lenses', 'options', 'lens-prices', 'services'], true), 422);
         $this->activeTab = $tab;
         $this->viewProductId = null;
         $this->showServiceForm = false;
@@ -491,7 +500,7 @@ class OpticalCatalogueComponent extends Component
     /** Only what the open tab shows is loaded: the product list, the lens grid, options or services. */
     public function render()
     {
-        $viewProduct = $this->viewProductId ? OpticalProduct::with(['category', 'stocks'])->find($this->viewProductId) : null;
+        $viewProduct = $this->viewProductId ? OpticalProduct::with('stocks')->find($this->viewProductId) : null;
         $data = [
             'viewProduct' => $viewProduct,
             'viewMovements' => $viewProduct ? \App\Models\OpticalProductStockMovement::with('user')->where('optical_product_id', $viewProduct->id)->latest()->limit(8)->get() : collect(),
@@ -499,17 +508,16 @@ class OpticalCatalogueComponent extends Component
             'opticalServices' => $this->activeTab === 'services' ? OpticalService::orderBy('name')->get() : collect(),
         ];
         if (in_array($this->activeTab, ['frames', 'lenses'], true)) $data += $this->productListData();
-        if ($this->activeTab === 'lens-matrix') $data += $this->lensGridData();
+        if ($this->gridOnly) $data += $this->lensGridData();
 
         return view('livewire.optical.optical-catalogue-component', $data)->layout('layouts.optical');
     }
 
     private function productListData(): array
     {
-        $categories = OpticalCategory::all();
         $type = $this->activeTab === 'frames' ? 'frame' : 'lens';
-        $productsQuery = OpticalProduct::with(['category', 'stocks'])->where('is_active', true)
-            ->whereIn('optical_category_id', $categories->where('type', $type)->pluck('id'));
+        $productsQuery = OpticalProduct::with('stocks')->where('is_active', true)
+            ->where('type', $type);
         if (! empty($this->searchTerm)) {
             $productsQuery->where(function ($q) {
                 $q->where('name', 'like', '%'.$this->searchTerm.'%')
