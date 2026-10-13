@@ -41,6 +41,7 @@ class AttendanceImportService
                         'branch_id' => $staff->branch_id,
                         'attendance_staff_id' => $staff->id,
                         'punched_at' => $at,
+                        'source' => 'report',
                         'attendance_import_id' => $import->id,
                     ], $chunk));
                 }

@@ -132,7 +132,7 @@ class UserProfileComponent extends Component
             'leaveTo' => $part ? 'nullable' : 'nullable|date|after_or_equal:leaveFrom',
             'leaveFromTime' => $this->leaveKind === 'hours' ? 'required|date_format:H:i' : 'nullable',
             'leaveToTime' => $this->leaveKind === 'hours' ? 'required|date_format:H:i|after:leaveFromTime' : 'nullable',
-            'leaveType' => 'required|in:'.implode(',', array_keys(\App\Models\AttendanceLeave::TYPES)),
+            'leaveType' => 'required|in:'.\App\Models\AttendanceLeaveType::offered()->keys()->implode(','),
             'leaveNote' => 'nullable|string|max:255',
         ], ['leaveToTime.after' => 'The end time must be after the start time.', 'leaveFrom.after_or_equal' => 'Choose today or a later day.'],
             ['leaveFrom' => $part ? 'day' : 'first day', 'leaveTo' => 'last day', 'leaveFromTime' => 'start time', 'leaveToTime' => 'end time', 'leaveType' => 'type', 'leaveNote' => 'reason']);
@@ -140,16 +140,37 @@ class UserProfileComponent extends Component
         [$from, $to] = [$this->leaveFromTime ?: null, $this->leaveToTime ?: null];
         if (in_array($this->leaveKind, ['morning', 'afternoon'], true)) {
             // Half of their working day on that date.
-            $weekday = \Carbon\CarbonImmutable::parse($this->leaveFrom)->dayOfWeekIso;
-            $hours = $staff->hours ? \App\Models\AttendanceSetting::dayHours($staff->hours, $weekday) : \App\Models\AttendanceSetting::current()->hoursOn($weekday);
+            $hours = app(\App\Services\Attendance\AttendanceAnalyzer::class)->expectedHours($staff, \Carbon\CarbonImmutable::parse($this->leaveFrom));
             if (! $hours) {
                 $this->addError('leaveFrom', 'That is not one of your working days.');
+
+                return;
+            }
+            if ((int) substr($hours['end'], 0, 2) >= 24) {
+                $this->addError('leaveFrom', 'You are on a night shift that day. Ask for the whole day or for a few hours instead.');
 
                 return;
             }
             $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
             $middle = \App\Services\Attendance\AttendanceAnalyzer::clock(intdiv($minutes($hours['start']) + $minutes($hours['end']), 2));
             [$from, $to] = $this->leaveKind === 'morning' ? [$hours['start'], $middle] : [$middle, $hours['end']];
+        }
+
+        $lastDay = $part ? $this->leaveFrom : ($this->leaveTo ?: $this->leaveFrom);
+        if ($clash = \App\Models\AttendanceLeave::clash($staff->id, $this->leaveFrom, $lastDay, $part ? $from : null, $part ? $to : null)) {
+            $this->addError('leaveFrom', 'You already have leave then: '.$clash->when().' ('.strtolower(\App\Models\AttendanceLeave::STATUSES[$clash->status]).').');
+
+            return;
+        }
+        // Within what is left of the year's allowance for that type.
+        $balances = app(\App\Services\Attendance\AttendanceLeaveBalances::class);
+        $asked = new \App\Models\AttendanceLeave(['attendance_staff_id' => $staff->id, 'starts_on' => $this->leaveFrom, 'ends_on' => $lastDay,
+            'from_time' => $part ? $from : null, 'to_time' => $part ? $to : null, 'type' => $this->leaveType]);
+        $left = $balances->for($staff, (int) substr($this->leaveFrom, 0, 4))[$this->leaveType]['left'] ?? null;
+        if ($left !== null && ($days = $balances->daysOf($staff, $asked)) > $left) {
+            $this->addError('leaveType', 'That is '.$balances::days($days).', and you have '.$balances::days(max(0, $left)).' of '.strtolower($asked->typeName()).' left this year. Ask for fewer days, or speak to your manager.');
+
+            return;
         }
 
         $leave = \App\Models\AttendanceLeave::create([
@@ -169,10 +190,38 @@ class UserProfileComponent extends Component
         $this->dispatch('notify', type: 'success', message: 'Request sent. You will be told when it is answered.');
     }
 
+    /** Clock in or out from this phone: taken only within the branch's distance of the branch. */
+    public function clockIn($latitude, $longitude, $accuracy = null): void
+    {
+        abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE), 403);
+        $staff = \App\Models\AttendanceStaff::query()->where('user_id', Auth::id())->where('is_tracked', true)->firstOrFail();
+        if (! is_numeric($latitude) || ! is_numeric($longitude)) {
+            $this->dispatch('notify', type: 'error', message: 'Your phone did not give a location. Turn on location and try again.');
+
+            return;
+        }
+        $timezone = app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
+        $result = app(\App\Services\Attendance\AttendancePhoneClock::class)
+            ->punch($staff, (float) $latitude, (float) $longitude, is_numeric($accuracy) ? (float) $accuracy : null, \Carbon\CarbonImmutable::now($timezone));
+        $this->dispatch('notify', type: $result['ok'] ? 'success' : 'error', message: $result['message']);
+    }
+
     /** Take back a request that has not been answered yet. */
     public function withdrawLeave(int $id): void
     {
         \App\Models\AttendanceLeave::query()->where('requested_by', Auth::id())->where('status', \App\Models\AttendanceLeave::PENDING)->whereKey($id)->delete();
+    }
+
+    /** What the phone clock-in card shows: null when the branch has it off, else today's punches and what the next one is. */
+    private function clockCard(\App\Models\AttendanceStaff $staff, \App\Models\AttendanceSetting $settings, \Carbon\CarbonImmutable $now): ?array
+    {
+        if (! $settings->phone_clock_in || $settings->clock_in_latitude === null) {
+            return null;
+        }
+        $today = \App\Models\AttendancePunch::query()->where('attendance_staff_id', $staff->id)
+            ->whereBetween('punched_at', [$now->format('Y-m-d 00:00:00'), $now->format('Y-m-d 23:59:59')])->orderBy('punched_at')->get(['punched_at', 'source', 'distance']);
+
+        return ['radius' => (int) $settings->clock_in_radius, 'next' => $today->count() % 2 === 0 ? 'in' : 'out', 'punches' => $today];
     }
 
     public function switchTab(string $tab): void
@@ -199,7 +248,12 @@ class UserProfileComponent extends Component
             [$this->attendanceFrom, $this->attendanceTo] = [$first->format('Y-m-d'), $last->format('Y-m-d')];
             $report = app(\App\Services\Attendance\AttendanceAnalyzer::class)->range($first, $last);
             $mine = ['label' => \App\Services\Attendance\AttendancePeriod::label($first, $last), 'report' => $report, 'row' => collect($report['rows'])->first(fn ($row) => $row['staff']->id === $onTerminal->id),
-                'requests' => \App\Models\AttendanceLeave::query()->where('attendance_staff_id', $onTerminal->id)->where('requested_by', $user->id)->latest('id')->limit(10)->get()];
+                'requests' => \App\Models\AttendanceLeave::query()->where('attendance_staff_id', $onTerminal->id)->where('requested_by', $user->id)->latest('id')->limit(10)->get(),
+                'leaveTypes' => $offered = \App\Models\AttendanceLeaveType::offered(),
+                'balanceYear' => $year = \Carbon\CarbonImmutable::now($timezone)->year,
+                'balances' => app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($onTerminal, $year),
+                'clock' => $this->clockCard($onTerminal, $report['settings'], \Carbon\CarbonImmutable::now($timezone))];
+            $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         }
 
         return view('livewire.user-profile-component', [

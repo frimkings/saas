@@ -21,8 +21,45 @@
             </div>
         @endforeach
     </div>
+    @if($mine['clock'])
+        @php $clock = $mine['clock']; @endphp
+        <div class="mb-4 rounded-lg border border-teal-200 bg-teal-50/50 p-3" x-data="{ busy: false, problem: '' }">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p class="mb-0 text-sm font-semibold text-slate-800">Clock {{ $clock['next'] }} from this phone</p>
+                    <p class="mb-0 text-xs text-slate-600">
+                        @if($clock['punches']->isEmpty()) No punches yet today.
+                        @else Today: {{ $clock['punches']->map(fn ($punch, $i) => ($i % 2 === 0 ? 'In ' : 'Out ').$punch->punched_at->format('g:i A'))->implode(' · ') }}.
+                        @endif
+                        You must be within {{ \App\Services\Attendance\AttendancePhoneClock::metres($clock['radius']) }} of the branch; your location is saved with the punch.
+                    </p>
+                </div>
+                <button type="button" class="ui-button ui-button-primary" :disabled="busy"
+                        @click="problem = ''; if (! navigator.geolocation) { problem = 'This device cannot give a location.'; return; } busy = true;
+                            navigator.geolocation.getCurrentPosition(
+                                (p) => { $wire.clockIn(p.coords.latitude, p.coords.longitude, p.coords.accuracy).finally(() => busy = false); },
+                                (e) => { problem = e.code === 1 ? 'Allow location for this site in your phone\'s browser, then try again.' : 'Could not find where you are. Turn on location (GPS) and try again.'; busy = false; },
+                                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })">
+                    <i class="fas fa-location-dot" aria-hidden="true"></i><span x-text="busy ? 'Finding you…' : 'Clock {{ $clock['next'] }}'"></span></button>
+            </div>
+            <p class="mb-0 mt-2 text-sm text-red-700" x-show="problem" x-text="problem" x-cloak role="alert"></p>
+        </div>
+    @endif
     <div class="mb-4 rounded-lg border border-slate-200 p-3">
         <p class="mb-2 text-sm font-semibold text-slate-800">Ask for time off</p>
+        @if($mine['balances'])
+            <div class="mb-2 flex flex-wrap gap-1.5 text-xs">
+                @foreach($mine['balances'] as $balance)
+                    <span class="rounded border border-slate-200 px-2 py-1 text-slate-700">
+                        <strong>{{ $balance['type']->name }}</strong>
+                        @if($balance['allowance'] !== null) {{ rtrim(rtrim(number_format(max(0, $balance['left']), 2), '0'), '.') }} of {{ rtrim(rtrim(number_format($balance['allowance'], 1), '0'), '.') }} days left
+                        @else {{ rtrim(rtrim(number_format($balance['used'], 2), '0'), '.') }} days taken @endif
+                        @if($balance['pending'] > 0)<span class="text-amber-700">· {{ rtrim(rtrim(number_format($balance['pending'], 2), '0'), '.') }} waiting</span>@endif
+                    </span>
+                @endforeach
+                <span class="self-center text-slate-400">{{ $mine['balanceYear'] }}, working days</span>
+            </div>
+        @endif
         <form wire:submit="requestLeave" class="flex flex-wrap items-end gap-2">
             <div>
                 <label for="my-leave-kind" class="mb-1 block text-xs font-medium text-slate-600">How long</label>
@@ -55,7 +92,7 @@
             <div>
                 <label for="my-leave-type" class="mb-1 block text-xs font-medium text-slate-600">Type</label>
                 <select id="my-leave-type" class="ui-input !w-36 !py-1.5 !text-sm" wire:model="leaveType">
-                    @foreach(\App\Models\AttendanceLeave::TYPES as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
+                    @foreach($mine['leaveTypes'] as $key => $type)<option value="{{ $key }}">{{ $type->name }}</option>@endforeach
                 </select>
             </div>
             <div class="min-w-[12rem] flex-1">

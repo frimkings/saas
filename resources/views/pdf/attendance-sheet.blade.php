@@ -57,7 +57,7 @@
                 <tr>
                     <td>{{ $row['staff']->employee_no }}</td>
                     <td>{{ $row['staff']->name }}</td>
-                    <td>{{ $row['staff']->department }}</td>
+                    <td>{{ $row['staff']->unit?->name ?? $row['staff']->department }}</td>
                     <td class="num">{{ $t['expected'] }}</td>
                     <td class="num">{{ $t['present'] }}</td>
                     <td class="num">{{ $t['on_time'] }}</td>

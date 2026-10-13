@@ -59,6 +59,17 @@ class AttendanceLeave extends Model
 
     public function typeName(): string
     {
-        return self::TYPES[$this->type] ?? 'Leave';
+        return AttendanceLeaveType::options()[$this->type]->name ?? self::TYPES[$this->type] ?? 'Leave';
+    }
+
+    /**
+     * Leave this person already has, approved or waiting, that the given days (and times, for
+     * part of a day) would run into. Two part-day leaves on one day clash only if their times do.
+     */
+    public static function clash(int $staffId, string $from, string $to, ?string $fromTime = null, ?string $toTime = null): ?self
+    {
+        return static::query()->where('attendance_staff_id', $staffId)->whereIn('status', [self::APPROVED, self::PENDING])
+            ->where('starts_on', '<=', $to)->where('ends_on', '>=', $from)->orderBy('starts_on')->get()
+            ->first(fn (self $other) => ! $fromTime || ! $toTime || ! $other->isPartDay() || ($fromTime < $other->to_time && $other->from_time < $toTime));
     }
 }
