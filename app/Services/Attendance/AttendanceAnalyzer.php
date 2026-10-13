@@ -375,6 +375,20 @@ class AttendanceAnalyzer
                 }
             }
         }
+        // Phone clock-in accounts for every day since it was switched on, today still in progress.
+        $settings = AttendanceSetting::current();
+        if ($settings->phone_clock_in && $settings->phone_clock_in_since) {
+            $today = CarbonImmutable::now(app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone'))->format('Y-m-d');
+            $from = max($first->format('Y-m-d'), $settings->phone_clock_in_since->format('Y-m-d'));
+            for ($day = CarbonImmutable::parse($from); $day->format('Y-m-d') <= min($last->format('Y-m-d'), $today); $day = $day->addDay()) {
+                $key = $day->format('Y-m-d');
+                if ($key < $today) {
+                    $coverage[$key] = 'complete';
+                } else {
+                    $coverage[$key] ??= 'partial';
+                }
+            }
+        }
         ksort($coverage);
 
         return $coverage;

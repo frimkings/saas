@@ -23,14 +23,25 @@
                 <p class="!mb-0 text-sm text-slate-500">Who was on time, late or absent, from the attendance terminal.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button type="button" class="ui-button ui-button-secondary" wire:click="editHours"><i class="fas fa-clock" aria-hidden="true"></i>Working hours</button>
-                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showShifts', true)"><i class="fas fa-layer-group" aria-hidden="true"></i>Shifts</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>
                 @if($canPay)<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
-                <button type="button" class="ui-button ui-button-secondary" wire:click="openLeaveTypes"><i class="fas fa-umbrella-beach" aria-hidden="true"></i>Leave types</button>
-                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showHolidays', true)"><i class="fas fa-calendar-day" aria-hidden="true"></i>Holidays</button>
-                <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showDevices', true)"><i class="fas fa-fingerprint" aria-hidden="true"></i>Terminals</button>
+                {{-- Things set once and seldom changed. --}}
+                <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+                    <button type="button" class="ui-button ui-button-secondary" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"><i class="fas fa-sliders" aria-hidden="true"></i>Set up<i class="fas fa-chevron-down ml-1 text-xs" aria-hidden="true"></i></button>
+                    <div x-show="open" x-cloak @click="open = false" class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg" role="menu">
+                        @foreach([
+                            ['editHours', 'fa-clock', 'Working hours'],
+                            ["\$set('showShifts', true)", 'fa-layer-group', 'Shifts'],
+                            ['openLeaveTypes', 'fa-umbrella-beach', 'Leave types'],
+                            ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
+                            ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
+                            ['openPhone', 'fa-mobile-screen', 'Phone clock-in'],
+                        ] as [$action, $icon, $label])
+                            <button type="button" role="menuitem" wire:click="{{ $action }}" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas {{ $icon }} w-4 text-slate-400" aria-hidden="true"></i>{{ $label }}</button>
+                        @endforeach
+                    </div>
+                </div>
                 <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
             </div>
         </div>
@@ -506,6 +517,10 @@
                                     <td class="whitespace-nowrap">{{ \App\Models\AttendancePunch::SOURCES[$punch->source] ?? 'Terminal' }}</td>
                                     <td class="text-xs">
                                         @if($punch->source === 'manual')Added by {{ $punch->creator?->name ?? 'a manager' }}: {{ $punch->reason }}@endif
+                                        @if($punch->source === 'phone' && $punch->latitude !== null)
+                                            {{ \App\Services\Attendance\AttendancePhoneClock::metres((int) $punch->distance) }} from the branch{{ $punch->accuracy !== null ? ' (phone sure to within '.$punch->accuracy.' m)' : '' }} ·
+                                            <a class="text-teal-700 underline" target="_blank" rel="noopener" href="https://www.google.com/maps?q={{ $punch->latitude }},{{ $punch->longitude }}">map</a>
+                                        @endif
                                         @if($punch->voided_at)<span class="block">Removed by {{ $punch->voider?->name ?? 'a manager' }} on {{ $punch->voided_at->setTimezone($timezone)->format('j M, g:i A') }}: {{ $punch->void_reason }}</span>@endif
                                     </td>
                                     <td class="whitespace-nowrap text-right">
@@ -680,6 +695,53 @@
                     <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePayroll">Save and work out again</x-ui.button>
                 </div>
             </form>
+        </x-ui.modal>
+    @endif
+
+    @if($showPhone)
+        <x-ui.modal title="Phone clock-in" state="showPhone">
+            <div class="space-y-4 p-4">
+                <form wire:submit="savePhone" class="space-y-3">
+                    <p class="!mb-0 text-sm text-slate-600">Staff punch in and out from <strong>Profile → My attendance</strong> on their own phone. The punch is taken only when the phone is within the distance below of the branch, and where they were is kept on the punch. A phone's location can be faked by someone determined, so a terminal remains the stronger proof.</p>
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="phoneOn"> Let staff clock in from their phones</label>
+                    <div class="flex flex-wrap items-end gap-3" x-data="{ busy: false, problem: '' }">
+                        <div><label for="phone-lat" class="mb-1 block text-xs font-semibold text-slate-600">Branch latitude</label><input id="phone-lat" type="text" inputmode="decimal" class="ui-input !w-40" wire:model="phoneLatitude" placeholder="5.6037"></div>
+                        <div><label for="phone-lng" class="mb-1 block text-xs font-semibold text-slate-600">Branch longitude</label><input id="phone-lng" type="text" inputmode="decimal" class="ui-input !w-40" wire:model="phoneLongitude" placeholder="-0.1870"></div>
+                        <button type="button" class="ui-button ui-button-secondary" :disabled="busy"
+                                @click="problem = ''; if (! navigator.geolocation) { problem = 'This device cannot give a location.'; return; } busy = true;
+                                    navigator.geolocation.getCurrentPosition(
+                                        (p) => { $wire.set('phoneLatitude', p.coords.latitude.toFixed(7), false); $wire.set('phoneLongitude', p.coords.longitude.toFixed(7)); busy = false; },
+                                        () => { problem = 'Could not read this device\'s location. Allow location for this site, or type the numbers in.'; busy = false; },
+                                        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })">
+                            <i class="fas fa-location-crosshairs" aria-hidden="true"></i><span x-text="busy ? 'Finding…' : 'Use where I am now'"></span></button>
+                        <p class="!mb-0 w-full text-xs text-slate-500">Stand at the branch and press "Use where I am now", or copy the two numbers from a map (in Google Maps, press and hold on the building).</p>
+                        <p class="!mb-0 w-full text-xs text-red-600" x-show="problem" x-text="problem" x-cloak></p>
+                    </div>
+                    <div>
+                        <label for="phone-radius" class="mb-1 block text-xs font-semibold text-slate-600">How near a phone must be (metres)</label>
+                        <input id="phone-radius" type="number" min="30" max="5000" class="ui-input !w-32" wire:model="phoneRadius">
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">150 m suits most buildings: phones are often 20 to 50 m out indoors.</p>
+                    </div>
+                    @foreach(['phoneLatitude', 'phoneLongitude', 'phoneRadius'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                    <div class="flex justify-end"><x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePhone">Save</x-ui.button></div>
+                </form>
+                <div class="border-t border-slate-200 pt-3">
+                    <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Who can clock in by phone</p>
+                    <p class="!mb-2 text-sm text-slate-600">Anyone followed here whose record is linked to their user account: {{ $phonePeople->whereNotNull('user_id')->pluck('name')->implode(', ') ?: 'nobody yet' }}.
+                        @if($phonePeople->whereNull('user_id')->isNotEmpty()) Not linked yet: {{ $phonePeople->whereNull('user_id')->pluck('name')->implode(', ') }}; open the person from the list and pick their user account. @endif</p>
+                    <form wire:submit="addPhonePerson" class="flex flex-wrap items-end gap-2">
+                        <div>
+                            <label for="phone-user" class="mb-1 block text-xs font-semibold text-slate-600">Add someone who is not on a terminal</label>
+                            <select id="phone-user" class="ui-input !w-64" wire:model="phoneUserId">
+                                <option value="">Choose a user</option>
+                                @foreach($phoneAccounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach
+                            </select>
+                        </div>
+                        <x-ui.button type="submit">Add</x-ui.button>
+                        @error('phoneUserId')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                    </form>
+                </div>
+            </div>
         </x-ui.modal>
     @endif
 

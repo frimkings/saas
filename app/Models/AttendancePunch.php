@@ -15,11 +15,11 @@ class AttendancePunch extends Model
 {
     use BelongsToBranch;
 
-    public const SOURCES = ['terminal' => 'Terminal', 'report' => 'Uploaded report', 'manual' => 'Entered by a manager'];
+    public const SOURCES = ['terminal' => 'Terminal', 'report' => 'Uploaded report', 'manual' => 'Entered by a manager', 'phone' => 'Their phone'];
 
     public $timestamps = false;
 
-    protected $fillable = ['attendance_staff_id', 'punched_at', 'attendance_import_id', 'source', 'created_by', 'reason', 'replaces_id',
+    protected $fillable = ['attendance_staff_id', 'punched_at', 'attendance_import_id', 'source', 'latitude', 'longitude', 'accuracy', 'distance', 'created_by', 'reason', 'replaces_id',
         'voided_at', 'voided_by', 'void_reason'];
 
     protected $casts = ['punched_at' => 'datetime', 'voided_at' => 'datetime'];

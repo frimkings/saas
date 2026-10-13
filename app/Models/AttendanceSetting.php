@@ -13,11 +13,13 @@ class AttendanceSetting extends Model
     public const DAYS = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
 
     protected $fillable = ['hours', 'grace_minutes', 'break_minutes', 'overtime_after_minutes', 'overtime_needs_approval',
-        'overtime_multiplier', 'deduct_lateness', 'deduct_absence'];
+        'overtime_multiplier', 'deduct_lateness', 'deduct_absence',
+        'phone_clock_in', 'phone_clock_in_since', 'clock_in_latitude', 'clock_in_longitude', 'clock_in_radius'];
 
     // Until a branch saves its own: overtime from half an hour past the end, approved by a manager
     // and paid at time and a half; absences come off a salary, lateness does not.
-    protected $attributes = ['overtime_after_minutes' => 30, 'overtime_needs_approval' => true, 'overtime_multiplier' => 1.5, 'deduct_lateness' => false, 'deduct_absence' => true];
+    protected $attributes = ['overtime_after_minutes' => 30, 'overtime_needs_approval' => true, 'overtime_multiplier' => 1.5, 'deduct_lateness' => false, 'deduct_absence' => true,
+        'phone_clock_in' => false, 'clock_in_radius' => 150];
 
     protected $casts = [
         'hours' => 'array',
@@ -28,6 +30,11 @@ class AttendanceSetting extends Model
         'overtime_multiplier' => 'float',
         'deduct_lateness' => 'boolean',
         'deduct_absence' => 'boolean',
+        'phone_clock_in' => 'boolean',
+        'phone_clock_in_since' => 'date',
+        'clock_in_latitude' => 'float',
+        'clock_in_longitude' => 'float',
+        'clock_in_radius' => 'integer',
     ];
 
     /** The branch's settings; Monday to Friday, 8 to 5, 15 minutes' grace until someone sets them. */

@@ -52,6 +52,14 @@ class AttendanceComponent extends Component
     public int|string $overtimeAfter = 30;
     public bool $overtimeNeedsApproval = true;
 
+    // Clocking in from a phone: on or off, where the branch is and how near a phone must be.
+    public bool $showPhone = false;
+    public bool $phoneOn = false;
+    public string $phoneLatitude = '';
+    public string $phoneLongitude = '';
+    public string $phoneRadius = '150';
+    public string $phoneUserId = '';
+
     // Payroll for the days on show: how each person is paid and the branch's pay rules. The owner only.
     public bool $showPayroll = false;
     /** Staff id => ['type' => '' | 'monthly' | 'hourly', 'rate' => string]. */
@@ -807,6 +815,60 @@ class AttendanceComponent extends Component
         return $days;
     }
 
+    public function openPhone(): void
+    {
+        $this->authorizeAccess();
+        $settings = AttendanceSetting::current();
+        $this->phoneOn = (bool) $settings->phone_clock_in;
+        $this->phoneLatitude = $settings->clock_in_latitude === null ? '' : (string) $settings->clock_in_latitude;
+        $this->phoneLongitude = $settings->clock_in_longitude === null ? '' : (string) $settings->clock_in_longitude;
+        $this->phoneRadius = (string) ($settings->clock_in_radius ?: 150);
+        $this->phoneUserId = '';
+        $this->resetValidation();
+        $this->showPhone = true;
+    }
+
+    public function savePhone(): void
+    {
+        $this->authorizeAccess();
+        $this->validate([
+            'phoneLatitude' => [$this->phoneOn ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
+            'phoneLongitude' => [$this->phoneOn ? 'required' : 'nullable', 'numeric', 'between:-180,180'],
+            'phoneRadius' => 'required|integer|min:30|max:5000',
+        ], ['phoneLatitude.required' => 'Say where the branch is first.', 'phoneLongitude.required' => 'Say where the branch is first.'],
+            ['phoneLatitude' => 'latitude', 'phoneLongitude' => 'longitude', 'phoneRadius' => 'distance']);
+        $settings = AttendanceSetting::current();
+        $settings->fill([
+            'phone_clock_in' => $this->phoneOn,
+            // Days count from the day it is switched on.
+            'phone_clock_in_since' => $this->phoneOn ? ($settings->phone_clock_in ? $settings->phone_clock_in_since : CarbonImmutable::now($this->timezone())->format('Y-m-d')) : null,
+            'clock_in_latitude' => $this->phoneLatitude === '' ? null : round((float) $this->phoneLatitude, 7),
+            'clock_in_longitude' => $this->phoneLongitude === '' ? null : round((float) $this->phoneLongitude, 7),
+            'clock_in_radius' => (int) $this->phoneRadius,
+        ])->save();
+        $this->dispatch('notify', type: 'success', message: $this->phoneOn ? 'Staff can now clock in from their phones at the branch.' : 'Phone clock-in is off.');
+    }
+
+    /** Someone with a user account but not on a terminal: follow them so they can clock in by phone. */
+    public function addPhonePerson(): void
+    {
+        $this->authorizeAccess();
+        $user = User::query()->inCurrentClinic()->whereKey((int) $this->phoneUserId)->first();
+        if (! $user) {
+            $this->addError('phoneUserId', "Choose one of this clinic's users.");
+
+            return;
+        }
+        if (AttendanceStaff::query()->where('user_id', $user->id)->exists()) {
+            $this->addError('phoneUserId', "{$user->name} is already followed here.");
+
+            return;
+        }
+        AttendanceStaff::create(['employee_no' => 'APP-'.$user->id, 'name' => $user->name, 'user_id' => $user->id, 'is_tracked' => true,
+            'starts_on' => CarbonImmutable::now($this->timezone())->format('Y-m-d')]);
+        $this->phoneUserId = '';
+    }
+
     public function openPayroll(): void
     {
         $this->authorizePay();
@@ -917,10 +979,12 @@ class AttendanceComponent extends Component
             'holidayList' => $this->showHolidays ? AttendanceHoliday::query()->whereYear('date', $last->year)->orderBy('date')->get() : collect(),
             'imports' => $this->showUpload ? AttendanceImport::query()->with('uploader:id,name')->latest('id')->limit(5)->get() : collect(),
             'hasData' => AttendanceStaff::query()->exists() || AttendanceDevice::query()->exists(),
+            'phoneAccounts' => $this->showPhone ? User::query()->inCurrentClinic()->whereNotIn('id', AttendanceStaff::query()->whereNotNull('user_id')->pluck('user_id'))->orderBy('name')->get(['id', 'name']) : collect(),
+            'phonePeople' => $this->showPhone ? AttendanceStaff::query()->where('is_tracked', true)->orderBy('name')->get(['id', 'name', 'user_id']) : collect(),
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),
             'silent' => AttendanceDevice::silent(now()->setTimezone($timezone)),
             // The live board needs a terminal that sends punches as they happen.
-            'board' => AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
+            'board' => $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
                 ? $analyzer->today(CarbonImmutable::now($timezone)) : [],
             'today' => CarbonImmutable::now($timezone),
             'requests' => AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->with('staff:id,name')->orderBy('starts_on')->get(),

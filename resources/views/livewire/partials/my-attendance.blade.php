@@ -21,6 +21,30 @@
             </div>
         @endforeach
     </div>
+    @if($mine['clock'])
+        @php $clock = $mine['clock']; @endphp
+        <div class="mb-4 rounded-lg border border-teal-200 bg-teal-50/50 p-3" x-data="{ busy: false, problem: '' }">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p class="mb-0 text-sm font-semibold text-slate-800">Clock {{ $clock['next'] }} from this phone</p>
+                    <p class="mb-0 text-xs text-slate-600">
+                        @if($clock['punches']->isEmpty()) No punches yet today.
+                        @else Today: {{ $clock['punches']->map(fn ($punch, $i) => ($i % 2 === 0 ? 'In ' : 'Out ').$punch->punched_at->format('g:i A'))->implode(' · ') }}.
+                        @endif
+                        You must be within {{ \App\Services\Attendance\AttendancePhoneClock::metres($clock['radius']) }} of the branch; your location is saved with the punch.
+                    </p>
+                </div>
+                <button type="button" class="ui-button ui-button-primary" :disabled="busy"
+                        @click="problem = ''; if (! navigator.geolocation) { problem = 'This device cannot give a location.'; return; } busy = true;
+                            navigator.geolocation.getCurrentPosition(
+                                (p) => { $wire.clockIn(p.coords.latitude, p.coords.longitude, p.coords.accuracy).finally(() => busy = false); },
+                                (e) => { problem = e.code === 1 ? 'Allow location for this site in your phone\'s browser, then try again.' : 'Could not find where you are. Turn on location (GPS) and try again.'; busy = false; },
+                                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })">
+                    <i class="fas fa-location-dot" aria-hidden="true"></i><span x-text="busy ? 'Finding you…' : 'Clock {{ $clock['next'] }}'"></span></button>
+            </div>
+            <p class="mb-0 mt-2 text-sm text-red-700" x-show="problem" x-text="problem" x-cloak role="alert"></p>
+        </div>
+    @endif
     <div class="mb-4 rounded-lg border border-slate-200 p-3">
         <p class="mb-2 text-sm font-semibold text-slate-800">Ask for time off</p>
         @if($mine['balances'])

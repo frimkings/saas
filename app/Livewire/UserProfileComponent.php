@@ -190,10 +190,38 @@ class UserProfileComponent extends Component
         $this->dispatch('notify', type: 'success', message: 'Request sent. You will be told when it is answered.');
     }
 
+    /** Clock in or out from this phone: taken only within the branch's distance of the branch. */
+    public function clockIn($latitude, $longitude, $accuracy = null): void
+    {
+        abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE), 403);
+        $staff = \App\Models\AttendanceStaff::query()->where('user_id', Auth::id())->where('is_tracked', true)->firstOrFail();
+        if (! is_numeric($latitude) || ! is_numeric($longitude)) {
+            $this->dispatch('notify', type: 'error', message: 'Your phone did not give a location. Turn on location and try again.');
+
+            return;
+        }
+        $timezone = app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
+        $result = app(\App\Services\Attendance\AttendancePhoneClock::class)
+            ->punch($staff, (float) $latitude, (float) $longitude, is_numeric($accuracy) ? (float) $accuracy : null, \Carbon\CarbonImmutable::now($timezone));
+        $this->dispatch('notify', type: $result['ok'] ? 'success' : 'error', message: $result['message']);
+    }
+
     /** Take back a request that has not been answered yet. */
     public function withdrawLeave(int $id): void
     {
         \App\Models\AttendanceLeave::query()->where('requested_by', Auth::id())->where('status', \App\Models\AttendanceLeave::PENDING)->whereKey($id)->delete();
+    }
+
+    /** What the phone clock-in card shows: null when the branch has it off, else today's punches and what the next one is. */
+    private function clockCard(\App\Models\AttendanceStaff $staff, \App\Models\AttendanceSetting $settings, \Carbon\CarbonImmutable $now): ?array
+    {
+        if (! $settings->phone_clock_in || $settings->clock_in_latitude === null) {
+            return null;
+        }
+        $today = \App\Models\AttendancePunch::query()->where('attendance_staff_id', $staff->id)
+            ->whereBetween('punched_at', [$now->format('Y-m-d 00:00:00'), $now->format('Y-m-d 23:59:59')])->orderBy('punched_at')->get(['punched_at', 'source', 'distance']);
+
+        return ['radius' => (int) $settings->clock_in_radius, 'next' => $today->count() % 2 === 0 ? 'in' : 'out', 'punches' => $today];
     }
 
     public function switchTab(string $tab): void
@@ -223,7 +251,8 @@ class UserProfileComponent extends Component
                 'requests' => \App\Models\AttendanceLeave::query()->where('attendance_staff_id', $onTerminal->id)->where('requested_by', $user->id)->latest('id')->limit(10)->get(),
                 'leaveTypes' => $offered = \App\Models\AttendanceLeaveType::offered(),
                 'balanceYear' => $year = \Carbon\CarbonImmutable::now($timezone)->year,
-                'balances' => app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($onTerminal, $year)];
+                'balances' => app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($onTerminal, $year),
+                'clock' => $this->clockCard($onTerminal, $report['settings'], \Carbon\CarbonImmutable::now($timezone))];
             $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         }
 
