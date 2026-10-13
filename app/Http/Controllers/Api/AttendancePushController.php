@@ -43,13 +43,16 @@ class AttendancePushController extends Controller
             // The terminal resends what was not acknowledged; a punch already held is skipped.
             $new = DB::table('attendance_punches')->insertOrIgnore([
                 'clinic_id' => $clinic->id, 'branch_id' => $branch->id, 'attendance_staff_id' => $staff->id, 'punched_at' => $punch['time'],
-                'terminal_status' => $punch['status'], 'method' => $punch['method'],
+                'terminal_status' => $punch['status'], 'method' => $punch['method'], 'attendance_device_id' => $device->id,
             ]);
             $stored += $new;
             if (! $new && ($punch['status'] || $punch['method'])) {
                 // Held from before these were kept: fill them in when the terminal replays its history.
                 DB::table('attendance_punches')->where('attendance_staff_id', $staff->id)->where('punched_at', $punch['time'])
                     ->update(['terminal_status' => $punch['status'], 'method' => $punch['method']]);
+                // And which terminal, for punches held from before that was kept.
+                DB::table('attendance_punches')->where('attendance_staff_id', $staff->id)->where('punched_at', $punch['time'])->whereNull('attendance_device_id')
+                    ->update(['attendance_device_id' => $device->id]);
             }
         }
 

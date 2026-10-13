@@ -749,7 +749,7 @@
                             @forelse($punchDay['punches'] as $punch)
                                 <tr wire:key="punch-{{ $punch->id }}" @class(['text-slate-400' => $punch->voided_at])>
                                     <td class="whitespace-nowrap tabular-nums @if($punch->voided_at) line-through @endif">{{ $punch->punched_at->format('g:i A') }}</td>
-                                    <td class="whitespace-nowrap">{{ \App\Models\AttendancePunch::SOURCES[$punch->source] ?? 'Terminal' }}</td>
+                                    <td class="whitespace-nowrap">{{ \App\Models\AttendancePunch::SOURCES[$punch->source] ?? 'Terminal' }}{{ $punch->device ? ' · '.$punch->device->name : '' }}</td>
                                     <td class="text-xs">
                                         @if($punch->source === 'manual')Added by {{ $punch->creator?->name ?? 'a manager' }}: {{ $punch->reason }}@endif
                                         @if($punch->source === 'phone' && $punch->latitude !== null)

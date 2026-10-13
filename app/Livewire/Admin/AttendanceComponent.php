@@ -638,7 +638,7 @@ class AttendanceComponent extends Component
             ->first(fn ($row) => $row['staff']->id === $staff->id);
 
         return ['staff' => $staff, 'date' => $date, 'day' => $row['days'][$this->punchDate] ?? null,
-            'punches' => \App\Models\AttendancePunch::withVoided()->with(['creator:id,name', 'voider:id,name'])
+            'punches' => \App\Models\AttendancePunch::withVoided()->with(['creator:id,name', 'voider:id,name', 'device:id,name'])
                 ->where('attendance_staff_id', $staff->id)
                 ->whereBetween('punched_at', [$this->punchDate.' 00:00:00', $this->punchDate.' 23:59:59'])->orderBy('punched_at')->orderBy('id')->get()];
     }
