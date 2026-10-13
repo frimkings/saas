@@ -12,10 +12,12 @@ class AttendanceSetting extends Model
 
     public const DAYS = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
 
-    protected $fillable = ['hours', 'grace_minutes', 'break_minutes', 'overtime_after_minutes', 'overtime_needs_approval'];
+    protected $fillable = ['hours', 'grace_minutes', 'break_minutes', 'overtime_after_minutes', 'overtime_needs_approval',
+        'overtime_multiplier', 'deduct_lateness', 'deduct_absence'];
 
-    // Until a branch saves its own: overtime from half an hour past the end, approved by a manager.
-    protected $attributes = ['overtime_after_minutes' => 30, 'overtime_needs_approval' => true];
+    // Until a branch saves its own: overtime from half an hour past the end, approved by a manager
+    // and paid at time and a half; absences come off a salary, lateness does not.
+    protected $attributes = ['overtime_after_minutes' => 30, 'overtime_needs_approval' => true, 'overtime_multiplier' => 1.5, 'deduct_lateness' => false, 'deduct_absence' => true];
 
     protected $casts = [
         'hours' => 'array',
@@ -23,6 +25,9 @@ class AttendanceSetting extends Model
         'break_minutes' => 'integer',
         'overtime_after_minutes' => 'integer',
         'overtime_needs_approval' => 'boolean',
+        'overtime_multiplier' => 'float',
+        'deduct_lateness' => 'boolean',
+        'deduct_absence' => 'boolean',
     ];
 
     /** The branch's settings; Monday to Friday, 8 to 5, 15 minutes' grace until someone sets them. */

@@ -52,6 +52,14 @@ class AttendanceComponent extends Component
     public int|string $overtimeAfter = 30;
     public bool $overtimeNeedsApproval = true;
 
+    // Payroll for the days on show: how each person is paid and the branch's pay rules. The owner only.
+    public bool $showPayroll = false;
+    /** Staff id => ['type' => '' | 'monthly' | 'hourly', 'rate' => string]. */
+    public array $pay = [];
+    public string $overtimeMultiplier = '1.5';
+    public bool $deductLateness = false;
+    public bool $deductAbsence = true;
+
     // Overtime in the days on show, to approve or turn down. Keys are 'staff id-Y-m-d'.
     public bool $showOvertime = false;
     public array $overtimeMinutes = [];
@@ -526,14 +534,14 @@ class AttendanceComponent extends Component
         $this->staffOwnHours = (bool) $staff->hours;
         // Their own hours start as a copy of the branch's, to adjust.
         $this->staffHours = $this->hoursForm($staff->hours ?: (AttendanceSetting::current()->hours ?? []));
-        $offered = \App\Models\AttendanceLeaveType::offered();
-        $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         $this->staffShiftWeek = [];
         foreach (array_keys(AttendanceSetting::DAYS) as $weekday) {
             $choice = $staff->shift_week[$weekday] ?? $staff->shift_week[(string) $weekday] ?? '';
             $this->staffShiftWeek[$weekday] = (string) $choice;
         }
         $this->reset('leaveFrom', 'leaveTo', 'leaveType', 'leaveNote', 'leaveFromTime', 'leaveToTime');
+        $offered = \App\Models\AttendanceLeaveType::offered();
+        $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         $this->resetValidation();
         $this->showStaff = true;
     }
@@ -799,6 +807,60 @@ class AttendanceComponent extends Component
         return $days;
     }
 
+    public function openPayroll(): void
+    {
+        $this->authorizePay();
+        $settings = AttendanceSetting::current();
+        $this->overtimeMultiplier = rtrim(rtrim(number_format((float) ($settings->overtime_multiplier ?? 1.5), 2, '.', ''), '0'), '.');
+        $this->deductLateness = (bool) ($settings->deduct_lateness ?? false);
+        $this->deductAbsence = (bool) ($settings->deduct_absence ?? true);
+        $this->pay = [];
+        foreach (AttendanceStaff::query()->where('is_tracked', true)->get() as $staff) {
+            $this->pay[$staff->id] = ['type' => (string) $staff->pay_type, 'rate' => $staff->pay_rate === null ? '' : rtrim(rtrim(number_format((float) $staff->pay_rate, 2, '.', ''), '0'), '.')];
+        }
+        $this->resetValidation();
+        $this->showPayroll = true;
+    }
+
+    /** Save the pay rules and how each person is paid; the figures below are worked out again. */
+    public function savePayroll(): void
+    {
+        $this->authorizePay();
+        $this->validate([
+            'overtimeMultiplier' => 'required|numeric|min:1|max:5',
+            'pay.*.type' => 'nullable|in:monthly,hourly',
+            'pay.*.rate' => 'nullable|numeric|min:0|max:99999999',
+        ], [], ['overtimeMultiplier' => 'overtime rate', 'pay.*.type' => 'pay type', 'pay.*.rate' => 'rate']);
+        foreach ($this->pay as $id => $pay) {
+            if (($pay['type'] ?? '') !== '' && trim((string) ($pay['rate'] ?? '')) === '') {
+                $this->addError("pay.{$id}.rate", 'Enter the '.($pay['type'] === 'hourly' ? 'pay for an hour' : 'monthly salary').'.');
+            }
+        }
+        if ($this->getErrorBag()->isNotEmpty()) {
+            return;
+        }
+
+        $settings = AttendanceSetting::current();
+        $settings->fill(['overtime_multiplier' => round((float) $this->overtimeMultiplier, 2), 'deduct_lateness' => $this->deductLateness, 'deduct_absence' => $this->deductAbsence])->save();
+        foreach (AttendanceStaff::query()->whereKey(array_keys($this->pay))->get() as $staff) {
+            $pay = $this->pay[$staff->id];
+            $values = ['pay_type' => ($pay['type'] ?? '') ?: null, 'pay_rate' => ($pay['type'] ?? '') ? round((float) $pay['rate'], 2) : null];
+            if ($staff->pay_type !== $values['pay_type'] || (float) $staff->pay_rate !== (float) $values['pay_rate']) {
+                \App\Models\AuditTrail::record('attendance.pay_changed', "Changed how {$staff->name} is paid", $staff,
+                    ['pay_type' => $staff->pay_type, 'pay_rate' => $staff->pay_rate], $values, null, true);
+                $staff->update($values);
+            }
+        }
+        $this->dispatch('notify', type: 'success', message: 'Pay saved.');
+    }
+
+    /** Pay is the owner's to see and set: managers run attendance, not salaries. */
+    private function authorizePay(): void
+    {
+        $this->authorizeAccess();
+        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can open payroll.');
+    }
+
     private function authorizeAccess(): void
     {
         abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
@@ -838,6 +900,9 @@ class AttendanceComponent extends Component
             'shifts' => \App\Models\AttendanceShift::query()->orderBy('starts_at')->orderBy('name')->get(),
             'rosterGrid' => $this->showRoster && $this->rosterWeek ? $this->rosterGrid($analyzer) : null,
             'report' => $report,
+            'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
+            'payroll' => $this->showPayroll && auth()->user()?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->for($first, $last) : null,
+            'currency' => \App\Models\Setting::currency(),
             'overtime' => $overtime = $this->overtimeList($report),
             'overtimeWaiting' => count(array_filter($overtime, fn ($item) => $item['day']['overtime_status'] === 'pending')),
             'rows' => $rows,

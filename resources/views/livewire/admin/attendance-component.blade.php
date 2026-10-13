@@ -27,6 +27,7 @@
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showShifts', true)"><i class="fas fa-layer-group" aria-hidden="true"></i>Shifts</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>
+                @if($canPay)<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
                 <button type="button" class="ui-button ui-button-secondary" wire:click="openLeaveTypes"><i class="fas fa-umbrella-beach" aria-hidden="true"></i>Leave types</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showHolidays', true)"><i class="fas fa-calendar-day" aria-hidden="true"></i>Holidays</button>
                 <button type="button" class="ui-button ui-button-secondary" wire:click="$set('showDevices', true)"><i class="fas fa-fingerprint" aria-hidden="true"></i>Terminals</button>
@@ -623,6 +624,62 @@
                     @foreach(['leaveTypeName', 'leaveTypeDays'] as $field)@error($field)<p class="!mb-0 w-full text-xs text-red-600">{{ $message }}</p>@enderror @endforeach
                 </form>
             </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showPayroll && $payroll)
+        <style>.clinic-ui .ui-dialog:has(.attendance-payroll) { width: min(1150px, calc(100% - 32px)); }</style>
+        <x-ui.modal :title="'Payroll · '.$periodLabel" state="showPayroll">
+            <form wire:submit="savePayroll" class="attendance-payroll space-y-3 p-4">
+                <p class="!mb-0 text-sm text-slate-600">Pay worked out from attendance for the days on show, before tax and pension. Pick a whole month for a month's pay. Only the owner sees this window.</p>
+                <div class="flex flex-wrap items-end gap-x-5 gap-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div>
+                        <label for="pay-overtime-rate" class="mb-1 block text-xs font-semibold text-slate-600">Overtime is paid at (times the normal rate)</label>
+                        <input id="pay-overtime-rate" type="number" min="1" max="5" step="0.05" class="ui-input !w-28" wire:model="overtimeMultiplier">
+                    </div>
+                    <label class="flex items-center gap-2 pb-2 text-sm text-slate-800"><input type="checkbox" wire:model="deductAbsence"> Take absences off a salary</label>
+                    <label class="flex items-center gap-2 pb-2 text-sm text-slate-800"><input type="checkbox" wire:model="deductLateness"> Take lateness off a salary, by the minute</label>
+                    @error('overtimeMultiplier')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                </div>
+                @if($payroll['pending'])<p class="!mb-0 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{{ AttendanceAnalyzer::duration($payroll['pending']) }} of overtime is still waiting for an answer and is not paid below. Answer it under Overtime first.</p>@endif
+                @if($payroll['unrecorded'])<p class="!mb-0 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{{ $payroll['unrecorded'] }} working {{ $payroll['unrecorded'] === 1 ? 'day has' : 'days have' }} nothing recorded yet in these dates, so these figures are not final.</p>@endif
+                <div class="ui-table-wrap">
+                    <table class="table ui-table ui-table-sm mb-0">
+                        <thead><tr><th>Staff</th><th>Paid</th><th>Rate ({{ $currency }})</th><th class="text-right">Present</th><th class="text-right">Absent</th><th class="text-right">Late</th><th class="text-right">Overtime</th>
+                            <th class="text-right">Basic</th><th class="text-right">Overtime pay</th><th class="text-right">Taken off</th><th class="text-right">Gross</th></tr></thead>
+                        <tbody>
+                            @foreach($payroll['rows'] as $line)
+                                @php $id = $line['staff']->id; @endphp
+                                <tr wire:key="pay-{{ $id }}">
+                                    <td class="font-medium text-slate-800">{{ $line['staff']->name }}</td>
+                                    <td><select class="ui-input !w-36 !py-1 !text-sm" wire:model="pay.{{ $id }}.type" aria-label="How {{ $line['staff']->name }} is paid">
+                                        <option value="">Not set</option><option value="monthly">Monthly salary</option><option value="hourly">By the hour</option></select></td>
+                                    <td><input type="number" min="0" step="0.01" class="ui-input !w-28 !py-1 !text-sm" wire:model="pay.{{ $id }}.rate" aria-label="Rate for {{ $line['staff']->name }}">
+                                        @error('pay.'.$id.'.rate')<p class="!mb-0 text-xs text-red-600">{{ $message }}</p>@enderror</td>
+                                    <td class="text-right ui-number">{{ $line['present'] }}<span class="text-slate-400"> / {{ $line['expected'] }}</span></td>
+                                    <td class="text-right ui-number">{{ $line['absent'] ?: '–' }}</td>
+                                    <td class="text-right ui-number">{{ $line['late_minutes'] ? AttendanceAnalyzer::duration($line['late_minutes']) : '–' }}</td>
+                                    <td class="text-right ui-number">{{ $line['overtime_minutes'] ? AttendanceAnalyzer::duration($line['overtime_minutes']) : '–' }}</td>
+                                    @if($line['pay_type'])
+                                        <td class="text-right ui-number">{{ number_format($line['basic'], 2) }}</td>
+                                        <td class="text-right ui-number">{{ $line['overtime_pay'] ? number_format($line['overtime_pay'], 2) : '–' }}</td>
+                                        <td class="text-right ui-number">{{ ($off = $line['absence'] + $line['unpaid'] + $line['lateness']) ? number_format($off, 2) : '–' }}</td>
+                                        <td class="text-right ui-number font-semibold">{{ number_format($line['gross'], 2) }}</td>
+                                    @else
+                                        <td colspan="4" class="text-right text-sm text-slate-400">Set how they are paid</td>
+                                    @endif
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot><tr><td colspan="10" class="text-right font-semibold">Total gross</td><td class="text-right ui-number font-semibold">{{ number_format(array_sum(array_map(fn ($line) => $line['gross'] ?? 0, $payroll['rows'])), 2) }}</td></tr></tfoot>
+                    </table>
+                </div>
+                <p class="!mb-0 text-xs text-slate-500">On a salary, a working day is worth the month's salary divided by that month's working days. By the hour, people are paid for hours on site up to the end of the day, plus approved overtime; leave and holidays are not added.</p>
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.export', ['format' => 'payroll', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')]) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Download for Excel</a>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePayroll">Save and work out again</x-ui.button>
+                </div>
+            </form>
         </x-ui.modal>
     @endif
 

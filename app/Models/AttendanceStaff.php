@@ -12,7 +12,7 @@ class AttendanceStaff extends Model
 
     protected $table = 'attendance_staff';
 
-    protected $fillable = ['employee_no', 'name', 'department', 'user_id', 'is_tracked', 'starts_on', 'hours', 'shift_week'];
+    protected $fillable = ['employee_no', 'name', 'department', 'user_id', 'is_tracked', 'starts_on', 'hours', 'shift_week', 'pay_type', 'pay_rate'];
 
     protected $casts = [
         'is_tracked' => 'boolean',

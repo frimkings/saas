@@ -6,6 +6,7 @@ use App\Models\AttendanceDevice;
 use App\Models\AttendanceHoliday;
 use App\Models\AttendanceImport;
 use App\Models\AttendanceLeave;
+use App\Models\AttendanceLeaveType;
 use App\Models\AttendanceOvertime;
 use App\Models\AttendancePunch;
 use App\Models\AttendanceRoster;
@@ -87,18 +88,22 @@ class AttendanceAnalyzer
             ->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->orderBy('date')->get()
             ->mapWithKeys(fn ($holiday) => [$holiday->date->format('Y-m-d') => $holiday->name])->all();
         $leave = [];
+        $leaveTypes = [];
         $away = [];
+        $unpaidTypes = AttendanceLeaveType::options()->filter(fn ($type) => ! $type->is_paid)->keys()->all();
         AttendanceLeave::query()->approved()
             ->where('starts_on', '<=', $last->format('Y-m-d'))->where('ends_on', '>=', $first->format('Y-m-d'))->get()
-            ->each(function ($entry) use (&$leave, &$away, $days) {
+            ->each(function ($entry) use (&$leave, &$leaveTypes, &$away, $days, $unpaidTypes) {
                 if ($entry->isPartDay()) {
-                    $away[$entry->attendance_staff_id][$entry->starts_on->format('Y-m-d')][] = ['from' => $entry->from_time, 'to' => $entry->to_time, 'label' => $entry->typeName()];
+                    $away[$entry->attendance_staff_id][$entry->starts_on->format('Y-m-d')][] = ['from' => $entry->from_time, 'to' => $entry->to_time, 'label' => $entry->typeName(),
+                        'unpaid' => in_array($entry->type, $unpaidTypes, true)];
 
                     return;
                 }
                 foreach ($days as $key => $day) {
                     if ($key >= $entry->starts_on->format('Y-m-d') && $key <= $entry->ends_on->format('Y-m-d')) {
                         $leave[$entry->attendance_staff_id][$key] = $entry->typeName();
+                        $leaveTypes[$entry->attendance_staff_id][$key] = $entry->type;
                     }
                 }
             });
@@ -121,14 +126,20 @@ class AttendanceAnalyzer
                 $excused = isset($holidays[$key]) ? 'holiday' : (isset($leave[$staff->id][$key]) ? 'leave' : null);
                 $note = $holidays[$key] ?? $leave[$staff->id][$key] ?? null;
                 $break = $hours['break'] ?? $settings->break_minutes ?? 60;
+                // For pay: the length of the working day, the kind of whole-day leave, and unpaid leave for part of the day.
+                $forPay = ['scheduled_minutes' => $hours ? $this->minutes($hours['end']) - $this->minutes($hours['start']) : null,
+                    'leave_type' => $excused === 'leave' ? $leaveTypes[$staff->id][$key] : null, 'unpaid_minutes' => 0];
                 // Leave for part of the day: they are expected for the rest of it.
                 if ($hours && ! $excused && $part = $away[$staff->id][$key] ?? null) {
+                    foreach ($part as $time) {
+                        $forPay['unpaid_minutes'] += $time['unpaid'] ? max(0, min($this->minutes($time['to']), $this->minutes($hours['end'])) - max($this->minutes($time['from']), $this->minutes($hours['start']))) : 0;
+                    }
                     [$hours, $break, $allDay] = $this->lessTimeAway($hours, $part, $break);
                     $excused = $allDay ? 'leave' : null;
                     $note = implode(', ', array_map(fn ($a) => $a['label'].' '.self::time($a['from']).' to '.self::time($a['to']), $part));
                 }
                 $staffDays[$key] = $this->day($mine[$key] ?? [], $hours, $settings->grace_minutes, $state, $excused, $break, $settings->overtime_after_minutes ?? 30)
-                    + ['note' => $note, 'hours' => $hours];
+                    + ['note' => $note, 'hours' => $hours] + $forPay;
                 $staffDays[$key] = $this->withOvertimeDecision($staffDays[$key], $decided[$staff->id][$key] ?? null, (bool) ($settings->overtime_needs_approval ?? true));
             }
             $rows[] = ['staff' => $staff, 'days' => $staffDays, 'totals' => $this->totals($staffDays)];
@@ -279,7 +290,7 @@ class AttendanceAnalyzer
             }
         }
 
-        return [['start' => self::clock($start), 'end' => self::clock($end)], $break, $start >= $end];
+        return [['start' => self::clock($start), 'end' => self::clock($end)] + $hours, $break, $start >= $end];
     }
 
     /**
