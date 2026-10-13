@@ -86,8 +86,11 @@
             text-align: left;
         }
 
+        /* Full item names: a long one wraps onto the next line within this column. */
         .col-item {
             width: 47%;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
         }
 
         .col-qty {
