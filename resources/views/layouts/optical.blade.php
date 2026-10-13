@@ -45,6 +45,11 @@
                 <span class="text-slate-400">Branch</span>
                 <span class="rounded bg-slate-700 px-2 py-0.5 font-semibold text-teal-300">{{ $tenant->branch()?->name ?? 'Main Branch' }}</span>
             </div>
+            @if($tenant->availableClinics()->count() > 1)
+                <a href="{{ route('tenant.clinic.select') }}" class="h-8 flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2.5 text-slate-200 no-underline hover:bg-slate-700" title="Work in another of your businesses">
+                    <i class="fas fa-exchange-alt text-slate-400" aria-hidden="true"></i>Switch business
+                </a>
+            @endif
             <form method="POST" action="{{ route('logout') }}">@csrf<button class="h-8 rounded-md px-3 text-slate-300 hover:bg-slate-800 hover:text-white">Sign out</button></form>
         </div>
     </header>

@@ -281,11 +281,17 @@
 @else
 <div class="pa-form pa-form-2">
 <label class="pa-field"><span>Super Admin name</span><input wire:model="newAdminName">@error('newAdminName')<small class="pa-err">{{ $message }}</small>@enderror</label>
-<label class="pa-field"><span>Super Admin email</span><input type="email" wire:model="newAdminEmail">@error('newAdminEmail')<small class="pa-err">{{ $message }}</small>@enderror</label>
+<label class="pa-field"><span>Super Admin email</span><input type="email" wire:model.blur="newAdminEmail">@error('newAdminEmail')<small class="pa-err">{{ $message }}</small>@enderror</label>
+@if($existingOwner = $this->existingAdmin())
+<div class="pa-field" style="grid-column:1/-1;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;padding:10px 12px">
+<span><strong>{{ $existingOwner->name }}</strong> already has an account with this email{{ ($theirs = $existingOwner->clinics()->pluck('name'))->isNotEmpty() ? ' ('.$theirs->join(', ').')' : '' }}.</span>
+<label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" wire:model.live="newAdminLinkExisting" style="width:auto;margin-top:3px"><span>Make them the owner of this business too. They keep their name and password, their other {{ $theirs->count() === 1 ? 'business is' : 'businesses are' }} untouched, and they choose which one to work in after signing in. The two stay separate: own records, own subscription.</span></label>
+</div>
+@endif
 <label class="pa-field"><span>Super Admin phone</span><input wire:model="newAdminPhone" placeholder="Optional"></label>
 <label class="pa-field"><span>Plan</span><select wire:model="newPlanId"><option value="">Select a {{ \Illuminate\Support\Str::lower(\App\Support\PlanProduct::label($newClinicProduct)) }} plan</option>@foreach($plans->where('is_active',true)->where('product',$newClinicProduct) as $p)<option value="{{ $p->id }}">{{ $p->name }} — {{ $p->trial_days }}-day trial</option>@endforeach</select>@if($plans->where('is_active',true)->where('product',$newClinicProduct)->isEmpty())<small class="pa-err">No {{ \Illuminate\Support\Str::lower(\App\Support\PlanProduct::label($newClinicProduct)) }} plan is offered yet. Create one under Subscription Plans first.</small>@endif @error('newPlanId')<small class="pa-err">{{ $message }}</small>@enderror</label>
 </div>
-<p class="pa-muted">The clinic starts on the plan's trial. The Super Admin signs in with the temporary password <code>password</code> and must change it immediately.</p>
+<p class="pa-muted">The clinic starts on the plan's trial. @if($this->existingAdmin())Its owner signs in with the password they already use.@else The Super Admin signs in with the temporary password <code>password</code> and must change it immediately.@endif</p>
 @endif
 <footer class="pa-modal-foot">@if($onboardingStep>1)<button type="button" class="pa-btn alt" wire:click="onboardingBack">Back</button>@else<button type="button" class="pa-btn alt" wire:click="closeOnboarding">Cancel</button>@endif<button type="submit" class="pa-btn" wire:loading.attr="disabled" wire:target="onboardingNext,onboardClinic">@if($onboardingStep<3)Next@else<span wire:loading.remove wire:target="onboardClinic">Create clinic</span><span wire:loading wire:target="onboardClinic">Creating…</span>@endif</button></footer>
 </form>
