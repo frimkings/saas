@@ -135,7 +135,7 @@
                         <option value="absent">Absent at least once</option>
                     </select>
                     <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="View">
-                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day'] as $key => $label)
+                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day', 'trends' => 'Trends'] as $key => $label)
                             <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
                         @endforeach
                     </div>
@@ -217,7 +217,7 @@
                         </table>
                     </div>
                 </div>
-            @else
+            @elseif($view === 'grid')
                 {{-- A month at a time, Monday to Sunday: how each day went for the branch. Clicking a day lists everyone. --}}
                 <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <div class="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
@@ -264,6 +264,94 @@
                         <span>Click a day to see everyone's punches. "In" counts everyone who came, late or not.</span>
                         <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>To check: left early, a long break or a missing punch</span>
                     </div>
+                </div>
+            @else
+                {{-- Six months side by side: is attendance getting better or worse, and for whom. --}}
+                @php
+                    $trendMonths = $trends['months'];
+                    $worst = max(1, max(array_map(fn ($m) => $m['late'] + $m['absent'], $trendMonths)));
+                    $lateDays = max(1, max(array_map(fn ($d) => $d['present'] ? $d['late'] / $d['present'] : 0, $trends['weekdays'])));
+                @endphp
+                <div class="grid gap-4 xl:grid-cols-3">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:col-span-2">
+                        <h2 class="!mb-0 border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Month by month</h2>
+                        <div class="ui-table-wrap">
+                            <table class="table ui-table ui-table-sm mb-0">
+                                <thead><tr><th>Month</th><th class="text-right">Attendance</th><th class="text-right">Late</th><th class="text-right">Absent</th><th class="w-[28%]">Late and absent</th><th class="text-right">Time late</th><th class="text-right">Leave days</th><th class="text-right">Overtime</th></tr></thead>
+                                <tbody>
+                                    @foreach($trendMonths as $key => $month)
+                                        <tr wire:key="trend-{{ $key }}">
+                                            <td class="whitespace-nowrap font-medium text-slate-800">{{ $month['label'] }}</td>
+                                            @if($month['expected'])
+                                                <td class="text-right ui-number"><span @class(['rounded px-1.5 py-0.5 font-semibold', 'bg-emerald-50 text-emerald-800' => $month['rate'] >= 95, 'bg-amber-100 text-amber-900' => $month['rate'] < 95 && $month['rate'] >= 85, 'bg-red-100 text-red-800' => $month['rate'] < 85])>{{ $month['rate'] }}%</span></td>
+                                                <td class="text-right ui-number">{{ $month['late'] }}</td>
+                                                <td class="text-right ui-number">{{ $month['absent'] }}</td>
+                                                <td>
+                                                    <span class="flex h-3 w-full overflow-hidden rounded bg-slate-100" role="img" aria-label="{{ $month['late'] }} late, {{ $month['absent'] }} absent">
+                                                        <span class="bg-amber-400" style="width: {{ round($month['late'] / $worst * 100, 1) }}%"></span><span class="bg-red-400" style="width: {{ round($month['absent'] / $worst * 100, 1) }}%"></span>
+                                                    </span>
+                                                </td>
+                                                <td class="text-right ui-number">{{ $month['late_minutes'] ? AttendanceAnalyzer::duration($month['late_minutes']) : '–' }}</td>
+                                                <td class="text-right ui-number">{{ $month['leave'] ?: '–' }}</td>
+                                                <td class="text-right ui-number">{{ $month['overtime_minutes'] ? AttendanceAnalyzer::duration($month['overtime_minutes']) : '–' }}</td>
+                                            @else
+                                                <td colspan="7" class="text-sm text-slate-400">Nothing recorded</td>
+                                            @endif
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="!mb-0 border-t border-slate-200 px-3 py-2 text-xs text-slate-500"><span class="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-amber-400"></span>Late arrivals <span class="ml-3 mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-400"></span>Absences. Attendance is days present out of days expected. Overtime is what was approved.</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                        <h2 class="!mb-2 text-sm font-semibold text-slate-900">Lateness by weekday</h2>
+                        @foreach($trends['weekdays'] as $weekday => $count)
+                            @continue(! $count['present'])
+                            @php $share = $count['late'] / $count['present']; @endphp
+                            <div class="mb-1.5 flex items-center gap-2 text-xs">
+                                <span class="w-9 font-medium text-slate-700">{{ \App\Services\Attendance\AttendanceTrends::WEEKDAYS[$weekday] }}</span>
+                                <span class="h-3 flex-1 overflow-hidden rounded bg-slate-100"><span class="block h-3 bg-amber-400" style="width: {{ round($share / $lateDays * 100, 1) }}%"></span></span>
+                                <span class="w-24 text-right tabular-nums text-slate-600">{{ round($share * 100) }}% · {{ $count['late'] }} of {{ $count['present'] }}</span>
+                            </div>
+                        @endforeach
+                        <p class="!mb-0 mt-2 text-xs text-slate-500">Of the times people came in on each weekday over these months, how often they were late.</p>
+                    </div>
+                </div>
+                <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <h2 class="!mb-0 border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Person by person</h2>
+                    <div class="ui-table-wrap">
+                        <table class="table ui-table ui-table-sm mb-0">
+                            <thead><tr><th>Staff</th>@foreach($trendMonths as $month)<th class="text-center">{{ \Illuminate\Support\Str::before($month['label'], ' ') }}</th>@endforeach<th class="text-right">Late</th><th class="text-right">Absent</th><th class="text-right">Time late</th><th>Latest month</th></tr></thead>
+                            <tbody>
+                                @forelse($trends['people'] as $person)
+                                    <tr wire:key="trend-person-{{ $person['staff']->id }}">
+                                        <td class="font-medium text-slate-800"><button type="button" class="text-left underline decoration-slate-300 hover:decoration-slate-600" wire:click="openStaff({{ $person['staff']->id }})">{{ $person['staff']->name }}</button></td>
+                                        @foreach($trendMonths as $key => $month)
+                                            @php $cell = $person['months'][$key] ?? null; @endphp
+                                            <td class="text-center text-xs tabular-nums" title="{{ $month['label'] }}">
+                                                @if(! $cell || $cell['rate'] === null)<span class="text-slate-300">–</span>
+                                                @else<span @class(['rounded px-1.5 py-0.5', 'bg-emerald-50 text-emerald-800' => ! $cell['late'] && ! $cell['absent'], 'bg-amber-100 text-amber-900' => ($cell['late'] || $cell['absent']) && $cell['rate'] >= 85, 'bg-red-100 text-red-800' => $cell['rate'] < 85])>{{ $cell['late'] }}L {{ $cell['absent'] }}A</span>
+                                                @endif
+                                            </td>
+                                        @endforeach
+                                        <td class="text-right ui-number">{{ $person['late'] }}</td>
+                                        <td class="text-right ui-number">{{ $person['absent'] }}</td>
+                                        <td class="text-right ui-number">{{ $person['late_minutes'] ? AttendanceAnalyzer::duration($person['late_minutes']) : '–' }}</td>
+                                        <td class="whitespace-nowrap text-xs">
+                                            @if($person['change'] > 0)<span class="font-medium text-red-700"><i class="fas fa-arrow-up" aria-hidden="true"></i> {{ $person['change'] }} more than the month before</span>
+                                            @elseif($person['change'] < 0)<span class="font-medium text-emerald-700"><i class="fas fa-arrow-down" aria-hidden="true"></i> {{ abs($person['change']) }} fewer than the month before</span>
+                                            @else<span class="text-slate-400">No change</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="{{ count($trendMonths) + 5 }}" class="py-6 text-center text-slate-500">Nobody is followed yet.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="!mb-0 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">Each month shows late arrivals (L) and absences (A). People with the most of both come first. The six months end at the last day picked above.</p>
                 </div>
             @endif
 

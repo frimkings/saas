@@ -135,7 +135,7 @@ class AttendanceComponent extends Component
         }
         [$first, $last] = $this->period();
         [$this->from, $this->to] = [$first->format('Y-m-d'), $last->format('Y-m-d')];
-        if (! in_array($this->view, ['summary', 'grid'], true)) {
+        if (! in_array($this->view, ['summary', 'grid', 'trends'], true)) {
             $this->view = 'summary';
         }
     }
@@ -956,6 +956,8 @@ class AttendanceComponent extends Component
             'first' => $first,
             'last' => $last,
             'periodLabel' => AttendancePeriod::label($first, $last),
+            // Six months up to the last day on show.
+            'trends' => $this->view === 'trends' ? app(\App\Services\Attendance\AttendanceTrends::class)->months(min($last, CarbonImmutable::now($timezone)->startOfDay())) : null,
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
