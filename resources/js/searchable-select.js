@@ -107,7 +107,7 @@ function show(select) {
         else if (event.key === 'Tab') { close(); }
     });
     render('');
-    search.focus();
+    search.focus({ preventScroll: true });
 }
 
 function wanted(select) {
@@ -134,8 +134,9 @@ document.addEventListener('keydown', (event) => {
     }
 }, true);
 
-window.addEventListener('resize', () => close());
-document.addEventListener('scroll', (event) => { if (open && ! open.panel.contains(event.target)) close(); }, true);
+// The page or a dialog scrolling, or the window changing size, moves the panel with its field.
+window.addEventListener('resize', () => open && place(open.panel, open.select));
+document.addEventListener('scroll', (event) => { if (open && ! open.panel.contains(event.target)) place(open.panel, open.select); }, true);
 // A page change or a Livewire redraw that removes the field closes the panel.
 document.addEventListener('livewire:navigating', () => close());
 setInterval(() => { if (open && ! open.select.isConnected) close(); }, 500);
