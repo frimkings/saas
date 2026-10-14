@@ -22,6 +22,9 @@ class ClinicAddonsComponent extends Component
     /** feature => monthly price typed for adding; add-on id => new price; request id => price / note. */
     public array $price = [];
     public array $newPrice = [];
+    /** feature => packs to add; add-on id => new number of packs. */
+    public array $packs = [];
+    public array $newPacks = [];
     public array $approvePrice = [];
     public array $rejectNote = [];
     public string $reason = '';
@@ -38,7 +41,8 @@ class ClinicAddonsComponent extends Component
         $offer = $addons->catalogue($this->clinic())->get($feature);
         $price = $this->money($this->price[$feature] ?? $offer['price'] ?? 0, "price.$feature");
         if ($price === null) return;
-        $this->run(fn () => $addons->add($this->clinic(), $feature, $price, trim($this->reason) ?: null, auth()->user()), "price.$feature",
+        $packs = (int) ($this->packs[$feature] ?? 1);
+        $this->run(fn () => $addons->add($this->clinic(), $feature, $price, trim($this->reason) ?: null, auth()->user(), null, $packs), "price.$feature",
             fn ($addon) => "{$addon->name()} added.");
         unset($this->price[$feature]);
         $this->reason = '';
@@ -52,6 +56,15 @@ class ClinicAddonsComponent extends Component
         $this->run(fn () => $addons->changePrice($this->addon($addonId), $price), "newPrice.$addonId",
             fn ($addon) => "{$addon->name()} now costs " . number_format($price, 2) . ' a month from the next renewal.');
         unset($this->newPrice[$addonId]);
+    }
+
+    public function changePacks(int $addonId, ClinicAddonService $addons): void
+    {
+        $this->authorizePlatform();
+        $packs = (int) ($this->newPacks[$addonId] ?? 0);
+        $this->run(fn () => $addons->changePacks($this->addon($addonId), $packs), "newPacks.$addonId",
+            fn ($addon) => "{$addon->name()} from now; the price follows from the next renewal.");
+        unset($this->newPacks[$addonId]);
     }
 
     public function cancel(int $addonId, ClinicAddonService $addons): void

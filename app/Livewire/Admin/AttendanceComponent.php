@@ -1530,12 +1530,25 @@ class AttendanceComponent extends Component
         return $locked;
     }
 
+    /** A pack of extra staff, if the platform offers them to this clinic: [size, price, currency, asked]. */
+    private function staffPackOffer(): ?array
+    {
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        if (! $clinic || ! app(\App\Services\ClinicAccessService::class)->hosted($clinic)) {
+            return null;
+        }
+        $offer = app(\App\Services\ClinicAddonService::class)->catalogue($clinic)->get(\App\Support\Feature::ATTENDANCE_STAFF_PACK);
+
+        return $offer && $offer['offered'] ? ['size' => $offer['pack_size'], 'price' => $offer['price'], 'currency' => $offer['currency'],
+            'asked' => \App\Models\ClinicAddonRequest::query()->where('clinic_id', $clinic->id)->where('feature', \App\Support\Feature::ATTENDANCE_STAFF_PACK)->where('status', 'pending')->exists()] : null;
+    }
+
     /** Ask the platform for a part of attendance as an add-on (the owner only). */
     public function requestPart(string $feature, \App\Services\ClinicAddonService $addons): void
     {
         $this->authorizeAccess();
         abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can ask for add-ons.');
-        abort_unless(in_array($feature, \App\Support\PlanProduct::ATTENDANCE_PARTS, true), 404);
+        abort_unless(in_array($feature, [...\App\Support\PlanProduct::ATTENDANCE_PARTS, \App\Support\Feature::ATTENDANCE_STAFF_PACK], true), 404);
         $addons->request(app(\App\Support\Tenancy\TenantContext::class)->clinic(), $feature, 'Asked for from the Attendance page', auth()->user());
         $this->dispatch('notify', type: 'success', message: 'Request sent. You will hear once it is switched on.');
     }
@@ -1612,6 +1625,7 @@ class AttendanceComponent extends Component
             'staffLimit' => $manager ? \App\Support\AttendancePlan::staffLimit() : null,
             'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
             'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,
+            'staffPack' => $manager ? $this->staffPackOffer() : null,
             'departments' => $visible,
             'departmentSummary' => $manager && $departments->isNotEmpty() && $this->department === '' && $this->view === 'summary' ? $this->departmentSummary($report, $departments) : [],
             'departmentPeople' => $this->showDepartments ? AttendanceStaff::query()->where('is_tracked', true)->with('unit:id,name')->orderBy('name')->get() : collect(),

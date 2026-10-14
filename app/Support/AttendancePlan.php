@@ -29,7 +29,8 @@ final class AttendancePlan
         // Subscriptions keep the allowance they started on; older ones read it from the plan.
         $limit = data_get($subscription->plan_snapshot ?? [], 'attendance_staff', $subscription->plan?->attendance_staff);
 
-        return $limit === null ? null : (int) $limit;
+        // Plus any packs of extra staff bought as add-ons.
+        return $limit === null ? null : (int) $limit + app(\App\Services\ClinicAddonService::class)->extraStaff($clinic->id);
     }
 
     /** Whether the clinic's plan or add-ons include the hospital tools (the clinic in the current context). */

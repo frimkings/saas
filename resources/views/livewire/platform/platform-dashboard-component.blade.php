@@ -158,7 +158,7 @@
 </div></section>
 <section class="pa-section"><h4>Extra features</h4>
 <label class="pa-check"><input type="checkbox" wire:model.live="planAllExtras"> <span><b>Include every extra feature</b> <span class="pa-muted">(also any added later)</span></span></label>
-@if(!$planAllExtras)<div class="pa-feature-grid">@foreach(\App\Support\PlanProduct::extrasFor($planProduct) as $key=>$label)<label class="pa-check" style="margin:0" wire:key="extra-{{ $planProduct }}-{{ $key }}"><input type="checkbox" wire:model="planExtras" value="{{ $key }}"> {{ $label }}@if((\App\Support\PlanProduct::EXTRAS[$key][1]??null)==='clinic'&&$planProduct==='both') <span class="pa-muted">(clinic)</span>@endif</label>@endforeach</div>@endif
+@if(!$planAllExtras)<div class="pa-feature-grid">@foreach(\App\Support\PlanProduct::planExtrasFor($planProduct) as $key=>$label)<label class="pa-check" style="margin:0" wire:key="extra-{{ $planProduct }}-{{ $key }}"><input type="checkbox" wire:model="planExtras" value="{{ $key }}"> {{ $label }}@if((\App\Support\PlanProduct::EXTRAS[$key][1]??null)==='clinic'&&$planProduct==='both') <span class="pa-muted">(clinic)</span>@endif</label>@endforeach</div>@endif
 @error('planExtras.*')<small class="pa-err">{{ $message }}</small>@enderror
 </section>
 <div class="pa-form-foot"><button type="button" class="pa-btn alt" wire:click="closePlanPanel">Cancel</button><button type="submit" class="pa-btn" wire:loading.attr="disabled" wire:target="savePlan">{{ $planPanel?'Save as new version':'Create plan' }}</button></div>

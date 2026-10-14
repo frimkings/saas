@@ -123,6 +123,40 @@ class AttendancePlanSizeTest extends TestCase
         Livewire::test(AttendanceComponent::class)->call('openPayroll')->assertSet('showPayroll', true);
     }
 
+    public function test_a_clinic_buys_packs_of_extra_staff(): void
+    {
+        PlatformAddon::create(['feature' => Feature::ATTENDANCE_STAFF_PACK, 'monthly_price' => 20, 'currency' => 'GHS', 'is_offered' => true, 'pack_size' => 50]);
+        $this->onPlan(3);
+        foreach (['001', '002', '003'] as $n) {
+            AttendanceStaff::create(['employee_no' => $n, 'name' => 'Person '.$n, 'is_tracked' => true]);
+        }
+        // Packs are add-ons only: never on a plan, not even with every extra.
+        $this->assertArrayNotHasKey(Feature::ATTENDANCE_STAFF_PACK, PlanProduct::planExtrasFor(PlanProduct::ATTENDANCE));
+        $this->assertFalse(PlanProduct::allows(PlanProduct::features(PlanProduct::ATTENDANCE, [], true), Feature::ATTENDANCE_STAFF_PACK));
+
+        // The plan is full: the owner is offered a pack, and asks for it.
+        Livewire::test(AttendanceComponent::class)->assertSee('You can add 50 more staff for GHS 20.00 a month')
+            ->call('requestPart', Feature::ATTENDANCE_STAFF_PACK)->assertSee('Asked for; waiting');
+        $addons = app(\App\Services\ClinicAddonService::class);
+        $addon = $addons->approve(ClinicAddonRequest::where('feature', Feature::ATTENDANCE_STAFF_PACK)->sole(), null, null);
+        $this->assertSame([1, 50, '20.00'], [$addon->quantity, $addon->units, $addon->monthly_price]);
+        $this->assertSame(53, AttendancePlan::staffLimit());
+        $this->assertTrue(AttendanceStaff::create(['employee_no' => '004', 'name' => 'Person 004'])->fresh()->is_tracked);
+
+        // Two packs: a hundred more staff, at twice the price.
+        $addon = $addons->changePacks($addon, 2);
+        $this->assertSame([2, 100, '40.00', 'Attendance: extra staff (2 packs, 100 staff)'], [$addon->quantity, $addon->units, $addon->monthly_price, $addon->name()]);
+        $this->assertSame(103, AttendancePlan::staffLimit());
+        // The platform's screens: the pack size on the price list, packs when adding one for a clinic.
+        $admin = User::factory()->create();
+        $admin->forceFill(['is_platform_admin' => true])->save();
+        Livewire::actingAs($admin)->test(\App\Livewire\Platform\AddonCatalogueComponent::class)->assertSet('rows.'.Feature::ATTENDANCE_STAFF_PACK.'.pack', '50')
+            ->set('rows.'.Feature::ATTENDANCE_STAFF_PACK.'.pack', '25')->call('save', Feature::ATTENDANCE_STAFF_PACK)->assertHasNoErrors();
+        $this->assertSame(25, PlatformAddon::where('feature', Feature::ATTENDANCE_STAFF_PACK)->value('pack_size'));
+        // What the clinic has already bought keeps its staff.
+        $this->assertSame(103, AttendancePlan::staffLimit());
+    }
+
     public function test_plans_from_before_attendance_was_split_keep_every_part(): void
     {
         // Saved before: attendance with no parts named.

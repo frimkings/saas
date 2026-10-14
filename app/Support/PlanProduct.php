@@ -45,8 +45,14 @@ class PlanProduct
     public const ATTENDANCE_EXTRAS = [
         Feature::AUDIT_TRAIL, Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY,
         Feature::MANUAL_BACKUP, Feature::SCHEDULED_BACKUPS, Feature::UNLIMITED_USERS,
-        ...self::ATTENDANCE_PARTS,
+        ...self::ATTENDANCE_PARTS, Feature::ATTENDANCE_STAFF_PACK,
     ];
+
+    /** Sold only as add-ons, never ticked on a plan. */
+    public const ADDON_ONLY = [Feature::ATTENDANCE_STAFF_PACK];
+
+    /** How many staff a pack holds until the platform says otherwise. */
+    public const STAFF_PACK_SIZE = 50;
 
     /** Parts of attendance sold on their own; each needs attendance itself. */
     public const ATTENDANCE_PARTS = [
@@ -75,6 +81,7 @@ class PlanProduct
         Feature::ATTENDANCE_PHONE => ['Attendance: phone clock-in', null],
         Feature::ATTENDANCE_TRENDS => ['Attendance: trends', null],
         Feature::ATTENDANCE_HOSPITAL => ['Attendance: hospital tools (departments, cover, rotation, swaps)', null],
+        Feature::ATTENDANCE_STAFF_PACK => ['Attendance: extra staff (packs)', null],
         Feature::SMS_CAMPAIGNS => ['SMS reminders & campaigns', null],
         Feature::APPROVALS => ['Approval workflows', null],
         Feature::AUDIT_TRAIL => ['Audit trail & login history', null],
@@ -117,6 +124,12 @@ class PlanProduct
             ->map(fn ($extra) => $extra[0])->all();
     }
 
+    /** The extras that can be ticked on a plan of this product: those that aren't add-ons only. */
+    public static function planExtrasFor(string $product): array
+    {
+        return array_diff_key(self::extrasFor($product), array_flip(self::ADDON_ONLY));
+    }
+
     /** The feature list to store for a product and its extras. */
     public static function features(string $product, array $extras, bool $allExtras = false): array
     {
@@ -149,6 +162,10 @@ class PlanProduct
     /** Does a feature list include this feature? */
     public static function allows(?array $features, string $feature): bool
     {
+        if (in_array($feature, self::ADDON_ONLY, true)) {
+            // Bought in quantity as an add-on; no plan, not even "everything", includes it.
+            return is_array($features) && in_array($feature, $features, true) && self::allows($features, Feature::ATTENDANCE);
+        }
         if (empty($features)) return true;
         if (in_array($feature, self::ATTENDANCE_PARTS, true)) {
             // A part needs attendance itself; a list from before the split has every part.

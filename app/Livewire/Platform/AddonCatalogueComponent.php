@@ -24,6 +24,7 @@ class AddonCatalogueComponent extends Component
             $this->rows[$feature] = [
                 'price' => number_format((float) ($saved[$feature]->monthly_price ?? 0), 2, '.', ''),
                 'offered' => (bool) ($saved[$feature]->is_offered ?? false),
+                'pack' => (string) ($saved[$feature]->pack_size ?? PlanProduct::STAFF_PACK_SIZE),
             ];
         }
     }
@@ -32,12 +33,15 @@ class AddonCatalogueComponent extends Component
     {
         abort_unless(auth()->user()?->is_platform_admin, 403);
         abort_unless(isset(PlanProduct::EXTRAS[$feature]), 422);
-        $this->validate(["rows.$feature.price" => 'required|numeric|min:0|max:100000', "rows.$feature.offered" => 'boolean'],
-            ["rows.$feature.price.*" => 'Enter a price of 0 or more.']);
+        $packs = in_array($feature, PlanProduct::ADDON_ONLY, true);
+        $this->validate(["rows.$feature.price" => 'required|numeric|min:0|max:100000', "rows.$feature.offered" => 'boolean']
+            + ($packs ? ["rows.$feature.pack" => 'required|integer|min:1|max:10000'] : []),
+            ["rows.$feature.price.*" => 'Enter a price of 0 or more.', "rows.$feature.pack.*" => 'Enter how many staff a pack holds.']);
 
         $addon = PlatformAddon::firstOrNew(['feature' => $feature]);
         $old = $addon->exists ? $addon->only(['monthly_price', 'is_offered']) : [];
-        $addon->fill(['monthly_price' => round((float) $this->rows[$feature]['price'], 2), 'is_offered' => (bool) $this->rows[$feature]['offered']])->save();
+        $addon->fill(['monthly_price' => round((float) $this->rows[$feature]['price'], 2), 'is_offered' => (bool) $this->rows[$feature]['offered']]
+            + ($packs ? ['pack_size' => (int) $this->rows[$feature]['pack']] : []))->save();
         $audit->record('ADDON_PRICE_SAVED', null, $old, ['feature' => $feature] + $addon->only(['monthly_price', 'is_offered']));
         $this->dispatch('notify', type: 'success', message: PlanProduct::EXTRAS[$feature][0] . ' saved. New prices apply to add-ons added from now on.');
     }

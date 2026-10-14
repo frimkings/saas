@@ -66,7 +66,13 @@
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <i class="fas fa-users mr-1" aria-hidden="true"></i>Your plan follows up to <strong>{{ number_format($staffLimit) }}</strong> staff; <strong>{{ number_format($staffFollowed) }}</strong> are followed.
                 @if($notFollowed) {{ number_format($notFollowed) }} more {{ $notFollowed === 1 ? 'is' : 'are' }} on the terminal but not followed: their punches are kept, and count once you follow them. @endif
-                Ask us to move you to a larger plan to follow more.
+                @if($staffPack)
+                    You can add {{ $staffPack['size'] }} more staff for {{ $staffPack['currency'] }} {{ number_format($staffPack['price'], 2) }} a month.
+                    @if($staffPack['asked'])<span class="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">Asked for; waiting</span>
+                    @elseif(auth()->user()->hasRole('Super Admin'))<button type="button" class="ui-button ui-button-primary ml-1 !py-1 !text-xs" wire:click="requestPart('{{ \App\Support\Feature::ATTENDANCE_STAFF_PACK }}')">Ask for more staff</button>@endif
+                @else
+                    Ask us to move you to a larger plan to follow more.
+                @endif
             </div>
         @endif
 
