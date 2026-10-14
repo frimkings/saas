@@ -174,6 +174,16 @@ trait BuildsRoster
         array_push($this->patternDays, ...array_fill(0, (int) $this->patternAddCount, $this->patternAddShift));
     }
 
+    /** Tick everyone in the department on the roster for the pattern, or nobody. */
+    public function tickAllPattern(bool $all): void
+    {
+        $this->authorizeView();
+        $ids = $this->rosterStaffIds();
+        $this->patternPeople = $all ? AttendanceStaff::query()->where('is_tracked', true)->when($ids !== null, fn ($query) => $query->whereIn('id', $ids))
+            ->pluck('id')->map(fn ($id) => (string) $id)->all() : [];
+        $this->resetValidation('patternPeople');
+    }
+
     public function undoPatternStep(): void
     {
         // The last run of the same shift goes together, as it was added.

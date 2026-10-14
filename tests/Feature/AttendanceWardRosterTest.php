@@ -83,6 +83,8 @@ class AttendanceWardRosterTest extends TestCase
             ->call('undoPatternStep')->assertSet('patternDays', [$m, $m, $n, $n])
             ->set('patternAddCount', '2')->call('addPatternStep')->assertSet('patternDays', [$m, $m, $n, $n, '0', '0'])
             ->set('patternTo', '2026-10-30')->call('applyPattern')->assertHasErrors(['patternPeople'])
+            // Tick all and untick all.
+            ->call('tickAllPattern', true)->assertCount('patternPeople', 2)->assertSee('2 of 2 ticked')->call('tickAllPattern', false)->assertSet('patternPeople', [])
             // Kofi starts two days further into the cycle than Ama.
             ->set('patternPeople', [(string) $this->kofi->id, (string) $this->ama->id])->set('patternStagger', '2')
             ->set('patternName', 'Ward 2-2-2')->call('savePattern')->assertHasNoErrors()

@@ -129,8 +129,14 @@
                             <div><label for="pattern-stagger" class="mb-1 block text-xs font-semibold text-slate-600">Each next person starts this many days further in</label><input id="pattern-stagger" type="number" min="0" max="62" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternStagger"></div>
                         </div>
                         <fieldset>
-                            <legend class="mb-1 text-xs font-semibold text-slate-600">For these people (in name order)</legend>
-                            <div class="flex max-h-32 flex-wrap gap-x-4 gap-y-1 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+                            <legend class="mb-1 flex w-full items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                                <span>For these people (in name order) · {{ count($patternPeople) }} of {{ count($rosterGrid['rows']) }} ticked</span>
+                                <span class="font-normal">
+                                    <button type="button" class="text-teal-700 underline" wire:click="tickAllPattern(true)">Tick all</button>
+                                    @if($patternPeople)<button type="button" class="ml-2 text-teal-700 underline" wire:click="tickAllPattern(false)">Untick all</button>@endif
+                                </span>
+                            </legend>
+                            <div class="flex max-h-48 flex-wrap gap-x-4 gap-y-1 overflow-y-auto rounded border border-slate-200 bg-white p-2">
                                 @foreach($rosterGrid['rows'] as $row)
                                     <label class="flex items-center gap-1.5 text-sm text-slate-800" wire:key="pattern-person-{{ $row['staff']->id }}"><input type="checkbox" value="{{ $row['staff']->id }}" wire:model="patternPeople"> {{ $row['staff']->name }}</label>
                                 @endforeach
