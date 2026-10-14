@@ -101,7 +101,7 @@ class AttendancePlanSizeTest extends TestCase
         AttendanceShift::create(['name' => 'Morning', 'starts_at' => '08:00', 'ends_at' => '14:00']);
 
         $page = Livewire::withQueryParams(['view' => 'trends'])->test(AttendanceComponent::class)->assertSet('view', 'summary')
-            ->assertSeeHtml('wire:click="openRoster"')->assertDontSee('Month by month')
+            ->assertSee('/admin/attendance/roster?')->assertDontSee('Month by month')
             ->assertDontSeeHtml('wire:click="openDepartments"')->assertDontSeeHtml('wire:click="openLeaveTypes"')->assertDontSeeHtml('wire:click="openPhone"')
             ->assertDontSeeHtml('wire:click="openPayroll"')
             // What is not in the plan is listed with what it does and, where offered, its price.
@@ -109,9 +109,11 @@ class AttendancePlanSizeTest extends TestCase
             ->assertSee('Contact us to add it')
             ->call('requestPart', Feature::ATTENDANCE_PAYROLL)->assertSee('Asked for; waiting');
         $this->assertSame(1, ClinicAddonRequest::where('feature', Feature::ATTENDANCE_PAYROLL)->where('status', 'pending')->count());
-        foreach (['openDepartments', 'openStaffImport', 'togglePattern', 'openPayroll', 'openLeaveTypes', 'openPhone'] as $action) {
+        foreach (['openDepartments', 'openStaffImport', 'openPayroll', 'openLeaveTypes', 'openPhone'] as $action) {
             Livewire::test(AttendanceComponent::class)->call($action)->assertForbidden();
         }
+        // The roster is in the plan, its rotation patterns (a hospital tool) are not.
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertDontSee('Fill from a pattern')->call('togglePattern')->assertForbidden();
         // Departments made before are not shown without the hospital tools, and give heads no way in.
         AttendanceDepartment::create(['name' => 'Nursing', 'heads' => [auth()->id()]]);
         $this->assertSame([], \App\Support\AttendanceScope::headed(auth()->user()));

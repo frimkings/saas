@@ -96,7 +96,9 @@ class AttendanceRosterTest extends TestCase
 
     public function test_the_roster_is_one_department_at_a_time_in_codes_by_week_or_month(): void
     {
-        $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')->call('openRoster')
+        // The page opens in a new tab from Attendance's Roster button.
+        $this->get(route('admin.attendance.roster-page', ['date' => '2026-10-25']))->assertOk()->assertSee('‹ Attendance', false);
+        $page = Livewire::withQueryParams(['date' => '2026-10-25'])->test(\App\Livewire\Admin\AttendanceRosterComponent::class)
             // No department filter: the first department, in name order.
             ->assertSet('rosterUnit', (string) $this->lab->id)->assertSee('Yaa Mensah')->assertDontSee('Ama Owusu')
             ->set('rosterUnit', (string) $this->nursing->id)->assertSee('Ama Owusu')->assertDontSee('Yaa Mensah')
@@ -111,7 +113,7 @@ class AttendanceRosterTest extends TestCase
         $this->actingAs($this->head);
         $context = app(TenantContext::class);
         $context->set($this->head, $context->clinic(), $context->branch(), [$context->branchId()]);
-        Livewire::test(AttendanceComponent::class)->call('openRoster')->assertSet('rosterUnit', (string) $this->nursing->id)->assertSee('Ama Owusu')
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSet('rosterUnit', (string) $this->nursing->id)->assertSee('Ama Owusu')
             ->set('rosterUnit', (string) $this->lab->id)->assertForbidden();
     }
 
@@ -124,7 +126,7 @@ class AttendanceRosterTest extends TestCase
             ."001,Ama Owusu,,M,M,OFF\n"
             ."002,Kofi Boateng,N,N,night,Q\n"
             ."003,Yaa Mensah,,N,,\n";
-        $page = Livewire::test(AttendanceComponent::class)->call('openRoster')->set('rosterUnit', (string) $this->nursing->id)->set('showRosterUpload', true)
+        $page = Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->set('rosterUnit', (string) $this->nursing->id)->set('showRosterUpload', true)
             ->assertSee('Download this week for Nursing')
             ->set('rosterFile', UploadedFile::fake()->createWithContent('roster.csv', $filled))->call('readRosterFile')->assertHasNoErrors();
         $page
@@ -146,7 +148,7 @@ class AttendanceRosterTest extends TestCase
         $this->assertStringContainsString('M = Morning, N = Night', $csv);
 
         // USUAL takes a day back to the person's usual days.
-        Livewire::test(AttendanceComponent::class)->call('openRoster')->set('rosterUnit', (string) $this->nursing->id)->set('showRosterUpload', true)
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->set('rosterUnit', (string) $this->nursing->id)->set('showRosterUpload', true)
             ->set('rosterFile', UploadedFile::fake()->createWithContent('roster.csv', "Employee ID,Name,2026-10-22 Thu\n001,Ama Owusu,usual\n"))->call('readRosterFile')
             ->assertSeeText('1 day changes for 1 person')->call('applyRosterFile');
         $this->assertSame(0, AttendanceRoster::where('attendance_staff_id', $this->ama->id)->count());

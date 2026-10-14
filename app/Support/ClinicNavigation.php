@@ -221,7 +221,11 @@ class ClinicNavigation
             return [];
         }
 
-        return [['label' => 'Department attendance', 'route' => 'admin.attendance', 'icon' => 'fa-user-clock', 'active' => 'admin.attendance*']];
+        return [
+            ['label' => 'Department attendance', 'route' => 'admin.attendance', 'icon' => 'fa-user-clock', 'active' => 'admin.attendance'],
+            ...(\App\Services\LicenseService::has(Feature::ATTENDANCE_SHIFTS) && \App\Models\AttendanceShift::query()->exists()
+                ? [['label' => 'Roster', 'route' => 'admin.attendance.roster-page', 'icon' => 'fa-table', 'active' => 'admin.attendance.roster-page']] : []),
+        ];
     }
 
     /** Drops hidden links and groups left empty. */

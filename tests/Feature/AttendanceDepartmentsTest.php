@@ -189,6 +189,8 @@ class AttendanceDepartmentsTest extends TestCase
 
         $this->actAs($this->esi);
         $this->assertContains('Department attendance', array_column(ClinicNavigation::menu('reception'), 'label'));
+        $this->assertContains('Roster', array_column(ClinicNavigation::menu('reception'), 'label'));
+        $this->get(route('admin.attendance.roster-page'))->assertOk()->assertSee('Nursing');
         $this->get(route('admin.attendance'))->assertOk()->assertSee('Your department: Nursing');
 
         $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-23')->set('tab', 'report')
@@ -197,18 +199,19 @@ class AttendanceDepartmentsTest extends TestCase
             ->assertDontSee('Set up')->assertDontSeeHtml('wire:click="openPayroll"')->assertDontSeeHtml('wire:key="unit-');
 
         // Their own person: roster, corrections and overtime.
-        $page->call('setRoster', $this->ama->id, '2026-10-20', (string) $morning->id)
-            ->call('openPunches', $this->ama->id, '2026-10-19')->assertSet('showPunches', true)->call('closePunches')
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->call('setRoster', $this->ama->id, '2026-10-20', (string) $morning->id);
+        $page->call('openPunches', $this->ama->id, '2026-10-19')->assertSet('showPunches', true)->call('closePunches')
             ->call('openStaff', $this->ama->id)->assertSet('showStaff', true)->assertDontSee("Follow this person's attendance")->assertSee('Leave')
             ->set('leaveFrom', '2026-11-02')->call('addLeave')->assertHasNoErrors()
             ->call('decideOvertime', $this->ama->id, '2026-10-20', true)->assertStatus(404);
         $this->assertSame($morning->id, AttendanceRoster::firstOrFail()->attendance_shift_id);
 
         // Anyone else's, and anything that sets up the branch, is refused.
-        foreach ([['openStaff', $this->kofi->id], ['openPunches', $this->kofi->id, '2026-10-19'], ['setRoster', $this->kofi->id, '2026-10-20', '0'],
+        foreach ([['openStaff', $this->kofi->id], ['openPunches', $this->kofi->id, '2026-10-19'],
             ['decideOvertime', $this->kofi->id, '2026-10-19', true], ['editHours'], ['openDepartments'], ['saveStaff'], ['openPayroll'], ['openLeaveTypes'], ['openPhone']] as $call) {
             Livewire::test(AttendanceComponent::class)->call(...$call)->assertForbidden();
         }
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->call('setRoster', $this->kofi->id, '2026-10-20', '0')->assertForbidden();
         // Being pointed at someone else's window shows nothing.
         Livewire::test(AttendanceComponent::class)->set('staffId', $this->kofi->id)->set('showStaff', true)->assertSet('showStaff', false);
 

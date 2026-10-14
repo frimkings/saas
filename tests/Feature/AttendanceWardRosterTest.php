@@ -75,7 +75,7 @@ class AttendanceWardRosterTest extends TestCase
     public function test_the_roster_is_filled_from_a_pattern_then_swapped_and_checked_for_rest(): void
     {
         [$m, $n] = [(string) $this->morning->id, (string) $this->night->id];
-        $page = Livewire::test(AttendanceComponent::class)->call('openRoster')->call('togglePattern')->assertSet('patternFrom', '2026-10-19')->assertSee('Fill the roster from a rotation pattern')
+        $page = Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->call('togglePattern')->assertSet('patternFrom', '2026-10-19')->assertSee('Fill from a rotation pattern')
             // Two mornings, two nights, two off.
             ->set('patternAddShift', $m)->set('patternAddCount', '2')->call('addPatternStep')
             ->set('patternAddShift', $n)->call('addPatternStep')
@@ -103,9 +103,9 @@ class AttendanceWardRosterTest extends TestCase
         $page->call('toggleSwap')->set('swapA', (string) $this->ama->id)->set('swapB', (string) $yaa->id)->set('swapFrom', '2026-10-20')->call('swapRoster')->assertHasErrors(['swapFrom']);
 
         // Rest rules: 11 hours between shifts, no more than one night in a row.
-        $page->set('showRoster', false)->call('editHours')->set('minRestHours', '11')->set('maxNights', '1')->call('saveHours')->assertHasNoErrors();
+        Livewire::test(AttendanceComponent::class)->call('editHours')->set('minRestHours', '11')->set('maxNights', '1')->call('saveHours')->assertHasNoErrors();
         // Ama now works Monday night (ends 6 AM Tuesday) then Tuesday morning at 7: an hour's rest. Her Wednesday and Thursday are both nights.
-        Livewire::test(AttendanceComponent::class)->call('openRoster')->assertSee('Only 1h rest after Night')->assertSee('Night 2 in a row');
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSee('Only 1h rest after Night')->assertSee('Night 2 in a row');
     }
 
     public function test_the_roster_and_the_board_show_where_a_department_is_short(): void
@@ -119,11 +119,11 @@ class AttendanceWardRosterTest extends TestCase
         $this->assertSame([1, $this->morning->id, 2, 1], [AttendanceCover::count(), $cover->attendance_shift_id, $cover->minimum, $cover->weekend_minimum]);
 
         // Monday has both; Tuesday to Friday only Ama; nobody at the weekend: six shifts short.
-        $page->set('showDepartments', false)->call('openRoster')->assertSee('Nursing · Morning')->assertSee('6 shifts are short this week')
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSee('Nursing · Morning')->assertSee('6 shifts are short this week')
             ->assertSeeHtml('title="2 rostered, 2 needed"')->assertSeeHtml('title="1 rostered, 2 needed"')->assertSeeHtml('title="0 rostered, 1 needed"');
         // Someone on leave is not counted as cover.
         AttendanceLeave::create(['attendance_staff_id' => $this->ama->id, 'starts_on' => '2026-10-19', 'ends_on' => '2026-10-19', 'type' => 'sick']);
-        Livewire::test(AttendanceComponent::class)->call('openRoster')->assertSee('7 shifts are short this week');
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSee('7 shifts are short this week');
         AttendanceLeave::query()->delete();
 
         // Right now, Monday 9 AM: only Ama has punched in, so the ward is one short.

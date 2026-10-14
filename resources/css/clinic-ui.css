@@ -237,3 +237,18 @@
 .ss-item.ss-chosen { font-weight: 700; }
 .ss-group { padding: 6px 12px 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
 .ss-none { padding: 8px 12px; font-size: 13px; color: #94a3b8; }
+
+
+/* Panels that slide in from the right on the attendance pages. */
+.att-overlay{position:fixed;inset:0;z-index:1040;background:rgb(15 23 42 / .45)}
+.att-drawer{position:fixed;top:0;right:0;z-index:1041;height:100dvh;width:min(620px,100vw);background:#fff;display:flex;flex-direction:column;box-shadow:-16px 0 40px rgb(15 23 42 / .2);animation:attSlide .2s ease-out;outline:none}
+@keyframes attSlide{from{transform:translateX(40px);opacity:.4}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.att-drawer{animation:none}}
+.att-drawer-head{padding:18px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.att-drawer-head h2{margin:0 0 6px;font-size:18px;font-weight:800;color:#0f172a}
+.att-drawer-body{flex:1;overflow-y:auto;padding:18px 20px;display:grid;gap:18px;align-content:start}
+.att-drawer-foot{border-top:1px solid #e2e8f0;padding:12px 20px;display:flex;gap:8px;justify-content:flex-end;background:#fafcfc}
+.att-section-title{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;font-weight:800}
+.att-x{border:0;background:none;font-size:22px;line-height:1;color:#64748b;cursor:pointer;padding:2px 6px;border-radius:6px}.att-x:hover{background:#f1f5f9}
+/* A person's panel opens over a department's; it is wider, for a day's punches. */
+.att-overlay.att-top{z-index:1042}.att-drawer.att-top{z-index:1043}.att-drawer.att-wide{width:min(820px,100vw)}

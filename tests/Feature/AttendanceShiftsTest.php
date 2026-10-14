@@ -138,21 +138,22 @@ class AttendanceShiftsTest extends TestCase
             ->set('page', 2)->assertSee('Showing 51 to 60 of 60 people')->assertSeeHtml($row('Staff 59'))->assertDontSeeHtml($row('Staff 49'))
             // Searching goes back to the first page and finds by name or by Employee ID.
             ->set('search', 'staff 07')->assertSet('page', 1)->assertSeeHtml($row('Staff 07'))->assertDontSeeHtml($row('Staff 08'))->assertDontSee('Page 1 of')
-            ->set('search', '959')->assertSeeHtml($row('Staff 59'))->assertDontSeeHtml($row('Staff 07'))
-            // The roster shows twenty-five at a time.
-            ->set('search', '')->call('openRoster')->assertSee('Showing 1 to 25 of 60 people')->set('rosterPage', 3)->assertSee('Showing 51 to 60 of 60 people');
+            ->set('search', '959')->assertSeeHtml($row('Staff 59'))->assertDontSeeHtml($row('Staff 07'));
+        // The roster shows twenty-five at a time.
+        Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSee('Showing 1 to 25 of 60 people')->set('rosterPage', 3)->assertSee('Showing 51 to 60 of 60 people');
     }
 
     public function test_buttons_appear_only_once_a_branch_uses_what_they_open(): void
     {
         // A small clinic that only follows who was late: no Roster, Overtime or Payroll buttons; pay sits under Set up.
         Livewire::test(AttendanceComponent::class)->assertSee('Set up')
-            ->assertDontSeeHtml('wire:click="openRoster"')->assertDontSeeHtml("showOvertime', true)")->assertDontSeeHtml('</i>Payroll</button>')->assertSeeHtml('wire:click="openPayroll"');
+            ->assertDontSee('/admin/attendance/roster?')->assertDontSeeHtml("showOvertime', true)")->assertDontSeeHtml('</i>Payroll</button>')->assertSeeHtml('wire:click="openPayroll"');
 
         AttendanceShift::create(['name' => 'Morning', 'starts_at' => '08:00', 'ends_at' => '14:00']);
         $this->ama->update(['pay_type' => 'hourly', 'pay_rate' => 10]);
         $this->punch('2026-10-19 08:00:00', '2026-10-19 19:00:00');
-        Livewire::test(AttendanceComponent::class)->assertSeeHtml('wire:click="openRoster"')->assertSeeHtml("showOvertime', true)")->assertSeeHtml('</i>Payroll</button>');
+        // Roster opens its own page, in a new tab.
+        Livewire::test(AttendanceComponent::class)->assertSeeHtml('target="_blank" rel="noopener"><i class="fas fa-table"')->assertSee('/admin/attendance/roster?')->assertSeeHtml("showOvertime', true)")->assertSeeHtml('</i>Payroll</button>');
     }
 
     public function test_shifts_are_managed_and_people_rostered_from_the_page(): void
@@ -170,7 +171,7 @@ class AttendanceShiftsTest extends TestCase
         $this->assertSame([1 => $morning->id, 7 => 0], $this->ama->fresh()->shift_week);
 
         // The roster for the week of Monday 19 October.
-        $page->set('from', '2026-10-19')->set('to', '2026-10-25')->call('openRoster')->assertSet('rosterWeek', '2026-10-25')
+        $page = Livewire::withQueryParams(['date' => '2026-10-25'])->test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSet('rosterWeek', '2026-10-25')
             ->assertSee('Week of 19 Oct')->assertSee('Ama Owusu')
             ->call('setRoster', $this->ama->id, '2026-10-21', (string) $morning->id)
             ->call('setRoster', $this->ama->id, '2026-10-22', '0');
@@ -181,6 +182,7 @@ class AttendanceShiftsTest extends TestCase
         $page->call('shiftRosterWeek', 1)->assertSet('rosterWeek', '2026-11-01')->assertSee('Week of 26 Oct');
 
         // A shift in use can't be deleted, only no longer offered; an unused one goes.
+        $page = Livewire::test(AttendanceComponent::class);
         $page->call('removeShift', $morning->id)->assertHasErrors(['shiftName']);
         $this->assertNotNull($morning->fresh());
         $page->call('toggleShift', $morning->id);
