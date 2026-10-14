@@ -210,6 +210,15 @@ class AttendanceComponent extends Component
         $this->reset('boardUnit', 'boardShow');
     }
 
+    /** From a department on the Today board to its figures in the report. */
+    public function showDepartmentReport(string $unit): void
+    {
+        $this->department = $unit === 'none' ? 'none' : (string) (int) $unit;
+        $this->reset('boardUnit', 'boardShow');
+        $this->tab = 'report';
+        $this->page = 1;
+    }
+
 
     /** A change to what is listed starts again from the first page. */
     public function updated(string $name): void

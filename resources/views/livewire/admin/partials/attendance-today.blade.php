@@ -50,34 +50,14 @@
                             $people = $inUnit($unit['key']);
                             $open = $boardUnit === (string) $unit['key'];
                         @endphp
-                        <tr wire:key="board-unit-{{ $unit['key'] }}" wire:click="$set('boardUnit', '{{ $open ? '' : $unit['key'] }}')" @class(['cursor-pointer', 'bg-teal-50/60' => $open, 'hover:bg-slate-50' => ! $open]) aria-expanded="{{ $open ? 'true' : 'false' }}">
-                            <td class="font-medium text-slate-800"><i class="fas fa-chevron-{{ $open ? 'down' : 'right' }} mr-1.5 w-3 text-xs text-slate-400" aria-hidden="true"></i>{{ $unit['name'] }}</td>
+                        <tr wire:key="board-unit-{{ $unit['key'] }}" wire:click="$set('boardUnit', '{{ $open ? '' : $unit['key'] }}')" @class(['cursor-pointer', 'bg-teal-50/60' => $open, 'hover:bg-slate-50' => ! $open]) aria-haspopup="dialog">
+                            <td class="font-medium text-slate-800">{{ $unit['name'] }}<i class="fas fa-chevron-right ml-1.5 text-xs text-slate-400" aria-hidden="true"></i></td>
                             @foreach($states as $key => [$label, $tone, $kinds])
                                 @php $n = $count($people, $kinds); @endphp
                                 <td class="text-right ui-number">@if($n)<span @class(['rounded px-1.5 py-0.5', $tone => $key === 'missing'])>{{ $n }}</span>@else <span class="text-slate-300">0</span> @endif</td>
                             @endforeach
                             <td class="text-sm">@forelse($unit['short'] as $gap)<span class="mr-1 inline-block rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">{{ $gap['shift'] }}: {{ $gap['in'] }} of {{ $gap['need'] }}</span>@empty<span class="text-slate-300">–</span>@endforelse</td>
                         </tr>
-                        @if($open)
-                            {{-- The department's people, sliding open right under its row. --}}
-                            @php $names = $listed($people); @endphp
-                            <tr wire:key="board-unit-{{ $unit['key'] }}-people" class="!bg-slate-50">
-                                <td colspan="{{ count($states) + 2 }}" class="!p-0">
-                                    <div x-data="{ open: false }" x-init="$nextTick(() => open = true)" x-show="open" x-collapse>
-                                        <div class="grid gap-1.5 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                            @forelse($names as $person)
-                                                @include('livewire.admin.partials.attendance-person-chip')
-                                            @empty
-                                                <p class="!mb-0 text-sm text-slate-400">Nobody{{ $boardShow !== '' ? ' '.strtolower($states[$boardShow][0]) : ' in, out or due' }} here.</p>
-                                            @endforelse
-                                        </div>
-                                        @if($boardShow === '' && $count($people, $states['away'][2]))
-                                            <p class="!mb-0 px-3 pb-2 text-xs text-slate-500">{{ $count($people, $states['away'][2]) }} on leave or off today are not listed; click "On leave or off" above to see them.</p>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @endif
                     @endforeach
                 </tbody>
             </table>
@@ -97,7 +77,69 @@
             </div>
             @if($names->count() > 80)<p class="!mb-0 mt-2 text-xs text-slate-500">And {{ $names->count() - 80 }} more. Open a department to see its people.</p>@endif
         </div>
-    @elseif($boardUnit === '')
-        <p class="!mb-0 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">Click a department to see its people, or a count above.</p>
+    @else
+        <p class="!mb-0 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">Click a department to see its people, or a count above for the whole branch.</p>
+    @endif
+    @if($boardRows && $boardUnit !== '' && ($unit = collect($boardRows)->firstWhere('key', $boardUnit)))
+        @php
+            $people = $inUnit($boardUnit);
+            $groups = collect($states)->map(fn ($state, $key) => [$state[0], $state[1], $people->whereIn('state', $state[2])->sortBy(fn ($person) => $person['staff']->name)->values()])
+                ->filter(fn ($group, $key) => $boardShow === '' || $boardShow === $key);
+        @endphp
+        <div wire:key="board-drawer-{{ $boardUnit }}">
+            <div class="att-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { boardUnit: '' })" aria-hidden="true"></div>
+            <aside class="att-drawer" data-sheet role="dialog" aria-modal="true" aria-labelledby="att-drawer-title" tabindex="-1" x-data x-init="$el.focus()"
+                   x-on:keydown.escape.window="dismissLocal($el, $wire, { boardUnit: '' })">
+                <header class="att-drawer-head">
+                    <div>
+                        <h2 id="att-drawer-title">{{ $unit['name'] }}</h2>
+                        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                            <span class="text-slate-500">Today, {{ $today->format('D j M') }} · as of {{ $today->format('g:i A') }}</span>
+                            @foreach($unit['short'] as $gap)<span class="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800">{{ $gap['shift'] }}: {{ $gap['in'] }} of {{ $gap['need'] }}</span>@endforeach
+                        </div>
+                    </div>
+                    <button type="button" class="att-x" x-on:click="dismissLocal($el, $wire, { boardUnit: '' })" aria-label="Close">&times;</button>
+                </header>
+                <div class="att-drawer-body">
+                    <div class="grid grid-cols-5 gap-2">
+                        @foreach($states as $key => [$label, $tone, $kinds])
+                            <div class="rounded-lg border border-slate-200 px-2 py-1.5">
+                                <span class="block text-[11px] leading-tight text-slate-500">{{ $label }}</span>
+                                <span class="inline-block rounded px-1 text-base font-semibold tabular-nums {{ $tone }}">{{ $count($people, $kinds) }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                    @foreach($groups as $key => [$label, $tone, $names])
+                        @continue($names->isEmpty())
+                        <section>
+                            <h3 class="att-section-title">{{ $label }} <span class="rounded px-1.5 py-0.5 normal-case {{ $tone }}">{{ $names->count() }}</span></h3>
+                            <div class="grid gap-1.5 sm:grid-cols-2">
+                                @foreach($names as $person)
+                                    @include('livewire.admin.partials.attendance-person-chip')
+                                @endforeach
+                            </div>
+                        </section>
+                    @endforeach
+                    @if($groups->every(fn ($group) => $group[2]->isEmpty()))<p class="!mb-0 text-sm text-slate-500">Nobody here{{ $boardShow !== '' ? ' is '.strtolower($states[$boardShow][0]) : '' }}.</p>@endif
+                </div>
+                <footer class="att-drawer-foot">
+                    <button type="button" class="ui-button ui-button-secondary" wire:click="showDepartmentReport('{{ $boardUnit }}')">See in the report</button>
+                    <button type="button" class="ui-button ui-button-primary" x-on:click="dismissLocal($el, $wire, { boardUnit: '' })">Close</button>
+                </footer>
+            </aside>
+        </div>
     @endif
 </div>
+<style>
+    .att-overlay{position:fixed;inset:0;z-index:1040;background:rgb(15 23 42 / .45)}
+    .att-drawer{position:fixed;top:0;right:0;z-index:1041;height:100dvh;width:min(620px,100vw);background:#fff;display:flex;flex-direction:column;box-shadow:-16px 0 40px rgb(15 23 42 / .2);animation:attSlide .2s ease-out;outline:none}
+    @keyframes attSlide{from{transform:translateX(40px);opacity:.4}to{transform:none;opacity:1}}
+    @media(prefers-reduced-motion:reduce){.att-drawer{animation:none}}
+    .att-drawer-head{padding:18px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .att-drawer-head h2{margin:0 0 6px;font-size:18px;font-weight:800;color:#0f172a}
+    .att-drawer-body{flex:1;overflow-y:auto;padding:18px 20px;display:grid;gap:18px;align-content:start}
+    .att-drawer-foot{border-top:1px solid #e2e8f0;padding:12px 20px;display:flex;gap:8px;justify-content:flex-end;background:#fafcfc}
+    .att-section-title{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;font-weight:800}
+    .att-x{border:0;background:none;font-size:22px;line-height:1;color:#64748b;cursor:pointer;padding:2px 6px;border-radius:6px}.att-x:hover{background:#f1f5f9}
+</style>
+
