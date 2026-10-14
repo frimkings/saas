@@ -39,7 +39,6 @@
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
                             ['openPhone', 'fa-mobile-alt', 'Phone clock-in', $extras['phone']],
-                            ['openDepartments', 'fa-sitemap', 'Departments', $hospital],
                             ['openStaffImport', 'fa-file-import', 'Bring in a staff list', $hospital],
                             ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff && $extras['payroll']],
                             ["\$set('showMore', true)", 'fa-plus-circle', 'More attendance features', (bool) $locked],
@@ -48,6 +47,7 @@
                             @php [$action, $icon, $label] = $item; @endphp
                             <button type="button" role="menuitem" wire:click="{{ $action }}" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas {{ $icon }} w-4 text-slate-400" aria-hidden="true"></i>{{ $label }}</button>
                         @endforeach
+                        @if($hospital)<a role="menuitem" href="{{ route('admin.attendance.departments') }}" target="_blank" rel="noopener" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas fa-sitemap w-4 text-slate-400" aria-hidden="true"></i>Departments</a>@endif
                     </div>
                 </div>
                 <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
@@ -745,109 +745,6 @@
         </x-ui.modal>
     @endif
 
-    @if($showDepartments)
-        <style>.clinic-ui .ui-dialog:has(.attendance-departments) { width: min(900px, calc(100% - 32px)); }</style>
-        <x-ui.modal title="Departments" state="showDepartments">
-            <div class="attendance-departments space-y-4 p-4">
-                <p class="!mb-0 text-sm text-slate-600">For larger places: group staff into departments such as Nursing, Laboratory or Pharmacy. The head of a department opens Attendance and sees only their own people; they set the roster, correct punches and answer leave and overtime for them. Everything else stays with you and your managers. With no departments, nothing changes.</p>
-                @if($terminalLabels)
-                    <div class="flex flex-wrap items-center justify-between gap-2 rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
-                        <span>The terminal already has {{ $terminalLabels }} department {{ $terminalLabels === 1 ? 'name' : 'names' }} for people who are in no department here.</span>
-                        <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="departmentsFromTerminal" wire:loading.attr="disabled">Make departments from them</button>
-                    </div>
-                @endif
-                @if($departments->isNotEmpty())
-                    <div class="ui-table-wrap">
-                        <table class="table ui-table ui-table-sm mb-0">
-                            <thead><tr><th>Department</th><th>Headed by</th><th class="text-right">People</th><th>Rules</th><th class="text-right">Action</th></tr></thead>
-                            <tbody>
-                                @foreach($departments as $unit)
-                                    <tr wire:key="department-{{ $unit->id }}">
-                                        <td class="font-medium text-slate-800">{{ $unit->name }}</td>
-                                        <td class="text-sm">{{ $accounts->whereIn('id', $unit->heads ?? [])->pluck('name')->implode(', ') ?: 'Nobody yet' }}</td>
-                                        <td class="text-right ui-number">{{ $unit->staff_count }}</td>
-                                        <td class="text-sm">{{ $unit->hasOwnRules() ? 'Its own' : "The branch's" }}</td>
-                                        <td class="whitespace-nowrap text-right">
-                                            <button type="button" wire:click="editDepartment({{ $unit->id }})" class="text-xs text-teal-700 underline">Edit</button>
-                                            <button type="button" wire:click="removeDepartment({{ $unit->id }})" wire:confirm="Delete {{ $unit->name }}? Its people stay followed, in no department." class="ml-2 text-xs text-red-700 underline">Delete</button>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-                <form wire:submit="saveDepartment" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p class="!mb-0 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $departmentEditId ? 'Change '.$departmentName : 'Add a department' }}</p>
-                    <div>
-                        <label for="department-name" class="mb-1 block text-xs font-semibold text-slate-600">Name</label>
-                        <input id="department-name" type="text" maxlength="60" wire:model="departmentName" placeholder="e.g. Nursing" class="ui-input !w-72">
-                        @error('departmentName')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-2">
-                        <fieldset>
-                            <legend class="mb-1 text-xs font-semibold text-slate-600">Headed by</legend>
-                            <div class="max-h-44 overflow-y-auto rounded border border-slate-200 bg-white p-2">
-                                @foreach($accounts as $account)
-                                    <label class="flex items-center gap-2 py-0.5 text-sm text-slate-800" wire:key="head-{{ $account->id }}"><input type="checkbox" value="{{ $account->id }}" wire:model="departmentHeads"> {{ $account->name }}</label>
-                                @endforeach
-                            </div>
-                            <p class="!mb-0 mt-1 text-xs text-slate-500">Any user of yours, whatever their role. They find "Department attendance" in their menu.</p>
-                        </fieldset>
-                        <fieldset>
-                            <legend class="mb-1 text-xs font-semibold text-slate-600">People in it</legend>
-                            <div class="max-h-44 overflow-y-auto rounded border border-slate-200 bg-white p-2">
-                                @forelse($departmentPeople as $person)
-                                    <label class="flex items-center gap-2 py-0.5 text-sm text-slate-800" wire:key="member-{{ $person->id }}"><input type="checkbox" value="{{ $person->id }}" wire:model="departmentMembers"> {{ $person->name }}
-                                        @if($person->unit && $person->attendance_department_id !== $departmentEditId)<span class="text-xs text-slate-400">now in {{ $person->unit->name }}</span>@endif</label>
-                                @empty
-                                    <p class="!mb-0 text-sm text-slate-500">Nobody is followed yet.</p>
-                                @endforelse
-                            </div>
-                            <p class="!mb-0 mt-1 text-xs text-slate-500">A person is in one department; ticking them here moves them.</p>
-                        </fieldset>
-                    </div>
-                    @if($shifts->isNotEmpty())
-                        <fieldset>
-                            <legend class="mb-1 text-xs font-semibold text-slate-600">Minimum cover: how many must be on each shift</legend>
-                            <div class="flex flex-wrap gap-3">
-                                @foreach($shifts->where('is_active', true) as $shift)
-                                    <div class="rounded border border-slate-200 bg-white p-2" wire:key="cover-form-{{ $shift->id }}">
-                                        <p class="!mb-1 text-xs font-medium text-slate-700">{{ $shift->name }}</p>
-                                        <div class="flex items-end gap-2">
-                                            <div><label for="cover-min-{{ $shift->id }}" class="block text-[11px] text-slate-500">Each day</label><input id="cover-min-{{ $shift->id }}" type="number" min="0" max="500" class="ui-input !w-20 !py-1 !text-sm" wire:model="departmentCover.{{ $shift->id }}.min" placeholder="None"></div>
-                                            <div><label for="cover-weekend-{{ $shift->id }}" class="block text-[11px] text-slate-500">Sat and Sun</label><input id="cover-weekend-{{ $shift->id }}" type="number" min="0" max="500" class="ui-input !w-20 !py-1 !text-sm" wire:model="departmentCover.{{ $shift->id }}.weekend" placeholder="Same"></div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                            <p class="!mb-0 mt-1 text-xs text-slate-500">The roster then shows where the department is short, and the board at the top of the page when it is short right now. Leave empty for no minimum.</p>
-                            @foreach(['departmentCover.*.min', 'departmentCover.*.weekend'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
-                        </fieldset>
-                    @endif
-                    <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="departmentOwnRules"> This department has rules of its own</label>
-                    @if($departmentOwnRules)
-                        <div class="flex flex-wrap items-end gap-3">
-                            <div><label for="department-grace" class="mb-1 block text-xs font-semibold text-slate-600">Grace period (minutes)</label><input id="department-grace" type="number" min="0" max="240" class="ui-input !w-32" wire:model="departmentGrace" placeholder="Branch: {{ $settings->grace_minutes }}"></div>
-                            <div><label for="department-break" class="mb-1 block text-xs font-semibold text-slate-600">Break allowed (minutes)</label><input id="department-break" type="number" min="0" max="480" class="ui-input !w-32" wire:model="departmentBreak" placeholder="Branch: {{ $settings->break_minutes ?? 60 }}"></div>
-                            <div><label for="department-overtime" class="mb-1 block text-xs font-semibold text-slate-600">Overtime starts after (minutes)</label><input id="department-overtime" type="number" min="1" max="480" class="ui-input !w-32" wire:model="departmentOvertimeAfter" placeholder="Branch: {{ $settings->overtime_after_minutes ?? 30 }}"></div>
-                            <p class="!mb-0 w-full text-xs text-slate-500">Leave one empty to follow the branch.</p>
-                        </div>
-                        @foreach(['departmentGrace', 'departmentBreak', 'departmentOvertimeAfter'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
-                        <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="departmentOwnHours"> It works different hours from the branch</label>
-                        @if($departmentOwnHours)
-                            @include('livewire.admin.partials.attendance-hours', ['model' => 'departmentHours', 'values' => $departmentHours])
-                            <p class="!mb-0 text-xs text-slate-500">For departments on shifts, use Shifts and the Roster instead; these hours apply on days a person has no shift.</p>
-                        @endif
-                    @endif
-                    <div class="flex items-center justify-end gap-2">
-                        @if($departmentEditId)<x-ui.button type="button" wire:click="openDepartments">Cancel</x-ui.button>@endif
-                        <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveDepartment">{{ $departmentEditId ? 'Save' : 'Add department' }}</x-ui.button>
-                    </div>
-                </form>
-            </div>
-        </x-ui.modal>
-    @endif
 
     @if($showStaffImport)
         <x-ui.modal title="Bring in a staff list" state="showStaffImport">

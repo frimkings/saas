@@ -107,4 +107,46 @@ trait AttendanceAccess
     {
         return app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
     }
+
+    /** A stored hours list as the seven rows of the form. */
+    private function hoursForm(array $stored): array
+    {
+        $form = [];
+        foreach (AttendanceSetting::DAYS as $weekday => $name) {
+            $day = AttendanceSetting::dayHours($stored, $weekday);
+            $form[$weekday] = ['on' => (bool) $day, 'start' => $day['start'] ?? '08:00', 'end' => $day['end'] ?? '17:00'];
+        }
+
+        return $form;
+    }
+
+    /** The ticked days of an hours form as stored, or null (with the error shown) when it cannot be saved. */
+    private function hoursFrom(string $property): ?array
+    {
+        $this->validate([
+            "$property.*.start" => 'required|date_format:H:i',
+            "$property.*.end" => 'required|date_format:H:i',
+        ], [], ["$property.*.start" => 'start time', "$property.*.end" => 'end time']);
+
+        $hours = [];
+        foreach (AttendanceSetting::DAYS as $weekday => $name) {
+            $day = $this->{$property}[$weekday] ?? null;
+            if (empty($day['on'])) {
+                continue;
+            }
+            if ($day['end'] <= $day['start']) {
+                $this->addError("$property.$weekday.end", "$name must end after it starts.");
+
+                return null;
+            }
+            $hours[$weekday] = ['start' => $day['start'], 'end' => $day['end']];
+        }
+        if (! $hours) {
+            $this->addError($property, 'Keep at least one working day.');
+
+            return null;
+        }
+
+        return $hours;
+    }
 }

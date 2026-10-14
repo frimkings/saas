@@ -98,12 +98,14 @@ class AttendanceDepartmentsTest extends TestCase
     public function test_a_branch_without_departments_sees_none_of_it_and_a_manager_sets_them_up(): void
     {
         $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-23')
-            ->assertDontSee('All departments')->assertDontSeeHtml('wire:key="unit-')->assertSeeHtml('wire:click="openDepartments"');
+            ->assertDontSee('All departments')->assertDontSeeHtml('wire:key="unit-')->assertSee('/admin/attendance/departments');
 
-        $page->call('openDepartments')->assertSee('The terminal already has 1 department name')
+        // Departments have a page of their own; a department opens in a panel.
+        $this->get(route('admin.attendance.departments'))->assertOk()->assertSee('No departments yet');
+        $departments = Livewire::test(\App\Livewire\Admin\AttendanceDepartmentsComponent::class)->assertSee('The terminal already has 1 department name')->call('openDepartments')->assertSet('showDepartments', true)
             ->set('departmentName', 'Nursing')->set('departmentHeads', [(string) $this->esi->id])->set('departmentMembers', [(string) $this->ama->id])
-            ->call('saveDepartment')->assertHasNoErrors()->assertSee('Esi Head')
-            ->set('departmentName', 'Nursing')->call('saveDepartment')->assertHasErrors(['departmentName'])
+            ->call('saveDepartment')->assertHasNoErrors()->assertSet('showDepartments', false)->assertSee('Esi Head')
+            ->call('openDepartments')->set('departmentName', 'Nursing')->call('saveDepartment')->assertHasErrors(['departmentName'])
             ->call('departmentsFromTerminal');
         $nursing = AttendanceDepartment::where('name', 'Nursing')->firstOrFail();
         $laboratory = AttendanceDepartment::where('name', 'Laboratory')->firstOrFail();
@@ -111,7 +113,7 @@ class AttendanceDepartmentsTest extends TestCase
         $this->assertSame([$nursing->id, $laboratory->id, null], [$this->ama->fresh()->attendance_department_id, $this->kofi->fresh()->attendance_department_id, $this->yaa->fresh()->attendance_department_id]);
 
         // Now the page compares departments and can show one at a time.
-        $page->set('showDepartments', false)->set('tab', 'report')->assertSee('All departments')->assertSeeHtml('wire:key="unit-'.$nursing->id.'"')->assertSeeHtml('wire:key="unit-none"')
+        $page->set('tab', 'report')->assertSee('All departments')->assertSeeHtml('wire:key="unit-'.$nursing->id.'"')->assertSeeHtml('wire:key="unit-none"')
             ->set('department', (string) $nursing->id)->assertSeeHtml('wire:key="summary-'.$this->ama->id.'"')->assertDontSeeHtml('wire:key="summary-'.$this->kofi->id.'"')
             ->set('department', 'none')->assertSeeHtml('wire:key="summary-'.$this->yaa->id.'"')->assertDontSeeHtml('wire:key="summary-'.$this->ama->id.'"')
             ->set('department', '');
@@ -125,7 +127,7 @@ class AttendanceDepartmentsTest extends TestCase
         $this->assertStringNotContainsString('Ama Owusu', $csv);
 
         // Deleting a department leaves its people followed, in none.
-        $page->call('removeDepartment', $laboratory->id);
+        $departments->call('editDepartment', $laboratory->id)->assertSet('showDepartments', true)->assertSee('Kofi Boateng')->call('removeDepartment', $laboratory->id);
         $this->assertNull($this->kofi->fresh()->attendance_department_id);
         $this->assertSame(1, AttendanceDepartment::count());
     }
@@ -135,7 +137,7 @@ class AttendanceDepartmentsTest extends TestCase
         // On the branch's rules Ama, in at 7:10 and out at 15:15, is on time but left early.
         $this->assertSame(['on_time', true, 0], [$this->day($this->ama)['status'], $this->day($this->ama)['left_early'], $this->day($this->ama)['overtime_minutes']]);
 
-        Livewire::test(AttendanceComponent::class)->call('openDepartments')->set('departmentName', 'Nursing')->set('departmentMembers', [(string) $this->ama->id])
+        Livewire::test(\App\Livewire\Admin\AttendanceDepartmentsComponent::class)->call('openDepartments')->set('departmentName', 'Nursing')->set('departmentMembers', [(string) $this->ama->id])
             ->set('departmentOwnRules', true)->set('departmentGrace', '5')->set('departmentOvertimeAfter', '10')->set('departmentOwnHours', true)
             ->set('departmentHours.1.start', '07:00')->set('departmentHours.1.end', '15:00')->call('saveDepartment')->assertHasNoErrors();
         $nursing = AttendanceDepartment::firstOrFail();
@@ -208,10 +210,11 @@ class AttendanceDepartmentsTest extends TestCase
 
         // Anyone else's, and anything that sets up the branch, is refused.
         foreach ([['openStaff', $this->kofi->id], ['openPunches', $this->kofi->id, '2026-10-19'],
-            ['decideOvertime', $this->kofi->id, '2026-10-19', true], ['editHours'], ['openDepartments'], ['saveStaff'], ['openPayroll'], ['openLeaveTypes'], ['openPhone']] as $call) {
+            ['decideOvertime', $this->kofi->id, '2026-10-19', true], ['editHours'], ['saveStaff'], ['openPayroll'], ['openLeaveTypes'], ['openPhone']] as $call) {
             Livewire::test(AttendanceComponent::class)->call(...$call)->assertForbidden();
         }
         Livewire::test(\App\Livewire\Admin\AttendanceRosterComponent::class)->call('setRoster', $this->kofi->id, '2026-10-20', '0')->assertForbidden();
+        $this->get(route('admin.attendance.departments'))->assertForbidden();
         // Being pointed at someone else's window shows nothing.
         Livewire::test(AttendanceComponent::class)->set('staffId', $this->kofi->id)->set('showStaff', true)->assertSet('showStaff', false);
 

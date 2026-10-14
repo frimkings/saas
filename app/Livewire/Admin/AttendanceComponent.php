@@ -57,21 +57,6 @@ class AttendanceComponent extends Component
     #[Url]
     public string $department = '';
 
-    // Departments: the list, each one's heads, people and rules of its own.
-    public bool $showDepartments = false;
-    public ?int $departmentEditId = null;
-    public string $departmentName = '';
-    public array $departmentHeads = [];
-    public array $departmentMembers = [];
-    public bool $departmentOwnRules = false;
-    public bool $departmentOwnHours = false;
-    public array $departmentHours = [];
-    public string $departmentGrace = '';
-    public string $departmentBreak = '';
-    public string $departmentOvertimeAfter = '';
-    public string $staffDepartmentId = '';
-    /** Shift id => ['min' => string, 'weekend' => string]: how many of the department must be on each shift. */
-    public array $departmentCover = [];
 
     // Day by day: the month on the calendar ('Y-m') and the day whose list is open ('Y-m-d').
     public string $calendarMonth = '';
@@ -136,6 +121,8 @@ class AttendanceComponent extends Component
     public string $leaveToTime = '';
 
     public bool $showRequests = false;
+    /** The department picked in a person's window. */
+    public string $staffDepartmentId = '';
     public bool $showMore = false;
 
     // The branch's kinds of leave and their yearly allowances.
@@ -582,48 +569,6 @@ class AttendanceComponent extends Component
             'min_rest_hours' => $this->minRestHours === '' ? null : (int) $this->minRestHours, 'max_nights_in_row' => $this->maxNights === '' ? null : (int) $this->maxNights])->save();
         $this->showHours = false;
         $this->dispatch('notify', type: 'success', message: 'Working hours saved.');
-    }
-
-    /** A stored hours list as the seven rows of the form. */
-    private function hoursForm(array $stored): array
-    {
-        $form = [];
-        foreach (AttendanceSetting::DAYS as $weekday => $name) {
-            $day = AttendanceSetting::dayHours($stored, $weekday);
-            $form[$weekday] = ['on' => (bool) $day, 'start' => $day['start'] ?? '08:00', 'end' => $day['end'] ?? '17:00'];
-        }
-
-        return $form;
-    }
-
-    /** The ticked days of an hours form as stored, or null (with the error shown) when it cannot be saved. */
-    private function hoursFrom(string $property): ?array
-    {
-        $this->validate([
-            "$property.*.start" => 'required|date_format:H:i',
-            "$property.*.end" => 'required|date_format:H:i',
-        ], [], ["$property.*.start" => 'start time', "$property.*.end" => 'end time']);
-
-        $hours = [];
-        foreach (AttendanceSetting::DAYS as $weekday => $name) {
-            $day = $this->{$property}[$weekday] ?? null;
-            if (empty($day['on'])) {
-                continue;
-            }
-            if ($day['end'] <= $day['start']) {
-                $this->addError("$property.$weekday.end", "$name must end after it starts.");
-
-                return null;
-            }
-            $hours[$weekday] = ['start' => $day['start'], 'end' => $day['end']];
-        }
-        if (! $hours) {
-            $this->addError($property, 'Keep at least one working day.');
-
-            return null;
-        }
-
-        return $hours;
     }
 
     public function addDevice(): void
@@ -1075,111 +1020,6 @@ class AttendanceComponent extends Component
         abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can open payroll.');
     }
 
-    public function openDepartments(): void
-    {
-        $this->authorizeAccess();
-        $this->authorizeHospital();
-        $this->reset('departmentEditId', 'departmentName', 'departmentHeads', 'departmentMembers', 'departmentOwnRules', 'departmentOwnHours', 'departmentGrace', 'departmentBreak', 'departmentOvertimeAfter', 'departmentCover');
-        $this->departmentHours = $this->hoursForm(AttendanceSetting::current()->hours ?? []);
-        $this->resetValidation();
-        $this->showDepartments = true;
-    }
-
-    public function editDepartment(int $id): void
-    {
-        $this->authorizeAccess();
-        $department = \App\Models\AttendanceDepartment::query()->findOrFail($id);
-        $this->departmentEditId = $department->id;
-        $this->departmentName = $department->name;
-        $this->departmentHeads = array_map('strval', $department->heads ?? []);
-        $this->departmentMembers = $department->staff()->pluck('id')->map(fn ($id) => (string) $id)->all();
-        $this->departmentOwnRules = $department->hasOwnRules();
-        $this->departmentOwnHours = (bool) $department->hours;
-        $this->departmentHours = $this->hoursForm($department->hours ?: (AttendanceSetting::current()->hours ?? []));
-        $this->departmentGrace = (string) ($department->grace_minutes ?? '');
-        $this->departmentBreak = (string) ($department->break_minutes ?? '');
-        $this->departmentOvertimeAfter = (string) ($department->overtime_after_minutes ?? '');
-        $this->departmentCover = [];
-        foreach (\App\Models\AttendanceCover::query()->where('attendance_department_id', $department->id)->get() as $cover) {
-            $this->departmentCover[$cover->attendance_shift_id] = ['min' => (string) $cover->minimum, 'weekend' => (string) ($cover->weekend_minimum ?? '')];
-        }
-        $this->resetValidation();
-    }
-
-    /** Add a department or change one: its name, heads, people, and any rules of its own. */
-    public function saveDepartment(): void
-    {
-        $this->authorizeAccess();
-        $this->authorizeHospital();
-        $this->departmentName = trim($this->departmentName);
-        $this->validate([
-            'departmentName' => ['required', 'string', 'max:60', \Illuminate\Validation\Rule::unique('attendance_departments', 'name')
-                ->where('branch_id', app(\App\Support\Tenancy\TenantContext::class)->branchId())->ignore($this->departmentEditId)],
-            'departmentGrace' => 'nullable|integer|min:0|max:240',
-            'departmentBreak' => 'nullable|integer|min:0|max:480',
-            'departmentOvertimeAfter' => 'nullable|integer|min:1|max:480',
-            'departmentCover.*.min' => 'nullable|integer|min:0|max:500',
-            'departmentCover.*.weekend' => 'nullable|integer|min:0|max:500',
-        ], ['departmentName.unique' => 'There is already a department with that name.'],
-            ['departmentName' => 'name', 'departmentGrace' => 'grace period', 'departmentBreak' => 'break allowed', 'departmentOvertimeAfter' => 'overtime threshold',
-                'departmentCover.*.min' => 'minimum cover', 'departmentCover.*.weekend' => 'weekend cover']);
-        $hours = null;
-        if ($this->departmentOwnRules && $this->departmentOwnHours && ! $hours = $this->hoursFrom('departmentHours')) {
-            return;
-        }
-        $number = fn (string $value) => $this->departmentOwnRules && $value !== '' ? (int) $value : null;
-        $values = [
-            'name' => $this->departmentName,
-            // Only this clinic's users can head a department.
-            'heads' => User::query()->inCurrentClinic()->whereKey(array_map('intval', $this->departmentHeads))->pluck('id')->all() ?: null,
-            'hours' => $hours,
-            'grace_minutes' => $number($this->departmentGrace),
-            'break_minutes' => $number($this->departmentBreak),
-            'overtime_after_minutes' => $number($this->departmentOvertimeAfter),
-        ];
-        $department = $this->departmentEditId ? \App\Models\AttendanceDepartment::query()->findOrFail($this->departmentEditId) : new \App\Models\AttendanceDepartment();
-        $department->fill($values)->save();
-
-        // Minimum cover: one line per shift that has a number.
-        \App\Models\AttendanceCover::query()->where('attendance_department_id', $department->id)->delete();
-        foreach (\App\Models\AttendanceShift::query()->pluck('id') as $shiftId) {
-            $cover = $this->departmentCover[$shiftId] ?? [];
-            if (trim((string) ($cover['min'] ?? '')) !== '' && (int) $cover['min'] > 0) {
-                \App\Models\AttendanceCover::create(['attendance_department_id' => $department->id, 'attendance_shift_id' => $shiftId, 'minimum' => (int) $cover['min'],
-                    'weekend_minimum' => trim((string) ($cover['weekend'] ?? '')) === '' ? null : (int) $cover['weekend']]);
-            }
-        }
-
-        // Its people: those ticked join it (leaving any other department); those unticked leave it.
-        $members = array_map('intval', $this->departmentMembers);
-        AttendanceStaff::query()->where('attendance_department_id', $department->id)->whereNotIn('id', $members ?: [0])->update(['attendance_department_id' => null]);
-        AttendanceStaff::query()->whereIn('id', $members ?: [0])->update(['attendance_department_id' => $department->id]);
-        $this->openDepartments();
-        $this->dispatch('notify', type: 'success', message: "{$department->name} saved.");
-    }
-
-    /** Its people stay followed, in no department. */
-    public function removeDepartment(int $id): void
-    {
-        $this->authorizeAccess();
-        \App\Models\AttendanceDepartment::query()->findOrFail($id)->delete();
-        if ($this->department === (string) $id) {
-            $this->department = '';
-        }
-        $this->openDepartments();
-    }
-
-    /** Make a department for each department name the terminal has for people, and put them in it. */
-    public function departmentsFromTerminal(): void
-    {
-        $this->authorizeAccess();
-        $this->authorizeHospital();
-        foreach (AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->get() as $staff) {
-            $department = \App\Models\AttendanceDepartment::query()->firstOrCreate(['name' => mb_substr(trim($staff->department), 0, 60)]);
-            $staff->update(['attendance_department_id' => $department->id]);
-        }
-    }
-
     /** How each department did in the days on show, with people in none last. */
     private function departmentSummary(array $report, $departments): array
     {
@@ -1328,8 +1168,6 @@ class AttendanceComponent extends Component
             'staffPack' => $manager ? $this->staffPackOffer() : null,
             'departments' => $visible,
             'departmentSummary' => $manager && $departments->isNotEmpty() && $this->department === '' && $this->view === 'summary' ? $this->departmentSummary($report, $departments) : [],
-            'departmentPeople' => $this->showDepartments ? AttendanceStaff::query()->where('is_tracked', true)->with('unit:id,name')->orderBy('name')->get() : collect(),
-            'terminalLabels' => $this->showDepartments ? AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->distinct()->count('department') : 0,
             'trends' => $trends,
             'pager' => $pager,
             'sort' => $sort,
@@ -1358,7 +1196,7 @@ class AttendanceComponent extends Component
             'balanceYear' => $last->year,
             'requestDays' => $this->showRequests ? $this->requestDays() : [],
             'leaves' => $this->showStaff ? AttendanceLeave::query()->where('attendance_staff_id', $this->staffId)->orderByDesc('starts_on')->limit(20)->get() : collect(),
-            'accounts' => $this->showStaff || $this->showDepartments ? User::query()->inCurrentClinic()->orderBy('name')->get(['id', 'name']) : collect(),
+            'accounts' => $this->showStaff ? User::query()->inCurrentClinic()->orderBy('name')->get(['id', 'name']) : collect(),
             'holidayList' => $this->showHolidays ? AttendanceHoliday::query()->whereYear('date', $last->year)->orderBy('date')->get() : collect(),
             'imports' => $this->showUpload ? AttendanceImport::query()->with('uploader:id,name')->latest('id')->limit(5)->get() : collect(),
             'hasData' => AttendanceStaff::query()->exists() || AttendanceDevice::query()->exists(),

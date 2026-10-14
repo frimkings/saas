@@ -113,7 +113,7 @@ class AttendanceWardRosterTest extends TestCase
     public function test_the_roster_and_the_board_show_where_a_department_is_short(): void
     {
         // Two on the morning shift each day, one at weekends.
-        $page = Livewire::test(AttendanceComponent::class)->call('editDepartment', $this->nursing->id)
+        $page = Livewire::test(\App\Livewire\Admin\AttendanceDepartmentsComponent::class)->call('editDepartment', $this->nursing->id)
             ->set('departmentMembers', [(string) $this->ama->id, (string) $this->kofi->id])
             ->set('departmentCover.'.$this->morning->id.'.min', '2')->set('departmentCover.'.$this->morning->id.'.weekend', '1')
             ->set('departmentCover.'.$this->night->id.'.min', '')->call('saveDepartment')->assertHasNoErrors();

@@ -102,14 +102,15 @@ class AttendancePlanSizeTest extends TestCase
 
         $page = Livewire::withQueryParams(['view' => 'trends'])->test(AttendanceComponent::class)->assertSet('view', 'summary')
             ->assertSee('/admin/attendance/roster?')->assertDontSee('Month by month')
-            ->assertDontSeeHtml('wire:click="openDepartments"')->assertDontSeeHtml('wire:click="openLeaveTypes"')->assertDontSeeHtml('wire:click="openPhone"')
+            ->assertDontSee('/admin/attendance/departments')->assertDontSeeHtml('wire:click="openLeaveTypes"')->assertDontSeeHtml('wire:click="openPhone"')
             ->assertDontSeeHtml('wire:click="openPayroll"')
             // What is not in the plan is listed with what it does and, where offered, its price.
             ->set('showMore', true)->assertSee('More attendance features')->assertSee('Payroll')->assertSee('GHS 50.00 a month')->assertSee('Hospital tools')
             ->assertSee('Contact us to add it')
             ->call('requestPart', Feature::ATTENDANCE_PAYROLL)->assertSee('Asked for; waiting');
         $this->assertSame(1, ClinicAddonRequest::where('feature', Feature::ATTENDANCE_PAYROLL)->where('status', 'pending')->count());
-        foreach (['openDepartments', 'openStaffImport', 'openPayroll', 'openLeaveTypes', 'openPhone'] as $action) {
+        $this->get(route('admin.attendance.departments'))->assertForbidden();
+        foreach (['openStaffImport', 'openPayroll', 'openLeaveTypes', 'openPhone'] as $action) {
             Livewire::test(AttendanceComponent::class)->call($action)->assertForbidden();
         }
         // The roster is in the plan, its rotation patterns (a hospital tool) are not.
