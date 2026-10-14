@@ -25,9 +25,10 @@
     </div>
 
     {{-- The whole branch at a glance; a count picked lists those people. --}}
-    <div class="grid grid-cols-2 gap-2 p-3 sm:grid-cols-5">
+    {{-- The five counts on one row, wrapping only on a narrow screen. --}}
+    <div class="flex flex-wrap gap-2 p-3">
         @foreach($states as $key => [$label, $tone, $kinds])
-            <button type="button" wire:click="$set('boardShow', '{{ $boardShow === $key ? '' : $key }}')" @class(['rounded-lg border px-3 py-2 text-left', 'border-teal-600 ring-1 ring-teal-600' => $boardShow === $key, 'border-slate-200 hover:bg-slate-50' => $boardShow !== $key]) aria-pressed="{{ $boardShow === $key ? 'true' : 'false' }}">
+            <button type="button" style="flex:1 1 0;min-width:7.5rem" wire:click="$set('boardShow', '{{ $boardShow === $key ? '' : $key }}')" @class(['rounded-lg border px-3 py-2 text-left', 'border-teal-600 ring-1 ring-teal-600' => $boardShow === $key, 'border-slate-200 hover:bg-slate-50' => $boardShow !== $key]) aria-pressed="{{ $boardShow === $key ? 'true' : 'false' }}">
                 <span class="block text-xs text-slate-500">{{ $label }}</span>
                 <span class="mt-0.5 inline-block rounded px-1.5 text-lg font-semibold tabular-nums {{ $tone }}">{{ $count($everyone, $kinds) }}</span>
             </button>

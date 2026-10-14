@@ -1163,46 +1163,51 @@
         <x-ui.modal :title="$detail['staff']->name.' · '.$periodLabel" state="showStaff">
             <div class="attendance-person space-y-4 p-4">
                 @if($manager)
-                <form wire:submit="saveStaff" class="space-y-3 rounded-lg bg-slate-50 p-3">
-                    <div class="flex flex-wrap items-end gap-3">
-                        <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="staffTracked"> Follow this person's attendance</label>
+                <form wire:submit="saveStaff" class="space-y-4 rounded-lg bg-slate-50 p-4">
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="staffTracked"> Follow this person's attendance</label>
+                    {{-- Fields side by side, each the width of its column. --}}
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.75rem 1rem;align-items:start">
                         <div>
                             <label for="attendance-starts" class="mb-1 block text-xs font-medium text-slate-600">Count from (optional)</label>
-                            <input id="attendance-starts" type="date" class="ui-input !w-44 !py-1.5 !text-sm" wire:model="staffStartsOn">
+                            <input id="attendance-starts" type="date" class="ui-input !w-full !py-1.5 !text-sm" wire:model="staffStartsOn">
+                            @error('staffStartsOn')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                         </div>
-                    </div>
-                    @error('staffStartsOn')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                    <div>
-                        <label for="attendance-account" class="mb-1 block text-xs font-medium text-slate-600">User account (optional)</label>
-                        <select id="attendance-account" class="ui-input !w-72 !py-1.5 !text-sm" wire:model="staffUserId">
-                            <option value="">Not linked</option>
-                            @foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach
-                        </select>
-                        <p class="!mb-0 mt-1 text-xs text-slate-500">Once linked, this person sees their own attendance on their profile page.</p>
-                        @error('staffUserId')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                    </div>
-                    @if($departments->isNotEmpty())
+                        @if($departments->isNotEmpty())
+                            <div>
+                                <label for="attendance-department" class="mb-1 block text-xs font-medium text-slate-600">Department</label>
+                                <select id="attendance-department" class="ui-input !w-full !py-1.5 !text-sm" wire:model="staffDepartmentId">
+                                    <option value="">No department</option>
+                                    @foreach($departments as $unit)<option value="{{ $unit->id }}">{{ $unit->name }}</option>@endforeach
+                                </select>
+                            </div>
+                        @endif
                         <div>
-                            <label for="attendance-department" class="mb-1 block text-xs font-medium text-slate-600">Department</label>
-                            <select id="attendance-department" class="ui-input !w-72 !py-1.5 !text-sm" wire:model="staffDepartmentId">
-                                <option value="">No department</option>
-                                @foreach($departments as $unit)<option value="{{ $unit->id }}">{{ $unit->name }}</option>@endforeach
+                            <label for="attendance-account" class="mb-1 block text-xs font-medium text-slate-600">User account (optional)</label>
+                            <select id="attendance-account" class="ui-input !w-full !py-1.5 !text-sm" wire:model="staffUserId">
+                                <option value="">Not linked</option>
+                                @foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach
                             </select>
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">Once linked, they see their own attendance on their profile.</p>
+                            @error('staffUserId')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                         </div>
-                    @endif
-                    <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="staffOwnHours"> Works different hours from the {{ $departments->isNotEmpty() ? 'department or branch' : 'branch' }}</label>
-                    @if($staffOwnHours)
-                        @include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])
-                    @endif
+                    </div>
+                    @error('staffTracked')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    <div>
+                        <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="staffOwnHours"> Works different hours from the {{ $departments->isNotEmpty() ? 'department or branch' : 'branch' }}</label>
+                        @if($staffOwnHours)
+                            <div class="mt-2">@include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])</div>
+                        @endif
+                    </div>
                     @if($shifts->isNotEmpty() && $extras['shifts'])
                         <div>
-                            <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Weekly shifts</p>
+                            <p class="!mb-0.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Weekly shifts</p>
                             <p class="!mb-2 text-xs text-slate-500">The shift worked on each weekday. "Usual hours" follows the hours above; the roster can change single days.</p>
-                            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {{-- The seven days on one row where there is room. --}}
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(6.75rem,1fr));gap:.5rem">
                                 @foreach(\App\Models\AttendanceSetting::DAYS as $weekday => $dayName)
                                     <div>
                                         <label for="shift-week-{{ $weekday }}" class="mb-1 block text-xs font-medium text-slate-600">{{ $dayName }}</label>
-                                        <select id="shift-week-{{ $weekday }}" class="ui-input !py-1.5 !text-sm" wire:model="staffShiftWeek.{{ $weekday }}">
+                                        <select id="shift-week-{{ $weekday }}" class="ui-input !w-full !py-1.5 !text-sm" wire:model="staffShiftWeek.{{ $weekday }}">
                                             <option value="">Usual hours</option>
                                             @foreach($shifts as $shift)
                                                 @if($shift->is_active || (string) $shift->id === ($staffShiftWeek[$weekday] ?? ''))<option value="{{ $shift->id }}">{{ $shift->name }}</option>@endif
@@ -1214,7 +1219,7 @@
                             </div>
                         </div>
                     @endif
-                    <div class="flex justify-end">
+                    <div class="flex justify-end border-t border-slate-200 pt-3">
                         <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveStaff">Save</x-ui.button>
                     </div>
                 </form>
