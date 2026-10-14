@@ -17,6 +17,7 @@ class SubscriptionQuotaService
         return [
             'branches'=>['used'=>$clinic->branches()->where('is_active',true)->count(),'limit'=>$subscription?->branchLimit()],
             'users'=>['used'=>$clinic->users()->wherePivot('status','active')->count(),'limit'=>data_get($plan,'included_users')],
+            'attendance_staff'=>['used'=>\App\Support\AttendancePlan::followed($clinic),'limit'=>\App\Support\AttendancePlan::staffLimit($clinic)],
             'storage_mb'=>['used'=>(float)PatientDocument::query()->where('clinic_id',$clinic->id)->sum('file_size')/1048576,'limit'=>data_get($plan,'storage_limit_mb')],
         ];
     }

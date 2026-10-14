@@ -32,6 +32,9 @@ class SendOwnerSummariesCommand extends Command
                 foreach ($summaries->sendDue($clinic) as $period => $status) {
                     $this->line("{$clinic->name}: {$period} summary {$status}");
                 }
+                if ($heads = $summaries->sendToDepartmentHeads($clinic)) {
+                    $this->line("{$clinic->name}: {$heads} department head email(s)");
+                }
             } catch (\Throwable $e) {
                 report($e);
                 $this->warn("{$clinic->name}: {$e->getMessage()}");

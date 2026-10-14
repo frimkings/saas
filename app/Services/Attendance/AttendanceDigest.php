@@ -16,8 +16,39 @@ class AttendanceDigest
 {
     private const MOST_LATE_SHOWN = 3;
 
-    public function __construct(private readonly AttendanceAnalyzer $analyzer)
+    public function __construct(private AttendanceAnalyzer $analyzer)
     {
+    }
+
+    /** The same, for these people only: a department's, for its head's email. Null = everyone. */
+    public function only(?array $staffIds): static
+    {
+        $limited = clone $this;
+        $limited->analyzer = $this->analyzer->forStaff($staffIds);
+
+        return $limited;
+    }
+
+    /** Departments side by side, when the people reported on are in more than one: [name, present, expected, late, absent]. */
+    private function departments(array $rows): array
+    {
+        $groups = [];
+        foreach ($rows as $row) {
+            $name = $row['staff']->unit?->name ?? 'No department';
+            $groups[$name] ??= ['name' => $name, 'present' => 0, 'expected' => 0, 'late' => 0, 'absent' => 0];
+            foreach (['present', 'expected', 'late', 'absent'] as $sum) {
+                $groups[$name][$sum] += $row['totals'][$sum];
+            }
+        }
+        if (count($groups) < 2) {
+            return [];
+        }
+        ksort($groups);
+        // People in no department go last.
+        $none = $groups['No department'] ?? null;
+        unset($groups['No department']);
+
+        return array_values($groups + ($none ? ['No department' => $none] : []));
     }
 
     public function block(string $period, CarbonInterface $from, CarbonInterface $to, CarbonInterface $previousFrom, CarbonInterface $previousTo): ?array
@@ -30,7 +61,7 @@ class AttendanceDigest
         $report = $this->analyzer->range($day($from), $day($to));
         $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
         $block = ['period' => $period, 'note' => null, 'headline' => null, 'rate' => null, 'previousRate' => null,
-            'exceptions' => [], 'rows' => [], 'mostLate' => null, 'perfect' => []];
+            'exceptions' => [], 'rows' => [], 'mostLate' => null, 'perfect' => [], 'departments' => []];
 
         if (! $report['covered_until']) {
             $block['note'] = 'No attendance was received for this period. Check that the terminal is connected, or upload its report.';
@@ -39,6 +70,7 @@ class AttendanceDigest
         }
 
         $totals = $report['totals'];
+        $block['departments'] = $this->departments($rows);
         $block['rate'] = $totals['expected'] ? round($totals['present'] / $totals['expected'] * 100, 1) : null;
         $lastDay = $day($to)->format('Y-m-d');
         if ($report['covered_until'] < $lastDay) {

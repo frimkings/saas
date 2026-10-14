@@ -79,6 +79,10 @@ class AttendanceOvertimeTest extends TestCase
         $this->assertSame(['worked_off', 180, 'pending'], [$row['days']['2026-10-24']['status'], $row['days']['2026-10-24']['overtime_minutes'], $row['days']['2026-10-24']['overtime_status']]);
         $this->assertSame([0, 270], [$row['totals']['overtime_minutes'], $row['totals']['overtime_pending']]);
 
+        // The Requests tab lists the same, beside leave requests.
+        Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')->set('tab', 'requests')
+            ->assertSee('Leave requests')->assertSee('1h 30m overtime')->assertSee('No requests are waiting.');
+
         $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')
             ->assertSee('days of overtime are')->set('showOvertime', true)->assertSee('1h 30m overtime')->assertSee('on a day off')
             // More than was worked is refused.

@@ -71,7 +71,7 @@ class AttendanceOnlyProductTest extends TestCase
     {
         $only = PlanProduct::features('attendance', ['audit_trail', 'sms_campaigns', 'appointments']);
         // Extras that mean nothing without a clinic or a shop are dropped.
-        $this->assertSame(['attendance_only', 'attendance', 'audit_trail'], $only);
+        $this->assertSame(['attendance_only', 'attendance', 'audit_trail', 'attendance_parts_chosen'], $only);
         $this->assertSame('attendance', PlanProduct::productOf($only));
         $this->assertTrue(PlanProduct::allows($only, 'attendance'));
         $this->assertTrue(PlanProduct::allows($only, 'audit_trail'));
@@ -83,12 +83,12 @@ class AttendanceOnlyProductTest extends TestCase
         $this->assertTrue(PlanProduct::allows($all, 'owner_daily_summary'));
         $this->assertFalse(PlanProduct::allows($all, 'sms_campaigns'));
         $this->assertFalse(PlanProduct::allows($all, 'clinical'));
-        $this->assertSame(PlanProduct::ATTENDANCE_EXTRAS, PlanProduct::extrasOf($all));
+        $this->assertEqualsCanonicalizing(PlanProduct::ATTENDANCE_EXTRAS, PlanProduct::extrasOf($all));
 
         // On a clinic or optical plan attendance is an extra like any other: ticked, in "every extra", or not there.
         $this->assertFalse(PlanProduct::allows(PlanProduct::features('clinic', ['appointments']), 'attendance'));
         $withIt = PlanProduct::features('clinic', ['attendance']);
-        $this->assertSame(['clinical', 'attendance'], $withIt);
+        $this->assertSame(['clinical', 'attendance', 'attendance_parts_chosen'], $withIt);
         $this->assertSame('clinic', PlanProduct::productOf($withIt));
         $this->assertTrue(PlanProduct::allows($withIt, 'attendance'));
         $this->assertTrue(PlanProduct::allows(PlanProduct::features('optical', [], true), 'attendance'));
@@ -195,7 +195,7 @@ class AttendanceOnlyProductTest extends TestCase
 
         $plan = SubscriptionPlan::where('code', 'attendance-basic')->firstOrFail();
         $this->assertSame('attendance', $plan->product);
-        $this->assertSame(['attendance_only', 'attendance', 'audit_trail'], $plan->features);
+        $this->assertSame(['attendance_only', 'attendance', 'audit_trail', 'attendance_parts_chosen'], $plan->features);
 
         $clinicPlan = $this->plan('clinic-basic', 'clinic');
         foreach ([['Time Co', 'time-co', $plan], ['Clinic One', 'clinic-one', $clinicPlan]] as [$name, $slug, $its]) {
@@ -211,7 +211,7 @@ class AttendanceOnlyProductTest extends TestCase
             ->set('newAdminName', 'Office Owner')->set('newAdminEmail', 'owner@newoffice.test')
             ->call('onboardClinic')->assertHasNoErrors();
 
-        $this->assertSame(['attendance_only', 'attendance', 'audit_trail'], Clinic::where('slug', 'new-office')->firstOrFail()->subscriptions()->latest('id')->first()->feature_snapshot);
+        $this->assertSame(['attendance_only', 'attendance', 'audit_trail', 'attendance_parts_chosen'], Clinic::where('slug', 'new-office')->firstOrFail()->subscriptions()->latest('id')->first()->feature_snapshot);
     }
 
     public function test_the_owner_summary_for_attendance_only_has_no_sales_figures(): void

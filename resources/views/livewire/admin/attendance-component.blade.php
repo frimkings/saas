@@ -24,9 +24,9 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 {{-- Each of these appears once the branch uses it, so a small clinic sees a short page. --}}
-                @if($shifts->isNotEmpty())<button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>@endif
-                @if($overtime)<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
-                @if($canPay && $paysStaff)<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
+                @if($shifts->isNotEmpty() && $extras['shifts'])<button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>@endif
+                @if($overtime && $extras['overtime'])<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
+                @if($canPay && $paysStaff && $extras['payroll'])<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
                 {{-- Things set once and seldom changed: the owner and managers only. --}}
                 @if($manager)
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
@@ -34,13 +34,15 @@
                     <div x-show="open" x-cloak @click="open = false" class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg" role="menu">
                         @foreach([
                             ['editHours', 'fa-clock', 'Working hours'],
-                            ["\$set('showShifts', true)", 'fa-layer-group', 'Shifts'],
-                            ['openLeaveTypes', 'fa-umbrella-beach', 'Leave types'],
+                            ["\$set('showShifts', true)", 'fa-layer-group', 'Shifts', $extras['shifts']],
+                            ['openLeaveTypes', 'fa-umbrella-beach', 'Leave types', $extras['leave']],
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
-                            ['openPhone', 'fa-mobile-screen', 'Phone clock-in'],
-                            ['openDepartments', 'fa-sitemap', 'Departments'],
-                            ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff],
+                            ['openPhone', 'fa-mobile-screen', 'Phone clock-in', $extras['phone']],
+                            ['openDepartments', 'fa-sitemap', 'Departments', $hospital],
+                            ['openStaffImport', 'fa-file-import', 'Bring in a staff list', $hospital],
+                            ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff && $extras['payroll']],
+                            ["\$set('showMore', true)", 'fa-circle-plus', 'More attendance features', (bool) $locked],
                         ] as $item)
                             @continue(($item[3] ?? true) === false)
                             @php [$action, $icon, $label] = $item; @endphp
@@ -60,72 +62,62 @@
             </div>
         @endforeach
 
-        @if($requests->isNotEmpty())
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
-                <span><i class="fas fa-envelope-open-text mr-1" aria-hidden="true"></i><strong>{{ $requests->count() }}</strong> leave {{ $requests->count() === 1 ? 'request is' : 'requests are' }} waiting for an answer.</span>
-                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="$set('showRequests', true)">Review</button>
+        @if($staffLimit !== null && ($staffFollowed >= $staffLimit || $notFollowed))
+            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <i class="fas fa-users mr-1" aria-hidden="true"></i>Your plan follows up to <strong>{{ number_format($staffLimit) }}</strong> staff; <strong>{{ number_format($staffFollowed) }}</strong> are followed.
+                @if($notFollowed) {{ number_format($notFollowed) }} more {{ $notFollowed === 1 ? 'is' : 'are' }} on the terminal but not followed: their punches are kept, and count once you follow them. @endif
+                @if($staffPack)
+                    You can add {{ $staffPack['size'] }} more staff for {{ $staffPack['currency'] }} {{ number_format($staffPack['price'], 2) }} a month.
+                    @if($staffPack['asked'])<span class="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">Asked for; waiting</span>
+                    @elseif(auth()->user()->hasRole('Super Admin'))<button type="button" class="ui-button ui-button-primary ml-1 !py-1 !text-xs" wire:click="requestPart('{{ \App\Support\Feature::ATTENDANCE_STAFF_PACK }}')">Ask for more staff</button>@endif
+                @else
+                    Ask us to move you to a larger plan to follow more.
+                @endif
             </div>
         @endif
 
-        @if($overtimeWaiting)
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <span><i class="fas fa-hourglass-half mr-1" aria-hidden="true"></i><strong>{{ $overtimeWaiting }}</strong> {{ $overtimeWaiting === 1 ? 'day of overtime is' : 'days of overtime are' }} waiting for your answer in {{ $periodLabel }}.</span>
-                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="$set('showOvertime', true)">Review</button>
+        {{-- Everything waiting for someone, on one line; each opens where it is dealt with. --}}
+        @php $overtimeAsk = $extras['overtime'] ? $overtimeWaiting : 0; @endphp
+        @if($shortNow || $requests->isNotEmpty() || $overtimeAsk)
+            <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+                <span class="font-semibold"><i class="fas fa-bell mr-1" aria-hidden="true"></i>Needs attention</span>
+                @if($shortNow)<button type="button" class="font-medium text-red-800 underline" wire:click="$set('showShort', true)">{{ count($shortNow) }} {{ count($shortNow) === 1 ? 'shift is' : 'shifts are' }} short now</button>@endif
+                @if($requests->isNotEmpty())<button type="button" class="underline" wire:click="$set('tab', 'requests')">{{ $requests->count() }} leave {{ $requests->count() === 1 ? 'request is' : 'requests are' }} waiting</button>@endif
+                @if($overtimeAsk)<button type="button" class="underline" wire:click="$set('tab', 'requests')">{{ $overtimeAsk }} {{ $overtimeAsk === 1 ? 'day of overtime is' : 'days of overtime are' }} waiting for your answer</button>@endif
             </div>
         @endif
 
-        @if($board)
+        @if($hasData)
             @php
-                $groups = [
-                    'in' => ['In now', 'bg-emerald-50 text-emerald-800', collect($board)->where('state', 'in')],
-                    'out' => ['Out', 'bg-slate-100 text-slate-700', collect($board)->where('state', 'out')],
-                    'missing' => ['Not in', 'bg-red-100 text-red-800', collect($board)->whereIn('state', ['missing', 'due'])],
-                    'away' => ['On leave or off', 'bg-indigo-100 text-indigo-800', collect($board)->whereIn('state', ['leave', 'holiday', 'off'])],
-                ];
+                $tabs = ($board ? ['today' => 'Today'] : []) + ['report' => 'Report', 'requests' => 'Requests'];
+                $waiting = $requests->count() + ($extras['overtime'] ? $overtimeWaiting : 0);
             @endphp
-            <div class="mb-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm" wire:poll.60s.visible>
-                <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <h2 class="!mb-0 text-sm font-semibold text-slate-900">Today, {{ $today->format('D j M') }}</h2>
-                    <span class="text-xs text-slate-500">As of {{ $today->format('g:i A') }}, from the terminal's punches. Updates every minute.</span>
-                </div>
-                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    @foreach($groups as $group => [$label, $colour, $people])
-                        <div>
-                            <p class="!mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $label }} <span class="ml-1 rounded px-1.5 py-0.5 {{ $colour }}">{{ $people->count() }}</span></p>
-                            @forelse($people as $person)
-                                <button type="button" class="mb-1 block w-full rounded-lg border border-slate-100 px-2 py-1 text-left text-sm hover:bg-slate-50" wire:click="openStaff({{ $person['staff']->id }})" wire:key="board-{{ $person['staff']->id }}">
-                                    <span class="font-medium text-slate-800">{{ $person['staff']->name }}</span>
-                                    <span class="block text-xs text-slate-500">
-                                        @switch($person['state'])
-                                            @case('in')
-                                                In since {{ AttendanceAnalyzer::time($person['time']) }}{{ $person['time'] !== $person['in'] ? ', first in '.AttendanceAnalyzer::time($person['in']) : '' }}{{ $person['late_minutes'] ? ' · '.AttendanceAnalyzer::duration($person['late_minutes']).' late' : '' }}
-                                                @break
-                                            @case('out')
-                                                {{ $person['left'] ? 'Left at' : 'Out since' }} {{ AttendanceAnalyzer::time($person['time']) }}
-                                                @break
-                                            @case('missing')
-                                                <span class="font-medium text-red-700">Expected by {{ AttendanceAnalyzer::time($person['expected']) }}</span>{{ $person['note'] ? ' · '.$person['note'] : '' }}
-                                                @break
-                                            @case('due')
-                                                Due at {{ AttendanceAnalyzer::time($person['expected']) }}{{ $person['note'] ? ' · '.$person['note'] : '' }}
-                                                @break
-                                            @case('off')
-                                                Day off
-                                                @break
-                                            @default
-                                                {{ $person['note'] ?: ($person['state'] === 'holiday' ? 'Holiday' : 'On leave') }}
-                                        @endswitch
-                                    </span>
-                                </button>
-                            @empty
-                                <p class="!mb-0 text-sm text-slate-400">Nobody</p>
-                            @endforelse
-                        </div>
-                    @endforeach
-                </div>
+            <div class="mb-4 flex gap-1 border-b border-slate-200" role="tablist">
+                @foreach($tabs as $key => $label)
+                    <button type="button" role="tab" wire:click="$set('tab', '{{ $key }}')" aria-selected="{{ $tab === $key ? 'true' : 'false' }}"
+                            @class(['-mb-px border-b-2 px-4 py-2 text-sm font-semibold', 'border-teal-700 text-teal-800' => $tab === $key, 'border-transparent text-slate-500 hover:text-slate-700' => $tab !== $key])>
+                        {{ $label }}@if($key === 'requests' && $waiting)<span class="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">{{ $waiting }}</span>@endif
+                    </button>
+                @endforeach
             </div>
         @endif
 
+        @if($hasData && $tab === 'today')
+            @include('livewire.admin.partials.attendance-today')
+        @elseif($hasData && $tab === 'requests')
+            <div class="grid gap-4 lg:grid-cols-2">
+                <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <h2 class="!mb-0 border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900">Leave requests</h2>
+                    @include('livewire.admin.partials.attendance-leave-requests')
+                </div>
+                @if($extras['overtime'])
+                    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <h2 class="!mb-0 border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900">Overtime · {{ $periodLabel }}</h2>
+                        @include('livewire.admin.partials.attendance-overtime-list')
+                    </div>
+                @endif
+            </div>
+        @else
         @if(! $hasData)
             <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
                 <p class="!mb-1 text-base font-semibold text-slate-800">No attendance uploaded yet</p>
@@ -143,13 +135,14 @@
                             @if($manager)<option value="none">No department</option>@endif
                         </select>
                     @endif
+                    @if($totals['staff'] > 20 || $search !== '')<input type="search" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live.debounce.400ms="search" placeholder="Find by name or ID" aria-label="Find a person">@endif
                     <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
                         <option value="all">Everyone</option>
                         <option value="late">Late at least once</option>
                         <option value="absent">Absent at least once</option>
                     </select>
                     <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="View">
-                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day', 'trends' => 'Trends'] as $key => $label)
+                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day'] + ($extras['trends'] ? ['trends' => 'Trends'] : []) as $key => $label)
                             <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
                         @endforeach
                     </div>
@@ -177,8 +170,8 @@
             @endif
 
             @if($departmentSummary)
-                <div class="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <h2 class="!mb-0 border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Departments</h2>
+                <details class="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" wire:ignore.self>
+                    <summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-900">Departments compared <span class="font-normal text-slate-500">({{ count($departmentSummary) }})</span></summary>
                     <div class="ui-table-wrap">
                         <table class="table ui-table ui-table-sm mb-0">
                             <thead><tr><th>Department</th><th class="text-right">Staff</th><th class="text-right">Attendance</th><th class="text-right">Late</th><th class="text-right">Time late</th><th class="text-right">Absent</th><th class="text-right">Overtime</th><th><span class="sr-only">Open</span></th></tr></thead>
@@ -199,7 +192,7 @@
                             </tbody>
                         </table>
                     </div>
-                </div>
+                </details>
             @endif
 
             @if($view === 'summary')
@@ -218,7 +211,7 @@
                                     <th class="text-right">Left early</th>
                                     <th class="text-right">Long breaks</th>
                                     <th class="text-right">Missing punch</th>
-                                    <th class="text-right">Overtime</th>
+                                    @if($extras['overtime'])<th class="text-right">Overtime</th>@endif
                                     <th class="text-right">Usual arrival</th>
                                     <th><span class="sr-only">Open</span></th>
                                 </tr>
@@ -243,19 +236,20 @@
                                             <td class="text-right ui-number">{{ $t['left_early'] }}</td>
                                             <td class="text-right ui-number">@if($t['long_breaks'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['long_breaks'] }}</span>@else 0 @endif</td>
                                             <td class="text-right ui-number">{{ $t['no_clock_out'] }}</td>
-                                            <td class="text-right ui-number">{{ $t['overtime_minutes'] ? AttendanceAnalyzer::duration($t['overtime_minutes']) : '–' }}@if($t['overtime_pending'])<span class="block text-xs font-normal text-amber-700">{{ AttendanceAnalyzer::duration($t['overtime_pending']) }} waiting</span>@endif</td>
+                                            @if($extras['overtime'])<td class="text-right ui-number">{{ $t['overtime_minutes'] ? AttendanceAnalyzer::duration($t['overtime_minutes']) : '–' }}@if($t['overtime_pending'])<span class="block text-xs font-normal text-amber-700">{{ AttendanceAnalyzer::duration($t['overtime_pending']) }} waiting</span>@endif</td>@endif
                                             <td class="text-right ui-number">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
                                         @else
-                                            <td colspan="11" class="text-right text-sm text-slate-400">–</td>
+                                            <td colspan="{{ $extras['overtime'] ? 11 : 10 }}" class="text-right text-sm text-slate-400">–</td>
                                         @endif
                                         <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="openStaff({{ $staff->id }})">Open</button></td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="13" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
+                                    <tr><td colspan="{{ $extras['overtime'] ? 13 : 12 }}" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
+                    @include('livewire.admin.partials.attendance-pager', ['pager' => $pager, 'model' => 'page'])
                 </div>
             @elseif($view === 'grid')
                 {{-- A month at a time, Monday to Sunday: how each day went for the branch. Clicking a day lists everyone. --}}
@@ -391,6 +385,7 @@
                             </tbody>
                         </table>
                     </div>
+                    @include('livewire.admin.partials.attendance-pager', ['pager' => $pager, 'model' => 'page'])
                     <p class="!mb-0 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">Each month shows late arrivals (L) and absences (A). People with the most of both come first. The six months end at the last day picked above.</p>
                 </div>
             @endif
@@ -398,6 +393,7 @@
             <p class="!mb-0 mt-3 text-xs text-slate-500">
                 Punches are read in order as in, out, in, out. Late means arriving more than {{ $settings->grace_minutes }} minutes after the start of the working day; a break is long when it is over {{ AttendanceAnalyzer::duration($settings->break_minutes ?? 60) }}.
             </p>
+        @endif
         @endif
     </div>
 
@@ -446,13 +442,24 @@
                     <p class="!mb-0 mt-1 text-xs text-slate-500">Staff punch out when they leave and in when they return. Time out longer than this in a day is flagged.</p>
                     @error('breakMinutes')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                 </div>
-                <div>
+                <div @class(['hidden' => ! $extras['overtime']])>
                     <label for="attendance-overtime-after" class="mb-1 block text-sm font-medium text-slate-700">Overtime starts after (minutes)</label>
                     <input id="attendance-overtime-after" type="number" min="1" max="480" class="ui-input !w-32" wire:model="overtimeAfter">
                     <p class="!mb-0 mt-1 text-xs text-slate-500">Staying at least this long past the end of the day is overtime, counted from the end of the day. Time on site on a day off or a holiday is overtime too.</p>
                     @error('overtimeAfter')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     <label class="mt-2 flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="overtimeNeedsApproval"> Overtime counts only when a manager approves it</label>
                 </div>
+                @if($shifts->isNotEmpty() && $hospital)
+                    <div>
+                        <p class="!mb-1 text-sm font-medium text-slate-700">Rest, for people on shifts</p>
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div><label for="attendance-rest" class="mb-1 block text-xs text-slate-600">At least this many hours between shifts</label><input id="attendance-rest" type="number" min="1" max="48" class="ui-input !w-28" wire:model="minRestHours" placeholder="Not checked"></div>
+                            <div><label for="attendance-nights" class="mb-1 block text-xs text-slate-600">No more than this many nights in a row</label><input id="attendance-nights" type="number" min="1" max="31" class="ui-input !w-28" wire:model="maxNights" placeholder="Not checked"></div>
+                        </div>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">The roster warns when someone's days break these; it does not stop you.</p>
+                        @foreach(['minRestHours', 'maxNights'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                    </div>
+                @endif
                 <div class="flex items-center justify-end gap-2">
                     <x-ui.button wire:click="$set('showHours', false)">Cancel</x-ui.button>
                     <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveHours">Save</x-ui.button>
@@ -585,14 +592,79 @@
                     <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Previous week">‹</x-ui.button>
                     <strong class="text-sm text-slate-800">Week of {{ $rosterDays[0]->format('j M') }} to {{ $rosterDays[6]->format('j M Y') }}</strong>
                     <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Next week">›</x-ui.button>
+                    @if($shifts->isNotEmpty() && $hospital)
+                        <x-ui.button type="button" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i> Fill from a pattern</x-ui.button>
+                        <x-ui.button type="button" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i> Swap two people</x-ui.button>
+                    @endif
                     <span class="text-xs text-slate-500">Each box shows what the person is due to work. Change one to set that day only; "As usual" goes back to their weekly shifts or hours.</span>
                 </div>
                 @if($shifts->isEmpty())<p class="!mb-0 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">Add shifts first (Shifts button), then roster people onto them here.</p>@endif
+                @if($showPattern)
+                    @php $shiftNames = $shifts->pluck('name', 'id'); @endphp
+                    <div class="space-y-3 rounded-lg border border-teal-200 bg-teal-50/40 p-3">
+                        <p class="!mb-0 text-sm font-semibold text-slate-800">Fill the roster from a rotation pattern</p>
+                        <div class="flex flex-wrap items-end gap-2">
+                            @if($rosterGrid['patterns']->isNotEmpty())
+                                <div><label for="pattern-saved" class="mb-1 block text-xs font-semibold text-slate-600">Saved pattern</label>
+                                    <select id="pattern-saved" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="patternId"><option value="">New pattern</option>@foreach($rosterGrid['patterns'] as $pattern)<option value="{{ $pattern->id }}">{{ $pattern->name }}</option>@endforeach</select></div>
+                            @endif
+                            <div><label for="pattern-shift" class="mb-1 block text-xs font-semibold text-slate-600">Add to the cycle</label>
+                                <select id="pattern-shift" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternAddShift"><option value="">Choose</option>@foreach($shifts->where('is_active', true) as $shift)<option value="{{ $shift->id }}">{{ $shift->name }}</option>@endforeach<option value="0">Days off</option></select></div>
+                            <div><label for="pattern-count" class="mb-1 block text-xs font-semibold text-slate-600">For how many days</label><input id="pattern-count" type="number" min="1" max="31" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternAddCount"></div>
+                            <x-ui.button type="button" wire:click="addPatternStep">Add</x-ui.button>
+                            @if($patternDays)<x-ui.button type="button" wire:click="undoPatternStep">Undo last</x-ui.button>@endif
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1 text-xs" aria-label="The cycle">
+                            @forelse($patternDays as $i => $choice)
+                                <span @class(['rounded px-1.5 py-0.5', 'bg-slate-200 text-slate-600' => $choice === '0', 'bg-white text-teal-900 ring-1 ring-inset ring-teal-300' => $choice !== '0']) wire:key="pattern-day-{{ $i }}">{{ $i + 1 }}. {{ $choice === '0' ? 'Off' : ($shiftNames[(int) $choice] ?? '?') }}</span>
+                            @empty
+                                <span class="text-slate-500">Nothing in the cycle yet. For example: Morning for 2 days, Afternoon for 2, Night for 2, days off for 2.</span>
+                            @endforelse
+                            @if($patternDays)<span class="ml-1 text-slate-500">then it repeats ({{ count($patternDays) }} days)</span>@endif
+                        </div>
+                        <div class="flex flex-wrap items-end gap-2">
+                            <div><label for="pattern-from" class="mb-1 block text-xs font-semibold text-slate-600">First day</label><input id="pattern-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternFrom"></div>
+                            <div><label for="pattern-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day</label><input id="pattern-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternTo"></div>
+                            <div><label for="pattern-stagger" class="mb-1 block text-xs font-semibold text-slate-600">Each next person starts this many days further in</label><input id="pattern-stagger" type="number" min="0" max="62" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternStagger"></div>
+                        </div>
+                        <fieldset>
+                            <legend class="mb-1 text-xs font-semibold text-slate-600">For these people (in name order)</legend>
+                            <div class="flex max-h-32 flex-wrap gap-x-4 gap-y-1 overflow-y-auto rounded border border-slate-200 bg-white p-2">
+                                @foreach($rosterGrid['rows'] as $row)
+                                    <label class="flex items-center gap-1.5 text-sm text-slate-800" wire:key="pattern-person-{{ $row['staff']->id }}"><input type="checkbox" value="{{ $row['staff']->id }}" wire:model="patternPeople"> {{ $row['staff']->name }}</label>
+                                @endforeach
+                            </div>
+                        </fieldset>
+                        @foreach(['patternAddShift', 'patternAddCount', 'patternDays', 'patternFrom', 'patternTo', 'patternPeople', 'patternStagger', 'patternName'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                        <div class="flex flex-wrap items-end justify-between gap-2">
+                            <div class="flex flex-wrap items-end gap-2">
+                                <div><label for="pattern-name" class="mb-1 block text-xs font-semibold text-slate-600">Keep this pattern as</label><input id="pattern-name" type="text" maxlength="60" class="ui-input !w-48 !py-1.5 !text-sm" wire:model="patternName" placeholder="e.g. Ward 2-2-2"></div>
+                                <x-ui.button type="button" wire:click="savePattern">Save pattern</x-ui.button>
+                                @if($patternId)<button type="button" class="pb-2 text-xs text-red-700 underline" wire:click="deletePattern" wire:confirm="Delete this saved pattern? Roster days already filled stay.">Delete pattern</button>@endif
+                            </div>
+                            <x-ui.button type="button" variant="primary" wire:click="applyPattern" wire:confirm="Fill the roster for the people ticked? Days already set for them in these dates are replaced." wire:loading.attr="disabled" wire:target="applyPattern">Fill the roster</x-ui.button>
+                        </div>
+                    </div>
+                @endif
+                @if($showSwap)
+                    <form wire:submit="swapRoster" class="flex flex-wrap items-end gap-2 rounded-lg border border-teal-200 bg-teal-50/40 p-3">
+                        <p class="!mb-0 w-full text-sm font-semibold text-slate-800">Swap two people's shifts</p>
+                        @foreach(['swapA' => 'This person', 'swapB' => 'With this person'] as $model => $label)
+                            <div><label for="{{ $model }}" class="mb-1 block text-xs font-semibold text-slate-600">{{ $label }}</label>
+                                <select id="{{ $model }}" class="ui-input !w-52 !py-1.5 !text-sm" wire:model="{{ $model }}"><option value="">Choose</option>@foreach($rosterGrid['rows'] as $row)<option value="{{ $row['staff']->id }}">{{ $row['staff']->name }}</option>@endforeach</select></div>
+                        @endforeach
+                        <div><label for="swap-from" class="mb-1 block text-xs font-semibold text-slate-600">Day</label><input id="swap-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="swapFrom"></div>
+                        <div><label for="swap-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day (if more than one)</label><input id="swap-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="swapTo"></div>
+                        <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="swapRoster">Swap</x-ui.button>
+                        <p class="!mb-0 w-full text-xs text-slate-500">Each takes the other's shift, or day off, on those days. Only you can do this; staff cannot swap by themselves.</p>
+                        @foreach(['swapA', 'swapB', 'swapFrom', 'swapTo'] as $field)@error($field)<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror @endforeach
+                    </form>
+                @endif
                 <div class="ui-table-wrap">
                     <table class="table ui-table ui-table-sm mb-0">
                         <thead><tr><th>Staff</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}@if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-slate-500">Holiday</span>@endif</th>@endforeach</tr></thead>
                         <tbody>
-                            @foreach($rosterGrid['rows'] as $row)
+                            @foreach($rosterGrid['shown'] as $row)
                                 <tr wire:key="roster-{{ $row['staff']->id }}">
                                     <td class="whitespace-nowrap font-medium text-slate-800">{{ $row['staff']->name }}</td>
                                     @foreach($rosterDays as $day)
@@ -611,6 +683,8 @@
                                                 <option value="0" @selected($chosen === '0')>Day off</option>
                                             </select>
                                             <span class="mt-0.5 block text-[10px] leading-tight text-slate-500">@if($due){{ $due['shift'] ?? 'Hours' }} {{ AttendanceAnalyzer::time($due['start']) }}–{{ AttendanceAnalyzer::time($due['end']) }}@else Off @endif</span>
+                                            @if($swapped = $rosterGrid['notes'][$row['staff']->id][$key] ?? null)<span class="block text-[10px] leading-tight text-indigo-700">{{ $swapped }}</span>@endif
+                                            @foreach($rosterGrid['warnings'][$row['staff']->id][$key] ?? [] as $warning)<span class="block text-[10px] font-medium leading-tight text-amber-700"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {{ $warning }}</span>@endforeach
                                         </td>
                                     @endforeach
                                 </tr>
@@ -618,6 +692,33 @@
                         </tbody>
                     </table>
                 </div>
+                @include('livewire.admin.partials.attendance-pager', ['pager' => $rosterGrid['pager'], 'model' => 'rosterPage'])
+                {{-- roster-extras --}}
+                @if($rosterGrid['cover'])
+                    <div>
+                        <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cover
+                            @if($rosterGrid['gaps'])<span class="ml-1 rounded bg-red-100 px-1.5 py-0.5 normal-case text-red-800">{{ $rosterGrid['gaps'] }} {{ $rosterGrid['gaps'] === 1 ? 'shift is' : 'shifts are' }} short this week</span>
+                            @else<span class="ml-1 rounded bg-emerald-50 px-1.5 py-0.5 normal-case text-emerald-800">Every shift is covered</span>
+                            @endif
+                        </p>
+                        <div class="ui-table-wrap">
+                            <table class="table ui-table ui-table-sm mb-0">
+                                <thead><tr><th>Department · shift</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}</th>@endforeach</tr></thead>
+                                <tbody>
+                                    @foreach($rosterGrid['cover'] as $line)
+                                        <tr wire:key="cover-{{ $line['department'] }}-{{ $line['shift'] }}">
+                                            <td class="whitespace-nowrap font-medium text-slate-800">{{ $line['department'] }} · {{ $line['shift'] }}</td>
+                                            @foreach($line['days'] as $key => $count)
+                                                <td class="text-center"><span @class(['rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums', 'bg-red-100 text-red-800' => $count['have'] < $count['need'], 'bg-emerald-50 text-emerald-800' => $count['have'] >= $count['need']]) title="{{ $count['have'] }} rostered, {{ $count['need'] }} needed">{{ $count['have'] }} / {{ $count['need'] }}</span></td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">People rostered on the shift against the minimum set for the department. Anyone on approved leave that day is not counted.</p>
+                    </div>
+                @endif
             </div>
         </x-ui.modal>
     @endif
@@ -642,7 +743,7 @@
                             @forelse($punchDay['punches'] as $punch)
                                 <tr wire:key="punch-{{ $punch->id }}" @class(['text-slate-400' => $punch->voided_at])>
                                     <td class="whitespace-nowrap tabular-nums @if($punch->voided_at) line-through @endif">{{ $punch->punched_at->format('g:i A') }}</td>
-                                    <td class="whitespace-nowrap">{{ \App\Models\AttendancePunch::SOURCES[$punch->source] ?? 'Terminal' }}</td>
+                                    <td class="whitespace-nowrap">{{ \App\Models\AttendancePunch::SOURCES[$punch->source] ?? 'Terminal' }}{{ $punch->device ? ' · '.$punch->device->name : '' }}</td>
                                     <td class="text-xs">
                                         @if($punch->source === 'manual')Added by {{ $punch->creator?->name ?? 'a manager' }}: {{ $punch->reason }}@endif
                                         @if($punch->source === 'phone' && $punch->latitude !== null)
@@ -692,45 +793,7 @@
     @if($showOvertime)
         <style>.clinic-ui .ui-dialog:has(.attendance-overtime) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="'Overtime · '.$periodLabel" state="showOvertime">
-            <div class="attendance-overtime space-y-3 p-4">
-                <p class="!mb-0 text-sm text-slate-600">
-                    Staying {{ AttendanceAnalyzer::duration($settings->overtime_after_minutes ?? 30) }} or more past the end of the working day is overtime, as is time on site on a day off or a holiday.
-                    @if($settings->overtime_needs_approval ?? true) It counts only once you approve it; you can approve fewer minutes than were worked. @else It counts by itself here; turn a day down if it should not. @endif
-                    Change the rule under Working hours.
-                </p>
-                @forelse($overtime as $item)
-                    @php $day = $item['day']; $decision = $item['decision']; @endphp
-                    <div class="rounded-lg border border-slate-200 p-3" wire:key="overtime-{{ $item['key'] }}-{{ $day['overtime_status'] }}">
-                        <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <p class="!mb-0 text-sm"><strong class="text-slate-900">{{ $item['staff']->name }}</strong> · {{ $item['date']->format('D j M Y') }}</p>
-                            <span @class(['rounded px-1.5 py-0.5 text-xs font-medium', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-100 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-600' => $day['overtime_status'] === 'declined'])>
-                                {{ ['pending' => 'Waiting', 'approved' => 'Approved '.AttendanceAnalyzer::duration($day['overtime_approved']), 'declined' => 'Not approved'][$day['overtime_status']] ?? '' }}
-                            </span>
-                        </div>
-                        <p class="!mb-0 text-sm text-slate-700">
-                            {{ AttendanceAnalyzer::duration($day['overtime_minutes']) }} overtime ·
-                            @if($day['status'] === 'worked_off') on site {{ AttendanceAnalyzer::time($day['in']) }} to {{ AttendanceAnalyzer::time($day['out']) }} on {{ $day['note'] ?: 'a day off' }}
-                            @else left at {{ AttendanceAnalyzer::time($day['out']) }}, the day ends at {{ AttendanceAnalyzer::time($day['hours']['end']) }}@if($day['hours']['shift'] ?? null) ({{ $day['hours']['shift'] }} shift)@endif
-                            @endif
-                        </p>
-                        @if($decision)
-                            <p class="!mb-0 mt-1 text-xs text-slate-500">{{ $decision->decider->name ?? 'A manager' }}, {{ $decision->updated_at->diffForHumans() }}@if($decision->note) · “{{ $decision->note }}”@endif
-                                <button type="button" class="ml-1 text-teal-700 underline" wire:click="reopenOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}')">Change</button></p>
-                        @else
-                            <div class="mt-2 flex flex-wrap items-center gap-2">
-                                <label class="text-xs text-slate-600" for="overtime-minutes-{{ $item['key'] }}">Minutes to approve</label>
-                                <input id="overtime-minutes-{{ $item['key'] }}" type="number" min="1" max="{{ $day['overtime_minutes'] }}" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="overtimeMinutes.{{ $item['key'] }}" placeholder="{{ $day['overtime_minutes'] }}">
-                                <input type="text" maxlength="255" class="ui-input min-w-[10rem] flex-1 !py-1.5 !text-sm" wire:model="overtimeNotes.{{ $item['key'] }}" placeholder="Note (optional)" aria-label="Note">
-                                <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}', false)" wire:loading.attr="disabled" wire:target="decideOvertime">Don't approve</button>
-                                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}', true)" wire:loading.attr="disabled" wire:target="decideOvertime">Approve</button>
-                            </div>
-                            @error('overtimeMinutes.'.$item['key'])<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                        @endif
-                    </div>
-                @empty
-                    <p class="!mb-0 text-sm text-slate-500">Nobody worked overtime in {{ $periodLabel }}.</p>
-                @endforelse
-            </div>
+            @include('livewire.admin.partials.attendance-overtime-list')
         </x-ui.modal>
     @endif
 
@@ -791,7 +854,7 @@
                         <thead><tr><th>Staff</th><th>Paid</th><th>Rate ({{ $currency }})</th><th class="text-right">Present</th><th class="text-right">Absent</th><th class="text-right">Late</th><th class="text-right">Overtime</th>
                             <th class="text-right">Basic</th><th class="text-right">Overtime pay</th><th class="text-right">Taken off</th><th class="text-right">Gross</th></tr></thead>
                         <tbody>
-                            @foreach($payroll['rows'] as $line)
+                            @foreach($payrollPage[0] as $line)
                                 @php $id = $line['staff']->id; @endphp
                                 <tr wire:key="pay-{{ $id }}">
                                     <td class="font-medium text-slate-800">{{ $line['staff']->name }}</td>
@@ -814,9 +877,10 @@
                                 </tr>
                             @endforeach
                         </tbody>
-                        <tfoot><tr><td colspan="10" class="text-right font-semibold">Total gross</td><td class="text-right ui-number font-semibold">{{ number_format(array_sum(array_map(fn ($line) => $line['gross'] ?? 0, $payroll['rows'])), 2) }}</td></tr></tfoot>
+                        <tfoot><tr><td colspan="10" class="text-right font-semibold">Total gross{{ $payrollPage[1]['pages'] > 1 ? ', everyone' : '' }}</td><td class="text-right ui-number font-semibold">{{ number_format($payrollTotal, 2) }}</td></tr></tfoot>
                     </table>
                 </div>
+                @include('livewire.admin.partials.attendance-pager', ['pager' => $payrollPage[1], 'model' => 'payPage'])
                 <p class="!mb-0 text-xs text-slate-500">On a salary, a working day is worth the month's salary divided by that month's working days. By the hour, people are paid for hours on site up to the end of the day, plus approved overtime; leave and holidays are not added.</p>
                 <div class="flex flex-wrap items-center justify-end gap-2">
                     <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.export', ['format' => 'payroll', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Download for Excel</a>
@@ -935,6 +999,24 @@
                             <p class="!mb-0 mt-1 text-xs text-slate-500">A person is in one department; ticking them here moves them.</p>
                         </fieldset>
                     </div>
+                    @if($shifts->isNotEmpty())
+                        <fieldset>
+                            <legend class="mb-1 text-xs font-semibold text-slate-600">Minimum cover: how many must be on each shift</legend>
+                            <div class="flex flex-wrap gap-3">
+                                @foreach($shifts->where('is_active', true) as $shift)
+                                    <div class="rounded border border-slate-200 bg-white p-2" wire:key="cover-form-{{ $shift->id }}">
+                                        <p class="!mb-1 text-xs font-medium text-slate-700">{{ $shift->name }}</p>
+                                        <div class="flex items-end gap-2">
+                                            <div><label for="cover-min-{{ $shift->id }}" class="block text-[11px] text-slate-500">Each day</label><input id="cover-min-{{ $shift->id }}" type="number" min="0" max="500" class="ui-input !w-20 !py-1 !text-sm" wire:model="departmentCover.{{ $shift->id }}.min" placeholder="None"></div>
+                                            <div><label for="cover-weekend-{{ $shift->id }}" class="block text-[11px] text-slate-500">Sat and Sun</label><input id="cover-weekend-{{ $shift->id }}" type="number" min="0" max="500" class="ui-input !w-20 !py-1 !text-sm" wire:model="departmentCover.{{ $shift->id }}.weekend" placeholder="Same"></div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">The roster then shows where the department is short, and the board at the top of the page when it is short right now. Leave empty for no minimum.</p>
+                            @foreach(['departmentCover.*.min', 'departmentCover.*.weekend'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
+                        </fieldset>
+                    @endif
                     <label class="flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model.live="departmentOwnRules"> This department has rules of its own</label>
                     @if($departmentOwnRules)
                         <div class="flex flex-wrap items-end gap-3">
@@ -955,6 +1037,77 @@
                         <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="saveDepartment">{{ $departmentEditId ? 'Save' : 'Add department' }}</x-ui.button>
                     </div>
                 </form>
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showStaffImport)
+        <x-ui.modal title="Bring in a staff list" state="showStaffImport">
+            <form wire:submit="importStaff" class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">For many staff at once: an Excel (.xlsx) or CSV file with one row per person. The first row is headings: <strong>Employee ID</strong> and <strong>Name</strong>, and if you wish <strong>Department</strong>, <strong>Pay type</strong> (monthly or hourly), <strong>Pay rate</strong> and <strong>Start date</strong>.</p>
+                <ul class="!mb-0 list-disc space-y-1 !pl-5 text-sm text-slate-600">
+                    <li>The Employee ID must be the one the person has on the terminal, so their punches find them.</li>
+                    <li>Someone already here with that Employee ID is updated, not added twice.</li>
+                    <li>Departments named in the file and not here yet are made.</li>
+                    <li>Pay columns are read only when the owner brings the file in.</li>
+                </ul>
+                <p class="!mb-0 text-sm"><a class="text-teal-700 underline" download="staff-list-template.csv" href="data:text/csv;charset=utf-8,{{ rawurlencode(\App\Services\Attendance\AttendanceStaffImport::TEMPLATE) }}">Download a template</a> <span class="text-slate-500">with two example rows; up to {{ number_format(\App\Services\Attendance\AttendanceStaffImport::MAX_ROWS) }} people per file.</span></p>
+                <div>
+                    <label for="staff-file" class="mb-1 block text-sm font-medium text-slate-700">Staff list (.xlsx or .csv)</label>
+                    <input id="staff-file" type="file" accept=".xlsx,.csv,text/csv" wire:model="staffFile" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
+                    <p wire:loading wire:target="staffFile" class="!mb-0 mt-1 text-sm text-slate-500" role="status">Reading the file…</p>
+                    @error('staffFile')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                @if($staffImported)
+                    <div class="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
+                        <strong>{{ $staffImported['added'] }}</strong> added, <strong>{{ $staffImported['updated'] }}</strong> updated, <strong>{{ $staffImported['departments'] }}</strong> {{ $staffImported['departments'] === 1 ? 'department' : 'departments' }} made.
+                        @if($staffImported['not_followed'] ?? 0) <span class="text-amber-900">{{ $staffImported['not_followed'] }} of those added are not followed: your plan's staff limit was reached.</span>@endif
+                        @if($staffImported['skipped'])
+                            <ul class="!mb-0 mt-1 list-disc !pl-5 text-amber-900">
+                                @foreach(array_slice($staffImported['skipped'], 0, 20, true) as $line => $reason)<li>Row {{ $line }}: {{ $reason }}.</li>@endforeach
+                                @if(count($staffImported['skipped']) > 20)<li>And {{ count($staffImported['skipped']) - 20 }} more rows.</li>@endif
+                            </ul>
+                        @endif
+                    </div>
+                @endif
+                <div class="flex items-center justify-end gap-2">
+                    <x-ui.button wire:click="$set('showStaffImport', false)">Close</x-ui.button>
+                    <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="importStaff,staffFile">Bring in</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endif
+
+    @if($showMore)
+        <x-ui.modal title="More attendance features" state="showMore">
+            <div class="space-y-3 p-4">
+                <p class="!mb-0 text-sm text-slate-600">These parts of attendance are not in your plan. Each can be added on its own for a monthly price{{ auth()->user()->hasRole('Super Admin') ? '' : '; the owner can ask for them' }}.</p>
+                @foreach($locked as $part)
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3" wire:key="locked-{{ $part['feature'] }}">
+                        <div class="min-w-[14rem] flex-1">
+                            <p class="!mb-0 text-sm font-semibold text-slate-900">{{ $part['name'] }}</p>
+                            <p class="!mb-0 text-sm text-slate-600">{{ $part['about'] }}</p>
+                        </div>
+                        <div class="text-right">
+                            @if($part['price'] !== null)<p class="!mb-1 text-sm font-semibold text-slate-800">{{ $part['currency'] }} {{ number_format($part['price'], 2) }} a month</p>@endif
+                            @if($part['asked'])<span class="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900">Asked for; waiting</span>
+                            @elseif($part['price'] !== null && auth()->user()->hasRole('Super Admin'))<x-ui.button type="button" variant="primary" wire:click="requestPart('{{ $part['feature'] }}')" wire:loading.attr="disabled">Ask for it</x-ui.button>
+                            @else<span class="text-xs text-slate-500">Contact us to add it</span>@endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </x-ui.modal>
+    @endif
+
+    @if($showShort)
+        <x-ui.modal title="Short right now" state="showShort">
+            <div class="space-y-2 p-4">
+                @forelse($shortNow as $gap)
+                    <p class="!mb-0 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-900"><strong>{{ $gap['department'] }}</strong> is short on the {{ $gap['shift'] }} shift: {{ $gap['in'] }} in, {{ $gap['need'] }} needed.</p>
+                @empty
+                    <p class="!mb-0 text-sm text-slate-500">Every shift running now has its minimum.</p>
+                @endforelse
             </div>
         </x-ui.modal>
     @endif
@@ -986,7 +1139,7 @@
                                         @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                         @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
                                         @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
-                                        @if($day['overtime_minutes'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
+                                        @if($day['overtime_minutes'] && $extras['overtime'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -1000,30 +1153,7 @@
 
     @if($showRequests)
         <x-ui.modal title="Leave requests" state="showRequests">
-            <div class="space-y-3 p-4">
-                <p class="!mb-0 text-sm text-slate-600">Time off staff have asked for from their profile. It counts on their attendance only once approved; they are told your answer by email.</p>
-                @forelse($requests as $request)
-                    <div class="rounded-lg border border-slate-200 p-3" wire:key="request-{{ $request->id }}">
-                        <p class="!mb-0 text-sm"><strong class="text-slate-900">{{ $request->staff->name ?? 'Unknown' }}</strong> · {{ $request->typeName() }}</p>
-                        <p class="!mb-0 text-sm text-slate-700">{{ $request->when() }}
-                            @if($take = $requestDays[$request->id] ?? null)
-                                <span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-slate-100 text-slate-700' => $take['before'] === null || $take['days'] <= $take['before'], 'bg-red-100 text-red-800' => $take['before'] !== null && $take['days'] > $take['before']])>
-                                    {{ \App\Services\Attendance\AttendanceLeaveBalances::days($take['days']).($take['before'] !== null ? ', '.rtrim(rtrim(number_format(max(0, $take['before']), 2), '0'), '.').' left this year' : '') }}
-                                </span>
-                            @endif
-                        </p>
-                        @if($request->note)<p class="!mb-0 mt-1 text-sm text-slate-600">“{{ $request->note }}”</p>@endif
-                        <p class="!mb-2 text-xs text-slate-400">Asked {{ $request->created_at->diffForHumans() }}</p>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <input type="text" maxlength="255" class="ui-input min-w-[10rem] flex-1 !py-1.5 !text-sm" wire:model="reviewNotes.{{ $request->id }}" placeholder="Note to them (optional)" aria-label="Note">
-                            <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="reviewLeave({{ $request->id }}, false)" wire:loading.attr="disabled" wire:target="reviewLeave">Don't approve</button>
-                            <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="reviewLeave({{ $request->id }}, true)" wire:loading.attr="disabled" wire:target="reviewLeave">Approve</button>
-                        </div>
-                    </div>
-                @empty
-                    <p class="!mb-0 text-sm text-slate-500">No requests are waiting.</p>
-                @endforelse
-            </div>
+            @include('livewire.admin.partials.attendance-leave-requests')
         </x-ui.modal>
     @endif
 
@@ -1064,7 +1194,7 @@
                     @if($staffOwnHours)
                         @include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])
                     @endif
-                    @if($shifts->isNotEmpty())
+                    @if($shifts->isNotEmpty() && $extras['shifts'])
                         <div>
                             <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Weekly shifts</p>
                             <p class="!mb-2 text-xs text-slate-500">The shift worked on each weekday. "Usual hours" follows the hours above; the roster can change single days.</p>
@@ -1169,7 +1299,7 @@
                                             @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                             @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
                                             @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
-                                            @if($day['overtime_minutes'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
+                                            @if($day['overtime_minutes'] && $extras['overtime'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                             @if($day['in_progress'])<span class="ml-1 text-xs text-slate-400">Day in progress</span>@endif
                                         </td>
                                     </tr>

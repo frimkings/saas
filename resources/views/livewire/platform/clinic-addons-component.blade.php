@@ -46,6 +46,12 @@
                             @unless($addon->ends_at)
                                 <input class="pa-addon-input" type="number" step="0.01" min="0" style="width:90px" wire:model="newPrice.{{ $addon->id }}" placeholder="New price" aria-label="New monthly price for {{ $offer['name'] }}">
                                 <button type="button" class="pa-btn alt pa-btn-sm" wire:click="changePrice({{ $addon->id }})">Change price</button>
+                                @if($offer['pack_size'])
+                                    <div style="margin-top:4px"><span class="pa-muted">{{ $addon->quantity }} {{ $addon->quantity === 1 ? 'pack' : 'packs' }}, {{ $addon->units }} staff</span>
+                                        <input class="pa-addon-input" type="number" min="1" style="width:70px" wire:model="newPacks.{{ $addon->id }}" placeholder="Packs" aria-label="Number of packs">
+                                        <button type="button" class="pa-btn alt pa-btn-sm" wire:click="changePacks({{ $addon->id }})">Change packs</button>
+                                        @error("newPacks.$addon->id")<small class="pa-err">{{ $message }}</small>@enderror</div>
+                                @endif
                                 <button type="button" class="pa-btn alt pa-btn-sm" wire:click="cancel({{ $addon->id }})" wire:confirm="Cancel {{ $offer['name'] }}? It keeps working until the end of the paid period.">Cancel</button>
                             @endunless
                             @error("newPrice.$addon->id")<small class="pa-err">{{ $message }}</small>@enderror
@@ -56,6 +62,7 @@
                         <td class="pa-muted">Not added</td>
                         <td><input class="pa-addon-input" type="number" step="0.01" min="0" style="width:100px" wire:model.live.debounce.400ms="price.{{ $feature }}" placeholder="{{ number_format($offer['price'], 2) }}" aria-label="Monthly price for {{ $offer['name'] }}"></td>
                         <td>
+                            @if($offer['pack_size'])<input class="pa-addon-input" type="number" min="1" style="width:60px" wire:model="packs.{{ $feature }}" placeholder="1" aria-label="Packs"> <span class="pa-muted">× {{ $offer['pack_size'] }} staff</span>@endif
                             <button type="button" class="pa-btn pa-btn-sm" wire:click="add('{{ $feature }}')" wire:loading.attr="disabled">Add</button>
                             <div class="pa-muted" style="font-size:12px">{{ $charge ? 'Charges ' . $offer['currency'] . ' ' . number_format($charge[0], 2) . " now ({$charge[1]} of {$charge[2]} days)" : 'Nothing charged now' }}</div>
                             @error("price.$feature")<small class="pa-err">{{ $message }}</small>@enderror

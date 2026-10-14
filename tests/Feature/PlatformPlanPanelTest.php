@@ -39,7 +39,7 @@ class PlatformPlanPanelTest extends TestCase
 
         $plan = SubscriptionPlan::where('code', 'starter')->firstOrFail();
         $this->assertEquals(120, (float) $plan->base_price);
-        $this->assertSame(['clinical', 'optical'], $plan->features);
+        $this->assertSame(['clinical', 'optical', 'attendance_parts_chosen'], $plan->features);
         $this->assertSame('both', $plan->product);
         $this->assertDatabaseHas('platform_audit_logs', ['action' => 'PLAN_CREATED']);
     }

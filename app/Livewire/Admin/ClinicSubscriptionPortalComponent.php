@@ -46,6 +46,7 @@ class ClinicSubscriptionPortalComponent extends Component
                 'branches'=>$clinic->branches()->where('is_active',true)->count(),
                 'users'=>$clinic->users()->wherePivot('status','active')->count(),
                 'storage_mb'=>round($storageBytes/1048576,2),
+                'attendance_staff'=>['used'=>\App\Support\AttendancePlan::followed($clinic),'limit'=>\App\Support\AttendancePlan::staffLimit($clinic)],
             ],
             'smsCredits'=>app(\App\Services\Messaging\SmsCreditService::class)->balance($clinic->id),
         ])->layout('layouts.admin.admin-layout');

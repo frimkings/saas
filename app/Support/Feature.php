@@ -31,4 +31,17 @@ class Feature
     const ATTENDANCE           = 'attendance';
     // Marks a plan that is attendance and nothing else: no clinic, no optical shop.
     const ATTENDANCE_ONLY      = 'attendance_only';
+    // Parts of attendance sold on their own, as extras on a plan or add-ons (PlanProduct::ATTENDANCE_PARTS).
+    const ATTENDANCE_SHIFTS    = 'attendance_shifts';
+    const ATTENDANCE_OVERTIME  = 'attendance_overtime';
+    const ATTENDANCE_LEAVE     = 'attendance_leave_types';
+    const ATTENDANCE_PAYROLL   = 'attendance_payroll';
+    const ATTENDANCE_PHONE     = 'attendance_phone';
+    const ATTENDANCE_TRENDS    = 'attendance_trends';
+    const ATTENDANCE_HOSPITAL  = 'attendance_hospital';
+    // Packs of extra staff on attendance, bought as an add-on in quantity; never a plan tick.
+    const ATTENDANCE_STAFF_PACK = 'attendance_staff_pack';
+    // On every plan saved since attendance was split into parts. A list without it (older plans,
+    // older offline keys) has attendance whole: every part comes with it.
+    const ATTENDANCE_PARTS_CHOSEN = 'attendance_parts_chosen';
 }

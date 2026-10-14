@@ -12,7 +12,7 @@ class AttendanceRoster extends Model
 
     protected $table = 'attendance_roster';
 
-    protected $fillable = ['attendance_staff_id', 'date', 'attendance_shift_id', 'set_by'];
+    protected $fillable = ['attendance_staff_id', 'date', 'attendance_shift_id', 'note', 'set_by'];
 
     protected $casts = ['date' => 'date'];
 

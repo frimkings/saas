@@ -49,6 +49,7 @@ class ClinicAddonService
                 'price' => (float) ($prices[$feature]->monthly_price ?? 0),
                 'currency' => $prices[$feature]->currency ?? $this->currency($clinic),
                 'offered' => (bool) ($prices[$feature]->is_offered ?? false),
+                'pack_size' => in_array($feature, PlanProduct::ADDON_ONLY, true) ? (int) ($prices[$feature]->pack_size ?? PlanProduct::STAFF_PACK_SIZE) : null,
             ]);
     }
 
@@ -78,8 +79,12 @@ class ClinicAddonService
      * Give the clinic an add-on now, charging the rest of the current period. The upcoming renewal
      * invoice gets it too if it's already been issued.
      */
-    public function add(Clinic $clinic, string $feature, float $monthlyPrice, ?string $reason, ?User $by, ?ClinicAddonRequest $request = null): ClinicAddon
+    public function add(Clinic $clinic, string $feature, float $monthlyPrice, ?string $reason, ?User $by, ?ClinicAddonRequest $request = null, int $quantity = 1): ClinicAddon
     {
+        // Packs: the price is per pack, and the add-on holds the staff they give at today's pack size.
+        $pack = $this->catalogue($clinic)->get($feature)['pack_size'] ?? null;
+        $quantity = $pack ? max(1, min(1000, $quantity)) : 1;
+        $monthlyPrice = round($monthlyPrice * $quantity, 2);
         $subscription = $this->subscription($clinic);
         if (! $subscription) throw ValidationException::withMessages(['addon' => 'This clinic has no subscription yet.']);
         if (! $this->catalogue($clinic)->has($feature)) throw ValidationException::withMessages(['addon' => "That add-on isn't available for this clinic's product."]);
@@ -87,8 +92,8 @@ class ClinicAddonService
         if (in_array($feature, $this->activeFeatures($clinic->id), true)) throw ValidationException::withMessages(['addon' => 'The clinic already has this add-on.']);
         if ($monthlyPrice < 0) throw ValidationException::withMessages(['addon' => 'The price can\'t be negative.']);
 
-        [$addon, $invoice] = DB::transaction(function () use ($clinic, $subscription, $feature, $monthlyPrice, $reason, $by, $request) {
-            $addon = ClinicAddon::create(['clinic_id' => $clinic->id, 'feature' => $feature, 'monthly_price' => round($monthlyPrice, 2),
+        [$addon, $invoice] = DB::transaction(function () use ($clinic, $subscription, $feature, $monthlyPrice, $reason, $by, $request, $quantity, $pack) {
+            $addon = ClinicAddon::create(['clinic_id' => $clinic->id, 'feature' => $feature, 'monthly_price' => round($monthlyPrice, 2), 'quantity' => $quantity, 'units' => $pack ? $pack * $quantity : null,
                 'currency' => $this->currency($clinic), 'starts_at' => now(), 'reason' => $reason, 'added_by' => $by?->id, 'clinic_addon_request_id' => $request?->id]);
 
             $invoice = null;
@@ -144,6 +149,30 @@ class ClinicAddonService
         });
 
         return $addon->fresh();
+    }
+
+    /**
+     * A different number of packs: the extra staff change now, the price (the same per pack) from
+     * the next renewal, as with a price change.
+     */
+    public function changePacks(ClinicAddon $addon, int $packs): ClinicAddon
+    {
+        if ($packs < 1 || $packs > 1000) throw ValidationException::withMessages(['addon' => 'Choose between 1 and 1,000 packs.']);
+        $quantity = max(1, (int) $addon->quantity);
+        $perPack = (float) $addon->monthly_price / $quantity;
+        $perPackStaff = (int) round(((int) $addon->units) / $quantity);
+        $old = ['quantity' => $quantity, 'units' => $addon->units, 'monthly_price' => (float) $addon->monthly_price];
+        $addon->update(['quantity' => $packs, 'units' => $perPackStaff * $packs]);
+        $this->changePrice($addon, round($perPack * $packs, 2));
+        app(PlatformAuditService::class)->record('CLINIC_ADDON_PACKS_CHANGED', $addon->clinic_id, $old, ['feature' => $addon->feature, 'quantity' => $packs, 'units' => $perPackStaff * $packs]);
+
+        return $addon->fresh();
+    }
+
+    /** Extra staff on attendance from packs the clinic has now. */
+    public function extraStaff(int $clinicId): int
+    {
+        return (int) ClinicAddon::where('clinic_id', $clinicId)->where('feature', \App\Support\Feature::ATTENDANCE_STAFF_PACK)->activeAt()->sum('units');
     }
 
     /** Invoice lines for the add-ons in a renewal period: [description, amount, addon id]. */

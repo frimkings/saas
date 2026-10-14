@@ -39,6 +39,11 @@ class AttendancePunch extends Model
         return $this->belongsTo(AttendanceStaff::class, 'attendance_staff_id');
     }
 
+    public function device()
+    {
+        return $this->belongsTo(AttendanceDevice::class, 'attendance_device_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

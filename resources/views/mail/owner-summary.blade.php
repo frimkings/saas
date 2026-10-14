@@ -174,7 +174,7 @@
   @endif
 
   @if(! empty($s['attendance']))
-    @include('mail.partials.owner-attendance', ['blocks' => $s['attendance'], 'url' => $s['attendanceUrl'], 'compareWith' => $s['compareWith']])
+    @include('mail.partials.owner-attendance', ['blocks' => $s['attendance'], 'url' => $s['attendanceUrl'], 'compareWith' => $s['compareWith'], 'named' => ! empty($s['forHead'])])
   @endif
 
   <tr>
@@ -184,7 +184,11 @@
   </tr>
   <tr>
     <td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #eef0f3;font-size:12px;color:#98a2b3;line-height:1.5">
+      @if(! empty($s['forHead']))
+      Sent to you as head of department by {{ config('mail.from.name') }}. Your manager chooses the heads under Attendance &rarr; Set up &rarr; Departments.
+      @else
       {{ empty($s['attendanceOnly']) ? 'Sales count when made; money counts when received. ' : '' }}Sent to the owner by {{ config('mail.from.name') }}; change the owner email under Subscription &rarr; Billing profile.
+      @endif
     </td>
   </tr>
 </table>

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** One clinic's add-on: an extra feature on top of its plan, billed per month. */
 class ClinicAddon extends Model
 {
-    protected $fillable = ['clinic_id', 'feature', 'monthly_price', 'currency', 'starts_at', 'ends_at', 'reason',
+    protected $fillable = ['clinic_id', 'feature', 'monthly_price', 'quantity', 'units', 'currency', 'starts_at', 'ends_at', 'reason',
         'clinic_addon_request_id', 'added_by', 'cancelled_by', 'cancelled_at'];
 
     protected $casts = ['monthly_price' => 'decimal:2', 'starts_at' => 'datetime', 'ends_at' => 'datetime', 'cancelled_at' => 'datetime'];
@@ -30,6 +30,14 @@ class ClinicAddon extends Model
 
     public function name(): string
     {
-        return PlanProduct::EXTRAS[$this->feature][0] ?? ucwords(str_replace('_', ' ', $this->feature));
+        $name = PlanProduct::EXTRAS[$this->feature][0] ?? ucwords(str_replace('_', ' ', $this->feature));
+        // Packs say how many, and the staff they give.
+        if ($this->feature === \App\Support\Feature::ATTENDANCE_STAFF_PACK) {
+            $packs = (int) ($this->quantity ?: 1);
+
+            return "Attendance: extra staff ({$packs} " . ($packs === 1 ? 'pack' : 'packs') . ', ' . (int) $this->units . ' staff)';
+        }
+
+        return $name;
     }
 }

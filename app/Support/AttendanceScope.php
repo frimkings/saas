@@ -20,7 +20,7 @@ class AttendanceScope
     /** Ids of the departments at this branch the person heads. */
     public static function headed(?User $user): array
     {
-        if (! $user) {
+        if (! $user || ! AttendancePlan::hospital()) {
             return [];
         }
 

@@ -20,7 +20,7 @@ class SubscriptionProductTest extends TestCase
     public function test_product_rules_for_feature_lists(): void
     {
         $optical = PlanProduct::features('optical', ['sms_campaigns', 'appointments']);
-        $this->assertSame(['optical', 'sms_campaigns', 'appointments'], $optical);
+        $this->assertSame(['optical', 'sms_campaigns', 'appointments', 'attendance_parts_chosen'], $optical);
         $this->assertSame('optical', PlanProduct::productOf($optical));
         $this->assertFalse(PlanProduct::allows($optical, 'clinical'));
         $this->assertTrue(PlanProduct::allows($optical, 'sms_campaigns'));
@@ -66,7 +66,7 @@ class SubscriptionProductTest extends TestCase
 
         $plan = SubscriptionPlan::where('code', 'optical-basic')->firstOrFail();
         $this->assertSame('optical', $plan->product);
-        $this->assertSame(['optical', 'sms_campaigns'], $plan->features);
+        $this->assertSame(['optical', 'sms_campaigns', 'attendance_parts_chosen'], $plan->features);
     }
 
     public function test_directory_and_onboarding_follow_the_product(): void
@@ -91,7 +91,7 @@ class SubscriptionProductTest extends TestCase
             ->set('newPlanId', $opticalPlan->id)->call('onboardClinic')->assertHasNoErrors();
 
         $shop = Clinic::where('slug', 'new-shop')->firstOrFail();
-        $this->assertSame(['optical'], $shop->subscriptions()->latest('id')->first()->feature_snapshot);
+        $this->assertSame(['optical', 'attendance_parts_chosen'], $shop->subscriptions()->latest('id')->first()->feature_snapshot);
     }
 
     private function tenantUser(string $product): User

@@ -7,7 +7,7 @@
     <td style="padding:18px 28px 4px">
       <p style="margin:0 0 8px;font-size:13px;font-weight:bold;color:#344054;text-transform:uppercase;letter-spacing:.04em">Staff attendance</p>
       @foreach($blocks as $branch => $a)
-        @if($several)<p style="margin:{{ $loop->first ? '0' : '14px' }} 0 6px;font-size:13px;font-weight:bold;color:#172033">{{ $branch }}</p>@endif
+        @if($several || ! empty($named))<p style="margin:{{ $loop->first ? '0' : '14px' }} 0 6px;font-size:13px;font-weight:bold;color:#172033">{{ $branch }}</p>@endif
 
         @if($a['headline'])
         <p style="margin:0 0 8px;font-size:14px">
@@ -19,6 +19,27 @@
             </span>
           @endif
         </p>
+        @endif
+
+        @if(! empty($a['departments']))
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;border:1px solid #e4e7ec;border-radius:6px;margin-bottom:10px">
+          <tr style="background:#f9fafb;color:#667085">
+            <td style="padding:7px 8px">Department</td>
+            <td style="padding:7px 6px;text-align:right">Present</td>
+            <td style="padding:7px 6px;text-align:right">Attendance</td>
+            <td style="padding:7px 6px;text-align:right">Late</td>
+            <td style="padding:7px 8px;text-align:right">Absent</td>
+          </tr>
+          @foreach($a['departments'] as $unit)
+          <tr>
+            <td style="padding:7px 8px;border-top:1px solid #f0f2f5">{{ $unit['name'] }}</td>
+            <td style="padding:7px 6px;border-top:1px solid #f0f2f5;text-align:right;white-space:nowrap">{{ $unit['present'] }} / {{ $unit['expected'] }}</td>
+            <td style="padding:7px 6px;border-top:1px solid #f0f2f5;text-align:right">{{ $unit['expected'] ? round($unit['present'] / $unit['expected'] * 100).'%' : '–' }}</td>
+            <td style="padding:7px 6px;border-top:1px solid #f0f2f5;text-align:right;{{ $unit['late'] ? 'color:#b54708;font-weight:bold' : '' }}">{{ $unit['late'] }}</td>
+            <td style="padding:7px 8px;border-top:1px solid #f0f2f5;text-align:right;{{ $unit['absent'] ? 'color:#b42318;font-weight:bold' : '' }}">{{ $unit['absent'] }}</td>
+          </tr>
+          @endforeach
+        </table>
         @endif
 
         @if($a['period'] === 'daily' && $a['headline'])

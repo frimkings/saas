@@ -35,7 +35,20 @@ class AttendanceComponent extends Component
     public string $to = '';
     #[Url]
     public string $view = 'summary';
+    /** Today (the live board), report or requests; empty until the page picks one. */
+    #[Url]
+    public string $tab = '';
+    // On the Today board: the department whose names are open, and which count's names are shown.
+    public string $boardUnit = '';
+    public string $boardShow = '';
+    public bool $showShort = false;
     public string $show = 'all';
+    /** Part of a name or Employee ID, to find people in a long list. */
+    public string $search = '';
+    // Long lists of people come a page at a time: the main list, the roster and payroll.
+    public int $page = 1;
+    public int $rosterPage = 1;
+    public int $payPage = 1;
     /** The department on show: '' everyone, an id, or 'none' for people in no department. */
     #[Url]
     public string $department = '';
@@ -53,6 +66,8 @@ class AttendanceComponent extends Component
     public string $departmentBreak = '';
     public string $departmentOvertimeAfter = '';
     public string $staffDepartmentId = '';
+    /** Shift id => ['min' => string, 'weekend' => string]: how many of the department must be on each shift. */
+    public array $departmentCover = [];
 
     // Day by day: the month on the calendar ('Y-m') and the day whose list is open ('Y-m-d').
     public string $calendarMonth = '';
@@ -61,6 +76,11 @@ class AttendanceComponent extends Component
 
     public bool $showUpload = false;
     public $file = null;
+
+    // Bringing in a staff list from Excel or CSV, and what the last one did.
+    public bool $showStaffImport = false;
+    public $staffFile = null;
+    public ?array $staffImported = null;
 
     public bool $showHours = false;
     public array $hours = [];
@@ -112,6 +132,7 @@ class AttendanceComponent extends Component
     public string $leaveToTime = '';
 
     public bool $showRequests = false;
+    public bool $showMore = false;
 
     // The branch's kinds of leave and their yearly allowances.
     public bool $showLeaveTypes = false;
@@ -132,6 +153,29 @@ class AttendanceComponent extends Component
     public bool $showRoster = false;
     /** The Monday of the week on the roster, 'Y-m-d'. */
     public string $rosterWeek = '';
+
+    // Filling the roster from a rotation pattern: the cycle, day by day ('0' = off, else a shift id).
+    public bool $showPattern = false;
+    public array $patternDays = [];
+    public string $patternAddShift = '';
+    public string $patternAddCount = '2';
+    public string $patternFrom = '';
+    public string $patternTo = '';
+    public array $patternPeople = [];
+    public string $patternStagger = '0';
+    public string $patternName = '';
+    public string $patternId = '';
+
+    // Swapping two people's shifts over some days.
+    public bool $showSwap = false;
+    public string $swapA = '';
+    public string $swapB = '';
+    public string $swapFrom = '';
+    public string $swapTo = '';
+
+    // Rest rules the roster warns about; empty = not checked.
+    public string $minRestHours = '';
+    public string $maxNights = '';
 
     // Correcting one person's punches on one day.
     public bool $showPunches = false;
@@ -155,8 +199,43 @@ class AttendanceComponent extends Component
         if (! in_array($this->view, ['summary', 'grid', 'trends'], true)) {
             $this->view = 'summary';
         }
+        // Links to a view of the report open on the report.
+        if ($this->tab === '' && request()->query('view')) {
+            $this->tab = 'report';
+        }
     }
 
+    public function clearBoard(): void
+    {
+        $this->reset('boardUnit', 'boardShow');
+    }
+
+
+    /** A change to what is listed starts again from the first page. */
+    public function updated(string $name): void
+    {
+        if (in_array($name, ['search', 'department', 'show', 'view', 'from', 'to'], true)) {
+            $this->page = $this->rosterPage = $this->payPage = 1;
+        }
+    }
+
+    private function matches(AttendanceStaff $staff): bool
+    {
+        $search = mb_strtolower(trim($this->search));
+
+        return $search === '' || str_contains(mb_strtolower($staff->name), $search) || str_contains(mb_strtolower((string) $staff->employee_no), $search);
+    }
+
+    /** One page of a list, and where it is: [items, [page, pages, total, from, to]]. */
+    private function paged(array $items, int &$page, int $perPage = 50): array
+    {
+        $total = count($items);
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($page, $pages));
+
+        return [array_slice($items, ($page - 1) * $perPage, $perPage),
+            ['page' => $page, 'pages' => $pages, 'total' => $total, 'from' => $total ? ($page - 1) * $perPage + 1 : 0, 'to' => min($total, $page * $perPage)]];
+    }
 
     /** Day by day: the month before or after, within the days picked. */
     public function shiftCalendar(int $by): void
@@ -182,6 +261,7 @@ class AttendanceComponent extends Component
 
     public function addShift(): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeAccess();
         $this->shiftName = trim($this->shiftName);
         $this->validate([
@@ -198,6 +278,7 @@ class AttendanceComponent extends Component
     /** A shift no longer offered stays on the days and people already given it. */
     public function toggleShift(int $id): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeAccess();
         $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
         $shift->update(['is_active' => ! $shift->is_active]);
@@ -205,6 +286,7 @@ class AttendanceComponent extends Component
 
     public function removeShift(int $id): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeAccess();
         $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
         $inUse = \App\Models\AttendanceRoster::query()->where('attendance_shift_id', $shift->id)->exists()
@@ -220,8 +302,10 @@ class AttendanceComponent extends Component
     /** The roster opens on the week of the last day on show. */
     public function openRoster(): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeView();
         $this->rosterWeek = $this->period()[1]->startOfWeek(\Carbon\CarbonInterface::MONDAY)->format('Y-m-d');
+        $this->rosterPage = 1;
         $this->showRoster = true;
     }
 
@@ -233,6 +317,7 @@ class AttendanceComponent extends Component
     /** One person's shift on one date: '' follows their usual hours, '0' is a day off, else a shift. */
     public function setRoster(int $staffId, string $date, string $choice): void
     {
+        $this->authorizePart('shifts');
         abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1, 404);
         $staff = $this->authorizeStaff($staffId);
         if ($choice === '') {
@@ -242,7 +327,218 @@ class AttendanceComponent extends Component
         }
         $shiftId = $choice === '0' ? null : \App\Models\AttendanceShift::query()->findOrFail((int) $choice)->id;
         \App\Models\AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $date],
-            ['attendance_shift_id' => $shiftId, 'set_by' => auth()->id()]);
+            ['attendance_shift_id' => $shiftId, 'note' => null, 'set_by' => auth()->id()]);
+    }
+
+    public function togglePattern(): void
+    {
+        $this->authorizeView();
+        $this->authorizeHospital();
+        $this->showPattern = ! $this->showPattern;
+        $this->showSwap = false;
+        if ($this->showPattern && $this->patternFrom === '') {
+            $monday = CarbonImmutable::parse($this->rosterWeek ?: 'today')->startOfWeek(\Carbon\CarbonInterface::MONDAY);
+            [$this->patternFrom, $this->patternTo] = [$monday->format('Y-m-d'), $monday->addDays(27)->format('Y-m-d')];
+        }
+        $this->resetValidation();
+    }
+
+    /** Add so many days of one shift, or of days off, to the end of the cycle. */
+    public function addPatternStep(): void
+    {
+        $this->authorizeView();
+        $this->validate(['patternAddShift' => ['required', 'regex:/^\d+$/'], 'patternAddCount' => 'required|integer|min:1|max:31'],
+            ['patternAddShift.required' => 'Choose a shift or days off.'], ['patternAddShift' => 'shift', 'patternAddCount' => 'days']);
+        abort_unless($this->patternAddShift === '0' || \App\Models\AttendanceShift::query()->whereKey((int) $this->patternAddShift)->exists(), 404);
+        if (count($this->patternDays) + (int) $this->patternAddCount > 62) {
+            $this->addError('patternAddCount', 'A cycle can be up to 62 days long.');
+
+            return;
+        }
+        array_push($this->patternDays, ...array_fill(0, (int) $this->patternAddCount, $this->patternAddShift));
+    }
+
+    public function undoPatternStep(): void
+    {
+        // The last run of the same shift goes together, as it was added.
+        $last = end($this->patternDays);
+        while ($this->patternDays && end($this->patternDays) === $last) {
+            array_pop($this->patternDays);
+        }
+    }
+
+    /** A saved pattern picked from the list. */
+    public function updatedPatternId(): void
+    {
+        $pattern = \App\Models\AttendancePattern::query()->find((int) $this->patternId);
+        $this->patternDays = $pattern ? array_map('strval', $pattern->days ?? []) : [];
+        $this->patternName = $pattern->name ?? '';
+    }
+
+    public function savePattern(): void
+    {
+        $this->authorizeView();
+        $this->patternName = trim($this->patternName);
+        $this->validate(['patternName' => 'required|string|max:60', 'patternDays' => 'required|array|min:1'],
+            ['patternDays.required' => 'Build the cycle first.'], ['patternName' => 'name']);
+        $pattern = \App\Models\AttendancePattern::query()->updateOrCreate(['name' => $this->patternName], ['days' => array_map('intval', $this->patternDays)]);
+        $this->patternId = (string) $pattern->id;
+        $this->dispatch('notify', type: 'success', message: "Pattern {$pattern->name} saved.");
+    }
+
+    public function deletePattern(): void
+    {
+        $this->authorizeView();
+        \App\Models\AttendancePattern::query()->whereKey((int) $this->patternId)->delete();
+        $this->reset('patternId', 'patternName', 'patternDays');
+    }
+
+    /**
+     * Fill the roster for the people ticked, first day to last, by repeating the cycle. Each next
+     * person can start so many days further into it, so they are not all on the same shift.
+     */
+    public function applyPattern(): void
+    {
+        $this->authorizeView();
+        $this->authorizeHospital();
+        $this->validate([
+            'patternDays' => 'required|array|min:1',
+            'patternFrom' => 'required|date_format:Y-m-d',
+            'patternTo' => 'required|date_format:Y-m-d|after_or_equal:patternFrom',
+            'patternPeople' => 'required|array|min:1',
+            'patternStagger' => 'required|integer|min:0|max:62',
+        ], ['patternDays.required' => 'Build the cycle first.', 'patternPeople.required' => 'Tick the people to fill the roster for.'],
+            ['patternFrom' => 'first day', 'patternTo' => 'last day', 'patternStagger' => 'days apart']);
+        $from = CarbonImmutable::parse($this->patternFrom);
+        $span = (int) $from->diffInDays(CarbonImmutable::parse($this->patternTo)) + 1;
+        if ($span > 93) {
+            $this->addError('patternTo', 'Fill up to three months at a time.');
+
+            return;
+        }
+        $shiftIds = \App\Models\AttendanceShift::query()->pluck('id')->all();
+        $cycle = array_map('intval', $this->patternDays);
+        abort_unless(! array_diff(array_filter($cycle), $shiftIds), 404);
+
+        $people = array_values(array_map(fn ($id) => $this->authorizeStaff((int) $id), $this->patternPeople));
+        usort($people, fn ($a, $b) => strcmp($a->name, $b->name));
+        $context = app(\App\Support\Tenancy\TenantContext::class);
+        $rows = [];
+        foreach ($people as $position => $staff) {
+            for ($day = 0; $day < $span; $day++) {
+                $choice = $cycle[($day + $position * (int) $this->patternStagger) % count($cycle)];
+                $rows[] = ['clinic_id' => $context->clinic()->id, 'branch_id' => $context->branchId(), 'attendance_staff_id' => $staff->id,
+                    'date' => $from->addDays($day)->format('Y-m-d'), 'attendance_shift_id' => $choice ?: null, 'note' => null, 'set_by' => auth()->id(),
+                    'created_at' => now(), 'updated_at' => now()];
+            }
+        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($people, $rows) {
+            \App\Models\AttendanceRoster::query()->whereIn('attendance_staff_id', array_map(fn ($staff) => $staff->id, $people))
+                ->whereBetween('date', [$this->patternFrom, $this->patternTo])->delete();
+            foreach (array_chunk($rows, 500) as $chunk) {
+                \Illuminate\Support\Facades\DB::table('attendance_roster')->insert($chunk);
+            }
+        });
+        \App\Models\AuditTrail::record('attendance.roster_filled', 'Filled the roster from '.$from->format('j M Y').' to '.CarbonImmutable::parse($this->patternTo)->format('j M Y')
+            .' for '.count($people).' people from a '.count($cycle).'-day pattern'.($this->patternName ? " ({$this->patternName})" : ''), null, [], ['people' => array_map(fn ($staff) => $staff->name, $people)], null, true);
+        $this->showPattern = false;
+        $this->patternPeople = [];
+        $this->dispatch('notify', type: 'success', message: 'Roster filled for '.count($people).(count($people) === 1 ? ' person.' : ' people.'));
+    }
+
+    public function toggleSwap(): void
+    {
+        $this->authorizeView();
+        $this->authorizeHospital();
+        $this->showSwap = ! $this->showSwap;
+        $this->showPattern = false;
+        $this->reset('swapA', 'swapB', 'swapTo');
+        $this->swapFrom = $this->rosterWeek;
+        $this->resetValidation();
+    }
+
+    /** Exchange two people's shifts over a day or a run of days. Done by the head or a manager, never by staff. */
+    public function swapRoster(AttendanceAnalyzer $analyzer): void
+    {
+        $this->authorizeView();
+        $this->authorizeHospital();
+        $this->validate([
+            'swapA' => 'required|integer', 'swapB' => 'required|integer|different:swapA',
+            'swapFrom' => 'required|date_format:Y-m-d', 'swapTo' => 'nullable|date_format:Y-m-d|after_or_equal:swapFrom',
+        ], ['swapB.different' => 'Choose two different people.'], ['swapA' => 'first person', 'swapB' => 'second person', 'swapFrom' => 'day', 'swapTo' => 'last day']);
+        [$a, $b] = [$this->authorizeStaff((int) $this->swapA), $this->authorizeStaff((int) $this->swapB)];
+        $from = CarbonImmutable::parse($this->swapFrom);
+        $to = CarbonImmutable::parse($this->swapTo ?: $this->swapFrom);
+        if ($from->diffInDays($to) > 31) {
+            $this->addError('swapTo', 'Swap up to a month at a time.');
+
+            return;
+        }
+        $changes = [];
+        for ($day = $from; $day->lte($to); $day = $day->addDay()) {
+            [$mine, $theirs] = [$analyzer->shiftChoice($a, $day), $analyzer->shiftChoice($b, $day)];
+            foreach ([[$a, $mine], [$b, $theirs]] as [$staff, $choice]) {
+                if ($choice === null) {
+                    $this->addError('swapFrom', "{$staff->name} has no shift on ".$day->format('D j M').' (they follow usual hours), so there is nothing to swap.');
+
+                    return;
+                }
+            }
+            if ($mine !== $theirs) {
+                $changes[] = [$day, $mine, $theirs];
+            }
+        }
+        if (! $changes) {
+            $this->addError('swapFrom', 'They are on the same shift on '.($from->eq($to) ? 'that day' : 'those days').' already.');
+
+            return;
+        }
+        foreach ($changes as [$day, $mine, $theirs]) {
+            foreach ([[$a, $theirs, $b], [$b, $mine, $a]] as [$staff, $choice, $other]) {
+                \App\Models\AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $day->format('Y-m-d')],
+                    ['attendance_shift_id' => $choice ?: null, 'note' => 'Swapped with '.$other->name, 'set_by' => auth()->id()]);
+            }
+        }
+        \App\Models\AuditTrail::record('attendance.shifts_swapped', "Swapped the shifts of {$a->name} and {$b->name} on ".$from->format('j M Y').($to->gt($from) ? ' to '.$to->format('j M Y') : '')
+            .' ('.count($changes).(count($changes) === 1 ? ' day' : ' days').')', null, [], ['staff' => [$a->name, $b->name]], null, true);
+        $this->showSwap = false;
+        $this->dispatch('notify', type: 'success', message: "Swapped {$a->name} and {$b->name}.");
+    }
+
+    /**
+     * Staff id => 'Y-m-d' => what the roster breaks for that person that day: too little rest
+     * since the shift before, or more nights in a row than the branch allows. Warnings only.
+     */
+    private function restWarnings(AttendanceAnalyzer $analyzer, array $rows, CarbonImmutable $monday, AttendanceSetting $settings): array
+    {
+        [$minRest, $maxNights] = [$settings->min_rest_hours, $settings->max_nights_in_row];
+        if ((! $minRest && ! $maxNights) || ! \App\Support\AttendancePlan::hospital()) {
+            return [];
+        }
+        $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
+        $warnings = [];
+        $schedules = $analyzer->schedules(array_map(fn ($row) => $row['staff'], $rows), $monday->subDays(max(1, (int) $maxNights)), $monday->addDays(6));
+        foreach ($rows as $row) {
+            $schedule = $schedules[$row['staff']->id] ?? [];
+            $keys = array_keys($schedule);
+            $nights = 0;
+            foreach ($keys as $i => $key) {
+                $hours = $schedule[$key];
+                $nights = $hours && $minutes($hours['end']) >= 1440 ? $nights + 1 : 0;
+                if (! $hours || $key < $monday->format('Y-m-d')) {
+                    continue;
+                }
+                $before = $i > 0 ? $schedule[$keys[$i - 1]] : null;
+                if ($minRest && $before && ($rest = $minutes($hours['start']) + 1440 - $minutes($before['end'])) < $minRest * 60) {
+                    $warnings[$row['staff']->id][$key][] = 'Only '.AttendanceAnalyzer::duration(max(0, $rest)).' rest after '.($before['shift'] ?? 'the day before');
+                }
+                if ($maxNights && $nights > $maxNights) {
+                    $warnings[$row['staff']->id][$key][] = 'Night '.$nights.' in a row';
+                }
+            }
+        }
+
+        return $warnings;
     }
 
     /** The roster week: each followed person's hours on each day, and what the roster sets. */
@@ -251,11 +547,103 @@ class AttendanceComponent extends Component
         $monday = CarbonImmutable::parse($this->rosterWeek)->startOfWeek(\Carbon\CarbonInterface::MONDAY);
         $report = $analyzer->range($monday, $monday->addDays(6));
         $set = [];
+        $notes = [];
         \App\Models\AttendanceRoster::query()->whereBetween('date', [$monday->format('Y-m-d'), $monday->addDays(6)->format('Y-m-d')])->get()
-            ->each(function ($entry) use (&$set) { $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0); });
+            ->each(function ($entry) use (&$set, &$notes) {
+                $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0);
+                if ($entry->note) {
+                    $notes[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = $entry->note;
+                }
+            });
 
-        return ['days' => $report['days'], 'set' => $set, 'holidays' => $report['holidays'],
-            'rows' => array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked))];
+        $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
+        [$cover, $gaps] = $this->rosterCover($rows, $report['days']);
+
+        // Cover counts everyone; the grid shows a page of them, and only those are checked for rest.
+        [$shown, $pager] = $this->paged(array_values(array_filter($rows, fn ($row) => $this->matches($row['staff']))), $this->rosterPage, 25);
+
+        return ['days' => $report['days'], 'set' => $set, 'notes' => $notes, 'holidays' => $report['holidays'], 'rows' => $rows, 'shown' => $shown, 'pager' => $pager,
+            'cover' => $cover, 'gaps' => $gaps,
+            'warnings' => $this->restWarnings($analyzer, $shown, $monday, $report['settings']),
+            'patterns' => $this->showPattern ? \App\Models\AttendancePattern::query()->orderBy('name')->get() : collect()];
+    }
+
+    /** The departments on show: all for a manager with no filter, one when filtered, a head's own. */
+    private function departmentsOnShow(): array
+    {
+        $user = auth()->user();
+        if ($this->department === 'none' || ! \App\Support\AttendancePlan::hospital()) {
+            return [];
+        }
+        $all = \App\Support\AttendanceScope::manager($user) ? \App\Models\AttendanceDepartment::query()->pluck('id')->all() : \App\Support\AttendanceScope::headed($user);
+
+        return ctype_digit($this->department) ? array_values(array_intersect($all, [(int) $this->department])) : $all;
+    }
+
+    /**
+     * For each department and shift with a minimum: how many are rostered on it each day against
+     * how many are needed. People on leave that day are not counted. Returns [lines, days short].
+     */
+    private function rosterCover(array $rows, array $days): array
+    {
+        $lines = [];
+        $gaps = 0;
+        $covers = \App\Models\AttendanceCover::query()->whereIn('attendance_department_id', $this->departmentsOnShow() ?: [0])->with(['department:id,name', 'shift'])->get()
+            ->filter(fn ($cover) => $cover->department && $cover->shift)->sortBy(fn ($cover) => [$cover->department->name, $cover->shift->starts_at]);
+        foreach ($covers as $cover) {
+            $line = ['department' => $cover->department->name, 'shift' => $cover->shift->name, 'days' => []];
+            foreach ($days as $key => $day) {
+                $have = count(array_filter($rows, fn ($row) => $row['staff']->attendance_department_id === $cover->attendance_department_id
+                    && ($row['days'][$key]['hours']['shift'] ?? null) === $cover->shift->name && ! $row['days'][$key]['leave_type']));
+                $line['days'][$key] = ['have' => $have, 'need' => $need = $cover->neededOn($day)];
+                $gaps += (int) ($have < $need);
+            }
+            $lines[] = $line;
+        }
+
+        return [$lines, $gaps];
+    }
+
+    /** The Today board by department: each one the person may see, and people in none, with what is short now. */
+    private function boardRows(array $board, $departments, array $shortNow): array
+    {
+        if ($departments->isEmpty()) {
+            return [];
+        }
+        $rows = $departments->map(fn ($unit) => ['key' => (string) $unit->id, 'name' => $unit->name,
+            'short' => array_values(array_filter($shortNow, fn ($gap) => $gap['department'] === $unit->name))])->values()->all();
+        if (collect($board)->contains(fn ($person) => ! $person['staff']->attendance_department_id)) {
+            $rows[] = ['key' => 'none', 'name' => 'No department', 'short' => []];
+        }
+
+        return $rows;
+    }
+
+    /** Departments short on a shift that is running right now: fewer people in than its minimum. */
+    private function shortNow(array $board, CarbonImmutable $now): array
+    {
+        $short = [];
+        $clock = (int) $now->format('H') * 60 + (int) $now->format('i');
+        $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
+        foreach (\App\Models\AttendanceCover::query()->whereIn('attendance_department_id', $this->departmentsOnShow() ?: [0])->with(['department:id,name', 'shift'])->get() as $cover) {
+            if (! $cover->department || ! $cover->shift) {
+                continue;
+            }
+            [$start, $end] = [$minutes($cover->shift->starts_at), $minutes($cover->shift->ends_at)];
+            // A night shift is running late in the evening and again before it ends in the morning.
+            $running = $cover->shift->overnight() ? ($clock >= $start || $clock < $end) : ($clock >= $start && $clock < $end);
+            if (! $running) {
+                continue;
+            }
+            $day = $cover->shift->overnight() && $clock < $end ? $now->subDay() : $now;
+            $in = count(array_filter($board, fn ($person) => $person['state'] === 'in' && $person['shift'] === $cover->shift->name
+                && $person['staff']->attendance_department_id === $cover->attendance_department_id));
+            if ($in < $need = $cover->neededOn($day)) {
+                $short[] = ['department' => $cover->department->name, 'shift' => $cover->shift->name, 'in' => $in, 'need' => $need];
+            }
+        }
+
+        return $short;
     }
 
     /** One person's punches on one day, to add a missed punch, change a time or remove a mistake. */
@@ -334,7 +722,7 @@ class AttendanceComponent extends Component
             ->first(fn ($row) => $row['staff']->id === $staff->id);
 
         return ['staff' => $staff, 'date' => $date, 'day' => $row['days'][$this->punchDate] ?? null,
-            'punches' => \App\Models\AttendancePunch::withVoided()->with(['creator:id,name', 'voider:id,name'])
+            'punches' => \App\Models\AttendancePunch::withVoided()->with(['creator:id,name', 'voider:id,name', 'device:id,name'])
                 ->where('attendance_staff_id', $staff->id)
                 ->whereBetween('punched_at', [$this->punchDate.' 00:00:00', $this->punchDate.' 23:59:59'])->orderBy('punched_at')->orderBy('id')->get()];
     }
@@ -441,6 +829,27 @@ class AttendanceComponent extends Component
         ));
     }
 
+    public function openStaffImport(): void
+    {
+        $this->authorizeAccess();
+        $this->authorizeHospital();
+        $this->reset('staffFile', 'staffImported');
+        $this->resetValidation();
+        $this->showStaffImport = true;
+    }
+
+    /** Add or update people, and their departments, from a staff list. Pay columns are read for the owner only. */
+    public function importStaff(\App\Services\Attendance\AttendanceStaffImport $import): void
+    {
+        $this->authorizeAccess();
+        $this->authorizeHospital();
+        $this->validate(['staffFile' => 'required|file|max:5120'], ['staffFile.required' => 'Choose the file first.'], ['staffFile' => 'file']);
+        $this->staffImported = $import->import($import->rows($this->staffFile), (bool) auth()->user()->hasRole('Super Admin'));
+        \App\Models\AuditTrail::record('attendance.staff_imported', 'Brought in a staff list: '.$this->staffImported['added'].' added, '.$this->staffImported['updated'].' updated, '
+            .$this->staffImported['departments'].' departments made', null, [], ['file' => $this->staffFile->getClientOriginalName()], null, true);
+        $this->reset('staffFile');
+    }
+
     public function editHours(): void
     {
         $this->authorizeAccess();
@@ -450,6 +859,8 @@ class AttendanceComponent extends Component
         $this->breakMinutes = $settings->break_minutes ?? 60;
         $this->overtimeAfter = $settings->overtime_after_minutes ?? 30;
         $this->overtimeNeedsApproval = (bool) ($settings->overtime_needs_approval ?? true);
+        $this->minRestHours = (string) ($settings->min_rest_hours ?? '');
+        $this->maxNights = (string) ($settings->max_nights_in_row ?? '');
         $this->resetValidation();
         $this->showHours = true;
     }
@@ -461,14 +872,17 @@ class AttendanceComponent extends Component
             'graceMinutes' => 'required|integer|min:0|max:240',
             'breakMinutes' => 'required|integer|min:0|max:480',
             'overtimeAfter' => 'required|integer|min:1|max:480',
-        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed', 'overtimeAfter' => 'overtime threshold']);
+            'minRestHours' => 'nullable|integer|min:1|max:48',
+            'maxNights' => 'nullable|integer|min:1|max:31',
+        ], [], ['graceMinutes' => 'grace period', 'breakMinutes' => 'break allowed', 'overtimeAfter' => 'overtime threshold', 'minRestHours' => 'rest between shifts', 'maxNights' => 'nights in a row']);
         if (! $hours = $this->hoursFrom('hours')) {
             return;
         }
 
         $settings = AttendanceSetting::current();
         $settings->fill(['hours' => $hours, 'grace_minutes' => (int) $this->graceMinutes, 'break_minutes' => (int) $this->breakMinutes,
-            'overtime_after_minutes' => (int) $this->overtimeAfter, 'overtime_needs_approval' => $this->overtimeNeedsApproval])->save();
+            'overtime_after_minutes' => (int) $this->overtimeAfter, 'overtime_needs_approval' => $this->overtimeNeedsApproval,
+            'min_rest_hours' => $this->minRestHours === '' ? null : (int) $this->minRestHours, 'max_nights_in_row' => $this->maxNights === '' ? null : (int) $this->maxNights])->save();
         $this->showHours = false;
         $this->dispatch('notify', type: 'success', message: 'Working hours saved.');
     }
@@ -590,6 +1004,11 @@ class AttendanceComponent extends Component
         if ($this->staffOwnHours && ! $hours = $this->hoursFrom('staffHours')) {
             return;
         }
+        if ($this->staffTracked && ! AttendanceStaff::query()->findOrFail($this->staffId)->is_tracked && ! \App\Support\AttendancePlan::canFollow()) {
+            $this->addError('staffTracked', 'Your plan follows up to '.\App\Support\AttendancePlan::staffLimit().' staff, and that many are followed. Stop following someone else, or ask us to move you to a larger plan.');
+
+            return;
+        }
 
         // Weekly shifts: only the weekdays given a shift or a day off are kept.
         $shiftIds = \App\Models\AttendanceShift::query()->pluck('id')->all();
@@ -661,6 +1080,7 @@ class AttendanceComponent extends Component
 
     public function openLeaveTypes(): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         \App\Models\AttendanceLeaveType::ensureSaved();
         $this->reset('leaveTypeEditId', 'leaveTypeName', 'leaveTypeDays', 'leaveTypePaid');
@@ -670,6 +1090,7 @@ class AttendanceComponent extends Component
 
     public function editLeaveType(int $id): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
         $this->leaveTypeEditId = $type->id;
@@ -682,6 +1103,7 @@ class AttendanceComponent extends Component
     /** Add a kind of leave, or change one's name, yearly allowance or whether it is paid. */
     public function saveLeaveType(): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $this->leaveTypeName = trim($this->leaveTypeName);
         $this->validate([
@@ -701,6 +1123,7 @@ class AttendanceComponent extends Component
     /** A type no longer offered stays on the leave already given under it. */
     public function toggleLeaveType(int $id): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
         if ($type->is_active && \App\Models\AttendanceLeaveType::query()->where('is_active', true)->count() === 1) {
@@ -713,6 +1136,7 @@ class AttendanceComponent extends Component
 
     public function removeLeaveType(int $id): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
         if (AttendanceLeave::query()->where('type', $type->code)->exists()) {
@@ -751,6 +1175,7 @@ class AttendanceComponent extends Component
      */
     public function decideOvertime(int $staffId, string $date, bool $approve, AttendanceAnalyzer $analyzer): void
     {
+        $this->authorizePart('overtime');
         abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1, 404);
         $staff = $this->authorizeStaff($staffId);
         $day = CarbonImmutable::parse($date);
@@ -780,6 +1205,7 @@ class AttendanceComponent extends Component
     /** Take back an answer on overtime, so it waits for one again. */
     public function reopenOvertime(int $staffId, string $date): void
     {
+        $this->authorizePart('overtime');
         $this->authorizeStaff($staffId);
         $decision = \App\Models\AttendanceOvertime::query()->where('attendance_staff_id', $staffId)->whereDate('date', $date)->with('staff:id,name')->firstOrFail();
         \App\Models\AuditTrail::record('attendance.overtime_reopened', 'Took back the answer on overtime for '.($decision->staff->name ?? 'someone').' on '.$decision->date->format('j M Y'),
@@ -836,6 +1262,7 @@ class AttendanceComponent extends Component
 
     public function openPhone(): void
     {
+        $this->authorizePart('phone');
         $this->authorizeAccess();
         $settings = AttendanceSetting::current();
         $this->phoneOn = (bool) $settings->phone_clock_in;
@@ -849,6 +1276,7 @@ class AttendanceComponent extends Component
 
     public function savePhone(): void
     {
+        $this->authorizePart('phone');
         $this->authorizeAccess();
         $this->validate([
             'phoneLatitude' => [$this->phoneOn ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
@@ -871,6 +1299,7 @@ class AttendanceComponent extends Component
     /** Someone with a user account but not on a terminal: follow them so they can clock in by phone. */
     public function addPhonePerson(): void
     {
+        $this->authorizePart('phone');
         $this->authorizeAccess();
         $user = User::query()->inCurrentClinic()->whereKey((int) $this->phoneUserId)->first();
         if (! $user) {
@@ -883,6 +1312,11 @@ class AttendanceComponent extends Component
 
             return;
         }
+        if (! \App\Support\AttendancePlan::canFollow()) {
+            $this->addError('phoneUserId', 'Your plan follows up to '.\App\Support\AttendancePlan::staffLimit().' staff, and that many are followed.');
+
+            return;
+        }
         AttendanceStaff::create(['employee_no' => 'APP-'.$user->id, 'name' => $user->name, 'user_id' => $user->id, 'is_tracked' => true,
             'starts_on' => CarbonImmutable::now($this->timezone())->format('Y-m-d')]);
         $this->phoneUserId = '';
@@ -890,6 +1324,7 @@ class AttendanceComponent extends Component
 
     public function openPayroll(): void
     {
+        $this->authorizePart('payroll');
         $this->authorizePay();
         $settings = AttendanceSetting::current();
         $this->overtimeMultiplier = rtrim(rtrim(number_format((float) ($settings->overtime_multiplier ?? 1.5), 2, '.', ''), '0'), '.');
@@ -906,6 +1341,7 @@ class AttendanceComponent extends Component
     /** Save the pay rules and how each person is paid; the figures below are worked out again. */
     public function savePayroll(): void
     {
+        $this->authorizePart('payroll');
         $this->authorizePay();
         $this->validate([
             'overtimeMultiplier' => 'required|numeric|min:1|max:5',
@@ -945,7 +1381,8 @@ class AttendanceComponent extends Component
     public function openDepartments(): void
     {
         $this->authorizeAccess();
-        $this->reset('departmentEditId', 'departmentName', 'departmentHeads', 'departmentMembers', 'departmentOwnRules', 'departmentOwnHours', 'departmentGrace', 'departmentBreak', 'departmentOvertimeAfter');
+        $this->authorizeHospital();
+        $this->reset('departmentEditId', 'departmentName', 'departmentHeads', 'departmentMembers', 'departmentOwnRules', 'departmentOwnHours', 'departmentGrace', 'departmentBreak', 'departmentOvertimeAfter', 'departmentCover');
         $this->departmentHours = $this->hoursForm(AttendanceSetting::current()->hours ?? []);
         $this->resetValidation();
         $this->showDepartments = true;
@@ -965,6 +1402,10 @@ class AttendanceComponent extends Component
         $this->departmentGrace = (string) ($department->grace_minutes ?? '');
         $this->departmentBreak = (string) ($department->break_minutes ?? '');
         $this->departmentOvertimeAfter = (string) ($department->overtime_after_minutes ?? '');
+        $this->departmentCover = [];
+        foreach (\App\Models\AttendanceCover::query()->where('attendance_department_id', $department->id)->get() as $cover) {
+            $this->departmentCover[$cover->attendance_shift_id] = ['min' => (string) $cover->minimum, 'weekend' => (string) ($cover->weekend_minimum ?? '')];
+        }
         $this->resetValidation();
     }
 
@@ -972,6 +1413,7 @@ class AttendanceComponent extends Component
     public function saveDepartment(): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         $this->departmentName = trim($this->departmentName);
         $this->validate([
             'departmentName' => ['required', 'string', 'max:60', \Illuminate\Validation\Rule::unique('attendance_departments', 'name')
@@ -979,8 +1421,11 @@ class AttendanceComponent extends Component
             'departmentGrace' => 'nullable|integer|min:0|max:240',
             'departmentBreak' => 'nullable|integer|min:0|max:480',
             'departmentOvertimeAfter' => 'nullable|integer|min:1|max:480',
+            'departmentCover.*.min' => 'nullable|integer|min:0|max:500',
+            'departmentCover.*.weekend' => 'nullable|integer|min:0|max:500',
         ], ['departmentName.unique' => 'There is already a department with that name.'],
-            ['departmentName' => 'name', 'departmentGrace' => 'grace period', 'departmentBreak' => 'break allowed', 'departmentOvertimeAfter' => 'overtime threshold']);
+            ['departmentName' => 'name', 'departmentGrace' => 'grace period', 'departmentBreak' => 'break allowed', 'departmentOvertimeAfter' => 'overtime threshold',
+                'departmentCover.*.min' => 'minimum cover', 'departmentCover.*.weekend' => 'weekend cover']);
         $hours = null;
         if ($this->departmentOwnRules && $this->departmentOwnHours && ! $hours = $this->hoursFrom('departmentHours')) {
             return;
@@ -997,6 +1442,16 @@ class AttendanceComponent extends Component
         ];
         $department = $this->departmentEditId ? \App\Models\AttendanceDepartment::query()->findOrFail($this->departmentEditId) : new \App\Models\AttendanceDepartment();
         $department->fill($values)->save();
+
+        // Minimum cover: one line per shift that has a number.
+        \App\Models\AttendanceCover::query()->where('attendance_department_id', $department->id)->delete();
+        foreach (\App\Models\AttendanceShift::query()->pluck('id') as $shiftId) {
+            $cover = $this->departmentCover[$shiftId] ?? [];
+            if (trim((string) ($cover['min'] ?? '')) !== '' && (int) $cover['min'] > 0) {
+                \App\Models\AttendanceCover::create(['attendance_department_id' => $department->id, 'attendance_shift_id' => $shiftId, 'minimum' => (int) $cover['min'],
+                    'weekend_minimum' => trim((string) ($cover['weekend'] ?? '')) === '' ? null : (int) $cover['weekend']]);
+            }
+        }
 
         // Its people: those ticked join it (leaving any other department); those unticked leave it.
         $members = array_map('intval', $this->departmentMembers);
@@ -1021,6 +1476,7 @@ class AttendanceComponent extends Component
     public function departmentsFromTerminal(): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         foreach (AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->get() as $staff) {
             $department = \App\Models\AttendanceDepartment::query()->firstOrCreate(['name' => mb_substr(trim($staff->department), 0, 60)]);
             $staff->update(['attendance_department_id' => $department->id]);
@@ -1053,6 +1509,18 @@ class AttendanceComponent extends Component
         return array_values($summary);
     }
 
+    /** Departments, cover, patterns, swaps and staff lists: the hospital tools, a part of attendance sold on its own. */
+    private function authorizeHospital(): void
+    {
+        $this->authorizePart('hospital');
+    }
+
+    /** A part of attendance the clinic's plan or add-ons must include. */
+    private function authorizePart(string $part): void
+    {
+        abort_unless(\App\Support\AttendancePlan::parts()[$part], 403, 'This is not part of your plan. See "More attendance features" under Set up.');
+    }
+
     /** The owner, a manager, or the head of a department here. */
     private function authorizeView(): void
     {
@@ -1071,6 +1539,51 @@ class AttendanceComponent extends Component
     }
 
     /** Setting up the branch's attendance: the owner and managers only. */
+    /** Parts of attendance the clinic hasn't got, with what each does and costs as an add-on. */
+    private function lockedParts(array $extras): array
+    {
+        $keys = ['shifts' => \App\Support\Feature::ATTENDANCE_SHIFTS, 'overtime' => \App\Support\Feature::ATTENDANCE_OVERTIME, 'leave' => \App\Support\Feature::ATTENDANCE_LEAVE,
+            'payroll' => \App\Support\Feature::ATTENDANCE_PAYROLL, 'phone' => \App\Support\Feature::ATTENDANCE_PHONE, 'trends' => \App\Support\Feature::ATTENDANCE_TRENDS,
+            'hospital' => \App\Support\Feature::ATTENDANCE_HOSPITAL];
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        $catalogue = $clinic && app(\App\Services\ClinicAccessService::class)->hosted($clinic) ? app(\App\Services\ClinicAddonService::class)->catalogue($clinic) : collect();
+        $asked = $clinic ? \App\Models\ClinicAddonRequest::query()->where('clinic_id', $clinic->id)->where('status', 'pending')->pluck('feature')->all() : [];
+        $locked = [];
+        foreach ($keys as $part => $feature) {
+            if (! $extras[$part]) {
+                $offer = $catalogue->get($feature);
+                $locked[] = ['feature' => $feature, 'name' => ucfirst(\Illuminate\Support\Str::after(\App\Support\PlanProduct::EXTRAS[$feature][0], 'Attendance: ')),
+                    'about' => \App\Support\PlanProduct::ATTENDANCE_PART_DESCRIPTIONS[$feature], 'price' => $offer && $offer['offered'] ? $offer['price'] : null,
+                    'currency' => $offer['currency'] ?? null, 'asked' => in_array($feature, $asked, true)];
+            }
+        }
+
+        return $locked;
+    }
+
+    /** A pack of extra staff, if the platform offers them to this clinic: [size, price, currency, asked]. */
+    private function staffPackOffer(): ?array
+    {
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        if (! $clinic || ! app(\App\Services\ClinicAccessService::class)->hosted($clinic)) {
+            return null;
+        }
+        $offer = app(\App\Services\ClinicAddonService::class)->catalogue($clinic)->get(\App\Support\Feature::ATTENDANCE_STAFF_PACK);
+
+        return $offer && $offer['offered'] ? ['size' => $offer['pack_size'], 'price' => $offer['price'], 'currency' => $offer['currency'],
+            'asked' => \App\Models\ClinicAddonRequest::query()->where('clinic_id', $clinic->id)->where('feature', \App\Support\Feature::ATTENDANCE_STAFF_PACK)->where('status', 'pending')->exists()] : null;
+    }
+
+    /** Ask the platform for a part of attendance as an add-on (the owner only). */
+    public function requestPart(string $feature, \App\Services\ClinicAddonService $addons): void
+    {
+        $this->authorizeAccess();
+        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can ask for add-ons.');
+        abort_unless(in_array($feature, [...\App\Support\PlanProduct::ATTENDANCE_PARTS, \App\Support\Feature::ATTENDANCE_STAFF_PACK], true), 404);
+        $addons->request(app(\App\Support\Tenancy\TenantContext::class)->clinic(), $feature, 'Asked for from the Attendance page', auth()->user());
+        $this->dispatch('notify', type: 'success', message: 'Request sent. You will hear once it is switched on.');
+    }
+
     private function authorizeAccess(): void
     {
         abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
@@ -1096,7 +1609,14 @@ class AttendanceComponent extends Component
         $user = auth()->user();
         $manager = \App\Support\AttendanceScope::manager($user);
         $headed = $manager ? [] : \App\Support\AttendanceScope::headed($user);
-        $departments = \App\Models\AttendanceDepartment::query()->withCount('staff')->orderBy('name')->get();
+        // What the plan includes; a part not included is not shown (see "More attendance features").
+        $extras = \App\Support\AttendancePlan::parts();
+        if ($this->view === 'trends' && ! $extras['trends']) {
+            $this->view = 'summary';
+        }
+        // Departments are a hospital tool: without it none are shown, even if some were made before.
+        $hospital = $extras['hospital'];
+        $departments = $hospital ? \App\Models\AttendanceDepartment::query()->withCount('staff')->orderBy('name')->get() : collect();
         $visible = $manager ? $departments : $departments->whereIn('id', $headed)->values();
         if ($this->department !== '' && ! ($manager && $this->department === 'none') && ! $visible->contains('id', (int) $this->department)) {
             $this->department = '';
@@ -1110,11 +1630,28 @@ class AttendanceComponent extends Component
         }
         $report = $analyzer->range($first, $last);
 
-        $rows = array_values(array_filter($report['rows'], fn ($row) => match ($this->show) {
+        $rows = array_values(array_filter($report['rows'], fn ($row) => $this->matches($row['staff']) && match ($this->show) {
             'late' => $row['staff']->is_tracked && $row['totals']['late'] > 0,
             'absent' => $row['staff']->is_tracked && $row['totals']['absent'] > 0,
             default => true,
         }));
+        [$rows, $pager] = $this->paged($rows, $this->page);
+
+        $trends = $this->view === 'trends' ? app(\App\Services\Attendance\AttendanceTrends::class)->only($only)->months(min($last, CarbonImmutable::now($timezone)->startOfDay())) : null;
+        if ($trends) {
+            [$trends['people'], $pager] = $this->paged(array_values(array_filter($trends['people'], fn ($person) => $this->matches($person['staff']))), $this->page);
+        }
+        $payroll = $this->showPayroll && $user?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null;
+        $overtime = $this->overtimeList($report);
+
+        // The live board needs a terminal that sends punches as they happen, or phones.
+        $board = $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
+            ? $analyzer->today(CarbonImmutable::now($timezone)) : [];
+        $shortNow = $board ? $this->shortNow($board, CarbonImmutable::now($timezone)) : [];
+        // The page opens on Today where there is a live board, else on the report.
+        if (! in_array($this->tab, ['today', 'report', 'requests'], true) || ($this->tab === 'today' && ! $board)) {
+            $this->tab = $board ? 'today' : 'report';
+        }
 
         return view('livewire.admin.attendance-component', [
             'first' => $first,
@@ -1122,11 +1659,19 @@ class AttendanceComponent extends Component
             'periodLabel' => AttendancePeriod::label($first, $last),
             // Six months up to the last day on show.
             'manager' => $manager,
+            'hospital' => $hospital,
+            'extras' => $extras,
+            'locked' => $manager ? $this->lockedParts($extras) : [],
+            'staffLimit' => $manager ? \App\Support\AttendancePlan::staffLimit() : null,
+            'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
+            'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,
+            'staffPack' => $manager ? $this->staffPackOffer() : null,
             'departments' => $visible,
             'departmentSummary' => $manager && $departments->isNotEmpty() && $this->department === '' && $this->view === 'summary' ? $this->departmentSummary($report, $departments) : [],
             'departmentPeople' => $this->showDepartments ? AttendanceStaff::query()->where('is_tracked', true)->with('unit:id,name')->orderBy('name')->get() : collect(),
             'terminalLabels' => $this->showDepartments ? AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->distinct()->count('department') : 0,
-            'trends' => $this->view === 'trends' ? app(\App\Services\Attendance\AttendanceTrends::class)->only($only)->months(min($last, CarbonImmutable::now($timezone)->startOfDay())) : null,
+            'trends' => $trends,
+            'pager' => $pager,
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
@@ -1136,14 +1681,18 @@ class AttendanceComponent extends Component
             'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
             // Payroll gets its own button once anyone has been given a salary or an hourly rate.
             'paysStaff' => AttendanceStaff::query()->whereNotNull('pay_type')->exists(),
-            'payroll' => $this->showPayroll && auth()->user()?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null,
+            'payroll' => $payroll,
+            'payrollTotal' => $payroll ? array_sum(array_map(fn ($line) => $line['gross'] ?? 0, $payroll['rows'])) : 0,
+            'payrollPage' => $payroll ? $this->paged(array_values(array_filter($payroll['rows'], fn ($line) => $this->matches($line['staff']))), $this->payPage) : [[], null],
             'currency' => \App\Models\Setting::currency(),
-            'overtime' => $overtime = $this->overtimeList($report),
+            // Those waiting come first; a long list shows its first fifty.
+            'overtime' => array_slice($overtime, 0, 50),
+            'overtimeCount' => count($overtime),
             'overtimeWaiting' => count(array_filter($overtime, fn ($item) => $item['day']['overtime_status'] === 'pending')),
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,
             'leaveTypes' => \App\Models\AttendanceLeaveType::options(),
-            'balances' => $this->showStaff && ($person = AttendanceStaff::query()->find($this->staffId))
+            'balances' => $this->showStaff && $extras['leave'] && ($person = AttendanceStaff::query()->find($this->staffId))
                 ? app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($person, $last->year) : [],
             'balanceYear' => $last->year,
             'requestDays' => $this->showRequests ? $this->requestDays() : [],
@@ -1156,9 +1705,9 @@ class AttendanceComponent extends Component
             'phonePeople' => $this->showPhone ? AttendanceStaff::query()->where('is_tracked', true)->orderBy('name')->get(['id', 'name', 'user_id']) : collect(),
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),
             'silent' => $manager ? AttendanceDevice::silent(now()->setTimezone($timezone)) : collect(),
-            // The live board needs a terminal that sends punches as they happen.
-            'board' => $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
-                ? $analyzer->today(CarbonImmutable::now($timezone)) : [],
+            'board' => $board,
+            'shortNow' => $shortNow,
+            'boardRows' => $board ? $this->boardRows($board, $departments, $shortNow) : [],
             'today' => CarbonImmutable::now($timezone),
             'requests' => AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->when($only !== null, fn ($query) => $query->whereIn('attendance_staff_id', $only))
                 ->with('staff:id,name')->orderBy('starts_on')->get(),

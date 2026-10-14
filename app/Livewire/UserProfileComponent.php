@@ -166,7 +166,7 @@ class UserProfileComponent extends Component
         $balances = app(\App\Services\Attendance\AttendanceLeaveBalances::class);
         $asked = new \App\Models\AttendanceLeave(['attendance_staff_id' => $staff->id, 'starts_on' => $this->leaveFrom, 'ends_on' => $lastDay,
             'from_time' => $part ? $from : null, 'to_time' => $part ? $to : null, 'type' => $this->leaveType]);
-        $left = $balances->for($staff, (int) substr($this->leaveFrom, 0, 4))[$this->leaveType]['left'] ?? null;
+        $left = \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_LEAVE) ? ($balances->for($staff, (int) substr($this->leaveFrom, 0, 4))[$this->leaveType]['left'] ?? null) : null;
         if ($left !== null && ($days = $balances->daysOf($staff, $asked)) > $left) {
             $this->addError('leaveType', 'That is '.$balances::days($days).', and you have '.$balances::days(max(0, $left)).' of '.strtolower($asked->typeName()).' left this year. Ask for fewer days, or speak to your manager.');
 
@@ -194,6 +194,7 @@ class UserProfileComponent extends Component
     public function clockIn($latitude, $longitude, $accuracy = null): void
     {
         abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE), 403);
+        abort_unless(\App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_PHONE), 403);
         $staff = \App\Models\AttendanceStaff::query()->where('user_id', Auth::id())->where('is_tracked', true)->firstOrFail();
         if (! is_numeric($latitude) || ! is_numeric($longitude)) {
             $this->dispatch('notify', type: 'error', message: 'Your phone did not give a location. Turn on location and try again.');
@@ -215,7 +216,7 @@ class UserProfileComponent extends Component
     /** What the phone clock-in card shows: null when the branch has it off, else today's punches and what the next one is. */
     private function clockCard(\App\Models\AttendanceStaff $staff, \App\Models\AttendanceSetting $settings, \Carbon\CarbonImmutable $now): ?array
     {
-        if (! $settings->phone_clock_in || $settings->clock_in_latitude === null) {
+        if (! $settings->phone_clock_in || $settings->clock_in_latitude === null || ! \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_PHONE)) {
             return null;
         }
         $today = \App\Models\AttendancePunch::query()->where('attendance_staff_id', $staff->id)
@@ -251,7 +252,7 @@ class UserProfileComponent extends Component
                 'requests' => \App\Models\AttendanceLeave::query()->where('attendance_staff_id', $onTerminal->id)->where('requested_by', $user->id)->latest('id')->limit(10)->get(),
                 'leaveTypes' => $offered = \App\Models\AttendanceLeaveType::offered(),
                 'balanceYear' => $year = \Carbon\CarbonImmutable::now($timezone)->year,
-                'balances' => app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($onTerminal, $year),
+                'balances' => \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_LEAVE) ? app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($onTerminal, $year) : [],
                 'clock' => $this->clockCard($onTerminal, $report['settings'], \Carbon\CarbonImmutable::now($timezone))];
             $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         }
