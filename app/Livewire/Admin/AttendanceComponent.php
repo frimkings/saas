@@ -311,6 +311,7 @@ class AttendanceComponent extends Component
     public function togglePattern(): void
     {
         $this->authorizeView();
+        $this->authorizeHospital();
         $this->showPattern = ! $this->showPattern;
         $this->showSwap = false;
         if ($this->showPattern && $this->patternFrom === '') {
@@ -377,6 +378,7 @@ class AttendanceComponent extends Component
     public function applyPattern(): void
     {
         $this->authorizeView();
+        $this->authorizeHospital();
         $this->validate([
             'patternDays' => 'required|array|min:1',
             'patternFrom' => 'required|date_format:Y-m-d',
@@ -425,6 +427,7 @@ class AttendanceComponent extends Component
     public function toggleSwap(): void
     {
         $this->authorizeView();
+        $this->authorizeHospital();
         $this->showSwap = ! $this->showSwap;
         $this->showPattern = false;
         $this->reset('swapA', 'swapB', 'swapTo');
@@ -436,6 +439,7 @@ class AttendanceComponent extends Component
     public function swapRoster(AttendanceAnalyzer $analyzer): void
     {
         $this->authorizeView();
+        $this->authorizeHospital();
         $this->validate([
             'swapA' => 'required|integer', 'swapB' => 'required|integer|different:swapA',
             'swapFrom' => 'required|date_format:Y-m-d', 'swapTo' => 'nullable|date_format:Y-m-d|after_or_equal:swapFrom',
@@ -486,7 +490,7 @@ class AttendanceComponent extends Component
     private function restWarnings(AttendanceAnalyzer $analyzer, array $rows, CarbonImmutable $monday, AttendanceSetting $settings): array
     {
         [$minRest, $maxNights] = [$settings->min_rest_hours, $settings->max_nights_in_row];
-        if (! $minRest && ! $maxNights) {
+        if ((! $minRest && ! $maxNights) || ! \App\Support\AttendancePlan::hospital()) {
             return [];
         }
         $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
@@ -546,7 +550,7 @@ class AttendanceComponent extends Component
     private function departmentsOnShow(): array
     {
         $user = auth()->user();
-        if ($this->department === 'none') {
+        if ($this->department === 'none' || ! \App\Support\AttendancePlan::hospital()) {
             return [];
         }
         $all = \App\Support\AttendanceScope::manager($user) ? \App\Models\AttendanceDepartment::query()->pluck('id')->all() : \App\Support\AttendanceScope::headed($user);
@@ -791,6 +795,7 @@ class AttendanceComponent extends Component
     public function openStaffImport(): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         $this->reset('staffFile', 'staffImported');
         $this->resetValidation();
         $this->showStaffImport = true;
@@ -800,6 +805,7 @@ class AttendanceComponent extends Component
     public function importStaff(\App\Services\Attendance\AttendanceStaffImport $import): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         $this->validate(['staffFile' => 'required|file|max:5120'], ['staffFile.required' => 'Choose the file first.'], ['staffFile' => 'file']);
         $this->staffImported = $import->import($import->rows($this->staffFile), (bool) auth()->user()->hasRole('Super Admin'));
         \App\Models\AuditTrail::record('attendance.staff_imported', 'Brought in a staff list: '.$this->staffImported['added'].' added, '.$this->staffImported['updated'].' updated, '
@@ -959,6 +965,11 @@ class AttendanceComponent extends Component
         }
         $hours = null;
         if ($this->staffOwnHours && ! $hours = $this->hoursFrom('staffHours')) {
+            return;
+        }
+        if ($this->staffTracked && ! AttendanceStaff::query()->findOrFail($this->staffId)->is_tracked && ! \App\Support\AttendancePlan::canFollow()) {
+            $this->addError('staffTracked', 'Your plan follows up to '.\App\Support\AttendancePlan::staffLimit().' staff, and that many are followed. Stop following someone else, or ask us to move you to a larger plan.');
+
             return;
         }
 
@@ -1254,6 +1265,11 @@ class AttendanceComponent extends Component
 
             return;
         }
+        if (! \App\Support\AttendancePlan::canFollow()) {
+            $this->addError('phoneUserId', 'Your plan follows up to '.\App\Support\AttendancePlan::staffLimit().' staff, and that many are followed.');
+
+            return;
+        }
         AttendanceStaff::create(['employee_no' => 'APP-'.$user->id, 'name' => $user->name, 'user_id' => $user->id, 'is_tracked' => true,
             'starts_on' => CarbonImmutable::now($this->timezone())->format('Y-m-d')]);
         $this->phoneUserId = '';
@@ -1316,6 +1332,7 @@ class AttendanceComponent extends Component
     public function openDepartments(): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         $this->reset('departmentEditId', 'departmentName', 'departmentHeads', 'departmentMembers', 'departmentOwnRules', 'departmentOwnHours', 'departmentGrace', 'departmentBreak', 'departmentOvertimeAfter', 'departmentCover');
         $this->departmentHours = $this->hoursForm(AttendanceSetting::current()->hours ?? []);
         $this->resetValidation();
@@ -1347,6 +1364,7 @@ class AttendanceComponent extends Component
     public function saveDepartment(): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         $this->departmentName = trim($this->departmentName);
         $this->validate([
             'departmentName' => ['required', 'string', 'max:60', \Illuminate\Validation\Rule::unique('attendance_departments', 'name')
@@ -1409,6 +1427,7 @@ class AttendanceComponent extends Component
     public function departmentsFromTerminal(): void
     {
         $this->authorizeAccess();
+        $this->authorizeHospital();
         foreach (AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->get() as $staff) {
             $department = \App\Models\AttendanceDepartment::query()->firstOrCreate(['name' => mb_substr(trim($staff->department), 0, 60)]);
             $staff->update(['attendance_department_id' => $department->id]);
@@ -1439,6 +1458,12 @@ class AttendanceComponent extends Component
         }
 
         return array_values($summary);
+    }
+
+    /** Departments, cover, patterns, swaps and staff lists come with the larger packages. */
+    private function authorizeHospital(): void
+    {
+        abort_unless(\App\Support\AttendancePlan::hospital(), 403, 'This is part of the hospital package. Ask us to move you to a larger plan.');
     }
 
     /** The owner, a manager, or the head of a department here. */
@@ -1484,7 +1509,9 @@ class AttendanceComponent extends Component
         $user = auth()->user();
         $manager = \App\Support\AttendanceScope::manager($user);
         $headed = $manager ? [] : \App\Support\AttendanceScope::headed($user);
-        $departments = \App\Models\AttendanceDepartment::query()->withCount('staff')->orderBy('name')->get();
+        // Departments are a hospital tool: a smaller package sees none, even if some were made before.
+        $hospital = \App\Support\AttendancePlan::hospital();
+        $departments = $hospital ? \App\Models\AttendanceDepartment::query()->withCount('staff')->orderBy('name')->get() : collect();
         $visible = $manager ? $departments : $departments->whereIn('id', $headed)->values();
         if ($this->department !== '' && ! ($manager && $this->department === 'none') && ! $visible->contains('id', (int) $this->department)) {
             $this->department = '';
@@ -1518,6 +1545,10 @@ class AttendanceComponent extends Component
             'periodLabel' => AttendancePeriod::label($first, $last),
             // Six months up to the last day on show.
             'manager' => $manager,
+            'hospital' => $hospital,
+            'staffLimit' => $manager ? \App\Support\AttendancePlan::staffLimit() : null,
+            'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
+            'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,
             'departments' => $visible,
             'departmentSummary' => $manager && $departments->isNotEmpty() && $this->department === '' && $this->view === 'summary' ? $this->departmentSummary($report, $departments) : [],
             'departmentPeople' => $this->showDepartments ? AttendanceStaff::query()->where('is_tracked', true)->with('unit:id,name')->orderBy('name')->get() : collect(),

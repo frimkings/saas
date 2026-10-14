@@ -64,7 +64,7 @@ class AttendanceStaffImportTest extends TestCase
             ->call('importStaff')->assertHasErrors(['staffFile'])
             ->set('staffFile', $this->file($csv))->call('importStaff')->assertHasNoErrors()
             ->assertSee('Row 4: no Employee ID')->assertSee('Row 5: no name')->assertSee('Row 6: the start date');
-        $this->assertSame(['added' => 2, 'updated' => 1, 'departments' => 1], array_diff_key($page->get('staffImported'), ['skipped' => 1]));
+        $this->assertSame(['added' => 2, 'updated' => 1, 'departments' => 1], array_diff_key($page->get('staffImported'), ['skipped' => 1, 'not_followed' => 1]));
 
         // 001 was known: renamed and placed, not added twice; "nursing" matched the department already here.
         $ama = AttendanceStaff::where('employee_no', '001')->sole();

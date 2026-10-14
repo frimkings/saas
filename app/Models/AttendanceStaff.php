@@ -23,6 +23,16 @@ class AttendanceStaff extends Model
         'shift_week' => 'array',
     ];
 
+    protected static function booted(): void
+    {
+        // Someone new once the plan's limit is reached is kept, with their punches, but not followed.
+        static::creating(function (self $staff): void {
+            if (($staff->is_tracked ?? true) && ! \App\Support\AttendancePlan::canFollow(1, $staff->clinic_id ? \App\Models\Clinic::find($staff->clinic_id) : null)) {
+                $staff->is_tracked = false;
+            }
+        });
+    }
+
     public function unit()
     {
         return $this->belongsTo(AttendanceDepartment::class, 'attendance_department_id');

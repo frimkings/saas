@@ -15,7 +15,7 @@ class SubscriptionLifecycleService
             'plan_snapshot' => [
                 'id' => $plan->id, 'name' => $plan->name, 'code' => $plan->code,
                 'version' => $plan->version, 'included_branches' => $plan->included_branches,
-                'included_users' => $plan->included_users, 'storage_limit_mb' => $plan->storage_limit_mb,
+                'included_users' => $plan->included_users, 'attendance_staff' => $plan->attendance_staff, 'storage_limit_mb' => $plan->storage_limit_mb,
             ],
             'pricing_snapshot' => [
                 'base_price' => $plan->base_price, 'annual_price' => $plan->annual_price,

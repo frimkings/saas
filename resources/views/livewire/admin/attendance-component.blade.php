@@ -39,8 +39,8 @@
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
                             ['openPhone', 'fa-mobile-screen', 'Phone clock-in'],
-                            ['openDepartments', 'fa-sitemap', 'Departments'],
-                            ['openStaffImport', 'fa-file-import', 'Bring in a staff list'],
+                            ['openDepartments', 'fa-sitemap', 'Departments', $hospital],
+                            ['openStaffImport', 'fa-file-import', 'Bring in a staff list', $hospital],
                             ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff],
                         ] as $item)
                             @continue(($item[3] ?? true) === false)
@@ -60,6 +60,14 @@
                 <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="$set('showDevices', true)">Terminals</button>
             </div>
         @endforeach
+
+        @if($staffLimit !== null && ($staffFollowed >= $staffLimit || $notFollowed))
+            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <i class="fas fa-users mr-1" aria-hidden="true"></i>Your plan follows up to <strong>{{ number_format($staffLimit) }}</strong> staff; <strong>{{ number_format($staffFollowed) }}</strong> are followed.
+                @if($notFollowed) {{ number_format($notFollowed) }} more {{ $notFollowed === 1 ? 'is' : 'are' }} on the terminal but not followed: their punches are kept, and count once you follow them. @endif
+                Ask us to move you to a larger plan to follow more.
+            </div>
+        @endif
 
         @if($requests->isNotEmpty())
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
@@ -461,7 +469,7 @@
                     @error('overtimeAfter')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     <label class="mt-2 flex items-center gap-2 text-sm text-slate-800"><input type="checkbox" wire:model="overtimeNeedsApproval"> Overtime counts only when a manager approves it</label>
                 </div>
-                @if($shifts->isNotEmpty())
+                @if($shifts->isNotEmpty() && $hospital)
                     <div>
                         <p class="!mb-1 text-sm font-medium text-slate-700">Rest, for people on shifts</p>
                         <div class="flex flex-wrap items-end gap-3">
@@ -604,7 +612,7 @@
                     <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Previous week">‹</x-ui.button>
                     <strong class="text-sm text-slate-800">Week of {{ $rosterDays[0]->format('j M') }} to {{ $rosterDays[6]->format('j M Y') }}</strong>
                     <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Next week">›</x-ui.button>
-                    @if($shifts->isNotEmpty())
+                    @if($shifts->isNotEmpty() && $hospital)
                         <x-ui.button type="button" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i> Fill from a pattern</x-ui.button>
                         <x-ui.button type="button" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i> Swap two people</x-ui.button>
                     @endif
@@ -1112,6 +1120,7 @@
                 @if($staffImported)
                     <div class="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
                         <strong>{{ $staffImported['added'] }}</strong> added, <strong>{{ $staffImported['updated'] }}</strong> updated, <strong>{{ $staffImported['departments'] }}</strong> {{ $staffImported['departments'] === 1 ? 'department' : 'departments' }} made.
+                        @if($staffImported['not_followed'] ?? 0) <span class="text-amber-900">{{ $staffImported['not_followed'] }} of those added are not followed: your plan's staff limit was reached.</span>@endif
                         @if($staffImported['skipped'])
                             <ul class="!mb-0 mt-1 list-disc !pl-5 text-amber-900">
                                 @foreach(array_slice($staffImported['skipped'], 0, 20, true) as $line => $reason)<li>Row {{ $line }}: {{ $reason }}.</li>@endforeach

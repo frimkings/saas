@@ -80,7 +80,7 @@ class OwnerSummaryService
         $before = $from->copy()->subDay();
         $due = 0;
         ActAsClinic::eachBranch($clinic, function (Branch $branch) use ($clinic, $from, $to, $before, &$due) {
-            if (! LicenseService::has(Feature::ATTENDANCE)) return;
+            if (! LicenseService::has(Feature::ATTENDANCE) || ! \App\Support\AttendancePlan::hospital($clinic)) return;
             $headed = [];
             foreach (\App\Models\AttendanceDepartment::query()->orderBy('name')->get() as $department) {
                 foreach ($department->heads ?? [] as $userId) {

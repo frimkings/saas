@@ -75,7 +75,7 @@ class AttendanceStaffImport
 
         $departments = AttendanceDepartment::query()->get()->keyBy(fn ($department) => mb_strtolower($department->name));
         $known = AttendanceStaff::query()->get()->keyBy('employee_no');
-        $result = ['added' => 0, 'updated' => 0, 'departments' => 0, 'skipped' => []];
+        $result = ['added' => 0, 'updated' => 0, 'departments' => 0, 'not_followed' => 0, 'skipped' => []];
         foreach ($rows as $i => $row) {
             $line = $i + 2;
             $cell = fn (string $column) => isset($map[$column]) ? trim((string) ($row[$map[$column]] ?? '')) : '';
@@ -121,6 +121,8 @@ class AttendanceStaffImport
             } else {
                 $known[$id] = AttendanceStaff::create($values + ['employee_no' => $id, 'is_tracked' => true]);
                 $result['added']++;
+                // Past the plan's limit they are kept, not followed.
+                $result['not_followed'] += (int) ! $known[$id]->is_tracked;
             }
         }
 
