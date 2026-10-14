@@ -90,7 +90,7 @@
         <div wire:key="board-drawer-{{ $boardUnit }}">
             <div class="att-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { boardUnit: '' })" aria-hidden="true"></div>
             <aside class="att-drawer" data-sheet role="dialog" aria-modal="true" aria-labelledby="att-drawer-title" tabindex="-1" x-data x-init="$el.focus()"
-                   x-on:keydown.escape.window="dismissLocal($el, $wire, { boardUnit: '' })">
+                   x-on:keydown.escape.window="! $wire.showStaff && dismissLocal($el, $wire, { boardUnit: '' })">
                 <header class="att-drawer-head">
                     <div>
                         <h2 id="att-drawer-title">{{ $unit['name'] }}</h2>
@@ -132,16 +132,3 @@
         </div>
     @endif
 </div>
-<style>
-    .att-overlay{position:fixed;inset:0;z-index:1040;background:rgb(15 23 42 / .45)}
-    .att-drawer{position:fixed;top:0;right:0;z-index:1041;height:100dvh;width:min(620px,100vw);background:#fff;display:flex;flex-direction:column;box-shadow:-16px 0 40px rgb(15 23 42 / .2);animation:attSlide .2s ease-out;outline:none}
-    @keyframes attSlide{from{transform:translateX(40px);opacity:.4}to{transform:none;opacity:1}}
-    @media(prefers-reduced-motion:reduce){.att-drawer{animation:none}}
-    .att-drawer-head{padding:18px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
-    .att-drawer-head h2{margin:0 0 6px;font-size:18px;font-weight:800;color:#0f172a}
-    .att-drawer-body{flex:1;overflow-y:auto;padding:18px 20px;display:grid;gap:18px;align-content:start}
-    .att-drawer-foot{border-top:1px solid #e2e8f0;padding:12px 20px;display:flex;gap:8px;justify-content:flex-end;background:#fafcfc}
-    .att-section-title{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;font-weight:800}
-    .att-x{border:0;background:none;font-size:22px;line-height:1;color:#64748b;cursor:pointer;padding:2px 6px;border-radius:6px}.att-x:hover{background:#f1f5f9}
-</style>
-

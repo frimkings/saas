@@ -1158,10 +1158,20 @@
     @endif
 
     @if($showStaff && $detail)
-        {{-- Wider than the other dialogs: a day's punches need the room. --}}
-        <style>.clinic-ui .ui-dialog:has(.attendance-person) { width: min(900px, calc(100% - 32px)); }</style>
-        <x-ui.modal :title="$detail['staff']->name.' · '.$periodLabel" state="showStaff">
-            <div class="attendance-person space-y-4 p-4">
+        {{-- One person: a panel that slides in from the right, over a department's panel if one is open. --}}
+        <div wire:key="staff-drawer-{{ $detail['staff']->id }}">
+        <div class="att-overlay att-top" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { showStaff: false })" aria-hidden="true"></div>
+        <aside class="att-drawer att-top att-wide" data-sheet role="dialog" aria-modal="true" aria-labelledby="staff-drawer-title" tabindex="-1" x-data x-init="$el.focus()"
+               x-on:keydown.escape.window="dismissLocal($el, $wire, { showStaff: false })">
+            <header class="att-drawer-head">
+                <div>
+                    <h2 id="staff-drawer-title">{{ $detail['staff']->name }}</h2>
+                    <div class="text-xs text-slate-500">{{ $periodLabel }} · ID {{ $detail['staff']->employee_no }}{{ ($unitName = $detail['staff']->unit?->name ?? $detail['staff']->department) ? ' · '.$unitName : '' }}</div>
+                </div>
+                <button type="button" class="att-x" x-on:click="dismissLocal($el, $wire, { showStaff: false })" aria-label="Close">&times;</button>
+            </header>
+            <div class="att-drawer-body">
+            <div class="attendance-person space-y-4">
                 @if($manager)
                 <form wire:submit="saveStaff" class="space-y-4 rounded-lg bg-slate-50 p-4">
                     <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="staffTracked"> Follow this person's attendance</label>
@@ -1317,6 +1327,22 @@
                     @endif
                 </div>
             </div>
-        </x-ui.modal>
+            </div>
+        </aside>
+        </div>
     @endif
+    <style>
+        .att-overlay{position:fixed;inset:0;z-index:1040;background:rgb(15 23 42 / .45)}
+        .att-drawer{position:fixed;top:0;right:0;z-index:1041;height:100dvh;width:min(620px,100vw);background:#fff;display:flex;flex-direction:column;box-shadow:-16px 0 40px rgb(15 23 42 / .2);animation:attSlide .2s ease-out;outline:none}
+        @keyframes attSlide{from{transform:translateX(40px);opacity:.4}to{transform:none;opacity:1}}
+        @media(prefers-reduced-motion:reduce){.att-drawer{animation:none}}
+        .att-drawer-head{padding:18px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+        .att-drawer-head h2{margin:0 0 6px;font-size:18px;font-weight:800;color:#0f172a}
+        .att-drawer-body{flex:1;overflow-y:auto;padding:18px 20px;display:grid;gap:18px;align-content:start}
+        .att-drawer-foot{border-top:1px solid #e2e8f0;padding:12px 20px;display:flex;gap:8px;justify-content:flex-end;background:#fafcfc}
+        .att-section-title{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;font-weight:800}
+        .att-x{border:0;background:none;font-size:22px;line-height:1;color:#64748b;cursor:pointer;padding:2px 6px;border-radius:6px}.att-x:hover{background:#f1f5f9}
+        /* A person's panel opens over a department's; it is wider, for a day's punches. */
+        .att-overlay.att-top{z-index:1042}.att-drawer.att-top{z-index:1043}.att-drawer.att-wide{width:min(820px,100vw)}
+    </style>
 </div>
