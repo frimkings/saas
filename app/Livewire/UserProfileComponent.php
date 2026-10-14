@@ -225,6 +225,24 @@ class UserProfileComponent extends Component
         return ['radius' => (int) $settings->clock_in_radius, 'next' => $today->count() % 2 === 0 ? 'in' : 'out', 'punches' => $today];
     }
 
+    /** The next two weeks of someone's shifts, as the roster has them: null where the branch has no shifts. */
+    private function myShifts(\App\Models\AttendanceStaff $staff, \Carbon\CarbonImmutable $today): ?array
+    {
+        if (! \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_SHIFTS) || ! \App\Models\AttendanceShift::query()->exists()) {
+            return null;
+        }
+        $last = $today->addDays(13);
+        $notes = \App\Models\AttendanceRoster::query()->where('attendance_staff_id', $staff->id)->whereBetween('date', [$today->format('Y-m-d'), $last->format('Y-m-d')])
+            ->whereNotNull('note')->get()->mapWithKeys(fn ($entry) => [$entry->date->format('Y-m-d') => $entry->note])->all();
+        $codes = collect(\App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->get()))->keyBy('name');
+        $days = [];
+        foreach (app(\App\Services\Attendance\AttendanceAnalyzer::class)->schedule($staff, $today, $last) as $key => $hours) {
+            $days[$key] = ['date' => \Carbon\CarbonImmutable::parse($key), 'hours' => $hours, 'code' => $hours ? ($codes[$hours['shift'] ?? ''] ?? null) : null, 'note' => $notes[$key] ?? null];
+        }
+
+        return $days;
+    }
+
     public function switchTab(string $tab): void
     {
         $this->activeTab = $tab;
@@ -253,7 +271,8 @@ class UserProfileComponent extends Component
                 'leaveTypes' => $offered = \App\Models\AttendanceLeaveType::offered(),
                 'balanceYear' => $year = \Carbon\CarbonImmutable::now($timezone)->year,
                 'balances' => \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_LEAVE) ? app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($onTerminal, $year) : [],
-                'clock' => $this->clockCard($onTerminal, $report['settings'], \Carbon\CarbonImmutable::now($timezone))];
+                'clock' => $this->clockCard($onTerminal, $report['settings'], \Carbon\CarbonImmutable::now($timezone)),
+                'shifts' => $this->myShifts($onTerminal, \Carbon\CarbonImmutable::now($timezone)->startOfDay())];
             $this->leaveType = $offered->has($this->leaveType) ? $this->leaveType : (string) $offered->keys()->first();
         }
 

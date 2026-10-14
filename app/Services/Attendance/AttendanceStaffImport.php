@@ -31,11 +31,15 @@ class AttendanceStaffImport
     public const TEMPLATE = "Employee ID,Name,Department,Pay type,Pay rate,Start date\r\n001,Ama Owusu,Nursing,monthly,2200,2026-01-05\r\n002,Kofi Boateng,Laboratory,hourly,20,\r\n";
 
     /** The file's rows as lists of cells, heading row first. */
-    public function rows($upload): array
+    public function rows($upload, string $field = 'staffFile'): array
     {
         $extension = strtolower($upload->getClientOriginalExtension());
         if ($extension === 'xlsx') {
-            $sheet = app(OpticalLensExcelImportService::class)->readUpload($upload)[0]['rows'] ?? [];
+            try {
+                $sheet = app(OpticalLensExcelImportService::class)->readUpload($upload)[0]['rows'] ?? [];
+            } catch (ValidationException $e) {
+                throw ValidationException::withMessages([$field => collect($e->errors())->flatten()->first() ?? 'That file could not be read.']);
+            }
             ksort($sheet);
             $rows = [];
             foreach ($sheet as $cells) {
@@ -49,7 +53,7 @@ class AttendanceStaffImport
             return $rows;
         }
         if (! in_array($extension, ['csv', 'txt'], true)) {
-            throw ValidationException::withMessages(['staffFile' => 'Upload an Excel file (.xlsx) or a CSV file.']);
+            throw ValidationException::withMessages([$field => 'Upload an Excel file (.xlsx) or a CSV file.']);
         }
         $text = preg_replace('/^\xEF\xBB\xBF/', '', (string) $upload->get());
         $lines = preg_split('/\r\n|\r|\n/', trim($text));

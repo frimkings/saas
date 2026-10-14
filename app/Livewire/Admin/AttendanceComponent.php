@@ -156,8 +156,16 @@ class AttendanceComponent extends Component
     /** ISO weekday => '' (usual hours), '0' (day off) or a shift id. */
     public array $staffShiftWeek = [];
     public bool $showRoster = false;
-    /** The Monday of the week on the roster, 'Y-m-d'. */
+    /** A day in the week or month on the roster, 'Y-m-d'. */
     public string $rosterWeek = '';
+    /** 'week' or 'month'. */
+    public string $rosterSpan = 'week';
+    /** The department on the roster: an id, 'none', or '' where the branch has no departments. */
+    public string $rosterUnit = '';
+    // A roster brought in from Excel: the file, then what it would change, before it is applied.
+    public bool $showRosterUpload = false;
+    public $rosterFile = null;
+    public ?array $rosterPreview = null;
 
     // Filling the roster from a rotation pattern: the cycle, day by day ('0' = off, else a shift id).
     public bool $showPattern = false;
@@ -347,14 +355,96 @@ class AttendanceComponent extends Component
     {
         $this->authorizePart('shifts');
         $this->authorizeView();
-        $this->rosterWeek = $this->period()[1]->startOfWeek(\Carbon\CarbonInterface::MONDAY)->format('Y-m-d');
+        $this->rosterWeek = $this->period()[1]->format('Y-m-d');
         $this->rosterPage = 1;
+        // The department in view, else the head's own, else the first: one department at a time.
+        $units = $this->rosterUnits();
+        $this->rosterUnit = $units === [] ? '' : (isset($units[$this->department]) ? $this->department : (string) array_key_first($units));
+        $this->reset('showRosterUpload', 'rosterFile', 'rosterPreview');
         $this->showRoster = true;
     }
 
     public function shiftRosterWeek(int $by): void
     {
-        $this->rosterWeek = CarbonImmutable::parse($this->rosterWeek ?: 'today')->startOfWeek(\Carbon\CarbonInterface::MONDAY)->addWeeks($by < 0 ? -1 : 1)->format('Y-m-d');
+        $anchor = CarbonImmutable::parse($this->rosterWeek ?: 'today');
+        $this->rosterWeek = ($this->rosterSpan === 'month' ? $anchor->startOfMonth()->addMonthsNoOverflow($by < 0 ? -1 : 1) : $anchor->addWeeks($by < 0 ? -1 : 1))->format('Y-m-d');
+    }
+
+    public function updatedRosterUnit(): void
+    {
+        abort_unless($this->rosterUnit === '' || isset($this->rosterUnits()[$this->rosterUnit]), 403);
+        $this->rosterPage = 1;
+        $this->reset('rosterPreview');
+    }
+
+    /** Departments this person can roster: id (or 'none') => name. Empty where the branch has none. */
+    private function rosterUnits(): array
+    {
+        if (! \App\Support\AttendancePlan::hospital()) {
+            return [];
+        }
+        $user = auth()->user();
+        $manager = \App\Support\AttendanceScope::manager($user);
+        $departments = \App\Models\AttendanceDepartment::query()->orderBy('name')
+            ->when(! $manager, fn ($query) => $query->whereIn('id', \App\Support\AttendanceScope::headed($user)))->pluck('name', 'id')->mapWithKeys(fn ($name, $id) => [(string) $id => $name])->all();
+        if ($departments && $manager && AttendanceStaff::query()->where('is_tracked', true)->whereNull('attendance_department_id')->exists()) {
+            $departments['none'] = 'No department';
+        }
+
+        return $departments;
+    }
+
+    /** The people on the roster: the department picked, or everyone the person may see. */
+    private function rosterStaffIds(): ?array
+    {
+        if ($this->rosterUnit === '') {
+            return \App\Support\AttendanceScope::staffIds(auth()->user(), '');
+        }
+        abort_unless(isset($this->rosterUnits()[$this->rosterUnit]), 403);
+
+        return AttendanceStaff::query()->when($this->rosterUnit === 'none', fn ($query) => $query->whereNull('attendance_department_id'),
+            fn ($query) => $query->where('attendance_department_id', (int) $this->rosterUnit))->pluck('id')->all();
+    }
+
+    /** [first day, last day] on the roster. */
+    private function rosterRange(): array
+    {
+        $anchor = CarbonImmutable::parse($this->rosterWeek ?: 'today')->startOfDay();
+        if ($this->rosterSpan === 'month') {
+            return [$anchor->startOfMonth(), $anchor->endOfMonth()->startOfDay()];
+        }
+        $monday = $anchor->startOfWeek(\Carbon\CarbonInterface::MONDAY);
+
+        return [$monday, $monday->addDays(6)];
+    }
+
+    /** Read a roster filled in from the downloaded file, and show what it would change. */
+    public function readRosterFile(\App\Services\Attendance\AttendanceRosterFile $file, \App\Services\Attendance\AttendanceStaffImport $reader): void
+    {
+        $this->authorizePart('shifts');
+        $this->authorizeView();
+        $this->validate(['rosterFile' => 'required|file|max:5120'], ['rosterFile.required' => 'Choose the file first.'], ['rosterFile' => 'file']);
+        $ids = $this->rosterStaffIds();
+        $staff = AttendanceStaff::query()->where('is_tracked', true)->when($ids !== null, fn ($query) => $query->whereIn('id', $ids))->get();
+        $this->rosterPreview = $file->read($reader->rows($this->rosterFile, 'rosterFile'), $staff, \App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->get()),
+            CarbonImmutable::now($this->timezone())->startOfDay());
+        $this->reset('rosterFile');
+    }
+
+    public function applyRosterFile(\App\Services\Attendance\AttendanceRosterFile $file): void
+    {
+        $this->authorizePart('shifts');
+        $this->authorizeView();
+        $changes = $this->rosterPreview['changes'] ?? [];
+        // Only people this person may roster, and nothing before today, whatever came back from the browser.
+        $ids = $this->rosterStaffIds();
+        $today = CarbonImmutable::now($this->timezone())->format('Y-m-d');
+        $changes = array_values(array_filter($changes, fn ($change) => ($ids === null || in_array((int) $change[0], $ids, true)) && $change[2] >= $today));
+        $count = $file->apply($changes, auth()->id());
+        \App\Models\AuditTrail::record('attendance.roster_uploaded', "Brought in a roster from a file: {$count} days changed for ".count(array_unique(array_column($changes, 0))).' people',
+            null, [], ['from' => $this->rosterPreview['from'] ?? null, 'to' => $this->rosterPreview['to'] ?? null], null, true);
+        $this->reset('rosterPreview', 'showRosterUpload');
+        $this->dispatch('notify', type: 'success', message: "Roster updated: {$count} ".($count === 1 ? 'day' : 'days').' changed.');
     }
 
     /** One person's shift on one date: '' follows their usual hours, '0' is a day off, else a shift. */
@@ -552,7 +642,7 @@ class AttendanceComponent extends Component
      * Staff id => 'Y-m-d' => what the roster breaks for that person that day: too little rest
      * since the shift before, or more nights in a row than the branch allows. Warnings only.
      */
-    private function restWarnings(AttendanceAnalyzer $analyzer, array $rows, CarbonImmutable $monday, AttendanceSetting $settings): array
+    private function restWarnings(AttendanceAnalyzer $analyzer, array $rows, CarbonImmutable $first, CarbonImmutable $last, AttendanceSetting $settings): array
     {
         [$minRest, $maxNights] = [$settings->min_rest_hours, $settings->max_nights_in_row];
         if ((! $minRest && ! $maxNights) || ! \App\Support\AttendancePlan::hospital()) {
@@ -560,7 +650,7 @@ class AttendanceComponent extends Component
         }
         $minutes = fn (string $time) => (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
         $warnings = [];
-        $schedules = $analyzer->schedules(array_map(fn ($row) => $row['staff'], $rows), $monday->subDays(max(1, (int) $maxNights)), $monday->addDays(6));
+        $schedules = $analyzer->schedules(array_map(fn ($row) => $row['staff'], $rows), $first->subDays(max(1, (int) $maxNights)), $last);
         foreach ($rows as $row) {
             $schedule = $schedules[$row['staff']->id] ?? [];
             $keys = array_keys($schedule);
@@ -568,7 +658,7 @@ class AttendanceComponent extends Component
             foreach ($keys as $i => $key) {
                 $hours = $schedule[$key];
                 $nights = $hours && $minutes($hours['end']) >= 1440 ? $nights + 1 : 0;
-                if (! $hours || $key < $monday->format('Y-m-d')) {
+                if (! $hours || $key < $first->format('Y-m-d')) {
                     continue;
                 }
                 $before = $i > 0 ? $schedule[$keys[$i - 1]] : null;
@@ -587,11 +677,11 @@ class AttendanceComponent extends Component
     /** The roster week: each followed person's hours on each day, and what the roster sets. */
     private function rosterGrid(AttendanceAnalyzer $analyzer): array
     {
-        $monday = CarbonImmutable::parse($this->rosterWeek)->startOfWeek(\Carbon\CarbonInterface::MONDAY);
-        $report = $analyzer->range($monday, $monday->addDays(6));
+        [$first, $last] = $this->rosterRange();
+        $report = $analyzer->range($first, $last);
         $set = [];
         $notes = [];
-        \App\Models\AttendanceRoster::query()->whereBetween('date', [$monday->format('Y-m-d'), $monday->addDays(6)->format('Y-m-d')])->get()
+        \App\Models\AttendanceRoster::query()->whereBetween('date', [$first->format('Y-m-d'), $last->format('Y-m-d')])->get()
             ->each(function ($entry) use (&$set, &$notes) {
                 $set[$entry->attendance_staff_id][$entry->date->format('Y-m-d')] = (string) ($entry->attendance_shift_id ?? 0);
                 if ($entry->note) {
@@ -600,14 +690,16 @@ class AttendanceComponent extends Component
             });
 
         $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
-        [$cover, $gaps] = $this->rosterCover($rows, $report['days']);
+        [$cover, $gaps] = $this->rosterCover($rows, $report['days'], ctype_digit($this->rosterUnit) ? [(int) $this->rosterUnit] : ($this->rosterUnit === 'none' ? [] : null));
 
         // Cover counts everyone; the grid shows a page of them, and only those are checked for rest.
         [$shown, $pager] = $this->paged(array_values(array_filter($rows, fn ($row) => $this->matches($row['staff']))), $this->rosterPage, 25);
 
         return ['days' => $report['days'], 'set' => $set, 'notes' => $notes, 'holidays' => $report['holidays'], 'rows' => $rows, 'shown' => $shown, 'pager' => $pager,
             'cover' => $cover, 'gaps' => $gaps,
-            'warnings' => $this->restWarnings($analyzer, $shown, $monday, $report['settings']),
+            'warnings' => $this->restWarnings($analyzer, $shown, $first, $last, $report['settings']),
+            'first' => $first, 'last' => $last, 'units' => $this->rosterUnits(),
+            'codes' => \App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->get()),
             'patterns' => $this->showPattern ? \App\Models\AttendancePattern::query()->orderBy('name')->get() : collect()];
     }
 
@@ -627,11 +719,11 @@ class AttendanceComponent extends Component
      * For each department and shift with a minimum: how many are rostered on it each day against
      * how many are needed. People on leave that day are not counted. Returns [lines, days short].
      */
-    private function rosterCover(array $rows, array $days): array
+    private function rosterCover(array $rows, array $days, ?array $departments = null): array
     {
         $lines = [];
         $gaps = 0;
-        $covers = \App\Models\AttendanceCover::query()->whereIn('attendance_department_id', $this->departmentsOnShow() ?: [0])->with(['department:id,name', 'shift'])->get()
+        $covers = \App\Models\AttendanceCover::query()->whereIn('attendance_department_id', ($departments ?? $this->departmentsOnShow()) ?: [0])->with(['department:id,name', 'shift'])->get()
             ->filter(fn ($cover) => $cover->department && $cover->shift)->sortBy(fn ($cover) => [$cover->department->name, $cover->shift->starts_at]);
         foreach ($covers as $cover) {
             $line = ['department' => $cover->department->name, 'shift' => $cover->shift->name, 'days' => []];
@@ -1724,7 +1816,7 @@ class AttendanceComponent extends Component
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
             'shifts' => \App\Models\AttendanceShift::query()->orderBy('starts_at')->orderBy('name')->get(),
-            'rosterGrid' => $this->showRoster && $this->rosterWeek ? $this->rosterGrid($analyzer) : null,
+            'rosterGrid' => $this->showRoster && $this->rosterWeek ? $this->rosterGrid($analyzer->forStaff($this->rosterStaffIds())) : null,
             'report' => $report,
             'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
             // Payroll gets its own button once anyone has been given a salary or an hourly rate.

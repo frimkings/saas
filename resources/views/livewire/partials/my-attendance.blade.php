@@ -21,6 +21,24 @@
             </div>
         @endforeach
     </div>
+    @if($mine['shifts'])
+        <div class="mb-4 rounded-lg border border-slate-200 p-3">
+            <p class="mb-2 text-sm font-semibold text-slate-800">My shifts, the next two weeks</p>
+            <div class="flex flex-wrap gap-1.5">
+                @foreach($mine['shifts'] as $key => $day)
+                    <div @class(['w-[4.6rem] rounded-lg border px-1.5 py-1 text-center', 'border-teal-600 ring-1 ring-teal-600' => $loop->first, 'border-slate-200' => ! $loop->first]) title="{{ $day['note'] ?? '' }}">
+                        <p class="mb-0 text-[11px] text-slate-500">{{ $loop->first ? 'Today' : $day['date']->format('D j') }}</p>
+                        @if(! $day['hours'])<p class="mb-0 text-sm font-semibold text-slate-400">Off</p>
+                        @elseif($day['code'])<p class="mb-0 text-sm"><span class="rounded px-1.5 py-0.5 font-semibold {{ $day['code']['class'] }}">{{ $day['code']['code'] }}</span></p>
+                        @else<p class="mb-0 text-sm font-semibold text-slate-700">Hrs</p>
+                        @endif
+                        @if($day['hours'])<p class="mb-0 text-[10px] leading-tight text-slate-500">{{ \App\Services\Attendance\AttendanceAnalyzer::time($day['hours']['start']) }}</p>@endif
+                        @if($day['note'])<p class="mb-0 text-[10px] leading-tight text-indigo-700">Swapped</p>@endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
     @if($mine['clock'])
         @php $clock = $mine['clock']; @endphp
         <div class="mb-4 rounded-lg border border-teal-200 bg-teal-50/50 p-3" x-data="{ busy: false, problem: '' }">

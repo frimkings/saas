@@ -531,20 +531,81 @@
     @endif
 
     @if($showRoster && $rosterGrid)
-        <style>.clinic-ui .ui-dialog:has(.attendance-roster) { width: min(1100px, calc(100% - 32px)); }</style>
+        <style>.clinic-ui .ui-dialog:has(.attendance-roster) { width: min(1400px, calc(100% - 32px)); }</style>
         <x-ui.modal title="Roster" state="showRoster">
             <div class="attendance-roster space-y-3 p-4">
-                @php $rosterDays = array_values($rosterGrid['days']); @endphp
-                <div class="flex flex-wrap items-center gap-2">
-                    <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Previous week">‹</x-ui.button>
-                    <strong class="text-sm text-slate-800">Week of {{ $rosterDays[0]->format('j M') }} to {{ $rosterDays[6]->format('j M Y') }}</strong>
-                    <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Next week">›</x-ui.button>
-                    @if($shifts->isNotEmpty() && $hospital)
-                        <x-ui.button type="button" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i> Fill from a pattern</x-ui.button>
-                        <x-ui.button type="button" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i> Swap two people</x-ui.button>
-                    @endif
-                    <span class="text-xs text-slate-500">Each box shows what the person is due to work. Change one to set that day only; "As usual" goes back to their weekly shifts or hours.</span>
+                @php
+                    $rosterDays = array_values($rosterGrid['days']);
+                    $month = $rosterSpan === 'month';
+                    $codes = $rosterGrid['codes'];
+                    $codeOf = collect($codes)->keyBy('name');
+                    $fileQuery = ['department' => $rosterUnit, 'from' => $rosterGrid['first']->format('Y-m-d'), 'to' => $rosterGrid['last']->format('Y-m-d')];
+                @endphp
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        @if($rosterGrid['units'])
+                            <select class="ui-input !w-52 !py-1.5 !text-sm font-semibold" wire:model.live="rosterUnit" aria-label="Department">
+                                @foreach($rosterGrid['units'] as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach
+                            </select>
+                        @endif
+                        <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Earlier">‹</x-ui.button>
+                        <strong class="text-sm text-slate-800">{{ $month ? $rosterGrid['first']->format('F Y') : 'Week of '.$rosterDays[0]->format('j M').' to '.$rosterDays[6]->format('j M Y') }}</strong>
+                        <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Later">›</x-ui.button>
+                        <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="Span">
+                            @foreach(['week' => 'Week', 'month' => 'Month'] as $key => $label)
+                                <button type="button" wire:click="$set('rosterSpan', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $rosterSpan === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $rosterSpan !== $key]) aria-pressed="{{ $rosterSpan === $key ? 'true' : 'false' }}">{{ $label }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        @if($shifts->isNotEmpty() && $hospital)
+                            <x-ui.button type="button" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i> Fill from a pattern</x-ui.button>
+                            <x-ui.button type="button" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i> Swap two people</x-ui.button>
+                        @endif
+                        @if($shifts->isNotEmpty())
+                            <x-ui.button type="button" wire:click="$toggle('showRosterUpload')"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</x-ui.button>
+                            <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster', ['format' => 'pdf'] + $fileQuery) }}" target="_blank" rel="noopener"><i class="fas fa-print" aria-hidden="true"></i> Print</a>
+                        @endif
+                    </div>
                 </div>
+                @if($codes)
+                    <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                        @foreach($codes as $code)<span class="rounded px-1.5 py-0.5 font-semibold {{ $code['class'] }}">{{ $code['code'] }}</span><span class="mr-2">{{ $code['name'] }}</span>@endforeach
+                        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-500">Off</span><span class="mr-2">Day off</span>
+                        <span class="rounded bg-white px-1.5 py-0.5 text-slate-500 ring-1 ring-inset ring-slate-300">Hrs</span><span class="mr-2">Usual hours</span>
+                        <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-800">Lv</span><span class="mr-2">On leave</span>
+                        <span class="text-slate-500">A ringed box is set on the roster for that day. Click a box to change it.</span>
+                    </div>
+                @endif
+                @if($showRosterUpload)
+                    <div class="space-y-2 rounded-lg border border-teal-200 bg-teal-50/40 p-3">
+                        <p class="!mb-0 text-sm font-semibold text-slate-800">Roster from Excel</p>
+                        <p class="!mb-0 text-sm text-slate-600">
+                            <a class="text-teal-700 underline" href="{{ route('admin.attendance.roster', ['format' => 'csv'] + $fileQuery) }}">Download {{ $month ? 'this month' : 'this week' }}{{ $rosterUnit !== '' && isset($rosterGrid['units'][$rosterUnit]) ? ' for '.$rosterGrid['units'][$rosterUnit] : '' }}</a>,
+                            fill in each day with a code ({{ implode(', ', array_column($codes, 'code')) }}), OFF for a day off or USUAL for their usual days; leave a box empty to keep it. Then bring it back here. Days before today are not changed.
+                        </p>
+                        @unless($rosterPreview)
+                            <form wire:submit="readRosterFile" class="flex flex-wrap items-center gap-2">
+                                <input type="file" accept=".xlsx,.csv,text/csv" wire:model="rosterFile" class="text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200" aria-label="Roster file">
+                                <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="readRosterFile,rosterFile">Read the file</x-ui.button>
+                                @error('rosterFile')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
+                            </form>
+                        @else
+                            <div class="rounded border border-slate-200 bg-white p-3 text-sm">
+                                <p class="!mb-1"><strong>{{ count($rosterPreview['changes']) }}</strong> {{ count($rosterPreview['changes']) === 1 ? 'day changes' : 'days change' }} for <strong>{{ $rosterPreview['people'] }}</strong> {{ $rosterPreview['people'] === 1 ? 'person' : 'people' }}@if($rosterPreview['from']), {{ \Carbon\CarbonImmutable::parse($rosterPreview['from'])->format('j M') }} to {{ \Carbon\CarbonImmutable::parse($rosterPreview['to'])->format('j M Y') }}@endif.</p>
+                                @foreach(array_slice($rosterPreview['problems'], 0, 15) as $problem)<p class="!mb-0 text-amber-800">{{ $problem }}</p>@endforeach
+                                @if(count($rosterPreview['problems']) > 15)<p class="!mb-0 text-amber-800">And {{ count($rosterPreview['problems']) - 15 }} more.</p>@endif
+                                @if($rosterPreview['changes'])
+                                    <p class="!mb-0 mt-1 text-xs text-slate-500">For example: {{ collect($rosterPreview['changes'])->take(4)->map(fn ($change) => $change[1].' '.\Carbon\CarbonImmutable::parse($change[2])->format('D j M').': '.($change[3] === 'usual' ? 'as usual' : ($change[3] === 0 ? 'off' : ($codes[$change[3]]['name'] ?? '?'))))->implode('; ') }}</p>
+                                @endif
+                                <div class="mt-2 flex gap-2">
+                                    @if($rosterPreview['changes'])<x-ui.button type="button" variant="primary" wire:click="applyRosterFile" wire:loading.attr="disabled">Make these changes</x-ui.button>@endif
+                                    <x-ui.button type="button" wire:click="$set('rosterPreview', null)">Choose another file</x-ui.button>
+                                </div>
+                            </div>
+                        @endunless
+                    </div>
+                @endif
                 @if($shifts->isEmpty())<p class="!mb-0 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">Add shifts first (Shifts button), then roster people onto them here.</p>@endif
                 @if($showPattern)
                     @php $shiftNames = $shifts->pluck('name', 'id'); @endphp
@@ -607,37 +668,69 @@
                         @foreach(['swapA', 'swapB', 'swapFrom', 'swapTo'] as $field)@error($field)<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror @endforeach
                     </form>
                 @endif
-                <div class="ui-table-wrap">
-                    <table class="table ui-table ui-table-sm mb-0">
-                        <thead><tr><th>Staff</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}@if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-slate-500">Holiday</span>@endif</th>@endforeach</tr></thead>
-                        <tbody>
-                            @foreach($rosterGrid['shown'] as $row)
-                                <tr wire:key="roster-{{ $row['staff']->id }}">
-                                    <td class="whitespace-nowrap font-medium text-slate-800">{{ $row['staff']->name }}</td>
+                <div class="relative" x-data="{ menu: null }" x-on:keydown.escape.stop="menu = null">
+                    <div class="ui-table-wrap">
+                        <table class="mb-0 w-full border-collapse text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-200 text-xs text-slate-500">
+                                    <th class="sticky left-0 z-10 bg-white px-2 py-1.5 text-left font-semibold">Staff</th>
                                     @foreach($rosterDays as $day)
-                                        @php
-                                            $key = $day->format('Y-m-d');
-                                            $due = $row['days'][$key]['hours'];
-                                            $chosen = $rosterGrid['set'][$row['staff']->id][$key] ?? '';
-                                        @endphp
-                                        <td class="text-center align-top">
-                                            <select class="ui-input !py-1 !text-xs {{ $chosen !== '' ? '!border-teal-600 !bg-teal-50' : '' }}" aria-label="{{ $row['staff']->name }} on {{ $day->format('l j F') }}"
-                                                    wire:change="setRoster({{ $row['staff']->id }}, '{{ $key }}', $event.target.value)" wire:key="roster-{{ $row['staff']->id }}-{{ $key }}-{{ $chosen }}">
-                                                <option value="" @selected($chosen === '')>As usual</option>
-                                                @foreach($shifts as $shift)
-                                                    @if($shift->is_active || $chosen === (string) $shift->id)<option value="{{ $shift->id }}" @selected($chosen === (string) $shift->id)>{{ $shift->name }}</option>@endif
-                                                @endforeach
-                                                <option value="0" @selected($chosen === '0')>Day off</option>
-                                            </select>
-                                            <span class="mt-0.5 block text-[10px] leading-tight text-slate-500">@if($due){{ $due['shift'] ?? 'Hours' }} {{ AttendanceAnalyzer::time($due['start']) }}–{{ AttendanceAnalyzer::time($due['end']) }}@else Off @endif</span>
-                                            @if($swapped = $rosterGrid['notes'][$row['staff']->id][$key] ?? null)<span class="block text-[10px] leading-tight text-indigo-700">{{ $swapped }}</span>@endif
-                                            @foreach($rosterGrid['warnings'][$row['staff']->id][$key] ?? [] as $warning)<span class="block text-[10px] font-medium leading-tight text-amber-700"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {{ $warning }}</span>@endforeach
-                                        </td>
+                                        <th @class(['px-0.5 py-1.5 text-center font-semibold', 'bg-slate-50' => $day->isWeekend()])>
+                                            @if($month){{ $day->format('j') }}<span class="block text-[10px] font-normal">{{ substr($day->format('D'), 0, 2) }}</span>
+                                            @else{{ $day->format('D j') }}@endif
+                                            @if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-violet-700" title="{{ $rosterGrid['holidays'][$day->format('Y-m-d')] }}">Hol</span>@endif
+                                        </th>
                                     @endforeach
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach($rosterGrid['shown'] as $row)
+                                    <tr wire:key="roster-{{ $row['staff']->id }}" class="border-b border-slate-100">
+                                        <td class="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-1 font-medium text-slate-800">{{ $row['staff']->name }}</td>
+                                        @foreach($rosterDays as $day)
+                                            @php
+                                                $key = $day->format('Y-m-d');
+                                                $cell = $row['days'][$key];
+                                                $due = $cell['hours'];
+                                                $chosen = $rosterGrid['set'][$row['staff']->id][$key] ?? '';
+                                                $swapped = $rosterGrid['notes'][$row['staff']->id][$key] ?? null;
+                                                $warnings = $rosterGrid['warnings'][$row['staff']->id][$key] ?? [];
+                                                $shift = $due ? ($codeOf[$due['shift'] ?? ''] ?? null) : null;
+                                                [$label, $tone] = match (true) {
+                                                    (bool) $cell['leave_type'] => ['Lv', 'bg-indigo-100 text-indigo-800'],
+                                                    ! $due => ['Off', 'bg-slate-100 text-slate-500'],
+                                                    (bool) $shift => [$shift['code'], $shift['class']],
+                                                    default => ['Hrs', 'bg-white text-slate-500 ring-1 ring-inset ring-slate-300'],
+                                                };
+                                                $title = $row['staff']->name.', '.$day->format('D j M').': '.($cell['leave_type'] ? ($cell['note'] ?? 'On leave') : ($due ? ($due['shift'] ?? 'Usual hours').' '.\App\Services\Attendance\AttendanceAnalyzer::time($due['start']).' to '.\App\Services\Attendance\AttendanceAnalyzer::time($due['end']) : 'Day off'))
+                                                    .($swapped ? '. '.$swapped : '').($warnings ? '. '.implode('. ', $warnings) : '');
+                                            @endphp
+                                            <td @class(['px-0.5 py-1 text-center', 'bg-slate-50' => $day->isWeekend()])>
+                                                <button type="button" title="{{ $title }}" aria-label="{{ $title }}"
+                                                        x-on:click="menu = { staff: {{ $row['staff']->id }}, date: '{{ $key }}', name: @js($row['staff']->name.' · '.$day->format('D j M')), x: $event.clientX, y: $event.clientY }"
+                                                        @class(['relative inline-block rounded px-1 py-0.5 text-xs font-semibold tabular-nums', $tone, $month ? 'min-w-[1.9rem]' : 'min-w-[3rem]', 'outline outline-2 outline-teal-600' => $chosen !== ''])>
+                                                    {{ $label }}
+                                                    @if($warnings)<span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500"></span>@elseif($swapped)<span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500"></span>@endif
+                                                </button>
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    {{-- The menu for the box clicked: where it was clicked, over the table. --}}
+                    <div x-show="menu" x-cloak x-on:click.outside="menu = null" class="fixed z-50 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg"
+                         :style="menu && `left:${Math.min(menu.x, window.innerWidth - 240)}px;top:${Math.min(menu.y + 8, window.innerHeight - 320)}px`">
+                        <p class="!mb-1 border-b border-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500" x-text="menu?.name"></p>
+                        <button type="button" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50" x-on:click="$wire.setRoster(menu.staff, menu.date, ''); menu = null">As usual</button>
+                        @foreach($shifts->where('is_active', true) as $shiftOption)
+                            <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50" x-on:click="$wire.setRoster(menu.staff, menu.date, '{{ $shiftOption->id }}'); menu = null">
+                                <span class="rounded px-1.5 py-0.5 text-xs font-semibold {{ $codes[$shiftOption->id]['class'] ?? '' }}">{{ $codes[$shiftOption->id]['code'] ?? '' }}</span>{{ $shiftOption->name }}
+                            </button>
+                        @endforeach
+                        <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50" x-on:click="$wire.setRoster(menu.staff, menu.date, '0'); menu = null"><span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-500">Off</span>Day off</button>
+                    </div>
                 </div>
                 @include('livewire.admin.partials.attendance-pager', ['pager' => $rosterGrid['pager'], 'model' => 'rosterPage'])
                 {{-- roster-extras --}}
@@ -650,13 +743,13 @@
                         </p>
                         <div class="ui-table-wrap">
                             <table class="table ui-table ui-table-sm mb-0">
-                                <thead><tr><th>Department · shift</th>@foreach($rosterDays as $day)<th class="text-center">{{ $day->format('D j') }}</th>@endforeach</tr></thead>
+                                <thead><tr><th>Department · shift</th>@foreach($rosterDays as $day)<th class="text-center">{{ $month ? $day->format('j') : $day->format('D j') }}</th>@endforeach</tr></thead>
                                 <tbody>
                                     @foreach($rosterGrid['cover'] as $line)
                                         <tr wire:key="cover-{{ $line['department'] }}-{{ $line['shift'] }}">
                                             <td class="whitespace-nowrap font-medium text-slate-800">{{ $line['department'] }} · {{ $line['shift'] }}</td>
                                             @foreach($line['days'] as $key => $count)
-                                                <td class="text-center"><span @class(['rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums', 'bg-red-100 text-red-800' => $count['have'] < $count['need'], 'bg-emerald-50 text-emerald-800' => $count['have'] >= $count['need']]) title="{{ $count['have'] }} rostered, {{ $count['need'] }} needed">{{ $count['have'] }} / {{ $count['need'] }}</span></td>
+                                                <td class="text-center"><span @class(['rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums', 'bg-red-100 text-red-800' => $count['have'] < $count['need'], 'bg-emerald-50 text-emerald-800' => $count['have'] >= $count['need']]) title="{{ $count['have'] }} rostered, {{ $count['need'] }} needed">{{ $month ? $count['have'] : $count['have'].' / '.$count['need'] }}</span></td>
                                             @endforeach
                                         </tr>
                                     @endforeach

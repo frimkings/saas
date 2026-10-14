@@ -170,7 +170,7 @@ class AttendanceShiftsTest extends TestCase
         $this->assertSame([1 => $morning->id, 7 => 0], $this->ama->fresh()->shift_week);
 
         // The roster for the week of Monday 19 October.
-        $page->set('from', '2026-10-19')->set('to', '2026-10-25')->call('openRoster')->assertSet('rosterWeek', '2026-10-19')
+        $page->set('from', '2026-10-19')->set('to', '2026-10-25')->call('openRoster')->assertSet('rosterWeek', '2026-10-25')
             ->assertSee('Week of 19 Oct')->assertSee('Ama Owusu')
             ->call('setRoster', $this->ama->id, '2026-10-21', (string) $morning->id)
             ->call('setRoster', $this->ama->id, '2026-10-22', '0');
@@ -178,7 +178,7 @@ class AttendanceShiftsTest extends TestCase
         $this->assertNull(AttendanceRoster::whereDate('date', '2026-10-22')->firstOrFail()->attendance_shift_id);
         $page->call('setRoster', $this->ama->id, '2026-10-22', '');
         $this->assertSame(0, AttendanceRoster::whereDate('date', '2026-10-22')->count());
-        $page->call('shiftRosterWeek', 1)->assertSet('rosterWeek', '2026-10-26');
+        $page->call('shiftRosterWeek', 1)->assertSet('rosterWeek', '2026-11-01')->assertSee('Week of 26 Oct');
 
         // A shift in use can't be deleted, only no longer offered; an unused one goes.
         $page->call('removeShift', $morning->id)->assertHasErrors(['shiftName']);

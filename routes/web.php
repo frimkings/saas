@@ -358,6 +358,7 @@ Route::get('/admin/insurance/receivables', \App\Livewire\Admin\InsurerReceivable
 // Heads of department open these too; the page and the download decide whose attendance each person sees.
 Route::get('/admin/attendance', \App\Livewire\Admin\AttendanceComponent::class)->name('admin.attendance')->withoutMiddleware('role:Super Admin|Manager');
 Route::get('/admin/attendance/export/{format}', \App\Http\Controllers\AttendanceExportController::class)->whereIn('format', ['csv', 'pdf', 'payroll'])->name('admin.attendance.export')->withoutMiddleware('role:Super Admin|Manager');
+Route::get('/admin/attendance/roster/{format}', \App\Http\Controllers\AttendanceRosterController::class)->whereIn('format', ['csv', 'pdf'])->name('admin.attendance.roster')->withoutMiddleware('role:Super Admin|Manager');
 
 // Patient Recall dashboard
 Route::get('/admin/patient-recall', \App\Livewire\Admin\PatientRecallComponent::class)->name('admin.patient-recall')->middleware('feature:sms_campaigns');
