@@ -103,56 +103,66 @@
                         <header class="att-drawer-head"><h2>Fill from a rotation pattern</h2><button type="button" class="att-x" x-on:click="dismissLocal($el, $wire, { showPattern: false })" aria-label="Close">&times;</button></header>
                         <div class="att-drawer-body">
                     @php $shiftNames = $shifts->pluck('name', 'id'); @endphp
-                    <div class="space-y-3">
-                        <div class="flex flex-wrap items-end gap-2">
-                            @if($rosterGrid['patterns']->isNotEmpty())
-                                <div><label for="pattern-saved" class="mb-1 block text-xs font-semibold text-slate-600">Saved pattern</label>
-                                    <select id="pattern-saved" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="patternId"><option value="">New pattern</option>@foreach($rosterGrid['patterns'] as $pattern)<option value="{{ $pattern->id }}">{{ $pattern->name }}</option>@endforeach</select></div>
-                            @endif
-                            <div><label for="pattern-shift" class="mb-1 block text-xs font-semibold text-slate-600">Add to the cycle</label>
-                                <select id="pattern-shift" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternAddShift"><option value="">Choose</option>@foreach($shifts->where('is_active', true) as $shift)<option value="{{ $shift->id }}">{{ $shift->name }}</option>@endforeach<option value="0">Days off</option></select></div>
-                            <div><label for="pattern-count" class="mb-1 block text-xs font-semibold text-slate-600">For how many days</label><input id="pattern-count" type="number" min="1" max="31" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternAddCount"></div>
-                            <x-ui.button type="button" wire:click="addPatternStep">Add</x-ui.button>
-                            @if($patternDays)<x-ui.button type="button" wire:click="undoPatternStep">Undo last</x-ui.button>@endif
+                    @if($rosterGrid['patterns']->isNotEmpty())
+                        <div>
+                            <label for="pattern-saved" class="mb-1 block text-xs font-semibold text-slate-600">Start from a saved pattern</label>
+                            <select id="pattern-saved" class="ui-input !w-full !py-1.5 !text-sm" wire:model.live="patternId"><option value="">New pattern</option>@foreach($rosterGrid['patterns'] as $pattern)<option value="{{ $pattern->id }}">{{ $pattern->name }}</option>@endforeach</select>
                         </div>
-                        <div class="flex flex-wrap items-center gap-1 text-xs" aria-label="The cycle">
+                    @endif
+                    <section>
+                        <h3 class="att-section-title">The cycle</h3>
+                        <div style="display:grid;grid-template-columns:minmax(0,1fr) 7rem auto;gap:.5rem;align-items:end">
+                            <div><label for="pattern-shift" class="mb-1 block text-xs font-semibold text-slate-600">Add</label>
+                                <select id="pattern-shift" class="ui-input !w-full !py-1.5 !text-sm" wire:model="patternAddShift"><option value="">Choose a shift</option>@foreach($shifts->where('is_active', true) as $shift)<option value="{{ $shift->id }}">{{ $shift->name }}</option>@endforeach<option value="0">Days off</option></select></div>
+                            <div><label for="pattern-count" class="mb-1 block text-xs font-semibold text-slate-600">For days</label>
+                                <input id="pattern-count" type="number" min="1" max="31" class="ui-input !w-full !py-1.5 !text-sm" wire:model="patternAddCount"></div>
+                            <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="addPatternStep">Add</button>
+                        </div>
+                        <div class="mt-2 flex flex-wrap items-center gap-1 text-xs" aria-label="The cycle">
                             @forelse($patternDays as $i => $choice)
                                 <span @class(['rounded px-1.5 py-0.5', 'bg-slate-200 text-slate-600' => $choice === '0', 'bg-white text-teal-900 ring-1 ring-inset ring-teal-300' => $choice !== '0']) wire:key="pattern-day-{{ $i }}">{{ $i + 1 }}. {{ $choice === '0' ? 'Off' : ($shiftNames[(int) $choice] ?? '?') }}</span>
                             @empty
                                 <span class="text-slate-500">Nothing in the cycle yet. For example: Morning for 2 days, Afternoon for 2, Night for 2, days off for 2.</span>
                             @endforelse
-                            @if($patternDays)<span class="ml-1 text-slate-500">then it repeats ({{ count($patternDays) }} days)</span>@endif
                         </div>
-                        <div class="flex flex-wrap items-end gap-2">
-                            <div><label for="pattern-from" class="mb-1 block text-xs font-semibold text-slate-600">First day</label><input id="pattern-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternFrom"></div>
-                            <div><label for="pattern-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day</label><input id="pattern-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="patternTo"></div>
-                            <div><label for="pattern-stagger" class="mb-1 block text-xs font-semibold text-slate-600">Each next person starts this many days further in</label><input id="pattern-stagger" type="number" min="0" max="62" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="patternStagger"></div>
+                        @if($patternDays)
+                            <p class="!mb-0 mt-1 text-xs text-slate-500">Then it repeats: {{ count($patternDays) }} days. <button type="button" class="text-teal-700 underline" wire:click="undoPatternStep">Undo last</button></p>
+                        @endif
+                    </section>
+                    <section>
+                        <h3 class="att-section-title">When</h3>
+                        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;align-items:end">
+                            <div><label for="pattern-from" class="mb-1 block text-xs font-semibold text-slate-600">First day</label><input id="pattern-from" type="date" class="ui-input !w-full !py-1.5 !text-sm" wire:model="patternFrom"></div>
+                            <div><label for="pattern-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day</label><input id="pattern-to" type="date" class="ui-input !w-full !py-1.5 !text-sm" wire:model="patternTo"></div>
+                            <div><label for="pattern-stagger" class="mb-1 block text-xs font-semibold text-slate-600">Stagger (days)</label><input id="pattern-stagger" type="number" min="0" max="62" class="ui-input !w-full !py-1.5 !text-sm" wire:model="patternStagger"></div>
                         </div>
-                        <fieldset>
-                            <legend class="mb-1 flex w-full items-center justify-between gap-2 text-xs font-semibold text-slate-600">
-                                <span>For these people (in name order) · {{ count($patternPeople) }} of {{ count($rosterGrid['rows']) }} ticked</span>
-                                <span class="font-normal">
-                                    <button type="button" class="text-teal-700 underline" wire:click="tickAllPattern(true)">Tick all</button>
-                                    @if($patternPeople)<button type="button" class="ml-2 text-teal-700 underline" wire:click="tickAllPattern(false)">Untick all</button>@endif
-                                </span>
-                            </legend>
-                            <div class="flex max-h-48 flex-wrap gap-x-4 gap-y-1 overflow-y-auto rounded border border-slate-200 bg-white p-2">
-                                @foreach($rosterGrid['rows'] as $row)
-                                    <label class="flex items-center gap-1.5 text-sm text-slate-800" wire:key="pattern-person-{{ $row['staff']->id }}"><input type="checkbox" value="{{ $row['staff']->id }}" wire:model="patternPeople"> {{ $row['staff']->name }}</label>
-                                @endforeach
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">Stagger: each next person starts this many days further into the cycle, so not everyone is on the same shift.</p>
+                    </section>
+                    <section>
+                        <div class="mb-1 flex items-center justify-between gap-2">
+                            <h3 class="att-section-title !mb-0">People · {{ count($patternPeople) }} of {{ count($rosterGrid['rows']) }} ticked</h3>
+                            <span class="text-xs">
+                                <button type="button" class="text-teal-700 underline" wire:click="tickAllPattern(true)">Tick all</button>
+                                @if($patternPeople)<button type="button" class="ml-2 text-teal-700 underline" wire:click="tickAllPattern(false)">Untick all</button>@endif
+                            </span>
+                        </div>
+                        <div class="max-h-56 overflow-y-auto rounded border border-slate-200 bg-white p-2" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:.25rem .75rem">
+                            @foreach($rosterGrid['rows'] as $row)
+                                <label class="flex min-w-0 items-center gap-1.5 text-sm text-slate-800" wire:key="pattern-person-{{ $row['staff']->id }}"><input type="checkbox" value="{{ $row['staff']->id }}" wire:model="patternPeople"> <span class="truncate">{{ $row['staff']->name }}</span></label>
+                            @endforeach
+                        </div>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">In name order; the stagger follows that order.</p>
+                    </section>
+                    @foreach(['patternAddShift', 'patternAddCount', 'patternDays', 'patternFrom', 'patternTo', 'patternPeople', 'patternStagger', 'patternName'] as $field)@error($field)<p class="ui-error !mb-0" role="alert">{{ $message }}</p>@enderror @endforeach
+                        </div>
+                        <footer class="att-drawer-foot" style="justify-content:space-between;align-items:flex-end">
+                            <div class="flex items-end gap-2">
+                                <div><label for="pattern-name" class="mb-1 block text-xs font-semibold text-slate-600">Keep this pattern as</label><input id="pattern-name" type="text" maxlength="60" class="ui-input !w-44 !py-1.5 !text-sm" wire:model="patternName" placeholder="e.g. Ward 2-2-2"></div>
+                                <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="savePattern">Save</button>
+                                @if($patternId)<button type="button" class="pb-2 text-xs text-red-700 underline" wire:click="deletePattern" wire:confirm="Delete this saved pattern? Roster days already filled stay.">Delete</button>@endif
                             </div>
-                        </fieldset>
-                        @foreach(['patternAddShift', 'patternAddCount', 'patternDays', 'patternFrom', 'patternTo', 'patternPeople', 'patternStagger', 'patternName'] as $field)@error($field)<p class="ui-error" role="alert">{{ $message }}</p>@enderror @endforeach
-                        <div class="flex flex-wrap items-end justify-between gap-2">
-                            <div class="flex flex-wrap items-end gap-2">
-                                <div><label for="pattern-name" class="mb-1 block text-xs font-semibold text-slate-600">Keep this pattern as</label><input id="pattern-name" type="text" maxlength="60" class="ui-input !w-48 !py-1.5 !text-sm" wire:model="patternName" placeholder="e.g. Ward 2-2-2"></div>
-                                <x-ui.button type="button" wire:click="savePattern">Save pattern</x-ui.button>
-                                @if($patternId)<button type="button" class="pb-2 text-xs text-red-700 underline" wire:click="deletePattern" wire:confirm="Delete this saved pattern? Roster days already filled stay.">Delete pattern</button>@endif
-                            </div>
-                            <x-ui.button type="button" variant="primary" wire:click="applyPattern" wire:confirm="Fill the roster for the people ticked? Days already set for them in these dates are replaced." wire:loading.attr="disabled" wire:target="applyPattern">Fill the roster</x-ui.button>
-                        </div>
-                    </div>
-                        </div>
+                            <button type="button" class="ui-button ui-button-primary" wire:click="applyPattern" wire:confirm="Fill the roster for the people ticked? Days already set for them in these dates are replaced." wire:loading.attr="disabled" wire:target="applyPattern">Fill the roster</button>
+                        </footer>
                     </aside>
                     </div>
                 @endif
@@ -162,18 +172,20 @@
                     <aside class="att-drawer" data-sheet role="dialog" aria-modal="true" aria-label="Swap two people's shifts" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissLocal($el, $wire, { showSwap: false })">
                         <header class="att-drawer-head"><h2>Swap two people's shifts</h2><button type="button" class="att-x" x-on:click="dismissLocal($el, $wire, { showSwap: false })" aria-label="Close">&times;</button></header>
                         <div class="att-drawer-body">
-                    <form wire:submit="swapRoster" class="flex flex-wrap items-end gap-2">
-                        @foreach(['swapA' => 'This person', 'swapB' => 'With this person'] as $model => $label)
-                            <div><label for="{{ $model }}" class="mb-1 block text-xs font-semibold text-slate-600">{{ $label }}</label>
-                                <select id="{{ $model }}" class="ui-input !w-52 !py-1.5 !text-sm" wire:model="{{ $model }}"><option value="">Choose</option>@foreach($rosterGrid['rows'] as $row)<option value="{{ $row['staff']->id }}">{{ $row['staff']->name }}</option>@endforeach</select></div>
-                        @endforeach
-                        <div><label for="swap-from" class="mb-1 block text-xs font-semibold text-slate-600">Day</label><input id="swap-from" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="swapFrom"></div>
-                        <div><label for="swap-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day (if more than one)</label><input id="swap-to" type="date" class="ui-input !w-40 !py-1.5 !text-sm" wire:model="swapTo"></div>
-                        <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="swapRoster">Swap</x-ui.button>
-                        <p class="!mb-0 w-full text-xs text-slate-500">Each takes the other's shift, or day off, on those days. Only you can do this; staff cannot swap by themselves.</p>
-                        @foreach(['swapA', 'swapB', 'swapFrom', 'swapTo'] as $field)@error($field)<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror @endforeach
+                    <form wire:submit="swapRoster" id="swap-form" class="space-y-3">
+                        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;align-items:end">
+                            @foreach(['swapA' => 'This person', 'swapB' => 'With this person'] as $model => $label)
+                                <div><label for="{{ $model }}" class="mb-1 block text-xs font-semibold text-slate-600">{{ $label }}</label>
+                                    <select id="{{ $model }}" class="ui-input !w-full !py-1.5 !text-sm" wire:model="{{ $model }}"><option value="">Choose</option>@foreach($rosterGrid['rows'] as $row)<option value="{{ $row['staff']->id }}">{{ $row['staff']->name }}</option>@endforeach</select></div>
+                            @endforeach
+                            <div><label for="swap-from" class="mb-1 block text-xs font-semibold text-slate-600">Day</label><input id="swap-from" type="date" class="ui-input !w-full !py-1.5 !text-sm" wire:model="swapFrom"></div>
+                            <div><label for="swap-to" class="mb-1 block text-xs font-semibold text-slate-600">Last day (if more than one)</label><input id="swap-to" type="date" class="ui-input !w-full !py-1.5 !text-sm" wire:model="swapTo"></div>
+                        </div>
+                        <p class="!mb-0 text-xs text-slate-500">Each takes the other's shift, or day off, on those days. Only a head or a manager can do this; staff cannot swap by themselves.</p>
+                        @foreach(['swapA', 'swapB', 'swapFrom', 'swapTo'] as $field)@error($field)<p class="ui-error !mb-0" role="alert">{{ $message }}</p>@enderror @endforeach
                     </form>
                         </div>
+                        <footer class="att-drawer-foot"><button type="submit" form="swap-form" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="swapRoster">Swap</button></footer>
                     </aside>
                     </div>
                 @endif
