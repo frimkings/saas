@@ -226,3 +226,14 @@
 .clinic-ui .alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .clinic-ui .alert-info { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
 .clinic-ui .alert-secondary { background: #f8fafc; border-color: #e2e8f0; color: #334155; }
+
+/* Searchable drop-downs (resources/js/searchable-select.js). */
+.ss-panel { position: fixed; z-index: 2000; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; box-shadow: 0 12px 32px rgb(15 23 42 / .18); }
+.ss-search { margin: 6px; padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 14px; outline: none; }
+.ss-search:focus { border-color: #0f766e; box-shadow: 0 0 0 1px #0f766e; }
+.ss-list { margin: 0; padding: 0 0 4px; list-style: none; overflow-y: auto; }
+.ss-item { padding: 6px 12px; font-size: 14px; color: #1e293b; cursor: pointer; }
+.ss-item.ss-active { background: #f0fdfa; color: #134e4a; }
+.ss-item.ss-chosen { font-weight: 700; }
+.ss-group { padding: 6px 12px 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+.ss-none { padding: 8px 12px; font-size: 13px; color: #94a3b8; }

@@ -5,6 +5,7 @@ import './lens-grid';
 import './expense-form';
 import './dismiss';
 import './live-totals';
+import './searchable-select';
 import Pikaday from 'pikaday';
 
 window.Pikaday = Pikaday;
