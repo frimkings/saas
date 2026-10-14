@@ -172,14 +172,14 @@ class AttendanceShiftsTest extends TestCase
 
         // The roster for the week of Monday 19 October.
         $page = Livewire::withQueryParams(['date' => '2026-10-25'])->test(\App\Livewire\Admin\AttendanceRosterComponent::class)->assertSet('rosterWeek', '2026-10-25')
-            ->assertSee('Week of 19 Oct')->assertSee('Ama Owusu')
+            ->assertSee('19 Oct – 25 Oct')->assertSee('Ama Owusu')
             ->call('setRoster', $this->ama->id, '2026-10-21', (string) $morning->id)
             ->call('setRoster', $this->ama->id, '2026-10-22', '0');
         $this->assertSame($morning->id, AttendanceRoster::whereDate('date', '2026-10-21')->value('attendance_shift_id'));
         $this->assertNull(AttendanceRoster::whereDate('date', '2026-10-22')->firstOrFail()->attendance_shift_id);
         $page->call('setRoster', $this->ama->id, '2026-10-22', '');
         $this->assertSame(0, AttendanceRoster::whereDate('date', '2026-10-22')->count());
-        $page->call('shiftRosterWeek', 1)->assertSet('rosterWeek', '2026-11-01')->assertSee('Week of 26 Oct');
+        $page->call('shiftRosterWeek', 1)->assertSet('rosterWeek', '2026-11-01')->assertSee('26 Oct – 1 Nov');
 
         // A shift in use can't be deleted, only no longer offered; an unused one goes.
         $page = Livewire::test(AttendanceComponent::class);

@@ -102,7 +102,7 @@ class AttendanceRosterTest extends TestCase
             // No department filter: the first department, in name order.
             ->assertSet('rosterUnit', (string) $this->lab->id)->assertSee('Yaa Mensah')->assertDontSee('Ama Owusu')
             ->set('rosterUnit', (string) $this->nursing->id)->assertSee('Ama Owusu')->assertDontSee('Yaa Mensah')
-            ->assertSee('Week of 19 Oct to 25 Oct 2026')->assertSeeHtml('Ama Owusu, Mon 19 Oct: Morning 7:00 AM to 2:00 PM');
+            ->assertSee('19 Oct – 25 Oct 2026')->assertSeeHtml('Ama Owusu, Mon 19 Oct: Morning 7:00 AM to 2:00 PM');
         // Changing a box from its menu: Kofi on nights on Tuesday.
         $page->call('setRoster', $this->kofi->id, '2026-10-20', (string) $this->night->id)->assertSeeHtml('Kofi Boateng, Tue 20 Oct: Night 8:00 PM to 6:00 AM +1');
         // A month.

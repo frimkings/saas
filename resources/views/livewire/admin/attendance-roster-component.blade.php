@@ -2,50 +2,54 @@
 @php use App\Services\Attendance\AttendanceAnalyzer; @endphp
 <div class="clinic-ui ui-page">
     <div class="w-full">
-        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        @php
+            $rosterDays = array_values($rosterGrid['days']);
+            $month = $rosterSpan === 'month';
+            $codes = $rosterGrid['codes'];
+            $codeOf = collect($codes)->keyBy('name');
+            $fileQuery = ['department' => $rosterUnit, 'from' => $rosterGrid['first']->format('Y-m-d'), 'to' => $rosterGrid['last']->format('Y-m-d')];
+        @endphp
+        {{-- Title on the left, what can be done with the roster on the right, on one line. --}}
+        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
                 <a href="{{ route('admin.attendance') }}" class="text-xs font-medium text-teal-700 underline">‹ Attendance</a>
                 <h1 class="!mb-0 text-xl font-semibold text-slate-900">Roster</h1>
                 <p class="!mb-0 text-sm text-slate-500">Who works which shift, one department at a time. Click a day to change it.</p>
             </div>
-            @if($search !== '' || count($rosterGrid['rows']) > 25)<input type="search" class="ui-input !w-56 !py-1.5 !text-sm" wire:model.live.debounce.400ms="search" placeholder="Find by name or ID" aria-label="Find a person">@endif
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="attendance-roster space-y-3">
-                @php
-                    $rosterDays = array_values($rosterGrid['days']);
-                    $month = $rosterSpan === 'month';
-                    $codes = $rosterGrid['codes'];
-                    $codeOf = collect($codes)->keyBy('name');
-                    $fileQuery = ['department' => $rosterUnit, 'from' => $rosterGrid['first']->format('Y-m-d'), 'to' => $rosterGrid['last']->format('Y-m-d')];
-                @endphp
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex flex-wrap items-center gap-2">
-                        @if($rosterGrid['units'])
-                            <select class="ui-input !w-52 !py-1.5 !text-sm font-semibold" wire:model.live="rosterUnit" aria-label="Department">
-                                @foreach($rosterGrid['units'] as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach
-                            </select>
-                        @endif
-                        <x-ui.button type="button" wire:click="shiftRosterWeek(-1)" aria-label="Earlier">‹</x-ui.button>
-                        <strong class="text-sm text-slate-800">{{ $month ? $rosterGrid['first']->format('F Y') : 'Week of '.$rosterDays[0]->format('j M').' to '.$rosterDays[6]->format('j M Y') }}</strong>
-                        <x-ui.button type="button" wire:click="shiftRosterWeek(1)" aria-label="Later">›</x-ui.button>
-                        <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="Span">
-                            @foreach(['week' => 'Week', 'month' => 'Month'] as $key => $label)
-                                <button type="button" wire:click="$set('rosterSpan', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $rosterSpan === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $rosterSpan !== $key]) aria-pressed="{{ $rosterSpan === $key ? 'true' : 'false' }}">{{ $label }}</button>
-                            @endforeach
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        @if($shifts->isNotEmpty() && $hospital)
-                            <x-ui.button type="button" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i> Fill from a pattern</x-ui.button>
-                            <x-ui.button type="button" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i> Swap two people</x-ui.button>
-                        @endif
-                        @if($shifts->isNotEmpty())
-                            <x-ui.button type="button" wire:click="$toggle('showRosterUpload')"><i class="fas fa-file-excel" aria-hidden="true"></i> Excel</x-ui.button>
-                            <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster', ['format' => 'pdf'] + $fileQuery) }}" target="_blank" rel="noopener"><i class="fas fa-print" aria-hidden="true"></i> Print</a>
-                        @endif
-                    </div>
+            @if($shifts->isNotEmpty())
+                <div class="flex flex-wrap items-center gap-2">
+                    @if($hospital)
+                        <button type="button" class="ui-button ui-button-secondary" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i>Fill from a pattern</button>
+                        <button type="button" class="ui-button ui-button-secondary" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i>Swap two people</button>
+                    @endif
+                    <button type="button" class="ui-button ui-button-secondary" wire:click="$toggle('showRosterUpload')"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</button>
+                    <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster', ['format' => 'pdf'] + $fileQuery) }}" target="_blank" rel="noopener"><i class="fas fa-print" aria-hidden="true"></i>Print</a>
                 </div>
+            @endif
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            {{-- Which department and which days, and finding someone: one row, all the same height. --}}
+            <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
+                @if($rosterGrid['units'])
+                    <select class="ui-input !w-56 !py-1.5 !text-sm font-semibold" wire:model.live="rosterUnit" aria-label="Department">
+                        @foreach($rosterGrid['units'] as $id => $name)<option value="{{ $id }}">{{ $name }}</option>@endforeach
+                    </select>
+                @endif
+                <div class="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-300 bg-white">
+                    <button type="button" class="px-3 text-slate-600 hover:bg-slate-50" wire:click="shiftRosterWeek(-1)" aria-label="Earlier"><i class="fas fa-chevron-left text-xs" aria-hidden="true"></i></button>
+                    <span class="border-x border-slate-200 px-3 py-1.5 text-center text-sm font-semibold text-slate-800" style="min-width:15.5rem">{{ $month ? $rosterGrid['first']->format('F Y') : $rosterDays[0]->format('j M').' – '.$rosterDays[6]->format('j M Y') }}</span>
+                    <button type="button" class="px-3 text-slate-600 hover:bg-slate-50" wire:click="shiftRosterWeek(1)" aria-label="Later"><i class="fas fa-chevron-right text-xs" aria-hidden="true"></i></button>
+                </div>
+                <div class="inline-flex overflow-hidden rounded-lg border border-slate-300" role="group" aria-label="Span">
+                    @foreach(['week' => 'Week', 'month' => 'Month'] as $key => $label)
+                        <button type="button" wire:click="$set('rosterSpan', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $rosterSpan === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $rosterSpan !== $key]) aria-pressed="{{ $rosterSpan === $key ? 'true' : 'false' }}">{{ $label }}</button>
+                    @endforeach
+                </div>
+                @if($search !== '' || count($rosterGrid['rows']) > 25)
+                    <input type="search" class="ui-input !w-56 !py-1.5 !text-sm sm:ml-auto" wire:model.live.debounce.400ms="search" placeholder="Find by name or ID" aria-label="Find a person">
+                @endif
+            </div>
+            <div class="attendance-roster space-y-3 p-4">
                 @if($codes)
                     <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
                         @foreach($codes as $code)<span class="rounded px-1.5 py-0.5 font-semibold {{ $code['class'] }}">{{ $code['code'] }}</span><span class="mr-2">{{ $code['name'] }}</span>@endforeach
