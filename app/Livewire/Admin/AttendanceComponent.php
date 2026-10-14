@@ -125,6 +125,7 @@ class AttendanceComponent extends Component
     public string $leaveToTime = '';
 
     public bool $showRequests = false;
+    public bool $showMore = false;
 
     // The branch's kinds of leave and their yearly allowances.
     public bool $showLeaveTypes = false;
@@ -244,6 +245,7 @@ class AttendanceComponent extends Component
 
     public function addShift(): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeAccess();
         $this->shiftName = trim($this->shiftName);
         $this->validate([
@@ -260,6 +262,7 @@ class AttendanceComponent extends Component
     /** A shift no longer offered stays on the days and people already given it. */
     public function toggleShift(int $id): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeAccess();
         $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
         $shift->update(['is_active' => ! $shift->is_active]);
@@ -267,6 +270,7 @@ class AttendanceComponent extends Component
 
     public function removeShift(int $id): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeAccess();
         $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
         $inUse = \App\Models\AttendanceRoster::query()->where('attendance_shift_id', $shift->id)->exists()
@@ -282,6 +286,7 @@ class AttendanceComponent extends Component
     /** The roster opens on the week of the last day on show. */
     public function openRoster(): void
     {
+        $this->authorizePart('shifts');
         $this->authorizeView();
         $this->rosterWeek = $this->period()[1]->startOfWeek(\Carbon\CarbonInterface::MONDAY)->format('Y-m-d');
         $this->rosterPage = 1;
@@ -296,6 +301,7 @@ class AttendanceComponent extends Component
     /** One person's shift on one date: '' follows their usual hours, '0' is a day off, else a shift. */
     public function setRoster(int $staffId, string $date, string $choice): void
     {
+        $this->authorizePart('shifts');
         abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1, 404);
         $staff = $this->authorizeStaff($staffId);
         if ($choice === '') {
@@ -1043,6 +1049,7 @@ class AttendanceComponent extends Component
 
     public function openLeaveTypes(): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         \App\Models\AttendanceLeaveType::ensureSaved();
         $this->reset('leaveTypeEditId', 'leaveTypeName', 'leaveTypeDays', 'leaveTypePaid');
@@ -1052,6 +1059,7 @@ class AttendanceComponent extends Component
 
     public function editLeaveType(int $id): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
         $this->leaveTypeEditId = $type->id;
@@ -1064,6 +1072,7 @@ class AttendanceComponent extends Component
     /** Add a kind of leave, or change one's name, yearly allowance or whether it is paid. */
     public function saveLeaveType(): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $this->leaveTypeName = trim($this->leaveTypeName);
         $this->validate([
@@ -1083,6 +1092,7 @@ class AttendanceComponent extends Component
     /** A type no longer offered stays on the leave already given under it. */
     public function toggleLeaveType(int $id): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
         if ($type->is_active && \App\Models\AttendanceLeaveType::query()->where('is_active', true)->count() === 1) {
@@ -1095,6 +1105,7 @@ class AttendanceComponent extends Component
 
     public function removeLeaveType(int $id): void
     {
+        $this->authorizePart('leave');
         $this->authorizeAccess();
         $type = \App\Models\AttendanceLeaveType::query()->findOrFail($id);
         if (AttendanceLeave::query()->where('type', $type->code)->exists()) {
@@ -1133,6 +1144,7 @@ class AttendanceComponent extends Component
      */
     public function decideOvertime(int $staffId, string $date, bool $approve, AttendanceAnalyzer $analyzer): void
     {
+        $this->authorizePart('overtime');
         abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1, 404);
         $staff = $this->authorizeStaff($staffId);
         $day = CarbonImmutable::parse($date);
@@ -1162,6 +1174,7 @@ class AttendanceComponent extends Component
     /** Take back an answer on overtime, so it waits for one again. */
     public function reopenOvertime(int $staffId, string $date): void
     {
+        $this->authorizePart('overtime');
         $this->authorizeStaff($staffId);
         $decision = \App\Models\AttendanceOvertime::query()->where('attendance_staff_id', $staffId)->whereDate('date', $date)->with('staff:id,name')->firstOrFail();
         \App\Models\AuditTrail::record('attendance.overtime_reopened', 'Took back the answer on overtime for '.($decision->staff->name ?? 'someone').' on '.$decision->date->format('j M Y'),
@@ -1218,6 +1231,7 @@ class AttendanceComponent extends Component
 
     public function openPhone(): void
     {
+        $this->authorizePart('phone');
         $this->authorizeAccess();
         $settings = AttendanceSetting::current();
         $this->phoneOn = (bool) $settings->phone_clock_in;
@@ -1231,6 +1245,7 @@ class AttendanceComponent extends Component
 
     public function savePhone(): void
     {
+        $this->authorizePart('phone');
         $this->authorizeAccess();
         $this->validate([
             'phoneLatitude' => [$this->phoneOn ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
@@ -1253,6 +1268,7 @@ class AttendanceComponent extends Component
     /** Someone with a user account but not on a terminal: follow them so they can clock in by phone. */
     public function addPhonePerson(): void
     {
+        $this->authorizePart('phone');
         $this->authorizeAccess();
         $user = User::query()->inCurrentClinic()->whereKey((int) $this->phoneUserId)->first();
         if (! $user) {
@@ -1277,6 +1293,7 @@ class AttendanceComponent extends Component
 
     public function openPayroll(): void
     {
+        $this->authorizePart('payroll');
         $this->authorizePay();
         $settings = AttendanceSetting::current();
         $this->overtimeMultiplier = rtrim(rtrim(number_format((float) ($settings->overtime_multiplier ?? 1.5), 2, '.', ''), '0'), '.');
@@ -1293,6 +1310,7 @@ class AttendanceComponent extends Component
     /** Save the pay rules and how each person is paid; the figures below are worked out again. */
     public function savePayroll(): void
     {
+        $this->authorizePart('payroll');
         $this->authorizePay();
         $this->validate([
             'overtimeMultiplier' => 'required|numeric|min:1|max:5',
@@ -1460,10 +1478,16 @@ class AttendanceComponent extends Component
         return array_values($summary);
     }
 
-    /** Departments, cover, patterns, swaps and staff lists come with the larger packages. */
+    /** Departments, cover, patterns, swaps and staff lists: the hospital tools, a part of attendance sold on its own. */
     private function authorizeHospital(): void
     {
-        abort_unless(\App\Support\AttendancePlan::hospital(), 403, 'This is part of the hospital package. Ask us to move you to a larger plan.');
+        $this->authorizePart('hospital');
+    }
+
+    /** A part of attendance the clinic's plan or add-ons must include. */
+    private function authorizePart(string $part): void
+    {
+        abort_unless(\App\Support\AttendancePlan::parts()[$part], 403, 'This is not part of your plan. See "More attendance features" under Set up.');
     }
 
     /** The owner, a manager, or the head of a department here. */
@@ -1484,6 +1508,38 @@ class AttendanceComponent extends Component
     }
 
     /** Setting up the branch's attendance: the owner and managers only. */
+    /** Parts of attendance the clinic hasn't got, with what each does and costs as an add-on. */
+    private function lockedParts(array $extras): array
+    {
+        $keys = ['shifts' => \App\Support\Feature::ATTENDANCE_SHIFTS, 'overtime' => \App\Support\Feature::ATTENDANCE_OVERTIME, 'leave' => \App\Support\Feature::ATTENDANCE_LEAVE,
+            'payroll' => \App\Support\Feature::ATTENDANCE_PAYROLL, 'phone' => \App\Support\Feature::ATTENDANCE_PHONE, 'trends' => \App\Support\Feature::ATTENDANCE_TRENDS,
+            'hospital' => \App\Support\Feature::ATTENDANCE_HOSPITAL];
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        $catalogue = $clinic && app(\App\Services\ClinicAccessService::class)->hosted($clinic) ? app(\App\Services\ClinicAddonService::class)->catalogue($clinic) : collect();
+        $asked = $clinic ? \App\Models\ClinicAddonRequest::query()->where('clinic_id', $clinic->id)->where('status', 'pending')->pluck('feature')->all() : [];
+        $locked = [];
+        foreach ($keys as $part => $feature) {
+            if (! $extras[$part]) {
+                $offer = $catalogue->get($feature);
+                $locked[] = ['feature' => $feature, 'name' => ucfirst(\Illuminate\Support\Str::after(\App\Support\PlanProduct::EXTRAS[$feature][0], 'Attendance: ')),
+                    'about' => \App\Support\PlanProduct::ATTENDANCE_PART_DESCRIPTIONS[$feature], 'price' => $offer && $offer['offered'] ? $offer['price'] : null,
+                    'currency' => $offer['currency'] ?? null, 'asked' => in_array($feature, $asked, true)];
+            }
+        }
+
+        return $locked;
+    }
+
+    /** Ask the platform for a part of attendance as an add-on (the owner only). */
+    public function requestPart(string $feature, \App\Services\ClinicAddonService $addons): void
+    {
+        $this->authorizeAccess();
+        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can ask for add-ons.');
+        abort_unless(in_array($feature, \App\Support\PlanProduct::ATTENDANCE_PARTS, true), 404);
+        $addons->request(app(\App\Support\Tenancy\TenantContext::class)->clinic(), $feature, 'Asked for from the Attendance page', auth()->user());
+        $this->dispatch('notify', type: 'success', message: 'Request sent. You will hear once it is switched on.');
+    }
+
     private function authorizeAccess(): void
     {
         abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
@@ -1509,8 +1565,13 @@ class AttendanceComponent extends Component
         $user = auth()->user();
         $manager = \App\Support\AttendanceScope::manager($user);
         $headed = $manager ? [] : \App\Support\AttendanceScope::headed($user);
-        // Departments are a hospital tool: a smaller package sees none, even if some were made before.
-        $hospital = \App\Support\AttendancePlan::hospital();
+        // What the plan includes; a part not included is not shown (see "More attendance features").
+        $extras = \App\Support\AttendancePlan::parts();
+        if ($this->view === 'trends' && ! $extras['trends']) {
+            $this->view = 'summary';
+        }
+        // Departments are a hospital tool: without it none are shown, even if some were made before.
+        $hospital = $extras['hospital'];
         $departments = $hospital ? \App\Models\AttendanceDepartment::query()->withCount('staff')->orderBy('name')->get() : collect();
         $visible = $manager ? $departments : $departments->whereIn('id', $headed)->values();
         if ($this->department !== '' && ! ($manager && $this->department === 'none') && ! $visible->contains('id', (int) $this->department)) {
@@ -1546,6 +1607,8 @@ class AttendanceComponent extends Component
             // Six months up to the last day on show.
             'manager' => $manager,
             'hospital' => $hospital,
+            'extras' => $extras,
+            'locked' => $manager ? $this->lockedParts($extras) : [],
             'staffLimit' => $manager ? \App\Support\AttendancePlan::staffLimit() : null,
             'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
             'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,
@@ -1575,7 +1638,7 @@ class AttendanceComponent extends Component
             'rows' => $rows,
             'detail' => $this->showStaff ? collect($report['rows'])->first(fn ($row) => $row['staff']->id === $this->staffId) : null,
             'leaveTypes' => \App\Models\AttendanceLeaveType::options(),
-            'balances' => $this->showStaff && ($person = AttendanceStaff::query()->find($this->staffId))
+            'balances' => $this->showStaff && $extras['leave'] && ($person = AttendanceStaff::query()->find($this->staffId))
                 ? app(\App\Services\Attendance\AttendanceLeaveBalances::class)->for($person, $last->year) : [],
             'balanceYear' => $last->year,
             'requestDays' => $this->showRequests ? $this->requestDays() : [],

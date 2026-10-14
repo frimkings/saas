@@ -24,9 +24,9 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 {{-- Each of these appears once the branch uses it, so a small clinic sees a short page. --}}
-                @if($shifts->isNotEmpty())<button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>@endif
-                @if($overtime)<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
-                @if($canPay && $paysStaff)<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
+                @if($shifts->isNotEmpty() && $extras['shifts'])<button type="button" class="ui-button ui-button-secondary" wire:click="openRoster"><i class="fas fa-table" aria-hidden="true"></i>Roster</button>@endif
+                @if($overtime && $extras['overtime'])<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
+                @if($canPay && $paysStaff && $extras['payroll'])<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
                 {{-- Things set once and seldom changed: the owner and managers only. --}}
                 @if($manager)
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
@@ -34,14 +34,15 @@
                     <div x-show="open" x-cloak @click="open = false" class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg" role="menu">
                         @foreach([
                             ['editHours', 'fa-clock', 'Working hours'],
-                            ["\$set('showShifts', true)", 'fa-layer-group', 'Shifts'],
-                            ['openLeaveTypes', 'fa-umbrella-beach', 'Leave types'],
+                            ["\$set('showShifts', true)", 'fa-layer-group', 'Shifts', $extras['shifts']],
+                            ['openLeaveTypes', 'fa-umbrella-beach', 'Leave types', $extras['leave']],
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
-                            ['openPhone', 'fa-mobile-screen', 'Phone clock-in'],
+                            ['openPhone', 'fa-mobile-screen', 'Phone clock-in', $extras['phone']],
                             ['openDepartments', 'fa-sitemap', 'Departments', $hospital],
                             ['openStaffImport', 'fa-file-import', 'Bring in a staff list', $hospital],
-                            ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff],
+                            ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff && $extras['payroll']],
+                            ["\$set('showMore', true)", 'fa-circle-plus', 'More attendance features', (bool) $locked],
                         ] as $item)
                             @continue(($item[3] ?? true) === false)
                             @php [$action, $icon, $label] = $item; @endphp
@@ -76,7 +77,7 @@
             </div>
         @endif
 
-        @if($overtimeWaiting)
+        @if($overtimeWaiting && $extras['overtime'])
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <span><i class="fas fa-hourglass-half mr-1" aria-hidden="true"></i><strong>{{ $overtimeWaiting }}</strong> {{ $overtimeWaiting === 1 ? 'day of overtime is' : 'days of overtime are' }} waiting for your answer in {{ $periodLabel }}.</span>
                 <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="$set('showOvertime', true)">Review</button>
@@ -163,7 +164,7 @@
                         <option value="absent">Absent at least once</option>
                     </select>
                     <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="View">
-                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day', 'trends' => 'Trends'] as $key => $label)
+                        @foreach(['summary' => 'Summary', 'grid' => 'Day by day'] + ($extras['trends'] ? ['trends' => 'Trends'] : []) as $key => $label)
                             <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
                         @endforeach
                     </div>
@@ -232,7 +233,7 @@
                                     <th class="text-right">Left early</th>
                                     <th class="text-right">Long breaks</th>
                                     <th class="text-right">Missing punch</th>
-                                    <th class="text-right">Overtime</th>
+                                    @if($extras['overtime'])<th class="text-right">Overtime</th>@endif
                                     <th class="text-right">Usual arrival</th>
                                     <th><span class="sr-only">Open</span></th>
                                 </tr>
@@ -257,15 +258,15 @@
                                             <td class="text-right ui-number">{{ $t['left_early'] }}</td>
                                             <td class="text-right ui-number">@if($t['long_breaks'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['long_breaks'] }}</span>@else 0 @endif</td>
                                             <td class="text-right ui-number">{{ $t['no_clock_out'] }}</td>
-                                            <td class="text-right ui-number">{{ $t['overtime_minutes'] ? AttendanceAnalyzer::duration($t['overtime_minutes']) : '–' }}@if($t['overtime_pending'])<span class="block text-xs font-normal text-amber-700">{{ AttendanceAnalyzer::duration($t['overtime_pending']) }} waiting</span>@endif</td>
+                                            @if($extras['overtime'])<td class="text-right ui-number">{{ $t['overtime_minutes'] ? AttendanceAnalyzer::duration($t['overtime_minutes']) : '–' }}@if($t['overtime_pending'])<span class="block text-xs font-normal text-amber-700">{{ AttendanceAnalyzer::duration($t['overtime_pending']) }} waiting</span>@endif</td>@endif
                                             <td class="text-right ui-number">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
                                         @else
-                                            <td colspan="11" class="text-right text-sm text-slate-400">–</td>
+                                            <td colspan="{{ $extras['overtime'] ? 11 : 10 }}" class="text-right text-sm text-slate-400">–</td>
                                         @endif
                                         <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="openStaff({{ $staff->id }})">Open</button></td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="13" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
+                                    <tr><td colspan="{{ $extras['overtime'] ? 13 : 12 }}" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -462,7 +463,7 @@
                     <p class="!mb-0 mt-1 text-xs text-slate-500">Staff punch out when they leave and in when they return. Time out longer than this in a day is flagged.</p>
                     @error('breakMinutes')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                 </div>
-                <div>
+                <div @class(['hidden' => ! $extras['overtime']])>
                     <label for="attendance-overtime-after" class="mb-1 block text-sm font-medium text-slate-700">Overtime starts after (minutes)</label>
                     <input id="attendance-overtime-after" type="number" min="1" max="480" class="ui-input !w-32" wire:model="overtimeAfter">
                     <p class="!mb-0 mt-1 text-xs text-slate-500">Staying at least this long past the end of the day is overtime, counted from the end of the day. Time on site on a day off or a holiday is overtime too.</p>
@@ -1137,6 +1138,28 @@
         </x-ui.modal>
     @endif
 
+    @if($showMore)
+        <x-ui.modal title="More attendance features" state="showMore">
+            <div class="space-y-3 p-4">
+                <p class="!mb-0 text-sm text-slate-600">These parts of attendance are not in your plan. Each can be added on its own for a monthly price{{ auth()->user()->hasRole('Super Admin') ? '' : '; the owner can ask for them' }}.</p>
+                @foreach($locked as $part)
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3" wire:key="locked-{{ $part['feature'] }}">
+                        <div class="min-w-[14rem] flex-1">
+                            <p class="!mb-0 text-sm font-semibold text-slate-900">{{ $part['name'] }}</p>
+                            <p class="!mb-0 text-sm text-slate-600">{{ $part['about'] }}</p>
+                        </div>
+                        <div class="text-right">
+                            @if($part['price'] !== null)<p class="!mb-1 text-sm font-semibold text-slate-800">{{ $part['currency'] }} {{ number_format($part['price'], 2) }} a month</p>@endif
+                            @if($part['asked'])<span class="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900">Asked for; waiting</span>
+                            @elseif($part['price'] !== null && auth()->user()->hasRole('Super Admin'))<x-ui.button type="button" variant="primary" wire:click="requestPart('{{ $part['feature'] }}')" wire:loading.attr="disabled">Ask for it</x-ui.button>
+                            @else<span class="text-xs text-slate-500">Contact us to add it</span>@endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </x-ui.modal>
+    @endif
+
     @if($showDay && $dayList)
         <style>.clinic-ui .ui-dialog:has(.attendance-day) { width: min(900px, calc(100% - 32px)); }</style>
         <x-ui.modal :title="$dayList['date']->format('l j F Y').($dayList['holiday'] ? ' · '.$dayList['holiday'] : '')" state="showDay">
@@ -1164,7 +1187,7 @@
                                         @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                         @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
                                         @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
-                                        @if($day['overtime_minutes'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
+                                        @if($day['overtime_minutes'] && $extras['overtime'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -1242,7 +1265,7 @@
                     @if($staffOwnHours)
                         @include('livewire.admin.partials.attendance-hours', ['model' => 'staffHours', 'values' => $staffHours])
                     @endif
-                    @if($shifts->isNotEmpty())
+                    @if($shifts->isNotEmpty() && $extras['shifts'])
                         <div>
                             <p class="!mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Weekly shifts</p>
                             <p class="!mb-2 text-xs text-slate-500">The shift worked on each weekday. "Usual hours" follows the hours above; the roster can change single days.</p>
@@ -1347,7 +1370,7 @@
                                             @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                             @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
                                             @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
-                                            @if($day['overtime_minutes'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
+                                            @if($day['overtime_minutes'] && $extras['overtime'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                             @if($day['in_progress'])<span class="ml-1 text-xs text-slate-400">Day in progress</span>@endif
                                         </td>
                                     </tr>

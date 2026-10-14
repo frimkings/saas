@@ -10,19 +10,11 @@ use App\Support\Tenancy\TenantContext;
 
 /**
  * How many staff a clinic's plan lets it follow on attendance, set by the platform on each plan
- * ("Staff on attendance"; empty = unlimited). The number also says what kind of package it is:
- * up to SMALL_CLINIC_MAX is a small clinic's; more, or unlimited, brings the hospital tools
- * (departments and their heads, minimum cover, rotation patterns, swaps, rest rules, staff lists
- * from a file). Installs that are not hosted have no limit.
+ * ("Staff on attendance"; empty = unlimited), and which parts of attendance it has. Installs
+ * that are not hosted have no limit.
  */
 final class AttendancePlan
 {
-    /** The largest number of staff that still counts as a small clinic. */
-    public static function smallClinicMax(): int
-    {
-        return (int) config('subscriptions.attendance_small_clinic_max', 30);
-    }
-
     /** The plan's limit on people followed, or null for none. */
     public static function staffLimit(?Clinic $clinic = null): ?int
     {
@@ -40,12 +32,20 @@ final class AttendancePlan
         return $limit === null ? null : (int) $limit;
     }
 
-    /** Whether the clinic's package includes the hospital tools. */
+    /** Whether the clinic's plan or add-ons include the hospital tools (the clinic in the current context). */
     public static function hospital(?Clinic $clinic = null): bool
     {
-        $limit = self::staffLimit($clinic);
+        return \App\Services\LicenseService::has(Feature::ATTENDANCE_HOSPITAL);
+    }
 
-        return $limit === null || $limit > self::smallClinicMax();
+    /** Which parts of attendance the clinic has: [shifts, overtime, leave, payroll, phone, trends, hospital => bool]. */
+    public static function parts(): array
+    {
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
+
+        return ['shifts' => $has(Feature::ATTENDANCE_SHIFTS), 'overtime' => $has(Feature::ATTENDANCE_OVERTIME), 'leave' => $has(Feature::ATTENDANCE_LEAVE),
+            'payroll' => $has(Feature::ATTENDANCE_PAYROLL), 'phone' => $has(Feature::ATTENDANCE_PHONE), 'trends' => $has(Feature::ATTENDANCE_TRENDS),
+            'hospital' => $has(Feature::ATTENDANCE_HOSPITAL)];
     }
 
     /** People followed across all the clinic's branches. */

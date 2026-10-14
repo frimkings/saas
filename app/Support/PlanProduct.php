@@ -45,11 +45,36 @@ class PlanProduct
     public const ATTENDANCE_EXTRAS = [
         Feature::AUDIT_TRAIL, Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY,
         Feature::MANUAL_BACKUP, Feature::SCHEDULED_BACKUPS, Feature::UNLIMITED_USERS,
+        ...self::ATTENDANCE_PARTS,
+    ];
+
+    /** Parts of attendance sold on their own; each needs attendance itself. */
+    public const ATTENDANCE_PARTS = [
+        Feature::ATTENDANCE_SHIFTS, Feature::ATTENDANCE_OVERTIME, Feature::ATTENDANCE_LEAVE, Feature::ATTENDANCE_PAYROLL,
+        Feature::ATTENDANCE_PHONE, Feature::ATTENDANCE_TRENDS, Feature::ATTENDANCE_HOSPITAL,
+    ];
+
+    /** What each part brings, for the platform's plan screen and the clinic's "More attendance features". */
+    public const ATTENDANCE_PART_DESCRIPTIONS = [
+        Feature::ATTENDANCE_SHIFTS => 'Named shifts, a weekly pattern per person, a week-by-week roster and night shifts.',
+        Feature::ATTENDANCE_OVERTIME => 'Time past the end of the day counted as overtime, approved or turned down by a manager.',
+        Feature::ATTENDANCE_LEAVE => 'Your own leave types with yearly allowances, and each person\'s balance.',
+        Feature::ATTENDANCE_PAYROLL => 'Salaries and hourly rates, pay worked out from attendance, and a payroll file for Excel.',
+        Feature::ATTENDANCE_PHONE => 'Staff punch in and out from their own phone when they are at the branch.',
+        Feature::ATTENDANCE_TRENDS => 'The last six months side by side, lateness by weekday, and who is getting better or worse.',
+        Feature::ATTENDANCE_HOSPITAL => 'Departments and their heads, minimum cover, rotation patterns, swaps, rest rules, heads\' emails and staff lists from Excel.',
     ];
 
     /** Optional extras, with the product they belong to (null = either). */
     public const EXTRAS = [
         Feature::ATTENDANCE => ['Staff attendance (terminal, leave, reports)', null],
+        Feature::ATTENDANCE_SHIFTS => ['Attendance: shifts & roster', null],
+        Feature::ATTENDANCE_OVERTIME => ['Attendance: overtime approvals', null],
+        Feature::ATTENDANCE_LEAVE => ['Attendance: leave types & balances', null],
+        Feature::ATTENDANCE_PAYROLL => ['Attendance: payroll', null],
+        Feature::ATTENDANCE_PHONE => ['Attendance: phone clock-in', null],
+        Feature::ATTENDANCE_TRENDS => ['Attendance: trends', null],
+        Feature::ATTENDANCE_HOSPITAL => ['Attendance: hospital tools (departments, cover, rotation, swaps)', null],
         Feature::SMS_CAMPAIGNS => ['SMS reminders & campaigns', null],
         Feature::APPROVALS => ['Approval workflows', null],
         Feature::AUDIT_TRAIL => ['Audit trail & login history', null],
@@ -97,7 +122,7 @@ class PlanProduct
     {
         // Only the attendance product narrows the list here; the screens leave clinic-only extras off an optical plan.
         $extras = array_values(array_intersect(array_keys($product === self::ATTENDANCE ? self::extrasFor($product) : self::EXTRAS), $extras));
-        return array_values(array_unique(array_merge(self::keys($product), $allExtras ? ['*'] : $extras)));
+        return array_values(array_unique(array_merge(self::keys($product), $allExtras ? ['*'] : $extras, [Feature::ATTENDANCE_PARTS_CHOSEN])));
     }
 
     /** Whether the list names its products (new plans) or is a legacy "everything" list. */
@@ -125,6 +150,11 @@ class PlanProduct
     public static function allows(?array $features, string $feature): bool
     {
         if (empty($features)) return true;
+        if (in_array($feature, self::ATTENDANCE_PARTS, true)) {
+            // A part needs attendance itself; a list from before the split has every part.
+            if (! self::allows($features, Feature::ATTENDANCE)) return false;
+            return in_array('*', $features, true) || in_array($feature, $features, true) || ! in_array(Feature::ATTENDANCE_PARTS_CHOSEN, $features, true);
+        }
         if (! self::isProductAware($features)) return in_array('*', $features, true) || in_array($feature, $features, true);
         if (in_array($feature, self::PRODUCT_KEYS, true)) return in_array($feature, $features, true);
         if (self::productOf($features) === self::ATTENDANCE) {
@@ -140,6 +170,10 @@ class PlanProduct
     {
         $possible = array_keys(self::isProductAware($features) ? self::extrasFor(self::productOf($features)) : self::EXTRAS);
         if (empty($features) || in_array('*', $features, true)) return $possible;
+        // A plan from before attendance was split: its attendance had every part, and keeps them when edited.
+        if (! in_array(Feature::ATTENDANCE_PARTS_CHOSEN, $features, true) && self::allows($features, Feature::ATTENDANCE)) {
+            $features = [...$features, ...self::ATTENDANCE_PARTS];
+        }
         return array_values(array_intersect($possible, $features));
     }
 }

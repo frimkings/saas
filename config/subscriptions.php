@@ -22,10 +22,6 @@ return [
 
     // The only pages an attendance-only subscriber can open (route names, with their sub-routes).
     // Anything else sends them back to their own start page.
-    // Plans allowing up to this many staff on attendance are a small clinic's package; above it
-    // (or unlimited) they include the hospital tools. See App\Support\AttendancePlan.
-    'attendance_small_clinic_max' => 30,
-
     'attendance_only_routes' => [
         'admin.attendance', 'user.profile', 'staff.messages', 'dashboard',
         'admin.users', 'admin.login-history', 'admin.audit-trail',
