@@ -58,7 +58,7 @@
                                 (p) => { $wire.clockIn(p.coords.latitude, p.coords.longitude, p.coords.accuracy).finally(() => busy = false); },
                                 (e) => { problem = e.code === 1 ? 'Allow location for this site in your phone\'s browser, then try again.' : 'Could not find where you are. Turn on location (GPS) and try again.'; busy = false; },
                                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })">
-                    <i class="fas fa-location-dot" aria-hidden="true"></i><span x-text="busy ? 'Finding you…' : 'Clock {{ $clock['next'] }}'"></span></button>
+                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i><span x-text="busy ? 'Finding you…' : 'Clock {{ $clock['next'] }}'"></span></button>
             </div>
             <p class="mb-0 mt-2 text-sm text-red-700" x-show="problem" x-text="problem" x-cloak role="alert"></p>
         </div>

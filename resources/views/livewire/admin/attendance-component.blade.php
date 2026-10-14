@@ -30,7 +30,7 @@
                 {{-- Things set once and seldom changed: the owner and managers only. --}}
                 @if($manager)
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
-                    <button type="button" class="ui-button ui-button-secondary" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"><i class="fas fa-sliders" aria-hidden="true"></i>Set up<i class="fas fa-chevron-down ml-1 text-xs" aria-hidden="true"></i></button>
+                    <button type="button" class="ui-button ui-button-secondary" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"><i class="fas fa-sliders-h" aria-hidden="true"></i>Set up<i class="fas fa-chevron-down ml-1 text-xs" aria-hidden="true"></i></button>
                     <div x-show="open" x-cloak @click="open = false" class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg" role="menu">
                         @foreach([
                             ['editHours', 'fa-clock', 'Working hours'],
@@ -38,11 +38,11 @@
                             ['openLeaveTypes', 'fa-umbrella-beach', 'Leave types', $extras['leave']],
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
-                            ['openPhone', 'fa-mobile-screen', 'Phone clock-in', $extras['phone']],
+                            ['openPhone', 'fa-mobile-alt', 'Phone clock-in', $extras['phone']],
                             ['openDepartments', 'fa-sitemap', 'Departments', $hospital],
                             ['openStaffImport', 'fa-file-import', 'Bring in a staff list', $hospital],
                             ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff && $extras['payroll']],
-                            ["\$set('showMore', true)", 'fa-circle-plus', 'More attendance features', (bool) $locked],
+                            ["\$set('showMore', true)", 'fa-plus-circle', 'More attendance features', (bool) $locked],
                         ] as $item)
                             @continue(($item[3] ?? true) === false)
                             @php [$action, $icon, $label] = $item; @endphp
@@ -57,7 +57,7 @@
 
         @foreach($silent as $device)
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
-                <span><i class="fas fa-triangle-exclamation mr-1" aria-hidden="true"></i><strong>{{ $device->name }}</strong> has sent no punches since {{ $device->last_seen_at->setTimezone($timezone)->format('D j M, g:i A') }}. Either it is cut off or nobody has punched. Check it has power and is on the network; punches made meanwhile stay on the terminal and normally arrive once it is back.</span>
+                <span><i class="fas fa-exclamation-triangle mr-1" aria-hidden="true"></i><strong>{{ $device->name }}</strong> has sent no punches since {{ $device->last_seen_at->setTimezone($timezone)->format('D j M, g:i A') }}. Either it is cut off or nobody has punched. Check it has power and is on the network; punches made meanwhile stay on the terminal and normally arrive once it is back.</span>
                 <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="$set('showDevices', true)">Terminals</button>
             </div>
         @endforeach
@@ -713,7 +713,7 @@
                                         (p) => { $wire.set('phoneLatitude', p.coords.latitude.toFixed(7), false); $wire.set('phoneLongitude', p.coords.longitude.toFixed(7)); busy = false; },
                                         () => { problem = 'Could not read this device\'s location. Allow location for this site, or type the numbers in.'; busy = false; },
                                         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })">
-                            <i class="fas fa-location-crosshairs" aria-hidden="true"></i><span x-text="busy ? 'Finding…' : 'Use where I am now'"></span></button>
+                            <i class="fas fa-crosshairs" aria-hidden="true"></i><span x-text="busy ? 'Finding…' : 'Use where I am now'"></span></button>
                         <p class="!mb-0 w-full text-xs text-slate-500">Stand at the branch and press "Use where I am now", or copy the two numbers from a map (in Google Maps, press and hold on the building).</p>
                         <p class="!mb-0 w-full text-xs text-red-600" x-show="problem" x-text="problem" x-cloak></p>
                     </div>

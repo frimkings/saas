@@ -19,8 +19,8 @@
             @if($shifts->isNotEmpty())
                 <div class="flex flex-wrap items-center gap-2">
                     @if($hospital)
-                        <button type="button" class="ui-button ui-button-secondary" wire:click="togglePattern"><i class="fas fa-rotate" aria-hidden="true"></i>Fill from a pattern</button>
-                        <button type="button" class="ui-button ui-button-secondary" wire:click="toggleSwap"><i class="fas fa-right-left" aria-hidden="true"></i>Swap two people</button>
+                        <button type="button" class="ui-button ui-button-secondary" wire:click="togglePattern"><i class="fas fa-sync-alt" aria-hidden="true"></i>Fill from a pattern</button>
+                        <button type="button" class="ui-button ui-button-secondary" wire:click="toggleSwap"><i class="fas fa-exchange-alt" aria-hidden="true"></i>Swap two people</button>
                     @endif
                     <button type="button" class="ui-button ui-button-secondary" wire:click="$toggle('showRosterUpload')"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</button>
                     <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster', ['format' => 'pdf'] + $fileQuery) }}" target="_blank" rel="noopener"><i class="fas fa-print" aria-hidden="true"></i>Print</a>
