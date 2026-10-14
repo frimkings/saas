@@ -101,9 +101,10 @@
                     <button type="button" class="att-x" x-on:click="dismissLocal($el, $wire, { boardUnit: '' })" aria-label="Close">&times;</button>
                 </header>
                 <div class="att-drawer-body">
-                    <div class="grid grid-cols-5 gap-2">
+                    {{-- The five counts on one row. --}}
+                    <div class="flex gap-2">
                         @foreach($states as $key => [$label, $tone, $kinds])
-                            <div class="rounded-lg border border-slate-200 px-2 py-1.5">
+                            <div class="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1.5">
                                 <span class="block text-[11px] leading-tight text-slate-500">{{ $label }}</span>
                                 <span class="inline-block rounded px-1 text-base font-semibold tabular-nums {{ $tone }}">{{ $count($people, $kinds) }}</span>
                             </div>
