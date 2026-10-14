@@ -124,9 +124,12 @@ trait ManagesDepartments
     {
         $this->authorizeAccess();
         $this->authorizeHospital();
-        foreach (AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->get() as $staff) {
+        $made = \App\Models\AttendanceDepartment::query()->count();
+        $placed = \App\Support\AttendanceAudit::quietly(fn () => AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->get()->each(function ($staff) {
             $department = \App\Models\AttendanceDepartment::query()->firstOrCreate(['name' => mb_substr(trim($staff->department), 0, 60)]);
             $staff->update(['attendance_department_id' => $department->id]);
-        }
+        })->count());
+        \App\Models\AuditTrail::record('attendance.departments_made', 'Made '.(\App\Models\AttendanceDepartment::query()->count() - $made).' departments from the terminal\'s department names and placed '.$placed.' people in them',
+            null, [], [], null, true);
     }
 }

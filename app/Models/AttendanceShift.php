@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsAttendance;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Model;
 
 /** A named shift at a branch. One that ends at or before it starts runs into the next morning. */
 class AttendanceShift extends Model
 {
-    use BelongsToBranch;
+    use AuditsAttendance, BelongsToBranch;
 
     protected $fillable = ['name', 'starts_at', 'ends_at', 'break_minutes', 'is_active'];
 

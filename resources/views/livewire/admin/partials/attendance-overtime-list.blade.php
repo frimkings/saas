@@ -1,41 +1,63 @@
 @php use App\Services\Attendance\AttendanceAnalyzer; @endphp
-            <div class="attendance-overtime space-y-3 p-4">
-                <p class="!mb-0 text-sm text-slate-600">
-                    Staying {{ AttendanceAnalyzer::duration($settings->overtime_after_minutes ?? 30) }} or more past the end of the working day is overtime, as is time on site on a day off or a holiday.
-                    @if($settings->overtime_needs_approval ?? true) It counts only once you approve it; you can approve fewer minutes than were worked. @else It counts by itself here; turn a day down if it should not. @endif
-                    Change the rule under Working hours.
-                </p>
-                @forelse($overtime as $item)
-                    @php $day = $item['day']; $decision = $item['decision']; @endphp
-                    <div class="rounded-lg border border-slate-200 p-3" wire:key="overtime-{{ $item['key'] }}-{{ $day['overtime_status'] }}">
-                        <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <p class="!mb-0 text-sm"><strong class="text-slate-900">{{ $item['staff']->name }}</strong> · {{ $item['date']->format('D j M Y') }}</p>
-                            <span @class(['rounded px-1.5 py-0.5 text-xs font-medium', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-100 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-600' => $day['overtime_status'] === 'declined'])>
-                                {{ ['pending' => 'Waiting', 'approved' => 'Approved '.AttendanceAnalyzer::duration($day['overtime_approved']), 'declined' => 'Not approved'][$day['overtime_status']] ?? '' }}
-                            </span>
-                        </div>
-                        <p class="!mb-0 text-sm text-slate-700">
-                            {{ AttendanceAnalyzer::duration($day['overtime_minutes']) }} overtime ·
-                            @if($day['status'] === 'worked_off') on site {{ AttendanceAnalyzer::time($day['in']) }} to {{ AttendanceAnalyzer::time($day['out']) }} on {{ $day['note'] ?: 'a day off' }}
-                            @else left at {{ AttendanceAnalyzer::time($day['out']) }}, the day ends at {{ AttendanceAnalyzer::time($day['hours']['end']) }}@if($day['hours']['shift'] ?? null) ({{ $day['hours']['shift'] }} shift)@endif
+{{-- Overtime in the days on show, one row a day: waiting first, each approved (in full or part) or turned down. --}}
+@php
+    $waiting = collect($overtime)->where('day.overtime_status', 'pending');
+    $tone = ['approved' => 'bg-teal-50 text-teal-800', 'pending' => 'bg-amber-100 text-amber-900', 'declined' => 'bg-slate-100 text-slate-600'];
+@endphp
+<div class="attendance-overtime space-y-2 p-3">
+    <div class="flex flex-wrap items-start justify-between gap-2">
+        <p class="!mb-0 max-w-3xl text-sm text-slate-600">
+            Staying {{ AttendanceAnalyzer::duration($settings->overtime_after_minutes ?? 30) }} or more past the end of the day is overtime, as is time on site on a day off or a holiday.
+            @if($settings->overtime_needs_approval ?? true) It counts once approved; you can approve fewer minutes than were worked. @else It counts by itself here; turn a day down if it should not. @endif
+        </p>
+        @if($waiting->count() > 1)
+            <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="approveAllOvertime" wire:confirm="Approve all {{ $waiting->count() }} days waiting, each for the full time worked?" wire:loading.attr="disabled">Approve all {{ $waiting->count() }} in full</button>
+        @endif
+    </div>
+    @if(! $overtime)
+        <p class="!mb-0 py-3 text-center text-sm text-slate-500">Nobody worked overtime in {{ $periodLabel }}.</p>
+    @else
+        <div class="ui-table-wrap rounded-lg border border-slate-200">
+            <table class="table ui-table ui-table-sm mb-0">
+                <thead>
+                    <tr><th>Staff</th><th>Day</th><th class="text-right">Overtime</th><th>Why</th><th>Status</th><th class="text-right">Minutes</th><th>Note</th><th class="text-right">Answer</th></tr>
+                </thead>
+                <tbody>
+                    @foreach($overtime as $item)
+                        @php $day = $item['day']; $decision = $item['decision']; $date = $item['date']->format('Y-m-d'); @endphp
+                        <tr wire:key="overtime-{{ $item['key'] }}-{{ $day['overtime_status'] }}">
+                            <td class="whitespace-nowrap font-semibold text-slate-900">{{ $item['staff']->name }}</td>
+                            <td class="whitespace-nowrap">{{ $item['date']->format('D j M') }}</td>
+                            <td class="whitespace-nowrap text-right font-semibold tabular-nums">{{ AttendanceAnalyzer::duration($day['overtime_minutes']) }}</td>
+                            <td class="text-sm text-slate-600">
+                                @if($day['status'] === 'worked_off')On site {{ AttendanceAnalyzer::time($day['in']) }}–{{ AttendanceAnalyzer::time($day['out']) }}, {{ $day['note'] ?: 'a day off' }}
+                                @else Left {{ AttendanceAnalyzer::time($day['out']) }}; the day ends {{ AttendanceAnalyzer::time($day['hours']['end']) }}{{ ($day['hours']['shift'] ?? null) ? ' ('.$day['hours']['shift'].')' : '' }}
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['overtime_status']] ?? '' }}">{{ ['pending' => 'Waiting', 'approved' => 'Approved '.AttendanceAnalyzer::duration($day['overtime_approved']), 'declined' => 'Not approved'][$day['overtime_status']] ?? '' }}</span>
+                                @if($decision)<span class="block text-[11px] text-slate-400">{{ $decision->decider->name ?? 'A manager' }}, {{ $decision->updated_at->diffForHumans() }}</span>@endif
+                            </td>
+                            @if($decision)
+                                <td class="text-right text-sm text-slate-400">–</td>
+                                <td class="text-sm text-slate-600">{{ $decision->note ? '“'.$decision->note.'”' : '' }}</td>
+                                <td class="whitespace-nowrap text-right"><button type="button" class="text-xs text-teal-700 underline" wire:click="reopenOvertime({{ $item['staff']->id }}, '{{ $date }}')">Change</button></td>
+                            @else
+                                <td class="text-right">
+                                    <input type="number" min="1" max="{{ $day['overtime_minutes'] }}" class="ui-input !w-20 !py-1 !text-sm" wire:model="overtimeMinutes.{{ $item['key'] }}" placeholder="{{ $day['overtime_minutes'] }}" aria-label="Minutes to approve for {{ $item['staff']->name }} on {{ $item['date']->format('j M') }}">
+                                    @error('overtimeMinutes.'.$item['key'])<span class="block text-[11px] text-red-600">{{ $message }}</span>@enderror
+                                </td>
+                                <td><input type="text" maxlength="255" class="ui-input !w-full !min-w-[8rem] !py-1 !text-sm" wire:model="overtimeNotes.{{ $item['key'] }}" placeholder="Optional" aria-label="Note"></td>
+                                <td class="whitespace-nowrap text-right">
+                                    <button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $date }}', false)" wire:loading.attr="disabled" wire:target="decideOvertime">Don't approve</button>
+                                    <button type="button" class="ui-button ui-button-primary !px-2.5 !py-1 !text-xs" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $date }}', true)" wire:loading.attr="disabled" wire:target="decideOvertime">Approve</button>
+                                </td>
                             @endif
-                        </p>
-                        @if($decision)
-                            <p class="!mb-0 mt-1 text-xs text-slate-500">{{ $decision->decider->name ?? 'A manager' }}, {{ $decision->updated_at->diffForHumans() }}@if($decision->note) · “{{ $decision->note }}”@endif
-                                <button type="button" class="ml-1 text-teal-700 underline" wire:click="reopenOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}')">Change</button></p>
-                        @else
-                            <div class="mt-2 flex flex-wrap items-center gap-2">
-                                <label class="text-xs text-slate-600" for="overtime-minutes-{{ $item['key'] }}">Minutes to approve</label>
-                                <input id="overtime-minutes-{{ $item['key'] }}" type="number" min="1" max="{{ $day['overtime_minutes'] }}" class="ui-input !w-24 !py-1.5 !text-sm" wire:model="overtimeMinutes.{{ $item['key'] }}" placeholder="{{ $day['overtime_minutes'] }}">
-                                <input type="text" maxlength="255" class="ui-input min-w-[10rem] flex-1 !py-1.5 !text-sm" wire:model="overtimeNotes.{{ $item['key'] }}" placeholder="Note (optional)" aria-label="Note">
-                                <button type="button" class="ui-button ui-button-secondary !py-1.5" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}', false)" wire:loading.attr="disabled" wire:target="decideOvertime">Don't approve</button>
-                                <button type="button" class="ui-button ui-button-primary !py-1.5" wire:click="decideOvertime({{ $item['staff']->id }}, '{{ $item['date']->format('Y-m-d') }}', true)" wire:loading.attr="disabled" wire:target="decideOvertime">Approve</button>
-                            </div>
-                            @error('overtimeMinutes.'.$item['key'])<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                        @endif
-                    </div>
-                @empty
-                    <p class="!mb-0 text-sm text-slate-500">Nobody worked overtime in {{ $periodLabel }}.</p>
-                @endforelse
-                @if($overtimeCount > count($overtime))<p class="!mb-0 text-sm text-slate-500">Showing the first {{ count($overtime) }} of {{ number_format($overtimeCount) }} days, those waiting first. Answer these, pick a department or choose fewer days to see the rest.</p>@endif
-            </div>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @if($overtimeCount > count($overtime))<p class="!mb-0 text-sm text-slate-500">Showing the first {{ count($overtime) }} of {{ number_format($overtimeCount) }} days, those waiting first. Answer these, pick a department or choose fewer days to see the rest.</p>@endif
+    @endif
+</div>

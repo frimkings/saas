@@ -69,6 +69,11 @@ class AttendanceStaffImport
      */
     public function import(array $rows, bool $withPay): array
     {
+        return \App\Support\AttendanceAudit::quietly(fn () => $this->importRows($rows, $withPay));
+    }
+
+    private function importRows(array $rows, bool $withPay): array
+    {
         $map = $this->columns(array_shift($rows) ?? []);
         if (! isset($map['id'], $map['name'])) {
             throw ValidationException::withMessages(['staffFile' => 'The first row must be headings, with at least "Employee ID" and "Name". Use the template.']);

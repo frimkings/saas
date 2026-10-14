@@ -47,6 +47,7 @@
                             @php [$action, $icon, $label] = $item; @endphp
                             <button type="button" role="menuitem" wire:click="{{ $action }}" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas {{ $icon }} w-4 text-slate-400" aria-hidden="true"></i>{{ $label }}</button>
                         @endforeach
+                        @if(\App\Services\LicenseService::has(\App\Support\Feature::AUDIT_TRAIL))<a role="menuitem" href="{{ route('admin.audit-trail', ['area' => 'attendance']) }}" target="_blank" rel="noopener" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas fa-history w-4 text-slate-400" aria-hidden="true"></i>Audit trail</a>@endif
                         @if($hospital)<a role="menuitem" href="{{ route('admin.attendance.departments') }}" target="_blank" rel="noopener" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas fa-sitemap w-4 text-slate-400" aria-hidden="true"></i>Departments</a>@endif
                     </div>
                 </div>
@@ -105,7 +106,7 @@
         @if($hasData && $tab === 'today')
             @include('livewire.admin.partials.attendance-today')
         @elseif($hasData && $tab === 'requests')
-            <div class="grid gap-4 lg:grid-cols-2">
+            <div class="space-y-4">
                 <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
                     <h2 class="!mb-0 border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900">Leave requests</h2>
                     @include('livewire.admin.partials.attendance-leave-requests')

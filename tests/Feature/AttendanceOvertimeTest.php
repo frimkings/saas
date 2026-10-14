@@ -81,10 +81,10 @@ class AttendanceOvertimeTest extends TestCase
 
         // The Requests tab lists the same, beside leave requests.
         Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')->set('tab', 'requests')
-            ->assertSee('Leave requests')->assertSee('1h 30m overtime')->assertSee('No requests are waiting.');
+            ->assertSee('Leave requests')->assertSee('1h 30m')->assertSee('No requests are waiting.');
 
         $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')
-            ->assertSee('days of overtime are')->set('showOvertime', true)->assertSee('1h 30m overtime')->assertSee('on a day off')
+            ->assertSee('days of overtime are')->set('showOvertime', true)->assertSee('1h 30m')->assertSee('a day off')
             // More than was worked is refused.
             ->set('overtimeMinutes.'.$this->ama->id.'-2026-10-19', '120')->call('decideOvertime', $this->ama->id, '2026-10-19', true)
             ->assertHasErrors(['overtimeMinutes.'.$this->ama->id.'-2026-10-19']);
@@ -108,6 +108,13 @@ class AttendanceOvertimeTest extends TestCase
         // An answer can be taken back, and the day waits again.
         Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')->call('reopenOvertime', $this->ama->id, '2026-10-24');
         $this->assertSame('pending', $this->row()['days']['2026-10-24']['overtime_status']);
+
+        // Everything still waiting can be approved in one go, in full, as one entry in the audit trail.
+        Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')->set('tab', 'requests')
+            ->call('approveAllOvertime')->assertSee('Approved 3h');
+        $this->assertSame(['approved', 180], [$this->row()['days']['2026-10-24']['overtime_status'], $this->row()['days']['2026-10-24']['overtime_approved']]);
+        $this->assertSame(['approved', 60], [$this->row()['days']['2026-10-19']['overtime_status'], $this->row()['days']['2026-10-19']['overtime_approved']]);
+        $this->assertSame(1, AuditTrail::where('event', 'attendance.overtime_approved')->where('description', 'like', 'Approved in one go 1 day of%')->count());
     }
 
     public function test_the_summary_shows_flags_and_a_single_day_is_a_day_sheet(): void

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsAttendance;
 use App\Models\Concerns\BelongsToBranch;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
  */
 class AttendanceLeaveType extends Model
 {
-    use BelongsToBranch;
+    use AuditsAttendance, BelongsToBranch;
 
     /** code => [name, days a year]. Annual leave starts at the 15 working days of Ghana's Labour Act. */
     public const DEFAULTS = ['annual' => ['Annual leave', 15], 'sick' => ['Sick leave', null], 'permission' => ['Permission', null], 'other' => ['Other', null]];
@@ -65,9 +66,12 @@ class AttendanceLeaveType extends Model
         if (static::query()->exists()) {
             return;
         }
-        foreach (self::DEFAULTS as $code => [$name, $days]) {
-            static::create(['code' => $code, 'name' => $name, 'days_per_year' => $days]);
-        }
+        // Saving the built-in four is not anyone's change.
+        \App\Support\AttendanceAudit::quietly(function () {
+            foreach (self::DEFAULTS as $code => [$name, $days]) {
+                static::create(['code' => $code, 'name' => $name, 'days_per_year' => $days]);
+            }
+        });
     }
 
     /** A code for a new type, from its name and not yet used at the branch. */
@@ -87,5 +91,10 @@ class AttendanceLeaveType extends Model
         foreach (array_unique([$branchId, app(TenantContext::class)->branchId(), null]) as $id) {
             app()->forgetInstance(self::cacheKey($id));
         }
+    }
+
+    protected function auditNoun(): string
+    {
+        return 'leave type';
     }
 }

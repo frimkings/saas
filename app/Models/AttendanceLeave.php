@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsAttendance;
 use App\Models\Concerns\BelongsToBranch;
 use App\Services\Attendance\AttendanceAnalyzer;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class AttendanceLeave extends Model
 {
-    use BelongsToBranch;
+    use AuditsAttendance, BelongsToBranch;
 
     public const TYPES = ['annual' => 'Annual leave', 'sick' => 'Sick leave', 'permission' => 'Permission', 'other' => 'Other'];
 
@@ -71,5 +72,23 @@ class AttendanceLeave extends Model
         return static::query()->where('attendance_staff_id', $staffId)->whereIn('status', [self::APPROVED, self::PENDING])
             ->where('starts_on', '<=', $to)->where('ends_on', '>=', $from)->orderBy('starts_on')->get()
             ->first(fn (self $other) => ! $fromTime || ! $toTime || ! $other->isPartDay() || ($fromTime < $other->to_time && $other->from_time < $toTime));
+    }
+
+    /** Asked for, added, approved, turned down, withdrawn or removed. */
+    protected function auditEntry(string $verb, array $fields): ?array
+    {
+        $what = 'leave for '.($this->staff?->name ?? 'someone').' ('.$this->when().', '.$this->typeName().')';
+        if ($verb === 'added') {
+            return $this->status === self::PENDING ? ['leave_requested', 'Asked for '.$what] : ['leave_added', 'Added '.$what];
+        }
+        if ($verb === 'removed') {
+            return $this->status === self::PENDING && (int) $this->requested_by === (int) auth()->id()
+                ? ['leave_withdrawn', 'Withdrew the request for '.$what] : ['leave_removed', 'Removed '.$what];
+        }
+        if (in_array('status', $fields, true)) {
+            return $this->status === self::APPROVED ? ['leave_approved', 'Approved '.$what] : ['leave_declined', 'Did not approve '.$what];
+        }
+
+        return ['leave_changed', 'Changed '.$what];
     }
 }

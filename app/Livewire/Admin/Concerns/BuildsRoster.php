@@ -319,12 +319,13 @@ trait BuildsRoster
 
             return;
         }
-        foreach ($changes as [$day, $mine, $theirs]) {
+        \App\Support\AttendanceAudit::quietly(fn () => collect($changes)->each(function ($change) use ($a, $b) {
+            [$day, $mine, $theirs] = $change;
             foreach ([[$a, $theirs, $b], [$b, $mine, $a]] as [$staff, $choice, $other]) {
                 \App\Models\AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staff->id, 'date' => $day->format('Y-m-d')],
                     ['attendance_shift_id' => $choice ?: null, 'note' => 'Swapped with '.$other->name, 'set_by' => auth()->id()]);
             }
-        }
+        }));
         \App\Models\AuditTrail::record('attendance.shifts_swapped', "Swapped the shifts of {$a->name} and {$b->name} on ".$from->format('j M Y').($to->gt($from) ? ' to '.$to->format('j M Y') : '')
             .' ('.count($changes).(count($changes) === 1 ? ' day' : ' days').')', null, [], ['staff' => [$a->name, $b->name]], null, true);
         $this->showSwap = false;

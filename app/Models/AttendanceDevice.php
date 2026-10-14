@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsAttendance;
 use App\Models\Concerns\BelongsToBranch;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 /** An attendance terminal connected to a branch, sending punches as they happen. */
 class AttendanceDevice extends Model
 {
-    use BelongsToBranch;
+    use AuditsAttendance, BelongsToBranch;
 
     /** Quiet for longer than this and the terminal is shown as not connected. */
     public const ONLINE_WITHIN_HOURS = 24;
@@ -75,5 +76,13 @@ class AttendanceDevice extends Model
 
         return static::query()->where('is_active', true)->whereNotNull('last_seen_at')
             ->where('last_seen_at', '<', $opened->copy()->setTimezone(config('app.timezone')))->orderBy('id')->get();
+    }
+
+    /** What the terminal reports by itself is not anyone's change. */
+    protected array $auditIgnore = ['token', 'last_seen_at', 'first_event_at', 'last_event_at', 'punches_received'];
+
+    protected function auditNoun(): string
+    {
+        return 'terminal';
     }
 }

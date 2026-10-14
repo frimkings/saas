@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsAttendance;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Model;
 
 /** Someone enrolled on a branch's attendance terminal, known by their Employee ID there. */
 class AttendanceStaff extends Model
 {
-    use BelongsToBranch;
+    use AuditsAttendance, BelongsToBranch;
 
     protected $table = 'attendance_staff';
 
@@ -46,5 +47,20 @@ class AttendanceStaff extends Model
     public function leaves()
     {
         return $this->hasMany(AttendanceLeave::class);
+    }
+
+    /** Names and departments follow the terminal; pay changes note themselves (attendance.pay_changed). */
+    protected array $auditIgnore = ['name', 'department', 'pay_type', 'pay_rate'];
+
+    protected function auditEntry(string $verb, array $fields): ?array
+    {
+        $names = ['is_tracked' => 'followed', 'starts_on' => 'count from', 'hours' => 'own hours', 'shift_week' => 'weekly shifts',
+            'attendance_department_id' => 'department', 'user_id' => 'user account'];
+
+        return match ($verb) {
+            'added' => ['staff_added', "Added {$this->name} to attendance"],
+            'removed' => ['staff_removed', "Removed {$this->name} from attendance"],
+            default => ['staff_changed', "Changed attendance for {$this->name} (".implode(', ', array_map(fn ($field) => $names[$field] ?? str_replace('_', ' ', $field), $fields)).')'],
+        };
     }
 }

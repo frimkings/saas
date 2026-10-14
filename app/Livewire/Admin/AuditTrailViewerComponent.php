@@ -25,20 +25,21 @@ class AuditTrailViewerComponent extends Component
     public $userSearch = '';
     public $fromDate;
     public $toDate;
-    /** '' everything, 'optical' the optical shop and staff changes, 'clinic' everything else. */
+    /** '' everything, 'optical' the optical shop and staff changes, 'attendance' staff attendance, 'clinic' everything else. */
     public $area = '';
     /** Opened from the optical menu: optical layout, optical events first. */
     #[\Livewire\Attributes\Locked]
     public bool $optical = false;
 
-    public const AREAS = ['' => 'Everything', 'optical' => 'Optical shop & staff', 'clinic' => 'Clinic'];
+    public const AREAS = ['' => 'Everything', 'optical' => 'Optical shop & staff', 'attendance' => 'Attendance', 'clinic' => 'Clinic'];
 
     public function mount()
     {
         // Fix #12: generic 403 — don't reveal feature flag names
         abort_if(!LicenseService::has(Feature::AUDIT_TRAIL), 403);
         $this->optical = request()->routeIs('optical.*');
-        $this->area = $this->optical ? 'optical' : '';
+        // Opened from Attendance, or by an attendance-only subscriber: attendance first.
+        $this->area = $this->optical ? 'optical' : ((request()->query('area') === 'attendance' || \App\Support\OpticalMode::attendanceOnly()) ? 'attendance' : '');
         $this->defaultDates();
     }
 
@@ -211,7 +212,8 @@ class AuditTrailViewerComponent extends Component
     {
         return match ($this->area) {
             'optical' => $query->where(fn ($q) => $q->where('event', 'like', 'optical.%')->orWhere('event', 'like', 'staff.%')),
-            'clinic' => $query->where('event', 'not like', 'optical.%'),
+            'attendance' => $query->where('event', 'like', 'attendance.%'),
+            'clinic' => $query->where('event', 'not like', 'optical.%')->where('event', 'not like', 'attendance.%'),
             default => $query,
         };
     }

@@ -101,7 +101,7 @@ class AttendanceCorrectionsTest extends TestCase
         $page->assertSee('Removed by Grace Manager')->assertSee('Punched twice by mistake')->assertSee('Added by Grace Manager');
 
         // Each correction is in the audit trail, even without the audit extra.
-        $this->assertSame(['attendance.punch_added', 'attendance.punch_removed', 'attendance.punch_changed'], AuditTrail::orderBy('id')->pluck('event')->all());
+        $this->assertSame(['attendance.punch_added', 'attendance.punch_removed', 'attendance.punch_changed'], AuditTrail::where('event', 'like', 'attendance.punch%')->orderBy('id')->pluck('event')->all());
     }
 
     public function test_a_punch_cannot_be_in_the_future_and_a_removed_time_can_be_brought_back(): void

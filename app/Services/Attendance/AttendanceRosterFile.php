@@ -119,7 +119,7 @@ class AttendanceRosterFile
     /** Make the changes read from a file. */
     public function apply(array $changes, ?int $userId): int
     {
-        DB::transaction(function () use ($changes, $userId) {
+        \App\Support\AttendanceAudit::quietly(fn () => DB::transaction(function () use ($changes, $userId) {
             foreach ($changes as [$staffId, $name, $date, $choice]) {
                 if ($choice === 'usual') {
                     AttendanceRoster::query()->where('attendance_staff_id', $staffId)->whereDate('date', $date)->delete();
@@ -129,7 +129,7 @@ class AttendanceRosterFile
                 AttendanceRoster::query()->updateOrCreate(['attendance_staff_id' => $staffId, 'date' => $date],
                     ['attendance_shift_id' => $choice ?: null, 'note' => null, 'set_by' => $userId]);
             }
-        });
+        }));
 
         return count($changes);
     }

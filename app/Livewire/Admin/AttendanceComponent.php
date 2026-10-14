@@ -502,7 +502,9 @@ class AttendanceComponent extends Component
             return;
         }
 
-        $import = $imports->import($parser->parseUpload($this->file), $this->file->getClientOriginalName());
+        $import = \App\Support\AttendanceAudit::quietly(fn () => $imports->import($parser->parseUpload($this->file), $this->file->getClientOriginalName()));
+        \App\Models\AuditTrail::record('attendance.report_uploaded', 'Uploaded the terminal report for '.$import->period_start->format('F Y').": {$import->staff_count} staff, {$import->new_punches} new punches",
+            $import, [], ['file' => $import->file_name], null, true);
 
         $this->reset('file', 'showUpload');
         // Show what was just read.
@@ -844,6 +846,32 @@ class AttendanceComponent extends Component
         $this->resetValidation('overtimeMinutes.'.$key);
     }
 
+    /** Approve every day of overtime waiting in the days on show (and the department picked), each for the full time worked. */
+    public function approveAllOvertime(AttendanceAnalyzer $analyzer): void
+    {
+        $this->authorizePart('overtime');
+        [$first, $last] = $this->period();
+        $only = \App\Support\AttendanceScope::staffIds(auth()->user(), $this->department);
+        $waiting = array_filter($this->overtimeList($analyzer->forStaff($only)->range($first, $last)), fn ($item) => $item['day']['overtime_status'] === 'pending');
+        if (! $waiting) {
+            return;
+        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($waiting) {
+            foreach ($waiting as $item) {
+                \App\Models\AttendanceOvertime::query()->updateOrCreate(['attendance_staff_id' => $item['staff']->id, 'date' => $item['date']->format('Y-m-d')], [
+                    'status' => \App\Models\AttendanceOvertime::APPROVED, 'minutes' => $item['day']['overtime_minutes'], 'note' => null, 'decided_by' => auth()->id(),
+                ]);
+            }
+        });
+        $minutes = array_sum(array_map(fn ($item) => $item['day']['overtime_minutes'], $waiting));
+        \App\Models\AuditTrail::record('attendance.overtime_approved', 'Approved in one go '.count($waiting).(count($waiting) === 1 ? ' day' : ' days').' of overtime waiting, '.AttendanceAnalyzer::duration($minutes).' in all, '.$first->format('j M').' to '.$last->format('j M Y'),
+            null, [], ['days' => count($waiting), 'approved_minutes' => $minutes, 'staff' => array_values(array_unique(array_map(fn ($item) => $item['staff']->name, $waiting)))], null, true);
+        $this->overtimeMinutes = [];
+        $this->overtimeNotes = [];
+        $this->resetValidation();
+        $this->dispatch('notify', type: 'success', message: 'Approved '.count($waiting).(count($waiting) === 1 ? ' day' : ' days').' of overtime.');
+    }
+
     /** Take back an answer on overtime, so it waits for one again. */
     public function reopenOvertime(int $staffId, string $date): void
     {
@@ -1089,6 +1117,7 @@ class AttendanceComponent extends Component
         abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can ask for add-ons.');
         abort_unless(in_array($feature, [...\App\Support\PlanProduct::ATTENDANCE_PARTS, \App\Support\Feature::ATTENDANCE_STAFF_PACK], true), 404);
         $addons->request(app(\App\Support\Tenancy\TenantContext::class)->clinic(), $feature, 'Asked for from the Attendance page', auth()->user());
+        \App\Models\AuditTrail::record('attendance.addon_requested', 'Asked for the add-on '.(\App\Support\PlanProduct::EXTRAS[$feature][0] ?? $feature), null, [], ['feature' => $feature], null, true);
         $this->dispatch('notify', type: 'success', message: 'Request sent. You will hear once it is switched on.');
     }
 

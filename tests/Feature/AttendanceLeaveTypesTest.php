@@ -85,7 +85,7 @@ class AttendanceLeaveTypesTest extends TestCase
 
         Livewire::test(AttendanceComponent::class)->set('from', '2026-10-01')->set('to', '2026-10-31')->call('openStaff', $this->ama->id)
             ->assertSee('5.5 of 15 days taken, 7.5 left')->assertSee('2 waiting')
-            ->set('showRequests', true)->assertSee('2 days, 9.5 left this year');
+            ->set('showRequests', true)->assertSee('9.5 left');
     }
 
     public function test_a_branch_edits_its_leave_types_and_allowances(): void

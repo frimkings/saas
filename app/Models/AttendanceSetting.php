@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsAttendance;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Model;
 
 /** A branch's working hours by weekday and how late still counts as on time. */
 class AttendanceSetting extends Model
 {
-    use BelongsToBranch;
+    use AuditsAttendance, BelongsToBranch;
 
     public const DAYS = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
 
@@ -59,5 +60,20 @@ class AttendanceSetting extends Model
     public static function dayHours(array $hours, int $weekday): ?array
     {
         return $hours[$weekday] ?? $hours[(string) $weekday] ?? null;
+    }
+
+    /** Settings are one record per branch: every change is "the attendance settings", naming what changed. */
+    protected function auditEntry(string $verb, array $fields): ?array
+    {
+        $names = ['hours' => 'working hours', 'grace_minutes' => 'grace period', 'break_minutes' => 'break allowed', 'overtime_after_minutes' => 'overtime threshold',
+            'overtime_needs_approval' => 'overtime approval', 'min_rest_hours' => 'rest between shifts', 'max_nights_in_row' => 'nights in a row',
+            'overtime_multiplier' => 'overtime pay rate', 'deduct_lateness' => 'taking lateness off pay', 'deduct_absence' => 'taking absences off pay',
+            'phone_clock_in' => 'phone clock-in', 'clock_in_latitude' => 'branch location', 'clock_in_longitude' => 'branch location', 'clock_in_radius' => 'phone distance'];
+        if ($verb === 'added') {
+            return ['settings_changed', 'Saved the attendance settings for the first time'];
+        }
+        $changed = array_values(array_unique(array_map(fn ($field) => $names[$field] ?? str_replace('_', ' ', $field), array_diff($fields, ['phone_clock_in_since']))));
+
+        return $changed ? ['settings_changed', 'Changed the attendance settings: '.implode(', ', $changed)] : null;
     }
 }
