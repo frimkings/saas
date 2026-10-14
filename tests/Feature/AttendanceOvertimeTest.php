@@ -110,6 +110,19 @@ class AttendanceOvertimeTest extends TestCase
         $this->assertSame('pending', $this->row()['days']['2026-10-24']['overtime_status']);
     }
 
+    public function test_the_summary_shows_flags_and_a_single_day_is_a_day_sheet(): void
+    {
+        $other = AttendanceStaff::create(['employee_no' => '002', 'name' => 'Kofi Boateng', 'is_tracked' => true]);
+        // A week: what happened shows as flags, not columns of zeros; worst first when sorted by what needs a look.
+        Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-25')->set('tab', 'report')
+            ->assertSee('4h 30m overtime waiting')->assertDontSee('On time</button>', false)
+            ->set('show', 'attention')->assertSeeHtml('wire:key="summary-'.$this->ama->id.'"')->assertSeeHtml('wire:key="summary-'.$other->id.'"')
+            ->set('sort', 'absent')->assertSeeInOrder(['Kofi Boateng', 'Ama Owusu']);
+        // One day: in, out, hours and status.
+        Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-19')->set('tab', 'report')->set('show', 'all')
+            ->assertSee('8:00 AM')->assertSee('6:30 PM')->assertSee('10h 30m')->assertSee('Overtime 1h 30m, waiting')->assertSee('Absent');
+    }
+
     public function test_the_branch_sets_the_threshold_and_whether_approval_is_needed(): void
     {
         Livewire::test(AttendanceComponent::class)->call('editHours')->assertSet('overtimeAfter', 30)->assertSet('overtimeNeedsApproval', true)

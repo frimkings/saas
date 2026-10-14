@@ -630,6 +630,12 @@ class AttendanceAnalyzer
         return (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
     }
 
+    /** '08:05' -> 485. */
+    public static function minutesOf(string $time): int
+    {
+        return (int) substr($time, 0, 2) * 60 + (int) substr($time, 3, 2);
+    }
+
     /** 485 -> '08:05'. */
     public static function clock(int $minutes): string
     {

@@ -43,6 +43,11 @@ class AttendanceComponent extends Component
     public string $boardShow = '';
     public bool $showShort = false;
     public string $show = 'all';
+    /** The summary's order: '' = names on a small staff, most to look at first on a large one. */
+    public string $sort = '';
+
+    /** Above this many people followed, the summary opens on those who need a look, worst first. */
+    public const LARGE_STAFF = 50;
     /** Part of a name or Employee ID, to find people in a long list. */
     public string $search = '';
     // Long lists of people come a page at a time: the main list, the roster and payroll.
@@ -199,6 +204,10 @@ class AttendanceComponent extends Component
         if (! in_array($this->view, ['summary', 'grid', 'trends'], true)) {
             $this->view = 'summary';
         }
+        // A large staff opens on those who need a look.
+        if (AttendanceStaff::query()->where('is_tracked', true)->count() > self::LARGE_STAFF) {
+            $this->show = 'attention';
+        }
         // Links to a view of the report open on the report.
         if ($this->tab === '' && request()->query('view')) {
             $this->tab = 'report';
@@ -223,9 +232,34 @@ class AttendanceComponent extends Component
     /** A change to what is listed starts again from the first page. */
     public function updated(string $name): void
     {
-        if (in_array($name, ['search', 'department', 'show', 'view', 'from', 'to'], true)) {
+        if (in_array($name, ['search', 'department', 'show', 'view', 'from', 'to', 'sort'], true)) {
             $this->page = $this->rosterPage = $this->payPage = 1;
         }
+    }
+
+    /** How much in someone's days needs a look: late arrivals, absences (twice), leaving early, long breaks, missing punches, overtime waiting. */
+    private static function issues(array $t): int
+    {
+        return $t['late'] + 2 * $t['absent'] + $t['left_early'] + $t['long_breaks'] + $t['no_clock_out'] + (int) ($t['overtime_pending'] > 0);
+    }
+
+    /** The summary in an order: by name, or worst first by a column. People not followed always come last. */
+    private function sorted(array $rows, string $sort): array
+    {
+        $key = match ($sort) {
+            'issues' => fn ($t) => [-self::issues($t), -$t['late_minutes']],
+            'late' => fn ($t) => [-$t['late'], -$t['late_minutes']],
+            'absent' => fn ($t) => [-$t['absent'], -$t['late']],
+            'present' => fn ($t) => [$t['expected'] ? $t['present'] / $t['expected'] : 2, -$t['absent']],
+            'arrival' => fn ($t) => [$t['average_arrival'] === null ? 1 : 0, $t['average_arrival'] === null ? '' : -AttendanceAnalyzer::minutesOf($t['average_arrival'])],
+            default => null,
+        };
+        if (! $key) {
+            return $rows;
+        }
+        usort($rows, fn ($a, $b) => [! $a['staff']->is_tracked, ...$key($a['totals']), $a['staff']->name] <=> [! $b['staff']->is_tracked, ...$key($b['totals']), $b['staff']->name]);
+
+        return $rows;
     }
 
     private function matches(AttendanceStaff $staff): bool
@@ -1642,8 +1676,11 @@ class AttendanceComponent extends Component
         $rows = array_values(array_filter($report['rows'], fn ($row) => $this->matches($row['staff']) && match ($this->show) {
             'late' => $row['staff']->is_tracked && $row['totals']['late'] > 0,
             'absent' => $row['staff']->is_tracked && $row['totals']['absent'] > 0,
+            'attention' => $row['staff']->is_tracked && self::issues($row['totals']) > 0,
             default => true,
         }));
+        $sort = $this->sort ?: ($report['totals']['staff'] > self::LARGE_STAFF ? 'issues' : 'name');
+        $rows = $this->sorted($rows, $sort);
         [$rows, $pager] = $this->paged($rows, $this->page);
 
         $trends = $this->view === 'trends' ? app(\App\Services\Attendance\AttendanceTrends::class)->only($only)->months(min($last, CarbonImmutable::now($timezone)->startOfDay())) : null;
@@ -1681,6 +1718,8 @@ class AttendanceComponent extends Component
             'terminalLabels' => $this->showDepartments ? AttendanceStaff::query()->whereNull('attendance_department_id')->whereNotNull('department')->where('department', '!=', '')->distinct()->count('department') : 0,
             'trends' => $trends,
             'pager' => $pager,
+            'sort' => $sort,
+            'oneDay' => $first->eq($last),
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,

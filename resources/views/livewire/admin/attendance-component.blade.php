@@ -137,6 +137,7 @@
                     @endif
                     @if($totals['staff'] > 20 || $search !== '')<input type="search" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live.debounce.400ms="search" placeholder="Find by name or ID" aria-label="Find a person">@endif
                     <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
+                        <option value="attention">Needs a look</option>
                         <option value="all">Everyone</option>
                         <option value="late">Late at least once</option>
                         <option value="absent">Absent at least once</option>
@@ -196,61 +197,7 @@
             @endif
 
             @if($view === 'summary')
-                <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <div class="ui-table-wrap">
-                        <table class="table ui-table mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Staff</th>
-                                    <th class="text-right">Present</th>
-                                    <th class="text-right">On time</th>
-                                    <th class="text-right">Late</th>
-                                    <th class="text-right">Time late</th>
-                                    <th class="text-right">Absent</th>
-                                    <th class="text-right">Leave</th>
-                                    <th class="text-right">Left early</th>
-                                    <th class="text-right">Long breaks</th>
-                                    <th class="text-right">Missing punch</th>
-                                    @if($extras['overtime'])<th class="text-right">Overtime</th>@endif
-                                    <th class="text-right">Usual arrival</th>
-                                    <th><span class="sr-only">Open</span></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($rows as $row)
-                                    @php $t = $row['totals']; $staff = $row['staff']; @endphp
-                                    <tr wire:key="summary-{{ $staff->id }}" @class(['opacity-60' => ! $staff->is_tracked])>
-                                        <td>
-                                            <strong>{{ $staff->name }}</strong>
-                                            @unless($staff->is_tracked)<span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Not followed</span>@endunless
-                                            @if($staff->hours)<span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">Own hours</span>@endif
-                                            <br><small class="text-slate-500">ID {{ $staff->employee_no }}{{ ($unitName = $staff->unit?->name ?? $staff->department) ? ' · '.$unitName : '' }}</small>
-                                        </td>
-                                        @if($staff->is_tracked)
-                                            <td class="text-right ui-number">{{ $t['present'] }}<span class="text-slate-400"> / {{ $t['expected'] }}</span></td>
-                                            <td class="text-right ui-number">{{ $t['on_time'] }}</td>
-                                            <td class="text-right ui-number">@if($t['late'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['late'] }}</span>@else 0 @endif</td>
-                                            <td class="text-right ui-number">{{ $t['late_minutes'] ? AttendanceAnalyzer::duration($t['late_minutes']) : '–' }}</td>
-                                            <td class="text-right ui-number">@if($t['absent'])<span class="rounded bg-red-100 px-1.5 py-0.5 font-semibold text-red-800">{{ $t['absent'] }}</span>@else 0 @endif</td>
-                                            <td class="text-right ui-number">{{ $t['leave'] }}</td>
-                                            <td class="text-right ui-number">{{ $t['left_early'] }}</td>
-                                            <td class="text-right ui-number">@if($t['long_breaks'])<span class="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900">{{ $t['long_breaks'] }}</span>@else 0 @endif</td>
-                                            <td class="text-right ui-number">{{ $t['no_clock_out'] }}</td>
-                                            @if($extras['overtime'])<td class="text-right ui-number">{{ $t['overtime_minutes'] ? AttendanceAnalyzer::duration($t['overtime_minutes']) : '–' }}@if($t['overtime_pending'])<span class="block text-xs font-normal text-amber-700">{{ AttendanceAnalyzer::duration($t['overtime_pending']) }} waiting</span>@endif</td>@endif
-                                            <td class="text-right ui-number">{{ AttendanceAnalyzer::time($t['average_arrival']) ?? '–' }}</td>
-                                        @else
-                                            <td colspan="{{ $extras['overtime'] ? 11 : 10 }}" class="text-right text-sm text-slate-400">–</td>
-                                        @endif
-                                        <td class="text-right"><button type="button" class="ui-button ui-button-secondary !px-2.5 !py-1 !text-xs" wire:click="openStaff({{ $staff->id }})">Open</button></td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="{{ $extras['overtime'] ? 13 : 12 }}" class="py-6 text-center text-slate-500">Nobody matches this filter.</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                    @include('livewire.admin.partials.attendance-pager', ['pager' => $pager, 'model' => 'page'])
-                </div>
+                @include('livewire.admin.partials.attendance-summary')
             @elseif($view === 'grid')
                 {{-- A month at a time, Monday to Sunday: how each day went for the branch. Clicking a day lists everyone. --}}
                 <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
