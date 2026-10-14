@@ -131,7 +131,7 @@ class AttendanceWardRosterTest extends TestCase
         Livewire::test(AttendanceComponent::class)->assertSet('tab', 'today')->assertSeeHtml('wire:key="board-unit-'.$this->nursing->id.'"')->assertDontSee('Ama Owusu')->assertSee('1 shift is short now')->assertSee('Morning: 1 of 2')
             ->set('showShort', true)->assertSee('is short on the Morning shift: 1 in, 2 needed')
             // Opening the department shows its names.
-            ->set('boardUnit', (string) $this->nursing->id)->assertSee('Ama Owusu')->assertSee('In since 6:55 AM');
+            ->set('boardUnit', (string) $this->nursing->id)->assertSeeHtml('wire:key="board-unit-'.$this->nursing->id.'-people"')->assertSee('Ama Owusu')->assertSee('In since 6:55 AM');
         AttendancePunch::create(['attendance_staff_id' => $this->kofi->id, 'punched_at' => '2026-10-19 07:05:00', 'source' => 'terminal']);
         Livewire::test(AttendanceComponent::class)->assertDontSee('short now');
     }
