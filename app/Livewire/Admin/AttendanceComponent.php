@@ -35,6 +35,13 @@ class AttendanceComponent extends Component
     public string $to = '';
     #[Url]
     public string $view = 'summary';
+    /** Today (the live board), report or requests; empty until the page picks one. */
+    #[Url]
+    public string $tab = '';
+    // On the Today board: the department whose names are open, and which count's names are shown.
+    public string $boardUnit = '';
+    public string $boardShow = '';
+    public bool $showShort = false;
     public string $show = 'all';
     /** Part of a name or Employee ID, to find people in a long list. */
     public string $search = '';
@@ -192,6 +199,15 @@ class AttendanceComponent extends Component
         if (! in_array($this->view, ['summary', 'grid', 'trends'], true)) {
             $this->view = 'summary';
         }
+        // Links to a view of the report open on the report.
+        if ($this->tab === '' && request()->query('view')) {
+            $this->tab = 'report';
+        }
+    }
+
+    public function clearBoard(): void
+    {
+        $this->reset('boardUnit', 'boardShow');
     }
 
 
@@ -586,6 +602,21 @@ class AttendanceComponent extends Component
         }
 
         return [$lines, $gaps];
+    }
+
+    /** The Today board by department: each one the person may see, and people in none, with what is short now. */
+    private function boardRows(array $board, $departments, array $shortNow): array
+    {
+        if ($departments->isEmpty()) {
+            return [];
+        }
+        $rows = $departments->map(fn ($unit) => ['key' => (string) $unit->id, 'name' => $unit->name,
+            'short' => array_values(array_filter($shortNow, fn ($gap) => $gap['department'] === $unit->name))])->values()->all();
+        if (collect($board)->contains(fn ($person) => ! $person['staff']->attendance_department_id)) {
+            $rows[] = ['key' => 'none', 'name' => 'No department', 'short' => []];
+        }
+
+        return $rows;
     }
 
     /** Departments short on a shift that is running right now: fewer people in than its minimum. */
@@ -1613,6 +1644,15 @@ class AttendanceComponent extends Component
         $payroll = $this->showPayroll && $user?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null;
         $overtime = $this->overtimeList($report);
 
+        // The live board needs a terminal that sends punches as they happen, or phones.
+        $board = $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
+            ? $analyzer->today(CarbonImmutable::now($timezone)) : [];
+        $shortNow = $board ? $this->shortNow($board, CarbonImmutable::now($timezone)) : [];
+        // The page opens on Today where there is a live board, else on the report.
+        if (! in_array($this->tab, ['today', 'report', 'requests'], true) || ($this->tab === 'today' && ! $board)) {
+            $this->tab = $board ? 'today' : 'report';
+        }
+
         return view('livewire.admin.attendance-component', [
             'first' => $first,
             'last' => $last,
@@ -1665,10 +1705,9 @@ class AttendanceComponent extends Component
             'phonePeople' => $this->showPhone ? AttendanceStaff::query()->where('is_tracked', true)->orderBy('name')->get(['id', 'name', 'user_id']) : collect(),
             'devices' => $this->showDevices ? AttendanceDevice::query()->orderBy('id')->get() : collect(),
             'silent' => $manager ? AttendanceDevice::silent(now()->setTimezone($timezone)) : collect(),
-            // The live board needs a terminal that sends punches as they happen.
-            'board' => $board = $report['settings']->phone_clock_in || AttendanceDevice::query()->where('is_active', true)->whereNotNull('last_seen_at')->exists()
-                ? $analyzer->today(CarbonImmutable::now($timezone)) : [],
-            'shortNow' => $board ? $this->shortNow($board, CarbonImmutable::now($timezone)) : [],
+            'board' => $board,
+            'shortNow' => $shortNow,
+            'boardRows' => $board ? $this->boardRows($board, $departments, $shortNow) : [],
             'today' => CarbonImmutable::now($timezone),
             'requests' => AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->when($only !== null, fn ($query) => $query->whereIn('attendance_staff_id', $only))
                 ->with('staff:id,name')->orderBy('starts_on')->get(),

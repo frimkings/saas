@@ -346,8 +346,9 @@ class AttendancePushTest extends TestCase
             ->assertSee('In since 7:58 AM')
             ->assertSee('Out since 9:30 AM')
             ->assertSee('Expected by 8:00 AM')
-            ->assertSee('Sick leave')
-            ->assertDontSee('Not Followed</span>', false);
+            ->assertDontSee('Not Followed</span>', false)
+            // Those away are a count until asked for.
+            ->assertDontSee('Sick leave')->set('boardShow', 'away')->assertSee('Sick leave');
         Carbon::setTestNow();
     }
 

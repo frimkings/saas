@@ -111,7 +111,7 @@ class AttendanceDepartmentsTest extends TestCase
         $this->assertSame([$nursing->id, $laboratory->id, null], [$this->ama->fresh()->attendance_department_id, $this->kofi->fresh()->attendance_department_id, $this->yaa->fresh()->attendance_department_id]);
 
         // Now the page compares departments and can show one at a time.
-        $page->set('showDepartments', false)->assertSee('All departments')->assertSeeHtml('wire:key="unit-'.$nursing->id.'"')->assertSeeHtml('wire:key="unit-none"')
+        $page->set('showDepartments', false)->set('tab', 'report')->assertSee('All departments')->assertSeeHtml('wire:key="unit-'.$nursing->id.'"')->assertSeeHtml('wire:key="unit-none"')
             ->set('department', (string) $nursing->id)->assertSeeHtml('wire:key="summary-'.$this->ama->id.'"')->assertDontSeeHtml('wire:key="summary-'.$this->kofi->id.'"')
             ->set('department', 'none')->assertSeeHtml('wire:key="summary-'.$this->yaa->id.'"')->assertDontSeeHtml('wire:key="summary-'.$this->ama->id.'"')
             ->set('department', '');
@@ -191,7 +191,7 @@ class AttendanceDepartmentsTest extends TestCase
         $this->assertContains('Department attendance', array_column(ClinicNavigation::menu('reception'), 'label'));
         $this->get(route('admin.attendance'))->assertOk()->assertSee('Your department: Nursing');
 
-        $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-23')
+        $page = Livewire::test(AttendanceComponent::class)->set('from', '2026-10-19')->set('to', '2026-10-23')->set('tab', 'report')
             ->assertSeeHtml('wire:key="summary-'.$this->ama->id.'"')->assertDontSee('Kofi Boateng')->assertDontSee('Yaa Mensah')
             // No setting up, no payroll, no comparison of departments.
             ->assertDontSee('Set up')->assertDontSeeHtml('wire:click="openPayroll"')->assertDontSeeHtml('wire:key="unit-');

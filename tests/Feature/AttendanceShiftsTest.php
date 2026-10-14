@@ -131,7 +131,7 @@ class AttendanceShiftsTest extends TestCase
         AttendanceShift::create(['name' => 'Morning', 'starts_at' => '08:00', 'ends_at' => '14:00']);
         // Sixty people: fifty on the first page ("Ama Owusu" sorts first), the rest on the second.
         $row = fn (string $name) => 'wire:key="summary-'.AttendanceStaff::where('name', $name)->value('id').'"';
-        Livewire::test(AttendanceComponent::class)->assertSee('Find by name or ID')->assertSee('Showing 1 to 50 of 60 people')
+        Livewire::test(AttendanceComponent::class)->set('tab', 'report')->assertSee('Find by name or ID')->assertSee('Showing 1 to 50 of 60 people')
             ->assertSeeHtml($row('Ama Owusu'))->assertSeeHtml($row('Staff 49'))->assertDontSeeHtml($row('Staff 50'))
             ->set('page', 2)->assertSee('Showing 51 to 60 of 60 people')->assertSeeHtml($row('Staff 59'))->assertDontSeeHtml($row('Staff 49'))
             // Searching goes back to the first page and finds by name or by Employee ID.
