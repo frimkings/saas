@@ -890,4 +890,66 @@ class AttendanceTest extends TestCase
         $this->assertSame('l2a8', $items['Kofi Añané']['stage']);
         $this->assertSame('Main', $items['Kofi Añané']['branch']);
     }
+
+    public function test_a_first_time_owner_gets_a_checklist_that_ticks_itself_and_a_tour(): void
+    {
+        // An empty page: five steps to go, and a Tour button, which does not start by itself on an empty page.
+        Livewire::test(AttendanceComponent::class)
+            ->assertSee('Getting started with Attendance')->assertSee('0 of 5 done')
+            ->assertSee('Connect the terminal, or upload its report')
+            ->assertSeeHtml('data-tour="tour-replay"')->assertSeeHtml('data-tour="att-checklist"');
+
+        // A report brings in the punches and the people; saving hours and a holiday tick those too.
+        $this->importFixture();
+        AttendanceSetting::create(['hours' => array_fill_keys([1, 2, 3, 4, 5], ['start' => '08:00', 'end' => '17:00']), 'grace_minutes' => 15, 'break_minutes' => 60]);
+        AttendanceHoliday::create(['date' => '2026-12-25', 'name' => 'Christmas Day']);
+        $page = Livewire::test(AttendanceComponent::class)->assertSee('4 of 5 done')
+            ->assertSeeHtml('data-tour="att-tab-report"')->assertSeeHtml('data-tour="att-period"')->assertSeeHtml('data-tour="att-people"')->assertSeeHtml('data-tour="att-setup"');
+
+        // Put away, it stays away for this person.
+        $page->call('hideSetup')->assertDontSee('Getting started with Attendance');
+        Livewire::test(AttendanceComponent::class)->assertDontSee('Getting started with Attendance');
+
+        // Linking the last step instead also ends it, for someone who never hid it.
+        \App\Support\Guides\Guides::forget(\App\Support\Guides\AttendanceSetup::GUIDE);
+        AttendanceStaff::where('employee_no', '001')->update(['user_id' => $this->admin->id]);
+        Livewire::test(AttendanceComponent::class)->assertDontSee('Getting started with Attendance');
+    }
+
+    public function test_tours_are_chosen_for_the_person_and_remembered_once_finished_or_skipped(): void
+    {
+        $tours = \App\Support\Guides\TourCatalog::class;
+        $parts = ['shifts' => true, 'overtime' => true, 'leave' => true, 'payroll' => true, 'phone' => false, 'trends' => true, 'hospital' => false];
+        $manager = $tours::tour('attendance', ['manager' => true, 'extras' => $parts, 'board' => false]);
+        $this->assertSame('attendance.manager', $manager['key']);
+        $targets = array_column($manager['steps'], 'target');
+        $this->assertContains('att-tab-requests', $targets);
+        $this->assertNotContains('att-tab-today', $targets, 'No live board, so no Today step.');
+        $this->assertStringContainsString('Trends', collect($manager['steps'])->firstWhere('target', 'att-views')['body']);
+        $this->assertStringNotContainsString('phone', $manager['steps'][0]['body']);
+        $this->assertSame('attendance.head', $tours::tour('attendance', ['manager' => false, 'board' => true])['key']);
+        $this->assertSame('att-my-tab', $tours::tour('my-attendance')['steps'][0]['open']);
+        $this->assertNull($tours::tour('nowhere'));
+
+        // Finishing or skipping is kept on the account; anything else is refused.
+        $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.manager'));
+        $this->postJson(route('guides.record', 'attendance.manager'), ['status' => 'skipped'])->assertNoContent();
+        $this->assertTrue(\App\Support\Guides\Guides::seen('attendance.manager'));
+        $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.manager', 2), 'A newer version of the tour starts again.');
+        $this->postJson(route('guides.record', 'attendance.unknown'), ['status' => 'done'])->assertNotFound();
+        $this->postJson(route('guides.record', 'attendance.head'), ['status' => 'maybe'])->assertUnprocessable();
+        $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.head'));
+    }
+
+    public function test_staff_get_the_my_attendance_tour_on_their_profile(): void
+    {
+        $this->importFixture();
+        Livewire::test(\App\Livewire\UserProfileComponent::class)->assertDontSeeHtml('data-tour="att-my-tab"');
+
+        AttendanceStaff::where('employee_no', '001')->update(['user_id' => $this->admin->id]);
+        Livewire::test(\App\Livewire\UserProfileComponent::class)
+            ->assertSeeHtml('data-tour="att-my-tab"')->assertSeeHtml('data-tour="tour-replay"')
+            ->call('switchTab', 'attendance')
+            ->assertSeeHtml('data-tour="att-my-period"')->assertSeeHtml('data-tour="att-my-totals"')->assertSeeHtml('data-tour="att-my-leave"');
+    }
 }

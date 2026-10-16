@@ -24,13 +24,14 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 {{-- Each of these appears once the branch uses it, so a small clinic sees a short page. --}}
-                @if($shifts->isNotEmpty() && $extras['shifts'])<a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster-page', array_filter(['department' => $department, 'date' => $last->format('Y-m-d')])) }}" target="_blank" rel="noopener"><i class="fas fa-table" aria-hidden="true"></i>Roster</a>@endif
+                <x-guide-tour page="attendance" :context="['manager' => $manager, 'extras' => $extras, 'board' => (bool) $board, 'departments' => $departments->pluck('id')->all()]" :auto="$hasData" />
+                @if($shifts->isNotEmpty() && $extras['shifts'])<a data-tour="att-roster" class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster-page', array_filter(['department' => $department, 'date' => $last->format('Y-m-d')])) }}" target="_blank" rel="noopener"><i class="fas fa-table" aria-hidden="true"></i>Roster</a>@endif
                 @if($overtime && $extras['overtime'])<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
                 @if($canPay && $paysStaff && $extras['payroll'])<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
                 {{-- Things set once and seldom changed: the owner and managers only. --}}
                 @if($manager)
                 <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
-                    <button type="button" class="ui-button ui-button-secondary" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"><i class="fas fa-sliders-h" aria-hidden="true"></i>Set up<i class="fas fa-chevron-down ml-1 text-xs" aria-hidden="true"></i></button>
+                    <button type="button" data-tour="att-setup" class="ui-button ui-button-secondary" @click="open = ! open" :aria-expanded="open ? 'true' : 'false'" aria-haspopup="true"><i class="fas fa-sliders-h" aria-hidden="true"></i>Set up<i class="fas fa-chevron-down ml-1 text-xs" aria-hidden="true"></i></button>
                     <div x-show="open" x-cloak @click="open = false" class="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg" role="menu">
                         @foreach([
                             ['editHours', 'fa-clock', 'Working hours'],
@@ -51,10 +52,14 @@
                         @if($hospital)<a role="menuitem" href="{{ route('admin.attendance.departments') }}" target="_blank" rel="noopener" class="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50"><i class="fas fa-sitemap w-4 text-slate-400" aria-hidden="true"></i>Departments</a>@endif
                     </div>
                 </div>
-                <button type="button" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
+                <button type="button" data-tour="att-upload" class="ui-button ui-button-primary" wire:click="$set('showUpload', true)"><i class="fas fa-upload" aria-hidden="true"></i>Upload report</button>
                 @endif
             </div>
         </div>
+
+        @if($setup)
+            @include('livewire.admin.partials.attendance-setup')
+        @endif
 
         @foreach($silent as $device)
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
@@ -95,7 +100,7 @@
             @endphp
             <div class="mb-4 flex gap-1 border-b border-slate-200" role="tablist">
                 @foreach($tabs as $key => $label)
-                    <button type="button" role="tab" wire:click="$set('tab', '{{ $key }}')" aria-selected="{{ $tab === $key ? 'true' : 'false' }}"
+                    <button type="button" role="tab" data-tour="att-tab-{{ $key }}" wire:click="$set('tab', '{{ $key }}')" aria-selected="{{ $tab === $key ? 'true' : 'false' }}"
                             @class(['-mb-px border-b-2 px-4 py-2 text-sm font-semibold', 'border-teal-700 text-teal-800' => $tab === $key, 'border-transparent text-slate-500 hover:text-slate-700' => $tab !== $key])>
                         {{ $label }}@if($key === 'requests' && $waiting)<span class="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">{{ $waiting }}</span>@endif
                     </button>
@@ -127,29 +132,29 @@
             </div>
         @else
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <x-date-range from="from" to="to" presets="finance" />
+                <div data-tour="att-period"><x-date-range from="from" to="to" presets="finance" /></div>
                 <div class="flex flex-wrap items-center gap-2">
                     @if($departments->isNotEmpty() && ($manager || $departments->count() > 1))
-                        <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="department" aria-label="Department">
+                        <select data-tour="att-department" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="department" aria-label="Department">
                             <option value="">{{ $manager ? 'All departments' : 'All my departments' }}</option>
                             @foreach($departments as $unit)<option value="{{ $unit->id }}">{{ $unit->name }}</option>@endforeach
                             @if($manager)<option value="none">No department</option>@endif
                         </select>
                     @endif
                     @if($totals['staff'] > 20 || $search !== '')<input type="search" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live.debounce.400ms="search" placeholder="Find by name or ID" aria-label="Find a person">@endif
-                    <select class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
+                    <select data-tour="att-show" class="ui-input !w-48 !py-1.5 !text-sm" wire:model.live="show" aria-label="Show">
                         <option value="attention">Needs a look</option>
                         <option value="all">Everyone</option>
                         <option value="late">Late at least once</option>
                         <option value="absent">Absent at least once</option>
                     </select>
-                    <div class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="View">
+                    <div data-tour="att-views" class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="View">
                         @foreach(['summary' => 'Summary', 'grid' => 'Day by day'] + ($extras['trends'] ? ['trends' => 'Trends'] : []) as $key => $label)
                             <button type="button" wire:click="$set('view', '{{ $key }}')" @class(['px-3 py-1.5 text-sm font-medium', 'bg-slate-800 text-white' => $view === $key, 'bg-white text-slate-600 hover:bg-slate-50' => $view !== $key]) aria-pressed="{{ $view === $key ? 'true' : 'false' }}">{{ $label }}</button>
                         @endforeach
                     </div>
-                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
-                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
+                    <span data-tour="att-exports" class="inline-flex flex-wrap gap-2"><a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'csv', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Excel</a>
+                    <a class="ui-button ui-button-secondary !py-1.5" href="{{ route('admin.attendance.export', ['format' => 'pdf', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a></span>
                 </div>
             </div>
 

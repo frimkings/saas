@@ -1127,6 +1127,13 @@ class AttendanceComponent extends Component
         return AttendancePeriod::resolve($this->from, $this->to, CarbonImmutable::now($this->timezone())->startOfDay());
     }
 
+    /** The first-steps checklist is put away for this person (it also goes once its steps are done). */
+    public function hideSetup(): void
+    {
+        $this->authorizeAccess();
+        \App\Support\Guides\Guides::mark(\App\Support\Guides\AttendanceSetup::GUIDE, \App\Models\UserGuide::HIDDEN);
+    }
+
     public function render(AttendanceAnalyzer $analyzer)
     {
         [$first, $last] = $this->period();
@@ -1191,6 +1198,7 @@ class AttendanceComponent extends Component
             'hospital' => $hospital,
             'extras' => $extras,
             'locked' => $manager ? $this->lockedParts($extras) : [],
+            'setup' => $manager ? \App\Support\Guides\AttendanceSetup::for($extras, (bool) $user?->hasRole('Super Admin')) : null,
             'staffLimit' => $manager ? \App\Support\AttendancePlan::staffLimit() : null,
             'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
             'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,

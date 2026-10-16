@@ -111,6 +111,13 @@ Route::middleware(['auth'])->group(function () {
         app(\App\Services\Platform\Announcements::class)->dismiss($announcement, auth()->user());
         return response()->noContent();
     })->name('announcements.dismiss');
+    // A guided tour the signed-in person finished or skipped, so it does not start by itself again (App\Support\Guides).
+    Route::post('/guides/{guide}', function (\Illuminate\Http\Request $request, string $guide) {
+        abort_unless(($version = \App\Support\Guides\TourCatalog::version($guide)) !== null, 404);
+        $status = $request->validate(['status' => 'required|in:done,skipped'])['status'];
+        \App\Support\Guides\Guides::mark($guide, $status, $version);
+        return response()->noContent();
+    })->where('guide', '[a-z0-9.\-]+')->name('guides.record');
     Route::get('/context/mode', [WorkspaceModeController::class, 'select'])->name('tenant.mode.select');
     Route::post('/context/mode', [WorkspaceModeController::class, 'switch'])->name('tenant.mode.switch');
     Route::get('/context/clinic', [ClinicContextController::class, 'select'])->name('tenant.clinic.select');

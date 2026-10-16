@@ -8,12 +8,12 @@
     $shown = collect($mine['row']['days'])->reject(fn ($day) => in_array($day['status'], ['none', 'off'], true));
 @endphp
 <div class="card-body p-4 px-6 py-6">
-    <div class="mb-3"><x-date-range from="attendanceFrom" to="attendanceTo" presets="finance" label="Days" /></div>
+    <div class="mb-3" data-tour="att-my-period"><x-date-range from="attendanceFrom" to="attendanceTo" presets="finance" label="Days" /></div>
     <p class="mb-3 text-sm text-slate-500">
         Your attendance for {{ $mine['label'] }}, from the attendance terminal.
         @if($mine['report']['covered_until'])Recorded up to {{ \Carbon\CarbonImmutable::parse($mine['report']['covered_until'])->format('D j M') }}.@endif
     </p>
-    <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div data-tour="att-my-totals" class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         @foreach(['Present' => $t['present'].' / '.$t['expected'], 'Late' => $t['late'], 'Absent' => $t['absent'], 'Usual arrival' => AttendanceAnalyzer::time($t['average_arrival']) ?? '–'] as $label => $value)
             <div class="rounded-lg border border-slate-200 px-3 py-2">
                 <p class="mb-0 text-xs text-slate-500">{{ $label }}</p>
@@ -22,7 +22,7 @@
         @endforeach
     </div>
     @if($mine['shifts'])
-        <div class="mb-4 rounded-lg border border-slate-200 p-3">
+        <div data-tour="att-my-shifts" class="mb-4 rounded-lg border border-slate-200 p-3">
             <p class="mb-2 text-sm font-semibold text-slate-800">My shifts, the next two weeks</p>
             <div class="flex flex-wrap gap-1.5">
                 @foreach($mine['shifts'] as $key => $day)
@@ -41,7 +41,7 @@
     @endif
     @if($mine['clock'])
         @php $clock = $mine['clock']; @endphp
-        <div class="mb-4 rounded-lg border border-teal-200 bg-teal-50/50 p-3" x-data="{ busy: false, problem: '' }">
+        <div data-tour="att-my-clock" class="mb-4 rounded-lg border border-teal-200 bg-teal-50/50 p-3" x-data="{ busy: false, problem: '' }">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p class="mb-0 text-sm font-semibold text-slate-800">Clock {{ $clock['next'] }} from this phone</p>
@@ -63,7 +63,7 @@
             <p class="mb-0 mt-2 text-sm text-red-700" x-show="problem" x-text="problem" x-cloak role="alert"></p>
         </div>
     @endif
-    <div class="mb-4 rounded-lg border border-slate-200 p-3">
+    <div data-tour="att-my-leave" class="mb-4 rounded-lg border border-slate-200 p-3">
         <p class="mb-2 text-sm font-semibold text-slate-800">Ask for time off</p>
         @if($mine['balances'])
             <div class="mb-2 flex flex-wrap gap-1.5 text-xs">

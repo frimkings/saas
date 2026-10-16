@@ -6,6 +6,7 @@ import './expense-form';
 import './dismiss';
 import './live-totals';
 import './searchable-select';
+import './guide-tour';
 import Pikaday from 'pikaday';
 
 window.Pikaday = Pikaday;

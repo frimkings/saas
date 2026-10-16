@@ -37,7 +37,7 @@
     $tone = ['on_time' => 'bg-emerald-50 text-emerald-800', 'late' => 'bg-amber-100 text-amber-900', 'absent' => 'bg-red-100 text-red-800', 'off' => 'bg-slate-100 text-slate-500',
         'holiday' => 'bg-violet-100 text-violet-800', 'leave' => 'bg-indigo-100 text-indigo-800', 'worked_off' => 'bg-sky-50 text-sky-800', 'none' => 'bg-slate-100 text-slate-500'];
 @endphp
-<div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+<div data-tour="att-people" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <div class="ui-table-wrap">
         <table class="table ui-table ui-table-sm mb-0">
             <thead>

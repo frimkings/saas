@@ -100,12 +100,13 @@
                         </li>
                         @if($onTerminal)
                         <li class="">
-                            <button type="button" wire:click="switchTab('attendance')"
+                            <button type="button" data-tour="att-my-tab" wire:click="switchTab('attendance')"
                                     aria-selected="{{ $activeTab === 'attendance' ? 'true' : 'false' }}" role="tab"
                                     class="block border-b-2 px-4 py-2 text-sm font-semibold {{ $activeTab === 'attendance' ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800' }}">
                                 <i class="fas fa-user-clock mr-1"></i> My attendance
                             </button>
                         </li>
+                        <li class="ml-auto self-center"><x-guide-tour page="my-attendance" class="!py-1 !text-xs" /></li>
                         @endif
                     </ul>
                 </div>
