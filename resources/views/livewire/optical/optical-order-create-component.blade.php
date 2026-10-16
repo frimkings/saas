@@ -306,7 +306,7 @@
                     <div role="radiogroup" aria-label="Lens fulfilment" class="inline-flex rounded-lg border border-slate-300 bg-slate-100 p-0.5 text-xs font-semibold">
                         @foreach(['stock' => 'Stocked lenses', 'external' => 'Special order', 'customer' => 'Customer supplied'] as $value => $title)
                             <label class="cursor-pointer rounded-md px-3 py-1.5 transition" x-bind:class="fulfilment === @js($value) ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-600' : 'text-slate-600 hover:text-slate-900'">
-                                <input type="radio" name="lens_fulfilment_source" x-model="fulfilment" value="{{ $value }}" class="sr-only">{{ $title }}
+                                <input type="radio" name="lens_fulfilment_source" x-model="fulfilment" value="{{ $value }}" @checked($lens_fulfilment_source === $value) class="sr-only">{{ $title }}
                             </label>
                         @endforeach
                     </div>

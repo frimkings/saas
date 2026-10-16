@@ -2286,6 +2286,22 @@ class OpticalWorkflowTest extends TestCase
             ->assertSet('currentStep', 2);
     }
 
+    public function test_next_with_no_source_or_no_lens_choice_ticked_keeps_the_form_choice_instead_of_a_422(): void
+    {
+        $user = $this->opticalManager('next-without-choice');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Tablet Customer', 'contact' => '0240000888', 'gender' => 'Other']);
+
+        Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('choosePatient', $patient->id)
+            ->call('nextStepWithRequester', ['order_source' => '', 'work_type' => 'prescription'])
+            ->assertHasNoErrors()->assertSet('order_source', 'in_clinic')->assertSet('currentStep', 2)
+            // Nothing ticked: the form's own choice (special order here) is kept and validated like any other.
+            ->set('lens_fulfilment_source', 'external')
+            ->call('nextStepWithLens', ['fulfilment' => '', 'lens_price' => '250', 'od' => ['sph' => '-1.00'], 'os' => ['sph' => '-1.00']])
+            ->assertSet('lens_fulfilment_source', 'external')->assertSet('lens_price', 250.0)
+            ->set('currentStep', 2)->assertSeeHtml('value="external" checked');
+    }
+
     public function test_partner_and_walk_in_work_orders_need_no_patient_record_and_use_standard_prices(): void
     {
         config(['tenancy.enabled' => true]);
