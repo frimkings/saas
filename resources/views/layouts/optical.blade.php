@@ -66,7 +66,7 @@
                             $holdsCurrent = collect($groupLinks)->contains(fn ($link) => \App\Support\OpticalNavigation::active($link[0]));
                         @endphp
                         @continue(! $groupLinks)
-                        <div class="space-y-0.5"
+                        <div class="space-y-0.5" data-tour="nav-{{ $group['key'] ?? 'main' }}"
                              @if($group['key']) x-data="{ open: (() => { if (@js($holdsCurrent)) return true; try { const s = localStorage.getItem('optical-nav-{{ $group['key'] }}'); if (s !== null) return s === '1'; } catch (e) {} return @js(\App\Support\OpticalNavigation::opensFor($group)); })() }"
                                 x-init="$watch('open', v => { try { localStorage.setItem('optical-nav-{{ $group['key'] }}', v ? '1' : '0'); } catch (e) {} })" @endif>
                             @if($group['label'])

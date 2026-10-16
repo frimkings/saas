@@ -897,7 +897,7 @@ class AttendanceTest extends TestCase
         Livewire::test(AttendanceComponent::class)
             ->assertSee('Getting started with Attendance')->assertSee('0 of 5 done')
             ->assertSee('Connect the terminal, or upload its report')
-            ->assertSeeHtml('data-tour="tour-replay"')->assertSeeHtml('data-tour="att-checklist"');
+            ->assertSeeHtml('data-tour="tour-replay"')->assertSeeHtml('data-tour="setup-checklist"');
 
         // A report brings in the punches and the people; saving hours and a holiday tick those too.
         $this->importFixture();

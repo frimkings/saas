@@ -26,16 +26,17 @@
             <p class="ui-muted text-sm">Frames, lenses, lens prices, options and service prices for this branch.</p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <x-guide-tour page="optical.catalogue" :context="['manager' => $isManager]" class="oo-btn" />
             @if($isManager)
-                <a wire:navigate href="{{ route('optical.stock') }}" class="oo-btn">Receive stock</a>
-                @if(in_array($activeTab, ['frames', 'lenses']))<a wire:navigate href="{{ route('optical.products') }}" class="oo-btn primary">+ Add item</a>@endif
+                <a wire:navigate href="{{ route('optical.stock') }}" data-tour="opt-cat-receive" class="oo-btn">Receive stock</a>
+                @if(in_array($activeTab, ['frames', 'lenses']))<a wire:navigate href="{{ route('optical.products') }}" data-tour="opt-cat-add" class="oo-btn primary">+ Add item</a>@endif
             @endif
         </div>
     </div>
 
     <x-ui.flash />
 
-    <nav class="ct-tabs" role="tablist" aria-label="Catalogue sections">
+    <nav class="ct-tabs" data-tour="opt-cat-tabs" role="tablist" aria-label="Catalogue sections">
         @foreach(['frames' => 'Frames', 'lenses' => 'Lenses', 'lens-prices' => 'Lens prices', 'options' => 'Coatings & options', 'services' => 'Services & prices'] as $key => $label)
             <button type="button" role="tab" aria-selected="{{ $activeTab === $key ? 'true' : 'false' }}" class="{{ $activeTab === $key ? 'active' : '' }}" wire:click="setTab('{{ $key }}')">{{ $label }}</button>
         @endforeach
@@ -118,7 +119,7 @@
                 <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search name, SKU or brand…" aria-label="Search the catalogue" class="ui-input text-sm">
                 <span class="ui-muted" wire:loading.delay wire:target="searchTerm,setStockFilter">Updating…</span>
             </div>
-            <div class="oo-chips" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)" role="group" aria-label="Filter by stock">
+            <div class="oo-chips" data-tour="opt-cat-filter" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)" role="group" aria-label="Filter by stock">
                 @foreach(['' => 'All', 'low' => 'Low stock', 'out' => 'Out of stock'] as $key => $label)
                     <button type="button" wire:click="setStockFilter('{{ $key }}')" class="oo-chip {{ $stockFilter === $key ? 'active' : '' }}" aria-pressed="{{ $stockFilter === $key ? 'true' : 'false' }}">{{ $label }}<b>{{ $stockCounts[$key] }}</b></button>
                 @endforeach

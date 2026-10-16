@@ -58,7 +58,7 @@
         </div>
 
         @if($setup)
-            @include('livewire.admin.partials.attendance-setup')
+            <x-setup-checklist :setup="$setup" />
         @endif
 
         @foreach($silent as $device)

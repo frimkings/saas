@@ -6,7 +6,10 @@
             <h1 class="text-xl font-bold text-slate-900">Optical Order Management</h1>
             <p class="ui-muted text-sm">Track order lifecycle, lab progress, payments, collections, and remakes.</p>
         </div>
-        <button wire:click="openCreateOrderModal" type="button" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ New order</button>
+        <div class="flex flex-wrap items-center gap-2">
+            <x-guide-tour page="optical.orders" class="oo-btn" />
+            <button wire:click="openCreateOrderModal" type="button" data-tour="opt-new-order" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ New order</button>
+        </div>
     </div>
 
     <x-ui.flash />
@@ -14,10 +17,10 @@
 
     <div class="ui-panel bg-white">
         <div class="oo-toolbar">
-            <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search order ID, customer, phone, frame or service…" class="ui-input text-sm" aria-label="Search orders">
+            <input autocomplete="off" type="search" data-tour="opt-order-search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search order ID, customer, phone, frame or service…" class="ui-input text-sm" aria-label="Search orders">
             <span class="ui-muted" wire:loading.delay wire:target="searchTerm,setFilter,datePreset,dateFrom,dateTo,dateField,sourceFilter,partnerFilter,creatorFilter,clearFilters">Updating…</span>
         </div>
-        <div class="oo-filters">
+        <div class="oo-filters" data-tour="opt-order-filters">
             <label class="oo-f"><span>Date</span>
                 <select wire:model.live="dateField" class="ui-input text-sm"><option value="created">Ordered on</option><option value="pickup">Pickup date</option></select>
             </label>
@@ -38,15 +41,15 @@
                 @if($narrowed || $statusFilter)<button type="button" class="oo-link" style="color:#b91c1c" wire:click="clearFilters">Clear all</button>@endif
             </div>
         </div>
-        <div class="oo-chips" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)" role="group" aria-label="Filter by status">
+        <div class="oo-chips" data-tour="opt-order-status" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)" role="group" aria-label="Filter by status">
             @foreach(\App\Livewire\Optical\OpticalOrdersComponent::FILTERS as $key => $label)
                 <button type="button" wire:click="setFilter('{{ $key }}')" class="oo-chip {{ $statusFilter === $key ? 'active' : '' }}" aria-pressed="{{ $statusFilter === $key ? 'true' : 'false' }}">{{ $label }}@if($filterCounts[$key] !== null)<b>{{ $filterCounts[$key] }}</b>@endif</button>
             @endforeach
             {{-- Awaiting Collection left the menu: its reminders and partner messages open from here. --}}
-            <a href="{{ route('optical.collections') }}" wire:navigate class="oo-link" style="margin-left:auto">Awaiting collection &amp; reminders →</a>
+            <a href="{{ route('optical.collections') }}" wire:navigate data-tour="opt-collections" class="oo-link" style="margin-left:auto">Awaiting collection &amp; reminders →</a>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-tour="opt-order-list">
             <table class="oo-table w-full">
                 <colgroup><col class="c-order"><col class="c-cust"><col class="c-work"><col class="c-amt"><col class="c-pick"><col class="c-status"><col class="c-act"></colgroup>
                 <thead>

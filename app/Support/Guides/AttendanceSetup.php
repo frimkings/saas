@@ -21,7 +21,7 @@ final class AttendanceSetup
 {
     public const GUIDE = 'attendance.setup';
 
-    /** ['steps' => [...], 'extras' => [...], 'done' => int, 'total' => int] or null when there is nothing to show. */
+    /** ['title', 'steps' => [...], 'extras' => [...], 'done' => int, 'total' => int] or null when there is nothing to show. */
     public static function for(array $parts, bool $canPay): ?array
     {
         if (Guides::seen(self::GUIDE)) return null;
@@ -48,6 +48,6 @@ final class AttendanceSetup
         $done = count(array_filter($steps, fn ($step) => $step['done']));
         if ($done === count($steps)) return null;
 
-        return ['steps' => $steps, 'extras' => $extras, 'done' => $done, 'total' => count($steps)];
+        return ['title' => 'Getting started with Attendance', 'steps' => $steps, 'extras' => $extras, 'done' => $done, 'total' => count($steps)];
     }
 }

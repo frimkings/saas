@@ -18,14 +18,14 @@
             <h1 class="text-xl font-bold text-slate-900">Lab Workbench</h1>
             <p class="ui-muted text-sm">Glazing, frame transfers, repairs and quality checks. Most urgent jobs are listed first.</p>
         </div>
-        <a href="{{ route('optical.lab-workbench.print', array_filter(['stage' => $stage !== 'active' ? $stage : null, 'typeFilter' => $typeFilter, 'searchTerm' => $searchTerm])) }}" target="_blank" rel="noopener" class="oo-btn wb-noprint" style="padding:9px 14px" title="Every job in this view with Rx, measurements and frame details">Print bench sheet</a>
+        <div class="flex flex-wrap items-center gap-2"><x-guide-tour page="optical.lab" class="oo-btn" /><a data-tour="opt-lab-print" href="{{ route('optical.lab-workbench.print', array_filter(['stage' => $stage !== 'active' ? $stage : null, 'typeFilter' => $typeFilter, 'searchTerm' => $searchTerm])) }}" target="_blank" rel="noopener" class="oo-btn wb-noprint" style="padding:9px 14px" title="Every job in this view with Rx, measurements and frame details">Print bench sheet</a></div>
     </div>
 
     <x-ui.flash />
     @if($errors->any() && ! $viewOrderId)<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
     @if($lateCount)<div class="oo-note red wb-noprint"><b>{{ $lateCount }} {{ \Illuminate\Support\Str::plural('job', $lateCount) }} past the pickup date.</b> They are at the top of "All open work".</div>@endif
 
-    <div class="wb-tiles wb-noprint" role="group" aria-label="Workshop stage">
+    <div class="wb-tiles wb-noprint" data-tour="opt-lab-stages" role="group" aria-label="Workshop stage">
         @foreach(\App\Livewire\Optical\OpticalLabWorkbenchComponent::STAGES as $key => [$label])
             <button type="button" class="wb-tile {{ $stage === $key ? 'active' : '' }}" wire:click="setStage('{{ $key }}')" aria-pressed="{{ $stage === $key ? 'true' : 'false' }}">
                 <span>{{ $label }}</span><b>{{ $stageCounts[$key] }}</b>
@@ -34,7 +34,7 @@
     </div>
 
     <div class="ui-panel bg-white">
-        <div class="oo-toolbar wb-noprint" style="grid-template-columns:minmax(220px,1fr) 220px auto">
+        <div class="oo-toolbar wb-noprint" data-tour="opt-lab-search" style="grid-template-columns:minmax(220px,1fr) 220px auto">
             <input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Search job, customer, partner, frame or service…" class="ui-input text-sm" aria-label="Search jobs">
             <select wire:model.live="typeFilter" class="ui-input text-sm" aria-label="Job type">
                 <option value="">All job types</option>
@@ -46,7 +46,7 @@
             <span class="ui-muted" wire:loading.delay wire:target="searchTerm,typeFilter,setStage">Updating…</span>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" data-tour="opt-lab-list">
             <table class="oo-table wb-table w-full" style="min-width:960px">
                 <colgroup><col class="c-job"><col class="c-cust"><col class="c-work"><col class="c-due"><col class="c-status"><col class="c-act wb-noprint"></colgroup>
                 <thead>

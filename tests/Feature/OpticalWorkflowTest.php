@@ -1030,6 +1030,60 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame($product->id, $refund->fresh()->stock_restoration[0]['optical_product_id']);
     }
 
+    public function test_the_optical_owner_gets_a_getting_started_checklist_and_every_main_page_a_tour(): void
+    {
+        $this->opticalManager('optical-tours');
+        \App\Models\OpticalService::ensureTemplates();
+
+        // A new shop: five steps to go, ticking themselves as the shop is set up.
+        $dashboard = Livewire::test(\App\Livewire\Optical\OpticalDashboardComponent::class)
+            ->assertSee('Getting started with the Optical Suite')->assertSee('0 of 5 done')->assertSee('Add your frames')
+            ->assertSeeHtml('data-tour="setup-checklist"')->assertSeeHtml('data-tour="opt-new-order"')->assertSeeHtml('data-tour="opt-stats"')->assertSeeHtml('data-tour="tour-replay"');
+        OpticalProduct::create(['type' => 'frame', 'sku' => 'FR-TOUR', 'name' => 'Tour Frame', 'cost_price' => 50, 'selling_price' => 120, 'is_active' => true]);
+        \App\Models\OpticalService::query()->limit(1)->update(['is_active' => true, 'price' => 30]);
+        Livewire::test(\App\Livewire\Optical\OpticalDashboardComponent::class)->assertSee('2 of 5 done');
+
+        // Put away, it stays away for this person.
+        $dashboard->call('hideSetup')->assertDontSee('Getting started with the Optical Suite');
+        Livewire::test(\App\Livewire\Optical\OpticalDashboardComponent::class)->assertDontSee('Getting started with the Optical Suite');
+
+        // The menu groups are marked for the dashboard tour.
+        $this->get(route('optical.dashboard'))->assertOk()->assertSee('data-tour="nav-desk"', false)->assertSee('data-tour="nav-stock"', false);
+
+        // Each main page has its tour and the parts it points at.
+        foreach ([
+            \App\Livewire\Optical\OpticalOrdersComponent::class => ['opt-order-search', 'opt-order-status', 'opt-order-list'],
+            \App\Livewire\Optical\OpticalOrderCreateComponent::class => ['opt-steps', 'opt-source', 'opt-work-type', 'opt-quote', 'opt-next'],
+            \App\Livewire\Optical\OpticalLabWorkbenchComponent::class => ['opt-lab-stages', 'opt-lab-search', 'opt-lab-list', 'opt-lab-print'],
+            \App\Livewire\Optical\OpticalCatalogueComponent::class => ['opt-cat-tabs', 'opt-cat-add', 'opt-cat-filter'],
+            \App\Livewire\Optical\OpticalPosComponent::class => ['opt-pos-search', 'opt-pos-cart'],
+        ] as $page => $parts) {
+            $test = Livewire::test($page)->assertSeeHtml('data-tour="tour-replay"');
+            foreach ($parts as $part) $test->assertSeeHtml('data-tour="'.$part.'"');
+        }
+
+        // Steps for what only a manager has are left out for everyone else.
+        $staff = \App\Support\Guides\TourCatalog::tour('optical.catalogue', ['manager' => false]);
+        $this->assertNotContains('opt-cat-add', array_column($staff['steps'], 'target'));
+        $this->assertContains('opt-cat-add', array_column(\App\Support\Guides\TourCatalog::tour('optical.catalogue', ['manager' => true])['steps'], 'target'));
+    }
+
+    public function test_optical_staff_get_the_tour_but_not_the_owner_checklist(): void
+    {
+        config(['tenancy.enabled' => true]);
+        \App\Support\OpticalAccess::installRoles();
+        $optician = User::factory()->create();
+        $role = Role::where('name', 'Optician')->firstOrFail();
+        $optician->assignRole($role);
+        [, $branch] = $this->tenant($optician, 'optical-tours-staff');
+        DB::table('branch_user_role')->insert(['user_id' => $optician->id, 'branch_id' => $branch->id, 'role_id' => $role->id]);
+        $this->actingAs($optician);
+
+        Livewire::test(\App\Livewire\Optical\OpticalDashboardComponent::class)
+            ->assertDontSee('Getting started with the Optical Suite')->assertSeeHtml('data-tour="tour-replay"')
+            ->call('hideSetup')->assertForbidden();
+    }
+
     private function opticalManager(string $slug): User
     {
         config(['tenancy.enabled' => true]);

@@ -10,6 +10,13 @@ use Livewire\Component;
 
 class OpticalDashboardComponent extends Component
 {
+    /** The getting-started checklist is put away for this person (it also goes once its steps are done). */
+    public function hideSetup(): void
+    {
+        abort_unless(\App\Support\OpticalAccess::isManager(auth()->user()), 403);
+        \App\Support\Guides\Guides::mark(\App\Support\Guides\OpticalSetup::GUIDE, \App\Models\UserGuide::HIDDEN);
+    }
+
     public function render()
     {
         // 1. Today's orders count
@@ -53,6 +60,8 @@ class OpticalDashboardComponent extends Component
             'recentOrders' => $recentOrders,
             'overdueCount' => app(\App\Services\OpticalJobTrackingService::class)->overdue()->count(),
             'stuckCount' => app(\App\Services\OpticalJobTrackingService::class)->stuck()->count(),
+            // Owners and managers set the shop up; others never see the checklist.
+            'setup' => \App\Support\OpticalAccess::isManager(auth()->user()) ? \App\Support\Guides\OpticalSetup::for() : null,
         ])->layout('layouts.optical');
     }
 }

@@ -4,7 +4,10 @@
             <h1>Optical Retail POS (Walk-in Counter)</h1>
             <p class="ui-muted">Walk-in retail checkout for accessories, contact lens solution, ready readers, and cleaning sprays (No Rx needed).</p>
         </div>
-        <span class="ui-badge" style="background:#dcfce7; color:#166534;">POS Register Active</span>
+        <div class="flex flex-wrap items-center gap-2">
+            <x-guide-tour page="optical.pos" />
+            <span class="ui-badge" style="background:#dcfce7; color:#166534;">POS Register Active</span>
+        </div>
     </div>
 
     <x-ui.flash :link="$lastSaleId ? route('optical.receipt', $lastSaleId) : null" link-label="Print receipt" link-new-tab />
@@ -14,7 +17,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Products & Search -->
         <div class="lg:col-span-2 space-y-4">
-            <div class="ui-panel p-3">
+            <div class="ui-panel p-3" data-tour="opt-pos-search">
                 <input autocomplete="off" type="search" wire:model.live.debounce.250ms="searchTerm" placeholder="Scan SKU or search optical products..." class="ui-input">
             </div>
 
@@ -40,7 +43,7 @@
         </div>
 
         <!-- POS Cart Drawer -->
-        <div class="ui-panel p-5 space-y-4">
+        <div class="ui-panel p-5 space-y-4" data-tour="opt-pos-cart">
             <h2 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2">POS Cart</h2>
 
             <div class="space-y-2 text-xs">

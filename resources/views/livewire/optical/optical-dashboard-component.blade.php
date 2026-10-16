@@ -6,7 +6,8 @@
             <p class="ui-muted">Today's metrics, ready collections, outstanding balances, and inventory alerts.</p>
         </div>
         <div class="ui-actions">
-            <a wire:navigate href="{{ route('optical.orders.create') }}" class="ui-button ui-button-primary">
+            <x-guide-tour page="optical.dashboard" />
+            <a wire:navigate href="{{ route('optical.orders.create') }}" data-tour="opt-new-order" class="ui-button ui-button-primary">
                 + New Order
             </a>
             <a wire:navigate href="{{ route('optical.pos') }}" class="ui-button ui-button-secondary">
@@ -15,8 +16,12 @@
         </div>
     </div>
 
+    @if($setup)
+        <x-setup-checklist :setup="$setup" />
+    @endif
+
     {{-- What to act on today: jobs due or late, glasses not collected --}}
-    @livewire('attention-panel-component', ['line' => 'optical', 'compact' => true], key('attention-optical'))
+    <div data-tour="opt-attention">@livewire('attention-panel-component', ['line' => 'optical', 'compact' => true], key('attention-optical'))</div>
 
     @if($overdueCount || $stuckCount)
         <a wire:navigate href="{{ route('optical.jobs') }}" class="ui-panel p-3 flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 text-amber-900 no-underline" role="status">
@@ -27,7 +32,7 @@
     @endif
 
     <!-- Stats Bar -->
-    <div class="ui-stats">
+    <div class="ui-stats" data-tour="opt-stats">
         <div class="ui-panel ui-stat">
             <div class="flex items-center justify-between">
                 <span class="ui-muted font-medium uppercase tracking-wider text-xs">Today's Orders</span>

@@ -5,7 +5,8 @@
             <h1 class="text-xl font-bold text-slate-900">{{ $remakeOfId ? 'Remake Glasses' : ($editingQuotationId ? 'Edit Optical Quotation' : 'Create Order / Quote') }}</h1>
             <p class="ui-muted text-xs">Create prescription orders or service jobs for customers and partner clinics.</p>
         </div>
-        <div>
+        <div class="flex flex-wrap items-center gap-2">
+            <x-guide-tour page="optical.order-create" class="!py-1 !text-xs" :auto="$currentStep === 1" />
             <span class="px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200 shadow-sm">
                 Step {{ $currentStep }} of 7: 
                 @if($currentStep === 1) Job Source
@@ -24,7 +25,7 @@
     @endif
 
     <!-- 7-Step Navigation Indicator Bar -->
-    <div class="grid grid-cols-4 md:grid-cols-7 gap-2 text-center text-xs font-medium">
+    <div data-tour="opt-steps" class="grid grid-cols-4 md:grid-cols-7 gap-2 text-center text-xs font-medium">
         @php
             $steps = [
                 1 => '1. Source & Job',
@@ -95,7 +96,7 @@
                 <p class="text-xs text-slate-500">Use the existing patient registry for in-clinic work, select a partner clinic, or enter walk-in work details.</p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div class="md:col-span-6">
+                <div class="md:col-span-6" data-tour="opt-source">
                     <label class="block text-xs font-bold text-slate-700 mb-1">Order source *</label>
                     <select id="order-source" onchange="const source=this.value; const isPatient=source==='in_clinic'; const isPartner=source==='partner'; const name=document.getElementById('order-customer-name'); const phone=document.getElementById('order-customer-phone'); const bill=document.getElementById('order-bill-to'); document.getElementById('partner-requester-panel').style.display=isPartner?'':'none'; document.getElementById('patient-requester-panel').style.display=isPatient?'':'none'; document.getElementById('partner-billing-panel').style.display=isPartner?'':'none'; name.readOnly=isPatient; phone.readOnly=isPatient; name.classList.toggle('bg-slate-50',isPatient); phone.classList.toggle('bg-slate-50',isPatient); if(!isPatient){ name.value=''; phone.value=''; } if(isPartner){ bill.value='partner'; } document.getElementById('requester-name-label').textContent=isPatient?'Patient name':(isPartner?'Wearer name (optional)':'Walk-in customer name *'); document.getElementById('order-reference').placeholder=isPartner?'Partner clinic job reference':'Job reference or customer request';" class="ui-input w-full text-xs bg-white">
                         <option value="in_clinic" @selected($order_source === 'in_clinic')>In-clinic patient</option>
@@ -104,7 +105,7 @@
                     </select>
                     <p class="text-xs text-slate-500 mt-1">Immediate walk-in retail purchases are handled in <a wire:navigate href="{{ route('optical.pos') }}" class="text-teal-700 underline">Optical POS</a>.</p>
                 </div>
-                <div class="md:col-span-6">
+                <div class="md:col-span-6" data-tour="opt-work-type">
                     <label class="block text-xs font-bold text-slate-700 mb-1">Work type *</label>
                     <select id="order-work-type" class="ui-input w-full text-xs bg-white">
                         <option value="prescription">Prescription glasses / lenses</option>
@@ -669,7 +670,7 @@
                     @if($runningTotal > 0)<span class="text-xs text-slate-600">Total <strong class="font-mono text-slate-900">{{ currency() }} {{ number_format($runningTotal, 2) }}</strong></span>@endif
                 @endif
                 @unless($remakeOfId)
-                <button type="button" wire:click="saveAsQuotation" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
+                <button type="button" data-tour="opt-quote" wire:click="saveAsQuotation" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                     class="ui-button bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs px-4 py-2 rounded-lg border border-slate-300 shadow-sm">
                     <span wire:loading.remove wire:target="saveAsQuotation">{{ $editingQuotationId ? 'Update Quotation' : 'Save as Quotation' }}</span>
                     <span wire:loading wire:target="saveAsQuotation">Saving…</span>
@@ -677,7 +678,7 @@
                 @endunless
 
                 @if($currentStep < 7)
-                    <button type="button"
+                    <button type="button" data-tour="opt-next"
                         @if($currentStep === 1)
                             onclick="const button=this; const status=document.getElementById('next-step-client-status'); const component=window.Livewire?(Livewire.all().find(item=>item.name.includes('optical-order-create'))?.$wire||Livewire.first()):null; if(!component){status.textContent='The order form is disconnected. Refresh the page and try again.';return;} const requester={order_source:document.getElementById('order-source')?.value,work_type:document.getElementById('order-work-type')?.value,bill_to:document.getElementById('order-bill-to')?.value||'customer',partner_id:document.getElementById('selected-partner-id')?.value||null,customer_name:document.getElementById('order-customer-name')?.value||'',customer_phone:document.getElementById('order-customer-phone')?.value||'',reference:document.getElementById('order-reference')?.value||''}; button.disabled=true; status.textContent='Validating…'; component.call('nextStepWithRequester', requester).catch(()=>{if(status.isConnected)status.textContent='Unable to continue. Review the highlighted fields and try again.';}).finally(() => { if(button.isConnected) button.disabled=false; });"
                         @elseif($currentStep === 2)
