@@ -184,8 +184,9 @@ class OpticalOrderCreateComponent extends Component
 
     public function nextStepWithRequester(array $requester): void
     {
+        // A missing or odd value keeps the form's own choice; the step's validation then names the field, rather than a bare 422 page.
         $source = (string) ($requester['order_source'] ?? '');
-        abort_unless(in_array($source, ['in_clinic', 'partner', 'walk_in'], true), 422);
+        if (! in_array($source, ['in_clinic', 'partner', 'walk_in'], true)) $source = $this->order_source;
 
         $this->order_source = $source;
         $this->work_type = in_array(($requester['work_type'] ?? ''), ['prescription', 'service'], true)
@@ -421,7 +422,7 @@ class OpticalOrderCreateComponent extends Component
         $this->specialPrices = array_merge(['od' => '', 'os' => ''], array_map('strval', (array) data_get($details, 'lens_details.special_prices', [])));
         $this->lens_fulfilment_source = $order->lens_supply_source === 'stock'
             ? 'stock'
-            : ($order->lens_supply_source === 'customer' ? 'customer' : ($order->lens_optical_product_id ? 'catalogue' : 'external'));
+            : ($order->lens_supply_source === 'customer' ? 'customer' : 'external');
         // Fitting values: the docket's fitting block, falling back to older orders' single fitting height.
         $this->rx_od_pd = (string) (data_get($details, 'fitting.pd_right') ?: $this->rx_od_pd);
         $this->rx_os_pd = (string) (data_get($details, 'fitting.pd_left') ?: $this->rx_os_pd);
@@ -714,8 +715,9 @@ class OpticalOrderCreateComponent extends Component
             }
         }
 
+        // No radio ticked (or an unknown value) keeps the current choice, and the step's validation reports it if that is not usable either.
         $source = (string) ($input['fulfilment'] ?? '');
-        abort_unless(in_array($source, ['stock', 'external', 'customer'], true), 422);
+        if (! in_array($source, ['stock', 'external', 'customer'], true)) $source = $this->lens_fulfilment_source;
         $this->lens_fulfilment_source = $source;
         if ($source === 'customer') $this->lens_price = 0;
         elseif ($source === 'external') $this->lens_price = max(0, (float) ($input['lens_price'] ?? 0));
