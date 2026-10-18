@@ -65,7 +65,7 @@ class ClinicNavigation
     {
         $counts = app(AttentionItems::class)->counts('clinic');
 
-        return [
+        return self::visible([
             ['label' => 'Dashboard', 'route' => 'secretary.dashboard', 'icon' => 'fa-tachometer-alt'],
             ...self::departmentAttendance(),
             ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0],
@@ -81,8 +81,9 @@ class ClinicNavigation
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records'],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*'],
+                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => (bool) auth()->user()?->hasAnyRole(['Cashier', 'Manager', 'Super Admin'])],
             ]],
-        ];
+        ]);
     }
 
     /** Doctors. */
@@ -169,6 +170,8 @@ class ClinicNavigation
                 ['label' => 'Combined Statement', 'route' => 'admin.combined-statement', 'show' => FinanceStatements::canViewCombined($user), 'activePath' => 'admin/combined-statement*'],
                 ['label' => 'Expenses', 'route' => $opticalOnly ? 'optical.expenses' : 'admin.expenses', 'activePath' => $opticalOnly ? null : 'admin/expenses*'],
                 ['label' => 'Daily Cash Summary', 'route' => 'admin.daily-cash-summary', 'show' => ! $opticalOnly, 'activePath' => 'admin/daily-cash-summary*'],
+                ['label' => 'Cash Book', 'route' => 'admin.cash-book', 'show' => ! $opticalOnly],
+                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => ! $opticalOnly],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'show' => ! $opticalOnly, 'active' => 'cashier.outstanding-balances*'],
                 ['label' => 'Lens Outstanding PDF', 'route' => 'admin.lens-outstanding-report'],
                 ['label' => 'Quotations', 'route' => 'admin.quotations', 'show' => ! $opticalOnly],

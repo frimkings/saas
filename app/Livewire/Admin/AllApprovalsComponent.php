@@ -32,7 +32,7 @@ class AllApprovalsComponent extends Component
 
         // Default to first tab the user can actually access
         if (!$this->canAccess($this->activeType)) {
-            foreach (['discount', 'refund', 'revoke', 'password_reset', 'spectacle_renewal'] as $type) {
+            foreach (['discount', 'refund', 'correction', 'revoke', 'password_reset', 'spectacle_renewal'] as $type) {
                 if ($this->canAccess($type)) {
                     $this->activeType = $type;
                     break;
@@ -55,6 +55,7 @@ class AllApprovalsComponent extends Component
             'discount', 'refund'  => $user?->hasAnyRole(['Manager', 'Super Admin']) || $user?->can('manage billing'),
             'revoke'              => $user?->hasAnyRole(['Manager', 'Super Admin']) || $user?->can('approve clearance revoke'),
             'password_reset',
+            'correction',
             'spectacle_renewal'  => $user?->hasRole('Super Admin'),
             default              => false,
         };
@@ -70,6 +71,9 @@ class AllApprovalsComponent extends Component
                 : 0,
             'refund'         => $this->canAccess('refund')
                 ? RefundLog::pendingCount()
+                : 0,
+            'correction'     => $this->canAccess('correction')
+                ? \App\Models\PaymentCorrection::pendingCount()
                 : 0,
             'revoke'         => $this->canAccess('revoke')
                 ? ClearanceRevokeLog::pendingCount()

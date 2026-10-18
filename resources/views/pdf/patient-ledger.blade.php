@@ -40,6 +40,8 @@ html, body {
 .ledger-table tbody tr.row-charge  { }
 .ledger-table tbody tr.row-payment { background:#f0fdf4; }
 .ledger-table tbody tr.row-refund  { background:#ecfeff; }
+.ledger-table tbody tr.row-discount { background:#f5f3ff; }
+.ledger-table tbody tr.row-opening  { background:#f8f9fa; font-style:italic; }
 .ledger-table tfoot td { background:#f8f9fa; font-weight:bold; padding:5px 6px; border-top:2px solid #0e7490; }
 .text-right { text-align:right; }
 .text-danger { color:#dc2626; }
@@ -102,6 +104,9 @@ html, body {
         <div class="summary-cell sum-payment" style="margin: 0 4px;">
             <div style="font-size:7.5pt; font-weight:bold; text-transform:uppercase; color:#15803d;">Total Paid</div>
             <div style="font-size:12pt; font-weight:bold; color:#15803d;">{{ currency() }} {{ number_format($summary['total_payments'], 2) }}</div>
+            @if($summary['total_discounts'] > 0)
+                <div style="font-size:7.5pt; color:#6d28d9;">Discounts: {{ currency() }} {{ number_format($summary['total_discounts'], 2) }}</div>
+            @endif
         </div>
         <div class="summary-cell sum-balance">
             <div style="font-size:7.5pt; font-weight:bold; text-transform:uppercase; color:#92400e;">Outstanding Balance</div>
@@ -118,7 +123,7 @@ html, body {
                 <th>Description</th>
                 <th style="width:10%">Ref</th>
                 <th class="text-right" style="width:13%">Charge</th>
-                <th class="text-right" style="width:13%">Payment</th>
+                <th class="text-right" style="width:13%">Credit</th>
                 <th class="text-right" style="width:14%">Balance</th>
             </tr>
         </thead>
@@ -148,7 +153,7 @@ html, body {
                 <tr>
                     <td colspan="3" style="text-align:right;">Totals</td>
                     <td class="text-right text-danger">{{ currency() }} {{ number_format($summary['total_charges'], 2) }}</td>
-                    <td class="text-right text-success">{{ currency() }} {{ number_format($summary['total_payments'], 2) }}</td>
+                    <td class="text-right text-success">{{ currency() }} {{ number_format($summary['total_credits'], 2) }}</td>
                     <td class="text-right {{ $summary['balance'] > 0 ? 'text-warning' : 'text-success' }}">
                         {{ currency() }} {{ number_format($summary['balance'], 2) }}
                     </td>

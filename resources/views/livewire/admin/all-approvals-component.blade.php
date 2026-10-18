@@ -39,6 +39,18 @@
                 </li>
             @endif
 
+            @if($this->canAccess('correction'))
+                <li class="">
+                    <a href="#" wire:click.prevent="switchType('correction')"
+                       class="-mb-px flex items-center gap-1 border-b-2 px-3 py-2 text-sm {{ $activeType === 'correction' ? 'border-teal-700 font-semibold text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800' }}">
+                        <i class="fas fa-exchange-alt mr-1"></i> Payment Corrections
+                        @if($counts['correction'] > 0)
+                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-1">{{ $counts['correction'] }}</span>
+                        @endif
+                    </a>
+                </li>
+            @endif
+
             @if($this->canAccess('revoke'))
                 <li class="">
                     <a href="#" wire:click.prevent="switchType('revoke')"
@@ -83,6 +95,8 @@
             @livewire('admin.discount-approvals-component', [], key('discount'))
         @elseif($activeType === 'refund' && $this->canAccess('refund'))
             @livewire('admin.refund-approvals-component', [], key('refund'))
+        @elseif($activeType === 'correction' && $this->canAccess('correction'))
+            @livewire('admin.payment-correction-approvals-component', [], key('correction'))
         @elseif($activeType === 'revoke' && $this->canAccess('revoke'))
             @livewire('admin.clearance-revoke-approvals-component', [], key('revoke'))
         @elseif($activeType === 'password_reset' && $this->canAccess('password_reset'))

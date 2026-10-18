@@ -111,7 +111,8 @@ class IncomeStatementExportController extends Controller
             'clinicSettings' => Setting::getSettings(),
             'revenue_lines' => $statement['revenue_lines']->map(fn ($line) => ['name' => $line->name, 'amount' => (float) $line->amount]),
             'cost_lines' => $statement['cost_lines']->map(fn ($line) => ['name' => $line->name, 'amount' => (float) $line->amount]),
-            'operating_lines' => $statement['tracked_operating_lines']->map($trackedLine)->concat($statement['operating_lines']->map($entryLine)),
+            'operating_lines' => $statement['sales_expense_lines']->map(fn ($line) => $line + ['notes' => 'From sales'])
+                ->concat($statement['tracked_operating_lines']->map($trackedLine))->concat($statement['operating_lines']->map($entryLine)),
             'non_operating_lines' => $statement['tracked_non_operating_lines']->map($trackedLine)->concat($statement['non_operating_lines']->map($entryLine)),
             'statement' => $statement,
         ];
