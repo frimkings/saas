@@ -46,4 +46,30 @@ class DailyCashSummaryBusinessLineTest extends TestCase
         // A line the subscriber cannot pick falls back to the default.
         $page->set('line', 'something-else')->assertSet('line', 'combined');
     }
+
+    public function test_the_summary_covers_a_range_of_days(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web']));
+        $this->actingAs($user);
+        $this->travelTo(now()->subDays(3));
+        $this->sale($user, 'clinic', 'OLDER', 50, 'cash');
+        $this->travelBack();
+        $this->sale($user, 'clinic', 'TODAY', 70, 'cash');
+
+        $page = Livewire::test(DailyCashSummaryComponent::class)
+            ->assertSet('fromDate', today()->toDateString())->assertSet('toDate', today()->toDateString())
+            ->assertViewHas('amountPaid', fn ($value) => (float) $value === 70.0)
+            ->assertViewHas('periodLabel', today()->format('M d, Y'));
+
+        $page->set('fromDate', today()->subDays(5)->toDateString())
+            ->assertViewHas('amountPaid', fn ($value) => (float) $value === 120.0)
+            ->assertViewHas('salesCount', 2)
+            ->assertViewHas('payments', fn ($payments) => (float) $payments->sum('total') === 120.0)
+            ->assertSee(today()->subDays(5)->format('M d, Y').' – '.today()->format('M d, Y'));
+
+        // Dates picked the wrong way round still give the same days.
+        $page->set('fromDate', today()->toDateString())->set('toDate', today()->subDays(5)->toDateString())
+            ->assertViewHas('amountPaid', fn ($value) => (float) $value === 120.0);
+    }
 }
