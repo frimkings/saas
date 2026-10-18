@@ -264,7 +264,7 @@ final class TourCatalog
             ['target' => 'day-close-cashiers', 'title' => 'Who took what', 'body' => 'Each cashier\'s takings by method, so a difference can be traced.'],
             ['target' => 'day-close-payments', 'title' => 'Wrong method?', 'body' => 'A payment entered as cash that was really MoMo? Ask for a correction here; the owner approves it. To cancel a sale entered by mistake, request a void from Sales Records.'],
             ['target' => 'day-close-blockers', 'title' => 'Waiting for a decision', 'body' => 'A void or correction still waiting holds the day open until the owner decides.'],
-            ['target' => 'day-close-submit', 'title' => 'The cash drawer, and closing', 'body' => 'What the drawer should hold, what you counted and the difference, at a glance. Enter what you bank or hand over (the suggestion leaves the float in the drawer), add a note for any difference, and close the day.'.($owner ? ' Only you can reopen a closed day.' : ' Only the owner can reopen it.')],
+            ['target' => 'day-close-submit', 'title' => 'Close', 'body' => 'The tiles at the top show what the drawer should hold, what you counted and the difference. Here, enter what you bank or hand over (the suggestion leaves the float in the drawer), add a note for any difference, and close the day.'.($owner ? ' Only you can reopen a closed day.' : ' Only the owner can reopen it.')],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }
