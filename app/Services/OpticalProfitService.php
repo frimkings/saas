@@ -26,6 +26,9 @@ use Carbon\CarbonInterface;
  */
 class OpticalProfitService
 {
+    /** The operating-expense line for discounts given on orders and retail sales. */
+    public const DISCOUNTS = 'Discounts allowed';
+
     /** @return array<string, mixed> */
     public function statement(CarbonInterface $from, CarbonInterface $to): array
     {
@@ -40,8 +43,8 @@ class OpticalProfitService
             'Frames' => (float) $orders->sum('frame_price'),
             'Lenses' => (float) $orders->sum('lens_price'),
             'Services & glazing' => (float) $orders->sum('service_total') + (float) $orders->sum('glazing_fee'),
-            'Order discounts' => -(float) $orders->sum('discount_amount'),
-            'Retail (POS)' => (float) $retailSales->sum('total_amount'),
+            // Full price; the discounts given are an expense below.
+            'Retail (POS)' => (float) $retailSales->sum('total_amount') + (float) $retailSales->sum('discount_amount'),
             'Cancellation fees kept' => $cancellationFees,
         ];
 
@@ -57,7 +60,9 @@ class OpticalProfitService
         $totalCosts = round(array_sum($costs['lines']), 2);
         $grossProfit = round($totalRevenue - $totalCosts, 2);
         $totalLosses = round(array_sum($losses), 2);
-        $totalOperating = round((float) $operating->sum('amount'), 2);
+        $discounts = round((float) $orders->sum('discount_amount') + (float) $retailSales->sum('discount_amount'), 2);
+        $operatingLines = ($discounts > 0 ? [self::DISCOUNTS => $discounts] : []) + $group($operating);
+        $totalOperating = round((float) $operating->sum('amount') + $discounts, 2);
         $operatingProfit = round($grossProfit - $totalLosses - $totalOperating, 2);
         $totalNonOperating = round((float) $nonOperating->sum('amount'), 2);
 
@@ -72,7 +77,7 @@ class OpticalProfitService
             'grossMargin' => $totalRevenue > 0 ? round($grossProfit / $totalRevenue * 100, 1) : null,
             'losses' => array_map(fn ($v) => round($v, 2), $losses),
             'totalLosses' => $totalLosses,
-            'operating' => $group($operating),
+            'operating' => $operatingLines,
             'totalOperating' => $totalOperating,
             'operatingProfit' => $operatingProfit,
             'nonOperating' => $group($nonOperating),

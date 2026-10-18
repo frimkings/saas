@@ -175,6 +175,7 @@ Route::middleware(['auth', 'role:Secretary|Cashier|Optician|Manager|Super Admin'
  //cashier
 Route::get('cashier/dashboard', CashierDashboardComponent::class)->name('cashier.dashboard');
 Route::get('cashier/seller-desk', POSComponent::class)->name('cashier.seller-desk');
+Route::get('cashier/day-close', \App\Livewire\Admin\DayCloseComponent::class)->name('admin.day-close')->middleware('role:Cashier|Manager|Super Admin');
 Route::get('cashier/outstanding-balances', OutstandingBalancesComponent::class)->name('cashier.outstanding-balances')->middleware('feature:outstanding_balances');
 Route::get('/livewire/ajax-patients', [POSComponent::class, 'getPatientsJson']);
 Route::get('/cashier/sales-records', SalesRecordsComponent::class)->name('cashier.sales-records');
@@ -300,6 +301,7 @@ Route::get('/admin/inventory-alerts', InventoryAlertsComponent::class)->name('ad
 Route::get('/admin/stock-movements', StockMovementComponent::class)->name('admin.stock-movements')->middleware('feature:inventory');
 Route::get('/admin/stock-transfers', \App\Livewire\Admin\StockTransferComponent::class)->name('admin.stock-transfers')->middleware('feature:inventory');
 Route::get('/admin/daily-cash-summary', DailyCashSummaryComponent::class)->name('admin.daily-cash-summary');
+Route::get('/admin/cash-book', \App\Livewire\Admin\CashBookComponent::class)->name('admin.cash-book');
 Route::get('/admin/lens-outstanding-report', function () { // feature:spectacles_pro checked in middleware below
     $debts = \App\Models\LensOrder::with(['refraction.consultation.patient'])
         ->whereRaw('(frame_price + lens_price + glazing_fee + service_total - discount_amount) > paid_amount')

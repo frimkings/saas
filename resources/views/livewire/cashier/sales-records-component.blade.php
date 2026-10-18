@@ -11,9 +11,17 @@
             <h1>{{ ucfirst($businessLine) }} sales records</h1>
             <p class="ui-muted">Viewing records for period: {{ $fromDate }} to {{ $toDate }}</p>
         </div>
-        <div class="rounded-xl bg-teal-700 px-6 py-2 text-white">
-            <p class="text-xs font-semibold uppercase tracking-wide text-teal-100">Total sales (paid)</p>
-            <p class="text-xl font-semibold">{{ currency() }} {{ number_format($totalSales, 2) }}</p>
+        <div class="flex flex-wrap gap-2">
+            @if($totalDiscounts > 0)
+                <div class="rounded-xl border border-violet-200 bg-violet-50 px-6 py-2 text-violet-900">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Discounts given</p>
+                    <p class="text-xl font-semibold">{{ currency() }} {{ number_format($totalDiscounts, 2) }}</p>
+                </div>
+            @endif
+            <div class="rounded-xl bg-teal-700 px-6 py-2 text-white">
+                <p class="text-xs font-semibold uppercase tracking-wide text-teal-100">Total sales (paid)</p>
+                <p class="text-xl font-semibold">{{ currency() }} {{ number_format($totalSales, 2) }}</p>
+            </div>
         </div>
     </div>
 
@@ -64,7 +72,14 @@
                                 <span class="block font-semibold">{{ $sale->customer_display_name }}</span>
                                 <span class="text-xs text-slate-500">By: {{ $sale->user->name ?? 'N/A' }}</span>
                             </td>
-                            <td class="ui-number font-semibold">{{ currency() }} {{ number_format($sale->total_amount, 2) }}</td>
+                            <td class="ui-number">
+                                <span class="block font-semibold">{{ currency() }} {{ number_format($sale->total_amount, 2) }}</span>
+                                @if((float) $sale->discount_amount > 0)
+                                    <span class="block text-xs text-violet-700" title="{{ $sale->approvedBy ? 'Approved by '.$sale->approvedBy->name : '' }}">
+                                        after {{ currency() }} {{ number_format($sale->discount_amount, 2) }} discount{{ $sale->discount_type === 'percentage' ? ' ('.rtrim(rtrim(number_format((float) $sale->discount_value, 2), '0'), '.').'%)' : '' }}
+                                    </span>
+                                @endif
+                            </td>
                             <td class="text-center">
                                 @if($sale->is_refunded)
                                     <span class="{{ $chip }} bg-red-100 text-red-800">Refunded</span>
@@ -93,6 +108,9 @@
                                     <div class="patient">{{ $sale->customer_display_name }}</div>
                                     <div class="transaction-id">{{ $sale->transaction_id }}</div>
                                     <div class="total">{{ number_format($sale->total_amount, 2) }}</div>
+                                    <div class="gross">{{ number_format((float) $sale->total_amount + (float) $sale->discount_amount, 2) }}</div>
+                                    <div class="discount">{{ (float) $sale->discount_amount > 0 ? number_format($sale->discount_amount, 2) : '' }}</div>
+                                    <div class="discount-note">{{ (float) $sale->discount_amount > 0 ? trim(($sale->discount_type === 'percentage' ? rtrim(rtrim(number_format((float) $sale->discount_value, 2), '0'), '.').'%' : '').($sale->approvedBy ? ' · approved by '.$sale->approvedBy->name : ''), ' ·') : '' }}</div>
                                     <div class="items">
                                         @foreach($sale->items as $item)
                                             <div class="item">
@@ -157,8 +175,9 @@
                             <label for="refund-type" class="{{ $label }}">Request type</label>
                             <select id="refund-type" wire:model="initiateRefundType" class="ui-input" aria-invalid="{{ $errors->has('initiateRefundType') ? 'true' : 'false' }}">
                                 <option value="refund">Refund</option>
-                                <option value="void">Void</option>
+                                <option value="void">Void (today's mistake)</option>
                             </select>
+                            <p class="mt-1 text-xs text-slate-500">A void cancels a sale entered by mistake today, before the day is closed. The owner approves it.</p>
                             @error('initiateRefundType')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                         </div>
                         <div>
@@ -218,6 +237,9 @@
             const patient = escapeHtml(saleDiv.querySelector('.patient').textContent);
             const transactionId = escapeHtml(saleDiv.querySelector('.transaction-id').textContent);
             const total = escapeHtml(saleDiv.querySelector('.total').textContent);
+            const gross = escapeHtml(saleDiv.querySelector('.gross').textContent);
+            const discount = escapeHtml(saleDiv.querySelector('.discount').textContent.trim());
+            const discountNote = escapeHtml(saleDiv.querySelector('.discount-note').textContent.trim());
             currentSaleId = saleDataId.replace('sale-', '');
 
             let rows = '';
@@ -238,6 +260,10 @@
                     <thead><tr><th>Item<\/th><th class="text-center">Qty<\/th><th class="ui-number">Subtotal<\/th><\/tr><\/thead>
                     <tbody>${rows}<\/tbody>
                 <\/table><\/div>
+                ${discount ? `<div class="mt-2 space-y-0.5 text-right text-sm text-slate-600">
+                    <p>Subtotal: {{ currency() }} ${gross}<\/p>
+                    <p class="text-violet-700">Discount${discountNote ? ` (${discountNote})` : ''}: −{{ currency() }} ${discount}<\/p>
+                <\/div>` : ''}
                 <p class="mt-2 text-right text-lg font-semibold text-teal-800">Grand total: {{ currency() }} ${total}<\/p>`;
 
             salesDialog('viewSaleModal', true);

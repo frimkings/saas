@@ -272,9 +272,10 @@ class SalesRecordsComponent extends Component
 
         $fileName = ucfirst($this->businessLine) . '_Sales_Report_' . $this->fromDate . '_to_' . $this->toDate . '.csv';
         
-        $query = Sales::select('id', 'transaction_id', 'total_amount', 'amount_paid', 'payment_status', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at')
+        $query = Sales::select('id', 'transaction_id', 'total_amount', 'amount_paid', 'payment_status', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at',
+                'discount_type', 'discount_value', 'discount_amount', 'discount_approved_by')
             ->where('business_line', $this->businessLine)
-            ->with(['patient:id,name', 'user:id,name'])
+            ->with(['patient:id,name', 'user:id,name', 'approvedBy:id,name'])
             ->whereBetween('created_at', [$fromDate, $toDate]);
 
         if ($this->filterRefunded !== null) {
@@ -303,7 +304,7 @@ class SalesRecordsComponent extends Component
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             
-            fputcsv($file, ['Date', 'Transaction ID', 'Patient', 'Cashier', 'Amount', 'Status']);
+            fputcsv($file, ['Date', 'Transaction ID', 'Patient', 'Cashier', 'Gross', 'Discount', 'Discount approved by', 'Amount', 'Paid', 'Status']);
 
             $query->chunkById(500, function($sales) use ($file) {
                 foreach ($sales as $sale) {
@@ -312,7 +313,11 @@ class SalesRecordsComponent extends Component
                         $sale->transaction_id,
                         $sale->customer_display_name,
                         $sale->user->name ?? 'System',
-                        currency() . ' ' . number_format($sale->total_amount, 2),
+                        number_format((float) $sale->total_amount + (float) $sale->discount_amount, 2, '.', ''),
+                        number_format((float) $sale->discount_amount, 2, '.', ''),
+                        (float) $sale->discount_amount > 0 ? ($sale->approvedBy->name ?? '') : '',
+                        number_format((float) $sale->total_amount, 2, '.', ''),
+                        number_format((float) $sale->amount_paid, 2, '.', ''),
                         $sale->is_refunded ? 'Refunded' : 'Paid'
                     ]);
                 }
@@ -395,6 +400,10 @@ class SalesRecordsComponent extends Component
             403,
             'You may only request refunds for transactions you created.'
         );
+        if ($this->initiateRefundType === RefundLog::TYPE_VOID && ($voidProblem = self::voidProblem($sale))) {
+            $this->addError('initiateRefundType', $voidProblem);
+            return;
+        }
         $allowedIds = $sale->refundableItems()->pluck('id');
         $selectedIds = collect($this->initiateRefundItemIds)->map(fn ($id) => (int) $id)->unique();
         if ($selectedIds->isEmpty() || $selectedIds->diff($allowedIds)->isNotEmpty()) {
@@ -465,6 +474,22 @@ class SalesRecordsComponent extends Component
 
     /** Renderless close for the optical refund drawer, which the browser has already closed (dismissCall). */
     #[\Livewire\Attributes\Renderless]
+    /**
+     * A void cancels a sale entered by mistake, the same day, before the day is closed; anything
+     * later is a refund. Null when the sale can be voided.
+     */
+    public static function voidProblem(Sales $sale): ?string
+    {
+        if (!$sale->created_at?->isToday()) {
+            return 'A void is only for a sale made today. Use a refund for older sales.';
+        }
+        if (app(\App\Services\Finance\DayCloseService::class)->isClosed($sale->created_at)) {
+            return 'Today has been closed, so its sales can no longer be voided. Use a refund, or ask the owner to reopen the day.';
+        }
+
+        return null;
+    }
+
     public function dismissRefundInitiation(): void
     {
         $this->cancelRefundInitiation();
@@ -486,9 +511,11 @@ class SalesRecordsComponent extends Component
         $this->normalizeFilters();
         [$fromDate, $toDate] = $this->dateRange();
 
-        $query = Sales::select('id', 'transaction_id', 'total_amount', 'amount_paid', 'payment_status', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at')
+        $query = Sales::select('id', 'transaction_id', 'total_amount', 'amount_paid', 'payment_status', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at',
+                'discount_type', 'discount_value', 'discount_amount', 'discount_approved_by')
             ->where('business_line', $this->businessLine)
             ->with([
+                'approvedBy:id,name',
                 'items:id,sale_id,product_id,optical_product_id,prescribed_quantity,dispensed_quantity,selling_price,subtotal',
                 'items.product:id,name',
                 'items.opticalProduct:id,name',
@@ -516,6 +543,9 @@ class SalesRecordsComponent extends Component
             ->where('is_refunded', false)
             ->sum('total_amount');
 
+        $totalDiscounts = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])
+            ->where('is_refunded', false)->sum('discount_amount');
+
         $totalReceipts = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])->count();
         $refundCount = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])->where('is_refunded', true)->count();
         $refundTotal = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])->where('is_refunded', true)->sum('total_amount');
@@ -539,7 +569,7 @@ class SalesRecordsComponent extends Component
         // Optical draws every listed sale's panel, hidden, so View opens it in the browser without a call.
         $drawerIds = $this->businessLine === 'optical' ? $sales->pluck('id')->push($this->panelSaleId)->filter()->unique() : collect();
         $drawerSales = $drawerIds->isEmpty() ? collect() : Sales::where('business_line', 'optical')->whereIn('id', $drawerIds)
-            ->with(['items.product', 'items.opticalProduct', 'patient', 'user', 'paymentTransactions', 'refundLogs', 'pendingRefundLog'])
+            ->with(['items.product', 'items.opticalProduct', 'patient', 'user', 'approvedBy', 'paymentTransactions', 'refundLogs', 'pendingRefundLog'])
             ->get()->sortBy(fn ($sale) => $drawerIds->search($sale->id))->values();
 
         return view($this->businessLine === 'optical' ? 'livewire.optical.optical-sales-component' : 'livewire.cashier.sales-records-component', [
@@ -548,6 +578,7 @@ class SalesRecordsComponent extends Component
             'saleOrders' => $drawerIds->isEmpty() ? collect() : \App\Models\LensOrder::whereIn('sale_id', $drawerIds)->get(['id', 'order_id', 'status', 'created_at', 'sale_id'])->groupBy('sale_id'),
             'totalSales' => $totalSales,
             'totalReceipts' => $totalReceipts,
+            'totalDiscounts' => (float) $totalDiscounts,
             'refundCount' => $refundCount,
             'refundTotal' => $refundTotal,
         ])->layout($layout, ['menu' => 'reception']);

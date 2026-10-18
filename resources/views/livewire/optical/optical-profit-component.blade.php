@@ -23,7 +23,7 @@
         'revenue' => ['Retail (POS)' => route('optical.sales', ['fromDate' => $linkFrom, 'toDate' => $linkTo]), 'Cancellation fees kept' => route('optical.orders', ['statusFilter' => 'Cancelled']), '*' => $orders],
         'costs' => ['Special-order lenses bought' => route('optical.purchasing'), 'Retail items' => route('optical.sales', ['fromDate' => $linkFrom, 'toDate' => $linkTo]), '*' => $orders],
         'losses' => ['Stock count differences' => route('optical.stock-counts'), '*' => null],
-        'operating' => ['*' => 'expense'], 'nonOperating' => ['*' => 'expense'],
+        'operating' => [\App\Services\OpticalProfitService::DISCOUNTS => $orders, '*' => 'expense'], 'nonOperating' => ['*' => 'expense'],
     ];
     $link = function (string $section, string $label) use ($links, $categoryIds, $linkFrom, $linkTo) {
         $target = $links[$section][$label] ?? $links[$section]['*'] ?? null;

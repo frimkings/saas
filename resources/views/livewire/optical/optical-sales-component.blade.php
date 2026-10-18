@@ -56,7 +56,7 @@
                             <td><span class="oo-id">{{ $sale->transaction_id }}</span>@if($sale->user)<span class="oo-sub">by {{ $sale->user->name }}</span>@endif</td>
                             <td><b>{{ $sale->customer_display_name }}</b></td>
                             <td><span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ $sale->items->map(fn ($i) => $i->display_product_name.($i->dispensed_quantity > 1 ? ' × '.$i->dispensed_quantity : ''))->join(', ') ?: '—' }}</span>@if($count > 2)<span class="oo-sub">{{ $count }} items</span>@endif</td>
-                            <td class="oo-num"><b>{{ $money($sale->total_amount) }}</b></td>
+                            <td class="oo-num"><b>{{ $money($sale->total_amount) }}</b>@if((float) $sale->discount_amount > 0)<span class="oo-sub" style="color:#6d28d9">after {{ $money($sale->discount_amount) }} discount</span>@endif</td>
                             <td><span class="oo-badge {{ $sc }}">{{ $sl }}</span></td>
                             <td onclick="event.stopPropagation()">
                                 <div class="oo-row-actions" style="grid-template-columns:80px 64px">
@@ -115,6 +115,12 @@
                                 <tr><td>{{ $item->display_product_name }}@if(($item->refunded_quantity ?? 0) > 0)<span class="oo-sub" style="color:#b91c1c">{{ $item->refunded_quantity }} refunded</span>@endif</td><td>{{ $item->dispensed_quantity }}</td><td class="oo-num">{{ number_format((float) $item->selling_price, 2) }}</td><td class="oo-num">{{ number_format((float) $item->subtotal, 2) }}</td></tr>
                             @endforeach
                         </tbody>
+                        @if((float) $panelSale->discount_amount > 0)
+                            <tfoot>
+                                <tr><td colspan="3" class="oo-num">Subtotal</td><td class="oo-num">{{ number_format((float) $panelSale->total_amount + (float) $panelSale->discount_amount, 2) }}</td></tr>
+                                <tr><td colspan="3" class="oo-num" style="color:#6d28d9">Discount{{ $panelSale->approvedBy ? ' · approved by '.$panelSale->approvedBy->name : '' }}</td><td class="oo-num" style="color:#6d28d9">− {{ number_format((float) $panelSale->discount_amount, 2) }}</td></tr>
+                            </tfoot>
+                        @endif
                     </table>
                 </section>
                 <section class="oo-section">
@@ -180,7 +186,7 @@
                     @endforeach
                 </section>
                 <section class="oo-section" style="display:grid;gap:12px">
-                    <label class="sr-field"><span>Request type</span><select wire:model="initiateRefundType" class="ui-input"><option value="refund">Refund: return money for these items</option><option value="void">Void: the sale was a mistake</option></select></label>
+                    <label class="sr-field"><span>Request type</span><select wire:model="initiateRefundType" class="ui-input"><option value="refund">Refund: return money for these items</option><option value="void">Void: today's sale was a mistake</option></select>@error('initiateRefundType')<span class="ui-error" role="alert">{{ $message }}</span>@enderror<small class="text-xs text-slate-500">A void is for today's sales, before the day is closed. The owner approves it.</small></label>
                     <label class="sr-field"><span>Reason *</span><select wire:model="initiateRefundReasonCode" class="ui-input"><option value="">Choose a reason</option>@foreach(\App\Models\RefundLog::REASON_CODES as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach</select></label>
                     <label class="sr-field"><span>Details *</span><textarea wire:model="initiateRefundReason" rows="3" class="ui-input" placeholder="What happened and what was agreed with the customer (at least 10 characters)"></textarea></label>
                 </section>

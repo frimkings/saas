@@ -1073,12 +1073,12 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame(['Clinic rent'], \App\Models\Expense::businessLine(\App\Models\Expense::CLINIC)->pluck('description')->all(), 'Clinic screens never see optical expenses.');
 
         $pl = app(\App\Services\OpticalProfitService::class)->statement(now()->startOfMonth(), now());
-        $this->assertSame(580.0, $pl['totalRevenue']);
+        $this->assertSame(600.0, $pl['totalRevenue'], 'Revenue at full price.');
         $this->assertSame(24.0, $pl['costs']['Stock lenses used'], 'Two stock lenses at cost.');
         $this->assertSame(2, $pl['uncostedFrames']);
-        $this->assertSame(556.0, $pl['grossProfit']);
+        $this->assertSame(576.0, $pl['grossProfit']);
         $this->assertSame(12.0, $pl['losses']['Stock count differences']);
-        $this->assertSame(['Rent' => 150.0], $pl['operating'], 'Only optical expenses.');
+        $this->assertSame(['Discounts allowed' => 20.0, 'Rent' => 150.0], $pl['operating'], 'Order discounts as an expense, and only optical expenses.');
         $this->assertSame(394.0, $pl['netProfit']);
         $this->assertSame(100.0, $pl['cash']['received']);
 

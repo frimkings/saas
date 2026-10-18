@@ -18,7 +18,7 @@ class ApprovalCounts
 {
     private const TTL_SECONDS = 60;
 
-    /** @return array{discount: int, refund: int, revoke: int, password: int} */
+    /** @return array{discount: int, refund: int, revoke: int, password: int, correction: int} */
     public static function pending(): array
     {
         return Cache::remember(self::key(), self::TTL_SECONDS, fn () => [
@@ -26,6 +26,7 @@ class ApprovalCounts
             'refund' => RefundLog::pendingCount(),
             'revoke' => ClearanceRevokeLog::pendingCount(),
             'password' => PasswordResetRequest::pendingCount(),
+            'correction' => \App\Models\PaymentCorrection::pendingCount(),
         ]);
     }
 

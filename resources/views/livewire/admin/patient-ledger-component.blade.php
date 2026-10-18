@@ -88,10 +88,15 @@
                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800 mr-1" style="font-size:.8rem;">
                             Charges: {{ currency() }} {{ number_format($s['total_charges'], 2) }}
                         </span>
+                        @if($s['total_discounts'] > 0)
+                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-violet-100 text-violet-800 mr-1" style="font-size:.8rem;">
+                            Discounts: {{ currency() }} {{ number_format($s['total_discounts'], 2) }}
+                        </span>
+                        @endif
                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800 mr-1" style="font-size:.8rem;">
                             Paid: {{ currency() }} {{ number_format($s['total_payments'], 2) }}
                         </span>
-                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $s['balance'] > 0 ? 'warning' : 'secondary' }}" style="font-size:.8rem;">
+                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $s['balance'] > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700' }}" style="font-size:.8rem;">
                             Balance: {{ currency() }} {{ number_format($s['balance'], 2) }}
                         </span>
                     </div>
@@ -111,21 +116,25 @@
                                 <th>Description</th>
                                 <th>Ref</th>
                                 <th class="text-right text-red-700">Charge</th>
-                                <th class="text-right text-green-700">Payment</th>
+                                <th class="text-right text-green-700">Credit</th>
                                 <th class="text-right">Balance</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($entries as $entry)
-                                <tr class="{{ $entry['type'] === 'refund' ? 'bg-sky-50' : '' }}">
+                                <tr class="{{ $entry['type'] === 'refund' ? 'bg-sky-50' : ($entry['type'] === 'opening' ? 'bg-slate-50 italic' : '') }}">
                                     <td>{{ \Carbon\Carbon::parse($entry['date'])->format('d M Y H:i') }}</td>
                                     <td>
                                         @if($entry['type'] === 'charge')
                                             <i class="fas fa-receipt text-red-700 mr-1"></i>
                                         @elseif($entry['type'] === 'payment')
                                             <i class="fas fa-money-bill-wave text-green-700 mr-1"></i>
-                                        @elseif($entry['type'] === 'insurance')
+                                        @elseif($entry['type'] === 'insurance' || $entry['type'] === 'shortfall')
                                             <i class="fas fa-shield-alt text-sky-700 mr-1"></i>
+                                        @elseif($entry['type'] === 'discount')
+                                            <i class="fas fa-tag text-violet-700 mr-1"></i>
+                                        @elseif($entry['type'] === 'opening')
+                                            <i class="fas fa-level-down-alt text-slate-500 mr-1"></i>
                                         @else
                                             <i class="fas fa-undo text-sky-700 mr-1"></i>
                                         @endif
@@ -141,7 +150,7 @@
                                             —
                                         @endif
                                     </td>
-                                    <td class="text-right font-semibold {{ $entry['credit'] > 0 ? 'text-green-700' : 'text-slate-500' }}">
+                                    <td class="text-right font-semibold {{ $entry['credit'] > 0 ? ($entry['type'] === 'discount' ? 'text-violet-700' : 'text-green-700') : 'text-slate-500' }}">
                                         @if($entry['credit'] > 0)
                                             {{ currency() }} {{ number_format($entry['credit'], 2) }}
                                         @else
@@ -166,7 +175,7 @@
                                 <tr>
                                     <td colspan="3" class="text-right">Totals</td>
                                     <td class="text-right text-red-700">{{ currency() }} {{ number_format($s['total_charges'], 2) }}</td>
-                                    <td class="text-right text-green-700">{{ currency() }} {{ number_format($s['total_payments'], 2) }}</td>
+                                    <td class="text-right text-green-700">{{ currency() }} {{ number_format($s['total_credits'], 2) }}</td>
                                     <td class="text-right {{ $s['balance'] > 0 ? 'text-amber-600' : 'text-green-700' }}">
                                         {{ currency() }} {{ number_format($s['balance'], 2) }}
                                     </td>

@@ -215,6 +215,15 @@
                                     <td class="amount-cell">{{ currency() }} {{ number_format($statement['operating_expenses'] - $comparison['statement']['operating_expenses'], 2) }}</td>
                                     <td></td>
                                 </tr>
+                                @foreach($statement['sales_expense_lines'] as $fromSales)
+                                    <tr>
+                                        <td>{{ $fromSales['name'] }} <span class="text-slate-500 text-sm">(<a href="{{ route('admin.sales-records', ['fromDate' => $fromDate, 'toDate' => $toDate]) }}">from sales</a>)</span></td>
+                                        <td class="amount-cell">{{ currency() }} {{ number_format($fromSales['amount'], 2) }}</td>
+                                        <td class="amount-cell text-slate-500">-</td>
+                                        <td class="amount-cell text-slate-500">-</td>
+                                        <td class="line-actions"></td>
+                                    </tr>
+                                @endforeach
                                 @foreach($statement['tracked_operating_lines'] as $tracked)
                                     <tr>
                                         <td>{{ $tracked['name'] }} <span class="text-slate-500 text-sm">(<a href="{{ route('admin.expenses', ['fromDate' => $fromDate, 'toDate' => $toDate]) }}">Expense Tracker</a>)</span></td>
@@ -242,7 +251,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    @if($statement['tracked_operating_lines']->isEmpty())<tr><td colspan="5" class="text-slate-500">No operating expenses entered.</td></tr>@endif
+                                    @if($statement['tracked_operating_lines']->isEmpty() && $statement['sales_expense_lines']->isEmpty())<tr><td colspan="5" class="text-slate-500">No operating expenses entered.</td></tr>@endif
                                 @endforelse
 
                                 <tr class="statement-total">

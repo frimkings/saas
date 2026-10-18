@@ -66,6 +66,10 @@ class RefundApprovalsComponent extends Component
 
         $log = RefundLog::where('status', RefundLog::STATUS_PENDING)
             ->findOrFail($id);
+        if ($problem = $this->voidDecisionProblem($log)) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $problem]);
+            return;
+        }
 
         $log->update([
             'status'      => RefundLog::STATUS_APPROVED,
@@ -179,6 +183,11 @@ class RefundApprovalsComponent extends Component
             ->findOrFail($id);
 
         $sale = $log->sale;
+        if ($problem = $this->voidDecisionProblem($log)) {
+            $this->dispatch('close-processing-modal');
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $problem]);
+            return;
+        }
 
         if (!$sale) {
             $this->dispatch('close-processing-modal');
@@ -404,6 +413,18 @@ class RefundApprovalsComponent extends Component
             ->when($this->fromDate, fn ($q) => $q->whereDateIndexed('created_at', '>=', $this->fromDate))
             ->when($this->toDate,   fn ($q) => $q->whereDateIndexed('created_at', '<=', $this->toDate))
             ->orderBy('created_at', 'desc');
+    }
+
+    /** Voids are the owner's call, and only while the sale's day is still open. */
+    private function voidDecisionProblem(RefundLog $log): ?string
+    {
+        if ($log->request_type !== RefundLog::TYPE_VOID) return null;
+        if (!\App\Services\Finance\DayCloseService::isOwner()) return 'Only the owner can approve a void.';
+        if ($log->sale && app(\App\Services\Finance\DayCloseService::class)->isClosed($log->sale->created_at)) {
+            return 'The day of this sale has been closed, so it can no longer be voided. Reject it and request a refund instead.';
+        }
+
+        return null;
     }
 
     private function authorizeRefundManagement(): void

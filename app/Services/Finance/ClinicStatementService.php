@@ -5,19 +5,26 @@ namespace App\Services\Finance;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\IncomeStatementEntry;
+use App\Models\SaleAdjustment;
 use App\Models\SaleItem;
+use App\Models\Sales;
 use App\Support\BusinessLine;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
- * The clinic income statement for a period: revenue and cost of sales from clinic sales
- * (grouped by product category); expenses from the Expense Tracker (grouped by category,
- * in the section the category reports under) plus manual statement entries; tax from entries.
+ * The clinic income statement for a period: revenue (at full price) and cost of sales from
+ * clinic sales, grouped by product category and leaving out returned items; discounts given
+ * and insurer shortfalls written off as operating expenses; expenses from the Expense Tracker
+ * (grouped by category, in the section the category reports under) plus manual statement
+ * entries; tax from entries.
  */
 class ClinicStatementService
 {
+    public const DISCOUNTS = 'Discounts allowed';
+    public const WRITE_OFFS = 'Insurance shortfalls written off';
+
     /** Clinic sale lines in the period, joined to their product and category. */
     public function salesLines(CarbonInterface $from, CarbonInterface $to)
     {
@@ -33,6 +40,7 @@ class ClinicStatementService
             })
             ->where('sales.business_line', BusinessLine::CLINIC)
             ->where('sales.is_refunded', false)
+            ->where(fn ($q) => $q->where('sale_items.refunded_quantity', 0)->orWhereColumn('sale_items.refunded_quantity', '<', 'sale_items.dispensed_quantity'))
             ->whereBetween('sales.created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
         $context = app(TenantContext::class);
         if ($context->clinicId() !== null) $query->where('sales.clinic_id', $context->clinicId());
@@ -61,6 +69,37 @@ class ClinicStatementService
             ->groupBy('categories.id', 'categories.name')
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * Expenses that come straight from sales: discounts given (less the share on returned
+     * items, which the refund gave back) and insurer shortfalls the clinic wrote off.
+     *
+     * @return Collection<int, array{name: string, amount: float}>
+     */
+    public function salesExpenseLines(CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        $range = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
+        $kept = fn ($q) => $q->where(fn ($q) => $q->where('refunded_quantity', 0)->orWhereColumn('refunded_quantity', '<', 'dispensed_quantity'));
+        $discounts = Sales::where('business_line', BusinessLine::CLINIC)
+            ->where('is_refunded', false)
+            ->where('discount_amount', '>', 0)
+            ->whereBetween('created_at', $range)
+            ->withSum('items as gross', 'subtotal')
+            ->withSum(['items as kept_gross' => $kept], 'subtotal')
+            ->get(['id', 'discount_amount'])
+            ->sum(fn ($sale) => (float) $sale->gross > 0
+                ? (float) $sale->discount_amount * (float) $sale->kept_gross / (float) $sale->gross
+                : (float) $sale->discount_amount);
+        $writtenOff = (float) SaleAdjustment::where('type', 'insurance_write_off')
+            ->whereBetween('created_at', $range)
+            ->whereHas('sale', fn ($q) => $q->where('business_line', BusinessLine::CLINIC))
+            ->sum('amount');
+
+        return collect([
+            ['name' => self::DISCOUNTS, 'amount' => round($discounts, 2)],
+            ['name' => self::WRITE_OFFS, 'amount' => round($writtenOff, 2)],
+        ])->filter(fn ($line) => $line['amount'] > 0)->values();
     }
 
     public function entries(CarbonInterface $from, CarbonInterface $to): Collection
@@ -104,6 +143,7 @@ class ClinicStatementService
         $operatingLines = $entries->where('section', IncomeStatementEntry::OPERATING_EXPENSE);
         $nonOperatingLines = $entries->where('section', IncomeStatementEntry::NON_OPERATING_EXPENSE);
         $taxEntry = $entries->where('section', IncomeStatementEntry::TAX)->sortByDesc('entry_date')->first();
+        $salesExpenses = $this->salesExpenseLines($from, $to);
         $tracked = $this->trackedExpenses($from, $to);
         $trackedNonOperating = $tracked->where('section', ExpenseCategory::NON_OPERATING)->values();
         $trackedOperating = $tracked->where('section', '!=', ExpenseCategory::NON_OPERATING)->values();
@@ -111,7 +151,7 @@ class ClinicStatementService
         $revenue = (float) $revenueLines->sum('amount');
         $costOfSales = (float) $costLines->sum('amount');
         $grossProfit = $revenue - $costOfSales;
-        $operatingExpenses = (float) $operatingLines->sum('amount') + (float) $trackedOperating->sum('amount');
+        $operatingExpenses = (float) $salesExpenses->sum('amount') + (float) $operatingLines->sum('amount') + (float) $trackedOperating->sum('amount');
         $operatingProfit = $grossProfit - $operatingExpenses;
         $nonOperatingExpenses = (float) $nonOperatingLines->sum('amount') + (float) $trackedNonOperating->sum('amount');
         $profitForPeriod = $operatingProfit - $nonOperatingExpenses;
@@ -133,6 +173,7 @@ class ClinicStatementService
             'cost_lines' => $costLines,
             'operating_lines' => $operatingLines,
             'non_operating_lines' => $nonOperatingLines,
+            'sales_expense_lines' => $salesExpenses,
             'tracked_operating_lines' => $trackedOperating,
             'tracked_non_operating_lines' => $trackedNonOperating,
             'tax_entry' => $taxEntry,
