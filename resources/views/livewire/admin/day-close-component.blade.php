@@ -89,112 +89,114 @@
         </section>
     @endif
 
-    <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        {{-- 1. The count --}}
-        <section class="ui-panel" aria-labelledby="count-title" data-tour="day-close-count" x-data="{ more: false }">
-            <div class="flex items-start gap-3 border-b border-slate-200 px-5 py-4">
-                <span class="{{ $step }}">1</span>
-                <div>
-                    <h2 id="count-title" class="text-base font-semibold text-slate-900">{{ $closed ? 'What was counted' : 'Count the till' }}</h2>
-                    <p class="text-xs text-slate-500">Expected is the start of the day, plus money in, less money out. Count the cash drawer; check the MoMo wallet or card statement too if you can.</p>
-                </div>
-            </div>
-            <div class="ui-table-wrap">
-                <table class="ui-table">
-                    <thead><tr><th>Method</th><th class="ui-number">Expected</th><th class="ui-number">Counted</th><th class="text-right">Difference</th></tr></thead>
-                    <tbody>
-                        @foreach($rows as $key => $row)
-                            <tr wire:key="method-{{ $key }}" @unless($row['main']) x-show="more" x-cloak @endunless class="[&>td]:!align-middle">
-                                <td class="font-semibold">{{ $row['label'] }}</td>
-                                <td class="ui-number">
-                                    <span class="block font-semibold">{{ $money($row['expected']) }}</span>
-                                    <span class="block text-xs font-normal text-slate-500">{{ $money($row['opening']) }} <span class="text-green-700">+ {{ $money($row['in']) }}</span> <span class="text-red-700">− {{ $money($row['out']) }}</span></span>
-                                </td>
-                                <td class="ui-number">
-                                    @if($closed)
-                                        {{ $row['counted'] === null ? '—' : $money($row['counted']) }}
-                                    @else
-                                        <label for="count-{{ $key }}" class="sr-only">Counted {{ $row['label'] }}</label>
-                                        <input id="count-{{ $key }}" type="number" step="0.01" min="0" inputmode="decimal" wire:model.live.debounce.400ms="counted.{{ $key }}"
-                                               class="ui-input !h-9 !w-24 sm:!w-32 text-right tabular-nums {{ $key === 'cash' ? 'border-teal-400' : '' }}" placeholder="{{ $key === 'cash' ? 'Count cash' : 'Optional' }}">
-                                    @endif
-                                </td>
-                                <td class="text-right"><span class="{{ $chip }} {{ $diffTone($row['diff']) }}">{{ $diffText($row['diff']) }}</span></td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-            @if($quiet->isNotEmpty())
-                <div class="border-t border-slate-200 px-5 py-2 text-sm">
-                    <button type="button" x-on:click="more = ! more" class="font-semibold text-teal-700 hover:underline">
-                        <span x-show="! more">Show {{ $quiet->count() }} other {{ \Illuminate\Support\Str::plural('method', $quiet->count()) }} with no money on this day</span>
-                        <span x-show="more" x-cloak>Hide methods with no money</span>
-                    </button>
-                </div>
+    @php
+        $tile = 'ui-panel flex flex-col gap-1 px-4 py-3';
+        $tileLabel = 'text-xs font-semibold uppercase tracking-wide text-slate-500';
+        $cashDiff = $cash['diff'] ?? null;
+    @endphp
+    {{-- The cash drawer at a glance. --}}
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Cash drawer">
+        <div class="{{ $tile }}">
+            <span class="{{ $tileLabel }}"><i class="fas fa-cash-register mr-1 text-teal-700" aria-hidden="true"></i>Cash expected</span>
+            <span class="text-2xl font-semibold tabular-nums text-slate-900">{{ currency() }} {{ $money($cash['expected'] ?? 0) }}</span>
+            <span class="text-xs text-slate-500">In the drawer now</span>
+        </div>
+        <div class="{{ $tile }}">
+            <span class="{{ $tileLabel }}">Counted</span>
+            <span class="text-2xl font-semibold tabular-nums {{ ($cash['counted'] ?? null) === null ? 'text-slate-300' : 'text-slate-900' }}">{{ ($cash['counted'] ?? null) === null ? '—' : currency().' '.$money($cash['counted']) }}</span>
+            <span class="text-xs text-slate-500">{{ ($cash['counted'] ?? null) === null ? 'Enter the count below' : 'Cash in the drawer' }}</span>
+        </div>
+        <div class="{{ $tile }} {{ $cashDiff === null ? '' : (abs($cashDiff) < 0.005 ? '!border-green-300 !bg-green-50' : ($cashDiff > 0 ? '!border-sky-300 !bg-sky-50' : '!border-red-300 !bg-red-50')) }}">
+            <span class="{{ $tileLabel }}">Difference</span>
+            <span class="text-2xl font-semibold tabular-nums {{ $cashDiff === null ? 'text-slate-300' : (abs($cashDiff) < 0.005 ? 'text-green-700' : ($cashDiff > 0 ? 'text-sky-700' : 'text-red-700')) }}">{{ $cashDiff === null ? '—' : (abs($cashDiff) < 0.005 ? 'Balanced' : ($cashDiff > 0 ? '+' : '−').$money(abs($cashDiff))) }}</span>
+            <span class="text-xs text-slate-500">{{ $cashDiff === null ? 'Shows once the cash is counted' : (abs($cashDiff) < 0.005 ? 'Count matches' : ($cashDiff > 0 ? 'More cash than expected' : 'Less cash than expected')) }}</span>
+        </div>
+        <div class="{{ $tile }}">
+            @if($closed)
+                <span class="{{ $tileLabel }}">Banked / handed over</span>
+                <span class="text-2xl font-semibold tabular-nums text-slate-900">{{ currency() }} {{ $money($close->banked) }}</span>
+                <span class="text-xs text-slate-500">At the close</span>
+            @else
+                <span class="{{ $tileLabel }}">To bank</span>
+                <span class="text-2xl font-semibold tabular-nums {{ $suggestedBank === null ? 'text-slate-300' : 'text-slate-900' }}">{{ $suggestedBank === null ? '—' : currency().' '.$money($suggestedBank) }}</span>
+                <span class="text-xs text-slate-500">Leaves the {{ currency() }} {{ $money($float) }} float</span>
             @endif
-        </section>
-
-        {{-- The drawer at a glance, and closing. --}}
-        <aside class="space-y-5">
-            <section class="ui-panel" aria-labelledby="drawer-title" data-tour="day-close-submit">
-                <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 id="drawer-title" class="text-base font-semibold text-slate-900"><i class="fas fa-cash-register mr-2 text-teal-700" aria-hidden="true"></i>Cash drawer</h2>
-                </div>
-                <dl class="divide-y divide-slate-100 px-5 text-sm">
-                    <div class="flex items-baseline justify-between py-2"><dt class="text-slate-500">Expected</dt><dd class="text-lg font-semibold tabular-nums">{{ currency() }} {{ $money($cash['expected'] ?? 0) }}</dd></div>
-                    <div class="flex items-baseline justify-between py-2"><dt class="text-slate-500">Counted</dt><dd class="font-semibold tabular-nums">{{ ($cash['counted'] ?? null) === null ? '—' : currency().' '.$money($cash['counted']) }}</dd></div>
-                    <div class="flex items-baseline justify-between py-2"><dt class="text-slate-500">Difference</dt><dd><span class="{{ $chip }} {{ $diffTone($cash['diff'] ?? null) }}">{{ $diffText($cash['diff'] ?? null) }}</span></dd></div>
-                    @if($closed)
-                        <div class="flex items-baseline justify-between py-2"><dt class="text-slate-500">Banked / handed over</dt><dd class="font-semibold tabular-nums">{{ currency() }} {{ $money($close->banked) }}</dd></div>
-                    @else
-                        <div class="flex items-baseline justify-between py-2"><dt class="text-slate-500">Float kept in drawer</dt><dd class="tabular-nums">{{ currency() }} {{ $money($float) }}</dd></div>
-                    @endif
-                </dl>
-                @unless($closed)
-                    <form wire:submit="close" class="space-y-3 border-t border-slate-200 px-5 py-4">
-                        <div>
-                            <label for="banked" class="{{ $label }}">Cash banked / handed over now</label>
-                            <input id="banked" type="number" step="0.01" min="0" inputmode="decimal" wire:model="banked" class="ui-input" placeholder="{{ $suggestedBank !== null ? $money($suggestedBank) : '0.00' }}">
-                            <p class="mt-1 text-xs text-slate-500">
-                                @if($suggestedBank !== null)
-                                    Suggested {{ currency() }} {{ $money($suggestedBank) }}, leaving the float.
-                                    <button type="button" wire:click="$set('banked', '{{ number_format($suggestedBank, 2, '.', '') }}')" class="font-semibold text-teal-700 underline">Use it</button>
-                                @else
-                                    Count the cash to see what to bank.
-                                @endif
-                            </p>
-                            @error('banked')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                        </div>
-                        <div>
-                            <label for="close-notes" class="{{ $label }}">Notes</label>
-                            <input id="close-notes" type="text" wire:model="notes" class="ui-input" maxlength="1000" placeholder="Explain any difference">
-                        </div>
-                        @error('close')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                        @error('counted.*')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
-                        <button type="submit" class="ui-button ui-button-primary w-full justify-center" @disabled($hasBlockers)><i class="fas fa-lock" aria-hidden="true"></i>Close the day</button>
-                        @if($hasBlockers)<p class="text-xs text-red-700">Decide the waiting requests first.</p>@endif
-                    </form>
-                @endunless
-            </section>
-
-            <section class="ui-panel" aria-labelledby="recent-title">
-                <div class="border-b border-slate-200 px-5 py-3"><h2 id="recent-title" class="text-sm font-semibold text-slate-900">Recent days</h2></div>
-                @forelse($recent as $row)
-                    <button type="button" wire:click="$set('date', '{{ $row->business_date->toDateString() }}')"
-                            class="flex w-full items-center justify-between gap-2 border-b border-slate-100 px-5 py-2 text-left text-sm last:border-0 hover:bg-slate-50 {{ $row->business_date->isSameDay($day) ? 'bg-teal-50' : '' }}">
-                        <span class="font-semibold text-slate-700">{{ $row->business_date->format('D d M') }}</span>
-                        <span class="flex items-center gap-2">
-                            <span class="tabular-nums {{ abs((float) $row->variance) < 0.005 ? 'text-green-700' : 'text-red-700' }}">{{ abs((float) $row->variance) < 0.005 ? 'Balanced' : $money($row->variance) }}</span>
-                            @if($row->isClosed())<i class="fas fa-lock text-xs text-green-700" title="Closed" aria-label="Closed"></i>@else<i class="fas fa-lock-open text-xs text-amber-600" title="Reopened" aria-label="Reopened"></i>@endif
-                        </span>
-                    </button>
-                @empty
-                    <p class="px-5 py-3 text-sm text-slate-500">No days closed yet.</p>
-                @endforelse
-            </section>
-        </aside>
+        </div>
     </div>
+
+    {{-- 1. The count, and closing --}}
+    <section class="ui-panel" aria-labelledby="count-title" data-tour="day-close-count" x-data="{ more: false }">
+        <div class="flex items-start gap-3 border-b border-slate-200 px-5 py-4">
+            <span class="{{ $step }}">1</span>
+            <div>
+                <h2 id="count-title" class="text-base font-semibold text-slate-900">{{ $closed ? 'What was counted' : 'Count the till' }}</h2>
+                <p class="text-xs text-slate-500">Expected is the start of the day, plus money in, less money out. Count the cash drawer; check the MoMo wallet or card statement too if you can.</p>
+            </div>
+        </div>
+        <div class="ui-table-wrap">
+            <table class="ui-table">
+                <thead><tr><th>Method</th><th class="ui-number">Start of day</th><th class="ui-number">In</th><th class="ui-number">Out</th><th class="ui-number">Expected</th><th class="ui-number">Counted</th><th class="text-right">Difference</th></tr></thead>
+                <tbody>
+                    @foreach($rows as $key => $row)
+                        <tr wire:key="method-{{ $key }}" @unless($row['main']) x-show="more" x-cloak @endunless class="[&>td]:!align-middle">
+                            <td class="font-semibold">{{ $row['label'] }}</td>
+                            <td class="ui-number text-slate-500">{{ $money($row['opening']) }}</td>
+                            <td class="ui-number text-green-700">{{ $row['in'] > 0 ? '+'.$money($row['in']) : '—' }}</td>
+                            <td class="ui-number text-red-700">{{ $row['out'] > 0 ? '−'.$money($row['out']) : '—' }}</td>
+                            <td class="ui-number font-semibold">{{ $money($row['expected']) }}</td>
+                            <td class="ui-number">
+                                @if($closed)
+                                    {{ $row['counted'] === null ? '—' : $money($row['counted']) }}
+                                @else
+                                    <label for="count-{{ $key }}" class="sr-only">Counted {{ $row['label'] }}</label>
+                                    <input id="count-{{ $key }}" type="number" step="0.01" min="0" inputmode="decimal" wire:model.live.debounce.400ms="counted.{{ $key }}"
+                                           class="ui-input !h-9 !w-28 text-right tabular-nums {{ $key === 'cash' ? '!border-teal-500' : '' }}" placeholder="{{ $key === 'cash' ? 'Count cash' : 'Optional' }}">
+                                @endif
+                            </td>
+                            <td class="text-right"><span class="{{ $chip }} {{ $diffTone($row['diff']) }}">{{ $diffText($row['diff']) }}</span></td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @if($quiet->isNotEmpty())
+            <div class="border-t border-slate-200 px-5 py-2 text-sm">
+                <button type="button" x-on:click="more = ! more" class="font-semibold text-teal-700 hover:underline">
+                    <span x-show="! more"><i class="fas fa-chevron-down mr-1 text-xs" aria-hidden="true"></i>Show {{ $quiet->count() }} other {{ \Illuminate\Support\Str::plural('method', $quiet->count()) }} with no money on this day</span>
+                    <span x-show="more" x-cloak><i class="fas fa-chevron-up mr-1 text-xs" aria-hidden="true"></i>Hide methods with no money</span>
+                </button>
+            </div>
+        @endif
+        @unless($closed)
+            <form wire:submit="close" class="border-t border-slate-200 bg-slate-50 px-5 py-4" data-tour="day-close-submit">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
+                    <div>
+                        <label for="banked" class="{{ $label }}">Cash banked / handed over</label>
+                        <input id="banked" type="number" step="0.01" min="0" inputmode="decimal" wire:model="banked" class="ui-input" placeholder="{{ $suggestedBank !== null ? $money($suggestedBank) : '0.00' }}">
+                        <p class="mt-1 text-xs text-slate-500">
+                            @if($suggestedBank !== null)
+                                <button type="button" wire:click="$set('banked', '{{ number_format($suggestedBank, 2, '.', '') }}')" class="font-semibold text-teal-700 underline">Use {{ currency() }} {{ $money($suggestedBank) }}</button>, leaving the float.
+                            @else
+                                Count the cash first.
+                            @endif
+                        </p>
+                        @error('banked')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="sm:col-span-1 lg:col-span-2">
+                        <label for="close-notes" class="{{ $label }}">Notes</label>
+                        <input id="close-notes" type="text" wire:model="notes" class="ui-input" maxlength="1000" placeholder="Explain any difference">
+                    </div>
+                    <div class="sm:col-span-2 lg:col-span-1">
+                        <span class="{{ $label }} invisible hidden lg:block" aria-hidden="true">Close</span>
+                        <button type="submit" class="ui-button ui-button-primary w-full justify-center" @disabled($hasBlockers)><i class="fas fa-lock" aria-hidden="true"></i>Close the day</button>
+                        @if($hasBlockers)<p class="mt-1 text-xs text-red-700">Decide the waiting requests first.</p>@endif
+                    </div>
+                </div>
+                @error('close')<p class="ui-error mt-2" role="alert">{{ $message }}</p>@enderror
+                @error('counted.*')<p class="ui-error mt-2" role="alert">{{ $message }}</p>@enderror
+            </form>
+        @endunless
+    </section>
 
     {{-- 2. Who took what --}}
     <section class="ui-panel" aria-labelledby="cashiers-title" data-tour="day-close-cashiers">
@@ -332,4 +334,22 @@
             </div>
         </section>
     @endif
+    <section class="ui-panel px-5 py-4" aria-labelledby="recent-title">
+        <h2 id="recent-title" class="mb-2 text-sm font-semibold text-slate-900">Recent days</h2>
+        @if($recent->isNotEmpty())
+            <div class="flex flex-wrap gap-2">
+                @foreach($recent as $row)
+                    @php $balanced = abs((float) $row->variance) < 0.005; @endphp
+                    <button type="button" wire:click="$set('date', '{{ $row->business_date->toDateString() }}')" aria-pressed="{{ $row->business_date->isSameDay($day) ? 'true' : 'false' }}"
+                            class="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm {{ $row->business_date->isSameDay($day) ? 'border-teal-600 bg-teal-50' : 'border-slate-200 bg-white hover:border-teal-300' }}">
+                        @if($row->isClosed())<i class="fas fa-lock text-xs text-green-700" aria-label="Closed"></i>@else<i class="fas fa-lock-open text-xs text-amber-600" aria-label="Reopened"></i>@endif
+                        <span class="font-semibold text-slate-700">{{ $row->business_date->format('D d M') }}</span>
+                        <span class="tabular-nums {{ $balanced ? 'text-green-700' : 'text-red-700' }}">{{ $balanced ? 'Balanced' : $money($row->variance) }}</span>
+                    </button>
+                @endforeach
+            </div>
+        @else
+            <p class="text-sm text-slate-500">No days closed yet. Closed days appear here; click one to look back at it.</p>
+        @endif
+    </section>
 </div>
