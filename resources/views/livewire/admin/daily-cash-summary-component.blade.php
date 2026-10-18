@@ -13,7 +13,7 @@
                 @endif
             </div>
             <div class="flex" style="gap:.5rem;">
-                <input type="date" class="form-control ui-input" wire:model.live="reportDate">
+                <x-date-range from="fromDate" to="toDate" presets="finance" />
                 <button class="btn ui-button ui-button-primary" wire:click="print"><i class="fas fa-print mr-1"></i>Print</button>
             </div>
         </div>
@@ -22,7 +22,7 @@
             <div class="card-body p-4">
                 <div class="text-center mb-4">
                     <h4 class="font-semibold mb-1">Daily Cash Summary @if(count($lineOptions) > 1)<small class="text-slate-500">· {{ $line === 'combined' ? 'Clinic & Optical' : $lineLabels[$line] }}</small>@endif</h4>
-                    <div class="text-slate-500">{{ \Carbon\Carbon::parse($reportDate)->format('M d, Y') }}</div>
+                    <div class="text-slate-500">{{ $periodLabel }}</div>
                 </div>
                 <div class="flex flex-wrap -mx-2">
                     <div class="w-full md:w-3/12 px-2"><div class="info-box"><span class="info-box-icon bg-teal-700 text-white"><i class="fas fa-receipt"></i></span><div class="info-box-content"><span class="info-box-text">Transactions</span><span class="info-box-number">{{ $salesCount }}</span></div></div></div>
@@ -92,7 +92,7 @@
                         @else
                             <div class="flex flex-col items-center justify-center" style="height:260px; color:#ced4da;">
                                 <i class="fas fa-chart-pie fa-4x mb-4"></i>
-                                <span class="text-sm text-slate-500">No payment data for this date</span>
+                                <span class="text-sm text-slate-500">No payments on these dates</span>
                             </div>
                         @endif
                     </div>

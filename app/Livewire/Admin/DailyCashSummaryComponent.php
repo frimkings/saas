@@ -16,16 +16,18 @@ class DailyCashSummaryComponent extends Component
 {
     public const COMBINED = 'combined';
 
-    public $reportDate;
+    public $fromDate;
+    public $toDate;
 
     /** clinic, optical, or combined (both businesses together) */
     public string $line = '';
 
-    protected $queryString = ['line' => ['except' => '']];
+    protected $queryString = ['line' => ['except' => ''], 'fromDate' => ['except' => ''], 'toDate' => ['except' => '']];
 
     public function mount()
     {
-        $this->reportDate = Carbon::today()->toDateString();
+        $this->fromDate = $this->validDate($this->fromDate);
+        $this->toDate = $this->validDate($this->toDate);
         $this->line = $this->validLine($this->line);
     }
 
@@ -51,7 +53,31 @@ class DailyCashSummaryComponent extends Component
         $this->dispatch('print-page');
     }
 
-    public function updatedReportDate(): void
+    private function validDate($value): string
+    {
+        try {
+            return $value ? Carbon::parse($value)->toDateString() : Carbon::today()->toDateString();
+        } catch (\Throwable) {
+            return Carbon::today()->toDateString();
+        }
+    }
+
+    /** The chosen days, earliest first: [start of the first day, end of the last]. */
+    private function range(): array
+    {
+        $from = Carbon::parse($this->validDate($this->fromDate));
+        $to = Carbon::parse($this->validDate($this->toDate));
+        if ($from->gt($to)) [$from, $to] = [$to, $from];
+
+        return [$from->startOfDay(), $to->endOfDay()];
+    }
+
+    public function updatedFromDate(): void
+    {
+        $this->dispatch('update-payment-chart', ...$this->buildChartPayload());
+    }
+
+    public function updatedToDate(): void
     {
         $this->dispatch('update-payment-chart', ...$this->buildChartPayload());
     }
@@ -76,8 +102,7 @@ class DailyCashSummaryComponent extends Component
 
     protected function buildChartPayload(): array
     {
-        $start    = Carbon::parse($this->reportDate)->startOfDay();
-        $end      = Carbon::parse($this->reportDate)->endOfDay();
+        [$start, $end] = $this->range();
         $payments = $this->paymentsQuery()->whereBetween('created_at', [$start, $end])
             ->selectRaw('payment_method, SUM(amount) as total, COUNT(*) as cnt')
             ->groupBy('payment_method')
@@ -102,8 +127,7 @@ class DailyCashSummaryComponent extends Component
     public function render()
     {
         $this->line = $this->validLine($this->line);
-        $start = Carbon::parse($this->reportDate)->startOfDay();
-        $end = Carbon::parse($this->reportDate)->endOfDay();
+        [$start, $end] = $this->range();
 
         $payments = $this->paymentsQuery()->whereBetween('created_at', [$start, $end])
             ->selectRaw('payment_method, SUM(amount) as total, COUNT(*) as count')
@@ -135,12 +159,13 @@ class DailyCashSummaryComponent extends Component
         if ($this->line !== BusinessLine::OPTICAL && Insurer::exists()) {
             $insurance = [
                 'billed'     => (float) Sales::where('business_line', BusinessLine::CLINIC)->whereBetween('created_at', [$start, $end])->sum('insurer_amount'),
-                'received'   => (float) InsurerPayment::whereDate('paid_on', $start->toDateString())->sum('amount'),
+                'received'   => (float) InsurerPayment::whereBetween('paid_on', [$start->toDateString(), $end->toDateString()])->sum('amount'),
                 'writtenOff' => (float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', [$start, $end])->sum('amount'),
             ];
         }
 
         return view('livewire.admin.daily-cash-summary-component', [
+            'periodLabel'       => $start->isSameDay($end) ? $start->format('M d, Y') : $start->format('M d, Y').' – '.$end->format('M d, Y'),
             'insurance'         => $insurance,
             'chartPayload'      => $this->buildChartPayload(),
             'payments'          => $payments,
