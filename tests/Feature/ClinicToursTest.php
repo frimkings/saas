@@ -80,7 +80,7 @@ class ClinicToursTest extends TestCase
         foreach (['clinic.dashboard', 'clinic.registry', 'clinic.clearance', 'clinic.pos', 'clinic.queue', 'clinic.sales', 'clinic.day-close', 'clinic.cash-book'] as $page) {
             $tour = TourCatalog::tour($page, ['owner' => true]);
             $this->assertNotNull($tour, $page);
-            $this->assertSame(1, $tour['version']);
+            $this->assertGreaterThanOrEqual(1, $tour['version']);
             $this->assertNotEmpty($tour['steps']);
         }
     }

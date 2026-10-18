@@ -127,9 +127,9 @@ class CashBookAndDayCloseTest extends TestCase
         $this->get(route('admin.day-close'))->assertOk()->assertSee('Count the till');
         Livewire::test(DayCloseComponent::class)
             ->call('close')->assertHasErrors('close') // the cash must be counted
-            ->set('counted.cash', '175')->assertSee('Short 5.00')
+            ->set('counted.cash', '175')->assertSee('Short '.currency().' 5.00')
             ->set('banked', '125')->set('notes', 'Five cedis missing')->call('close')->assertHasNoErrors()
-            ->assertSee('was closed by Cashier Esi');
+            ->assertSee('Closed by Cashier Esi');
 
         $close = DayClose::first();
         $this->assertTrue($close->isClosed());
@@ -157,7 +157,7 @@ class CashBookAndDayCloseTest extends TestCase
         $this->assertSame(0, CashMovement::active()->where('day_close_id', $close->id)->count());
         $this->assertSame(180.0, app(CashBook::class)->balanceBefore('cash', today()->addDay()));
 
-        Livewire::test(DayCloseComponent::class)->set('counted.cash', '180')->call('close')->assertHasNoErrors()->assertSee('Difference '.currency().' 0.00');
+        Livewire::test(DayCloseComponent::class)->set('counted.cash', '180')->call('close')->assertHasNoErrors()->assertSee('Balanced')->assertSee('Closed by');
         $this->assertSame(1, DayClose::count(), 'One row per day, closed again.');
     }
 

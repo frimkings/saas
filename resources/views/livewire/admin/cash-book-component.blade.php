@@ -17,7 +17,7 @@
     </div>
 
     @if(!$started)
-        <section class="ui-panel border-amber-300 bg-amber-50 p-5" aria-label="Start the cash book" data-tour="cash-book-start">
+        <section class="ui-panel !border-amber-300 !bg-amber-50 p-5" aria-label="Start the cash book" data-tour="cash-book-start">
             <h2 class="text-base font-semibold text-amber-900">Start the cash book</h2>
             <p class="mt-1 text-sm text-amber-900">Count what is in the cash drawer (and, if you like, the MoMo wallet and other accounts) and enter it here. Balances are worked out from that day on; until then each period starts from zero.</p>
             @if($isOwner)
