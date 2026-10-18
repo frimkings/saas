@@ -214,12 +214,20 @@ class AdminDashboardComponent extends Component
         $this->totalActiveUsers = User::inCurrentClinic(['active'])->where('is_active', true)->count();
     }
 
+    public function hideSetup(): void
+    {
+        abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
+        \App\Support\Guides\Guides::mark(\App\Support\Guides\ClinicSetup::GUIDE, \App\Models\UserGuide::HIDDEN);
+    }
+
     public function render()
     {
         $user = auth()->user();
         $optical = $this->line === BusinessLine::OPTICAL;
 
         return view('livewire.admin.admin-dashboard-component', [
+            'setup' => $user?->hasAnyRole(['Super Admin', 'Manager']) ? \App\Support\Guides\ClinicSetup::for() : null,
+            'owner' => (bool) $user?->hasRole('Super Admin'),
             'lineLabels' => [BusinessLine::CLINIC => 'Clinic', BusinessLine::OPTICAL => 'Optical', self::COMBINED => 'Combined'],
             // Where each money card leads for the chosen business.
             'statementLink' => match (true) {

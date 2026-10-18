@@ -10,7 +10,10 @@
             <h1>Cash book</h1>
             <p class="ui-muted">Money in and out of each till and account{{ $branch ? ' at '.$branch->name : '' }}, with a running balance.</p>
         </div>
-        <a href="{{ route('admin.day-close') }}" class="ui-button ui-button-primary" wire:navigate><i class="fas fa-cash-register mr-1" aria-hidden="true"></i>Close the day</a>
+        <div class="flex flex-wrap items-center gap-2">
+            <x-guide-tour page="clinic.cash-book" />
+            <a href="{{ route('admin.day-close') }}" class="ui-button ui-button-primary" wire:navigate><i class="fas fa-cash-register mr-1" aria-hidden="true"></i>Close the day</a>
+        </div>
     </div>
 
     @if(!$started)

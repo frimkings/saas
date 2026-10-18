@@ -252,7 +252,8 @@ window.printReceiptFromDom = function(event) {
         <div class="pos-topbar__actions">
             <div class="pos-chip"><i class="fas fa-user-circle"></i> {{ Auth::user()->name }}</div>
             <div class="pos-chip"><i class="fas fa-clock"></i> <span id="currentTime"></span></div>
-            <button class="pos-topbtn" wire:click="loadAllPendingCarts" {{ $purchaseMode === 'direct' ? 'disabled' : '' }}>
+            <x-guide-tour page="clinic.pos" />
+            <button class="pos-topbtn" data-tour="pos-doctor-carts" wire:click="loadAllPendingCarts" {{ $purchaseMode === 'direct' ? 'disabled' : '' }}>
                 <i class="fas fa-layer-group"></i>
                 <span>Doctor Carts</span>
                 @if(($pendingPrescriptionCartCount ?? 0) > 0)
@@ -287,7 +288,7 @@ window.printReceiptFromDom = function(event) {
         <div class="pos-checkout">
 
             {{-- Purchase mode / customer --}}
-            <div class="pos-co-section pos-patient-section">
+            <div class="pos-co-section pos-patient-section" data-tour="pos-patient">
                 <div class="pos-co-label"><i class="fas fa-user-circle"></i> Customer</div>
                 <div class="pos-mode-switch">
                     <button type="button"
@@ -370,7 +371,7 @@ window.printReceiptFromDom = function(event) {
             @endif
 
             {{-- Cart --}}
-            <div class="pos-co-section pos-cart-section">
+            <div class="pos-co-section pos-cart-section" data-tour="pos-cart">
                 <div class="pos-co-label">
                     <span><i class="fas fa-shopping-basket"></i> Cart</span>
                     <span class="pos-badge">{{ count($cart) }}</span>

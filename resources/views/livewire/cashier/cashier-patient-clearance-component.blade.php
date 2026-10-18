@@ -11,9 +11,10 @@
             <h1>Patient Clearance</h1>
             <p class="ui-muted">Take payment for today's visits before patients see the doctor.</p>
         </div>
+        <x-guide-tour page="clinic.clearance" />
     </div>
 
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" data-tour="clr-stats">
         @foreach([
             ['Pending clearance', $pendingCount, 'fa-hourglass-half', 'text-amber-500', "switchTab('pending')"],
             ['Cleared today', $clearedToday, 'fa-check-double', 'text-sky-600', "switchTab('cleared')"],
@@ -48,10 +49,10 @@
         </div>
     </section>
 
-    <section class="ui-panel">
+    <section class="ui-panel" data-tour="clr-lists">
         <div class="flex overflow-x-auto border-b border-slate-200" role="tablist" aria-label="Clearance lists">
             @foreach(['pending' => ['Pending', 'fa-hourglass-half', $pendingCount], 'cleared' => ['Cleared', 'fa-check-double', $clearedToday]] as $key => [$tabLabel, $icon, $count])
-                <button type="button" role="tab" aria-selected="{{ $activeTab === $key ? 'true' : 'false' }}" wire:click="switchTab('{{ $key }}')"
+                <button type="button" role="tab" data-tour="clr-tab-{{ $key }}" aria-selected="{{ $activeTab === $key ? 'true' : 'false' }}" wire:click="switchTab('{{ $key }}')"
                         @class(['flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold',
                                 'border-teal-700 text-teal-800' => $activeTab === $key,
                                 'border-transparent text-slate-500 hover:text-slate-800' => $activeTab !== $key])>

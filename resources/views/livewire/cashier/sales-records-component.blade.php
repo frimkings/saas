@@ -10,8 +10,9 @@
         <div>
             <h1>{{ ucfirst($businessLine) }} sales records</h1>
             <p class="ui-muted">Viewing records for period: {{ $fromDate }} to {{ $toDate }}</p>
+            <x-guide-tour page="clinic.sales" class="mt-2" />
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2" data-tour="sales-totals">
             @if($totalDiscounts > 0)
                 <div class="rounded-xl border border-violet-200 bg-violet-50 px-6 py-2 text-violet-900">
                     <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Discounts given</p>
@@ -25,7 +26,7 @@
         </div>
     </div>
 
-    <div class="ui-panel grid items-end gap-2 px-6 py-6 sm:grid-cols-2 lg:grid-cols-[3fr_3fr_4fr_2fr]">
+    <div class="ui-panel grid items-end gap-2 px-6 py-6 sm:grid-cols-2 lg:grid-cols-[3fr_3fr_4fr_2fr]" data-tour="sales-filters">
         <div>
             <label for="sales-search" class="{{ $label }}">Live search</label>
             <input id="sales-search" wire:model.live.debounce.300ms="searchTerm" type="search" class="ui-input" placeholder="Name or TXN ID">
@@ -49,7 +50,7 @@
         <button type="button" wire:click="resetFilters" class="ui-button ui-button-secondary w-full">Reset</button>
     </div>
 
-    <section class="ui-panel">
+    <section class="ui-panel" data-tour="sales-list">
         <div class="ui-table-wrap">
             <table class="ui-table">
                 <thead>

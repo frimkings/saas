@@ -1,5 +1,5 @@
 {{-- POS product search and grid (App\Livewire\PosProductGrid); a click adds the product to the POS cart. --}}
-<div class="pos-products">
+<div class="pos-products" data-tour="pos-products">
 
     {{-- Search --}}
     <div class="pos-search-bar">

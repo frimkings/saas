@@ -70,7 +70,7 @@ class ClinicLayoutTest extends TestCase
     {
         $this->actingAs($this->secretary)->get(route('secretary.appointments'))->assertOk()
             ->assertSeeInOrder(['Dashboard', 'Needs Attention', 'Patients', 'Registry Hub', 'Appointments', 'Clearance &amp; Spectacles', 'Point of Sale'], false)
-            ->assertSee('<div x-data="{ open: true }">', false); // the active group starts open
+            ->assertSee('<div x-data="{ open: true }" data-tour="nav-patients">', false); // the active group starts open
     }
 
     public function test_doctor_screens_use_the_clinic_layout_with_the_doctor_menu(): void

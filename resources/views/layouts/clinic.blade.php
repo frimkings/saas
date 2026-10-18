@@ -48,12 +48,12 @@
                 <span class="block truncate text-xs text-slate-400">{{ auth()->user()?->name }}</span>
             </span>
         </a>
-        <div class="border-b border-slate-800 px-4 py-2 text-xs empty:hidden">@include('components.navigation-workspace', ['inline' => true])</div>
+        <div class="border-b border-slate-800 px-4 py-2 text-xs empty:hidden" data-tour="nav-workspace">@include('components.navigation-workspace', ['inline' => true])</div>
         <nav class="flex-1 space-y-1 overflow-y-auto p-3 text-sm">
             @foreach($menu as $item)
                 @if(isset($item['items']))
                     @php $groupActive = \App\Support\ClinicNavigation::isActive($item); @endphp
-                    <div x-data="{ open: @js($groupActive) }">
+                    <div x-data="{ open: @js($groupActive) }" data-tour="nav-{{ \Illuminate\Support\Str::slug($item['label']) }}">
                         <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()"
                                 class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left {{ $groupActive ? 'text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200' }}">
                             <i class="fas {{ $item['icon'] }} w-4 text-center" aria-hidden="true"></i>

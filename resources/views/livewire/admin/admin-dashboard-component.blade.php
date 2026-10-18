@@ -19,15 +19,22 @@
                 </div>
             @endif
         </div>
-        <a href="{{ $line === 'optical' ? route('optical.reports') : route('admin.reports') }}" class="btn ui-button ui-button-sm ui-button-secondary">
-            <i class="fas fa-chart-bar mr-1"></i>Full Reports
-        </a>
+        <div class="flex flex-wrap items-center gap-2">
+            <x-guide-tour page="clinic.dashboard" :context="['owner' => $owner]" />
+            <a href="{{ $line === 'optical' ? route('optical.reports') : route('admin.reports') }}" class="btn ui-button ui-button-sm ui-button-secondary">
+                <i class="fas fa-chart-bar mr-1"></i>Full Reports
+            </a>
+        </div>
     </div>
+
+    @if($setup)
+        <x-setup-checklist :setup="$setup" />
+    @endif
 
     {{-- ══════════════════════════════════════════════════════════════════ --}}
     {{-- ROW 1: Top KPI Cards                                              --}}
     {{-- ══════════════════════════════════════════════════════════════════ --}}
-    <div class="flex flex-wrap -mx-2 mb-4">
+    <div class="flex flex-wrap -mx-2 mb-4" data-tour="clinic-kpis">
 
         <div class="w-full xl:w-3/12 md:w-6/12 px-2 mb-4">
             <div class="kpi-card kpi-card--blue h-full">

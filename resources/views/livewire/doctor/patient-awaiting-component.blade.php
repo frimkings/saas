@@ -9,12 +9,13 @@
             <p class="ui-muted"><span class="queue-pulse mr-1" aria-hidden="true"></span>Live sync every 30 seconds</p>
         </div>
         <div class="ui-actions">
+            <x-guide-tour page="clinic.queue" />
             <button type="button" wire:click="exportCSV" class="ui-button ui-button-secondary"><i class="fas fa-file-csv" aria-hidden="true"></i>Export</button>
             <button type="button" wire:click="syncQueue" class="ui-button ui-button-primary"><i class="fas fa-sync-alt" wire:loading.class="fa-spin" aria-hidden="true"></i>Sync</button>
         </div>
     </div>
 
-    <div class="ui-panel grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[3fr_4fr_3fr_2fr]">
+    <div class="ui-panel grid items-end gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[3fr_4fr_3fr_2fr]" data-tour="queue-filters">
         <div>
             <label for="queue-search" class="{{ $label }}">Search patient</label>
             <input id="queue-search" type="search" wire:model.live.debounce.300ms="searchTerm" class="ui-input" placeholder="Name or folder #…">
@@ -35,7 +36,7 @@
         <button type="button" wire:click="resetFilters" class="ui-button ui-button-secondary w-full"><i class="fas fa-undo" aria-hidden="true"></i>Reset</button>
     </div>
 
-    <section class="ui-panel">
+    <section class="ui-panel" data-tour="queue-list">
         <div class="ui-table-wrap">
             <table class="ui-table">
                 <thead>

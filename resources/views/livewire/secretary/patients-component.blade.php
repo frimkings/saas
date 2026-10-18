@@ -18,8 +18,9 @@
             <p class="ui-muted">Register patients, update their details and find records.</p>
         </div>
         <div class="ui-actions">
+            <x-guide-tour page="clinic.registry" />
             <button type="button" wire:click="exportRegistry" class="ui-button ui-button-secondary"><i class="fas fa-file-export" aria-hidden="true"></i>Export CSV</button>
-            <button type="button" wire:click="$toggle('showImportPanel')" class="ui-button ui-button-secondary" aria-expanded="{{ $showImportPanel ? 'true' : 'false' }}"><i class="fas fa-file-import" aria-hidden="true"></i>Import CSV</button>
+            <button type="button" data-tour="reg-import" wire:click="$toggle('showImportPanel')" class="ui-button ui-button-secondary" aria-expanded="{{ $showImportPanel ? 'true' : 'false' }}"><i class="fas fa-file-import" aria-hidden="true"></i>Import CSV</button>
             <button type="button" wire:click="downloadTemplate" class="ui-button ui-button-secondary"><i class="fas fa-file-download" aria-hidden="true"></i>Template</button>
         </div>
     </div>
@@ -75,7 +76,7 @@
 
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         {{-- Registration / edit form --}}
-        <section class="ui-panel lg:sticky lg:top-16">
+        <section class="ui-panel lg:sticky lg:top-16" data-tour="reg-form">
             <div @class(['ui-panel-heading', 'bg-sky-50' => $isEditing])>
                 <h2><i class="fas {{ $isEditing ? 'fa-user-edit' : 'fa-user-plus' }} mr-2 text-teal-700" aria-hidden="true"></i>{{ $isEditing ? 'Update profile' : 'Registration' }}</h2>
             </div>
@@ -331,7 +332,7 @@
                     @endforeach
                 </div>
 
-                <div class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2">
+                <div class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2" data-tour="reg-search">
                     <div>
                         <label for="registry-search" class="{{ $label }}">Search</label>
                         <div class="relative">
@@ -361,7 +362,7 @@
                 <div wire:loading.delay wire:target="pxSearch,fromDate,toDate,insurerFilter,resetFilters" class="px-4 pt-3 text-sm font-semibold text-teal-700">
                     <i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Updating results…
                 </div>
-                <div class="ui-table-wrap">
+                <div class="ui-table-wrap" data-tour="reg-list">
                     <table class="ui-table">
                         <thead>
                             <tr>

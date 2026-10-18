@@ -24,6 +24,14 @@ final class TourCatalog
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 1,
+        'clinic.dashboard' => 1,
+        'clinic.registry' => 1,
+        'clinic.clearance' => 1,
+        'clinic.pos' => 1,
+        'clinic.queue' => 1,
+        'clinic.sales' => 1,
+        'clinic.day-close' => 1,
+        'clinic.cash-book' => 1,
     ];
 
     public static function version(string $key): ?int
@@ -43,6 +51,14 @@ final class TourCatalog
             'optical.lab' => self::opticalLab(),
             'optical.catalogue' => self::opticalCatalogue($context),
             'optical.pos' => self::opticalPos(),
+            'clinic.dashboard' => self::clinicDashboard($context),
+            'clinic.registry' => self::clinicRegistry(),
+            'clinic.clearance' => self::clinicClearance(),
+            'clinic.pos' => self::clinicPos(),
+            'clinic.queue' => self::clinicQueue(),
+            'clinic.sales' => self::clinicSales(),
+            'clinic.day-close' => self::clinicDayClose($context),
+            'clinic.cash-book' => self::clinicCashBook($context),
             default => null,
         };
         if (! $tour) return null;
@@ -161,6 +177,105 @@ final class TourCatalog
             ['title' => 'The counter', 'body' => 'For selling things off the shelf with no prescription: cases, cloths, solutions, ready readers. Glasses made to a prescription go through New Order instead.'],
             ['target' => 'opt-pos-search', 'title' => 'Find or scan', 'body' => 'Type a name or scan the barcode (SKU). Tap Add to put it in the cart.'],
             ['target' => 'opt-pos-cart', 'title' => 'Take the payment', 'body' => 'Check the cart, add the customer\'s name and phone if they want a receipt by text, take the payment and print the receipt.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    // Clinic Suite: one tour per main page. The owner and managers start on the Admin Dashboard (with the
+    // getting-started checklist); reception, cashiers and doctors meet the pages their menu opens.
+    private static function clinicDashboard(array $c): array
+    {
+        $owner = $c['owner'] ?? false;
+
+        return ['key' => 'clinic.dashboard', 'title' => 'Clinic Suite', 'steps' => [
+            ['title' => 'Welcome to the Clinic Suite', 'body' => 'Patients from registration to the doctor, the pharmacy counter, and the money: who paid, how, and what is left in the till. Here is a quick look round. It takes about a minute.'],
+            ['target' => 'setup-checklist', 'title' => 'Getting started', 'body' => 'Work down this list to get the clinic ready. Each step ticks itself once it is done, and the list goes away when the first five are.'],
+            ['target' => 'nav-workspace', 'title' => 'Two workspaces', 'body' => 'Clinical holds the front desk, the doctors and the stock. Administration holds the money, staff and settings. Switch between them here.'],
+            ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'Patients, today\'s sales and appointments. Click More Info on any of them to see what is behind the number.'],
+            ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'Sales records, the income statement, expenses, the cash book and the day close, outstanding balances and each patient\'s ledger. Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count.'.($owner ? ' Voids and payment corrections are yours alone to approve.' : '')],
+            ['target' => 'nav-staff-security', 'title' => 'Staff & Security', 'body' => 'Users and their roles, login history and the audit trail. Each person sees only the parts of the menu their role opens.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicRegistry(): array
+    {
+        return ['key' => 'clinic.registry', 'title' => 'Registry Hub', 'steps' => [
+            ['title' => 'Where every visit starts', 'body' => 'Register new patients, update their details, and send them on to clearance and the doctor.'],
+            ['target' => 'reg-form', 'title' => 'Register a patient', 'body' => 'Start typing the name: if the patient is already registered they show up, so you never make the same person twice. Choose cash or insurance, then save.'],
+            ['target' => 'reg-import', 'title' => 'Bring in an old list', 'body' => 'Moving from paper or another system? Import patients from a CSV file.'],
+            ['target' => 'reg-search', 'title' => 'Find a patient', 'body' => 'By name or PX number, or show only one insurer\'s patients.'],
+            ['target' => 'reg-list', 'title' => 'Open a record', 'body' => 'Edit a patient\'s details, or call or WhatsApp them, from their row. Tick several to act on them together.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicClearance(): array
+    {
+        return ['key' => 'clinic.clearance', 'title' => 'Patient Clearance', 'steps' => [
+            ['title' => 'Payment before the doctor', 'body' => 'Patients registered today wait here until their consultation is paid or billed to their insurer. Once cleared, they join the doctor\'s queue.'],
+            ['target' => 'clr-stats', 'title' => 'The day so far', 'body' => 'How many are waiting, cleared, paid and unpaid. Click a count to see those patients.'],
+            ['target' => 'clr-lists', 'open' => 'clr-tab-pending', 'title' => 'Clear a patient', 'body' => 'Find the patient and press the button on their row: take the payment (cash, MoMo, card...), print or text the receipt, and they are sent to the doctor.'],
+            ['target' => 'clr-lists', 'open' => 'clr-tab-cleared', 'title' => 'Already cleared', 'body' => 'Everyone cleared, with filters. A clearance made by mistake can be revoked with a reason; a manager approves it.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicPos(): array
+    {
+        return ['key' => 'clinic.pos', 'title' => 'Point of Sale', 'steps' => [
+            ['title' => 'The pharmacy counter', 'body' => 'Drugs, drops and other items, either from a doctor\'s prescription or sold over the counter.'],
+            ['target' => 'pos-patient', 'title' => 'Who is buying', 'body' => 'Pick the patient to load what the doctor prescribed, or just type a name for a walk-in.'],
+            ['target' => 'pos-doctor-carts', 'title' => 'Doctor carts', 'body' => 'What the doctors prescribed today waits here, with a count. Open one to load it into the cart.'],
+            ['target' => 'pos-products', 'title' => 'Add items', 'body' => 'Search or scan, and tap an item to put it in the cart. Stock goes down when the sale is made.'],
+            ['target' => 'pos-cart', 'title' => 'Check and take payment', 'body' => 'Change quantities, ask for a discount (a manager approves it, and it shows on the receipt), split the payment between cash, MoMo and card, then print the receipt.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicQueue(): array
+    {
+        return ['key' => 'clinic.queue', 'title' => 'Patient queue', 'steps' => [
+            ['title' => 'Your patients for today', 'body' => 'Patients who have been cleared at the front desk and are waiting to be seen. The list refreshes by itself every 30 seconds.'],
+            ['target' => 'queue-filters', 'title' => 'Waiting or seen', 'body' => 'Find a patient by name or folder, and switch between those still waiting and those you have seen.'],
+            ['target' => 'queue-list', 'title' => 'See a patient', 'body' => 'Open a patient to record the consultation, refraction and prescription. Medicines you prescribe wait for the patient at the pharmacy counter.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicSales(): array
+    {
+        return ['key' => 'clinic.sales', 'title' => 'Sales Records', 'steps' => [
+            ['title' => 'Every sale', 'body' => 'All sales for the days you pick, with the amount after any discount and who made it.'],
+            ['target' => 'sales-totals', 'title' => 'The totals', 'body' => 'What was sold, and how much was given in discounts.'],
+            ['target' => 'sales-filters', 'title' => 'Find a sale', 'body' => 'Search by name or transaction number, pick the days, show only refunded or paid sales, or download them as CSV.'],
+            ['target' => 'sales-list', 'title' => 'Look closer or put it right', 'body' => 'The eye shows the items, discount and receipt. The red arrow asks for a refund, or a void for a sale entered by mistake today; the owner approves voids.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicDayClose(array $c): array
+    {
+        $owner = $c['owner'] ?? false;
+
+        return ['key' => 'clinic.day-close', 'title' => 'Day close', 'steps' => [
+            ['title' => 'Balance the till', 'body' => 'At the end of the day, count what is in the drawer, put the day\'s mistakes right and close the day. Once closed, the day\'s figures are settled.'],
+            ['target' => 'day-close-count', 'title' => 'Count', 'body' => 'For each method you see what should be there: the start of the day, plus money in, less refunds, expenses and banking. Enter what you count. The cash must be counted; MoMo and card are optional.'],
+            ['target' => 'day-close-cashiers', 'title' => 'Who took what', 'body' => 'Each cashier\'s takings by method, so a difference can be traced.'],
+            ['target' => 'day-close-payments', 'title' => 'Wrong method?', 'body' => 'A payment entered as cash that was really MoMo? Ask for a correction here; the owner approves it. To cancel a sale entered by mistake, request a void from Sales Records.'],
+            ['target' => 'day-close-blockers', 'title' => 'Waiting for a decision', 'body' => 'A void or correction still waiting holds the day open until the owner decides.'],
+            ['target' => 'day-close-submit', 'title' => 'Close', 'body' => 'Enter what you bank or hand over (the suggestion leaves the float in the drawer), add a note for any difference, and close the day.'.($owner ? ' Only you can reopen a closed day.' : ' Only the owner can reopen it.')],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicCashBook(array $c): array
+    {
+        return ['key' => 'clinic.cash-book', 'title' => 'Cash book', 'steps' => [
+            ['title' => 'Where the money is', 'body' => 'A running balance for the cash drawer, the MoMo wallet, card settlements and every other method, built from payments, refunds, expenses and what you record by hand.'],
+            ['target' => 'cash-book-start', 'title' => 'Start the book', 'body' => 'Count the drawer once and enter it. Balances are worked out from that day on.'],
+            ['target' => 'cash-book-balances', 'title' => 'One book per method', 'body' => 'What each method holds now. Click one to see its entries.'],
+            ['target' => 'cash-book-record', 'title' => 'Money moved by hand', 'body' => 'Record cash banked, handed to the owner or added to the drawer. A mistake is cancelled with a reason and stays on the book, crossed out.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

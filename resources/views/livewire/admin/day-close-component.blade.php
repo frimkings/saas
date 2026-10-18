@@ -18,7 +18,10 @@
                 <label for="close-date" class="{{ $label }}">Day</label>
                 <input id="close-date" type="date" wire:model.live="date" max="{{ today()->toDateString() }}" class="ui-input">
             </div>
-            <a href="{{ route('admin.cash-book') }}" wire:navigate class="ui-button ui-button-secondary">Cash book</a>
+            <x-guide-tour page="clinic.day-close" :context="['owner' => $isOwner]" />
+            @if(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']))
+                <a href="{{ route('admin.cash-book') }}" wire:navigate class="ui-button ui-button-secondary">Cash book</a>
+            @endif
         </div>
     </div>
 
@@ -106,7 +109,7 @@
                 </table>
             </div>
             @unless($closed)
-                <div class="grid gap-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-[1fr_2fr_auto]">
+                <div class="grid gap-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-[1fr_2fr_auto]" data-tour="day-close-submit">
                     <div>
                         <label for="banked" class="{{ $label }}">Cash banked / handed over now</label>
                         <input id="banked" type="number" step="0.01" min="0" wire:model="banked" class="ui-input" placeholder="{{ $suggestedBank !== null ? $money($suggestedBank) : '0.00' }}">
