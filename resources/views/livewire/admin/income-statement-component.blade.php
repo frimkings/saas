@@ -1,7 +1,7 @@
 <div class="clinic-ui ui-page income-shell">
     <style>
         .income-shell { background: #f5f7fb; min-height: 100vh; color: #1f2933; }
-        .income-toolbar { background: #ffffff; border-bottom: 1px solid #dde3ea; }
+        .income-toolbar { }
         .income-title { font-size: 1.35rem; font-weight: 800; margin: 0; }
         .income-subtitle { color: #697586; font-size: .85rem; margin: 0; }
         .income-panel { background: #ffffff; border: 1px solid #dde3ea; border-radius: 8px; box-shadow: 0 8px 22px rgba(31, 41, 51, .04); }
@@ -34,43 +34,18 @@
         }
     </style>
 
-    <div class="income-toolbar">
-        <div class="w-full py-4">
-            <div class="flex flex-wrap items-center justify-between">
-                <div class="mb-2 md:mb-0">
-                    <h1 class="income-title">Income Statement</h1>
-                    <p class="income-subtitle">
-                        {{ \Carbon\Carbon::parse($fromDate)->format('M d, Y') }} to {{ \Carbon\Carbon::parse($toDate)->format('M d, Y') }}
-                    </p>
-                </div>
-                <div class="flex flex-wrap">
-                    <a href="{{ route('admin.income-statement.export.csv', ['from' => $fromDate, 'to' => $toDate]) }}" class="btn ui-button ui-button-sm ui-button-secondary mr-2 mb-2">
-                        <i class="fas fa-file-csv mr-1"></i>CSV
-                    </a>
-                    <a href="{{ route('admin.income-statement.export.pdf', ['from' => $fromDate, 'to' => $toDate]) }}" class="btn ui-button ui-button-sm ui-button-danger mr-2 mb-2">
-                        <i class="fas fa-file-pdf mr-1"></i>PDF
-                    </a>
-                    <a href="{{ route('admin.income-statement.preview', ['from' => $fromDate, 'to' => $toDate]) }}" target="_blank" class="btn ui-button ui-button-sm ui-button-secondary mr-2 mb-2">
-                        <i class="fas fa-search mr-1"></i>Preview
-                    </a>
-                    <button type="button" onclick="window.print()" class="btn ui-button ui-button-sm ui-button-secondary mr-2 mb-2">
-                        <i class="fas fa-print mr-1"></i>Print
-                    </button>
-                    <button type="button" wire:click="setThisMonth" class="btn ui-button ui-button-sm ui-button-primary mr-2 mb-2">
-                        This Month
-                    </button>
-                    <button type="button" wire:click="setLastMonth" class="btn ui-button ui-button-sm ui-button-secondary mr-2 mb-2">
-                        Last Month
-                    </button>
-                </div>
-            </div>
-
-            <x-finance.statement-switcher :links="$switcher" current="clinic" class="mt-2" />
-
-            <div class="flex flex-wrap -mx-2 mt-4">
-                <div class="w-full md:w-5/12 px-2 mb-2"><label class="muted-label mb-1 block">Period</label><x-date-range from="fromDate" to="toDate" presets="finance" /></div>
-            </div>
-        </div>
+    <div class="income-toolbar no-print">
+        <x-ui.page-header title="Income Statement"
+            :description="\Carbon\Carbon::parse($fromDate)->format('d M Y').' to '.\Carbon\Carbon::parse($toDate)->format('d M Y').($isLocked ? ' · locked' : '')">
+            <div class="min-w-[13rem]"><x-date-range from="fromDate" to="toDate" presets="finance" /></div>
+            <x-ui.menu label="Export">
+                <a href="{{ route('admin.income-statement.export.csv', ['from' => $fromDate, 'to' => $toDate]) }}" class="ui-menu-item" role="menuitem"><i class="fas fa-file-csv" aria-hidden="true"></i>CSV</a>
+                <a href="{{ route('admin.income-statement.export.pdf', ['from' => $fromDate, 'to' => $toDate]) }}" class="ui-menu-item" role="menuitem"><i class="fas fa-file-pdf" aria-hidden="true"></i>PDF</a>
+                <a href="{{ route('admin.income-statement.preview', ['from' => $fromDate, 'to' => $toDate]) }}" target="_blank" class="ui-menu-item" role="menuitem"><i class="fas fa-search" aria-hidden="true"></i>Preview</a>
+            </x-ui.menu>
+            <x-ui.button onclick="window.print()"><i class="fas fa-print" aria-hidden="true"></i>Print</x-ui.button>
+        </x-ui.page-header>
+        <x-finance.statement-switcher :links="$switcher" current="clinic" class="-mt-3 mb-2" />
     </div>
 
     <div class="w-full py-6">
@@ -103,7 +78,7 @@
                     This statement was locked by {{ $periodLock->lockedBy->name ?? 'System' }}
                     on {{ optional($periodLock->locked_at)->format('M d, Y h:i A') }}.
                 </div>
-                <button type="button" wire:click="unlockPeriod" class="btn ui-button ui-button-sm ui-button-secondary">Unlock</button>
+                <button type="button" wire:click="unlockPeriod" class="ui-button ui-button-sm ui-button-secondary">Unlock</button>
             </div>
         @endif
 
@@ -151,7 +126,7 @@
                         <div class="income-subtitle">Revenue and cost of sales come from paid sales. Expenses and tax are entered below.</div>
                     </div>
                     <div class="ui-table-wrap">
-                        <table class="table ui-table statement-table mb-0">
+                        <table class="ui-table statement-table mb-0">
                             <thead>
                                 <tr>
                                     <th>Description</th>
@@ -244,7 +219,7 @@
                                         <td class="amount-cell text-slate-500">-</td>
                                         <td class="line-actions">
                                             @if(!$isLocked)
-                                            <button type="button" wire:click="deleteEntry({{ $line->id }})" class="btn ui-button ui-button-sm ui-button-danger" title="Delete">
+                                            <button type="button" wire:click="deleteEntry({{ $line->id }})" class="ui-button ui-button-sm ui-button-danger" title="Delete">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                             @endif
@@ -289,7 +264,7 @@
                                         <td class="amount-cell text-slate-500">-</td>
                                         <td class="line-actions">
                                             @if(!$isLocked)
-                                            <button type="button" wire:click="deleteEntry({{ $line->id }})" class="btn ui-button ui-button-sm ui-button-danger" title="Delete">
+                                            <button type="button" wire:click="deleteEntry({{ $line->id }})" class="ui-button ui-button-sm ui-button-danger" title="Delete">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                             @endif
@@ -320,7 +295,7 @@
                                     <td class="amount-cell">{{ currency() }} {{ number_format($statement['tax_amount'] - $comparison['statement']['tax_amount'], 2) }}</td>
                                     <td class="line-actions">
                                         @if($statement['tax_entry'] && !$isLocked)
-                                            <button type="button" wire:click="deleteEntry({{ $statement['tax_entry']->id }})" class="btn ui-button ui-button-sm ui-button-danger" title="Delete">
+                                            <button type="button" wire:click="deleteEntry({{ $statement['tax_entry']->id }})" class="ui-button ui-button-sm ui-button-danger" title="Delete">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         @endif
@@ -346,16 +321,16 @@
                         <div class="rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900">This period is locked. Manual entries are disabled.</div>
                     @endif
                     <div class="mb-4">
-                        <label class="muted-label">Type</label>
-                        <select wire:model.live="section" class="form-control ui-input" {{ $isLocked ? 'disabled' : '' }}>
+                        <label for="income-state-section" class="muted-label">Type</label>
+                        <select id="income-state-section" wire:model.live="section" class="ui-input" {{ $isLocked ? 'disabled' : '' }}>
                             @foreach($sections as $value => $label)
                                 <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="mb-2">
-                        <label class="muted-label">Entry</label>
-                        <select wire:model.live="selectedPreset" class="form-control ui-input @error('name') is-invalid @enderror" {{ $isLocked ? 'disabled' : '' }}>
+                        <label for="income-state-selectedpreset" class="muted-label">Entry</label>
+                        <select id="income-state-selectedpreset" wire:model.live="selectedPreset" class="ui-input @error('name') is-invalid @enderror" {{ $isLocked ? 'disabled' : '' }}>
                             <option value="">Select entry</option>
                             @foreach($entryPresets[$section] ?? [] as $preset)
                                 <option value="{{ $preset }}">{{ $preset }}</option>
@@ -365,79 +340,79 @@
                         @error('name')<div class="ui-error block">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-4">
-                        <label class="muted-label">Type Custom Entry</label>
-                        <input type="text" wire:model="customName" class="form-control ui-input @error('name') is-invalid @enderror" placeholder="Optional, overrides selected entry" {{ $isLocked ? 'disabled' : '' }}>
+                        <label for="income-state-customname" class="muted-label">Type Custom Entry</label>
+                        <input id="income-state-customname" type="text" wire:model="customName" class="ui-input @error('name') is-invalid @enderror" placeholder="Optional, overrides selected entry" {{ $isLocked ? 'disabled' : '' }}>
                         <small class="mt-1 block text-xs text-slate-500">Use this when the line is not in the dropdown.</small>
                     </div>
                     <div class="flex flex-wrap -mx-2">
                         <div class="w-full md:w-6/12 px-2">
                             <div class="mb-4">
-                                <label class="muted-label">Amount</label>
-                                <input type="number" step="0.01" wire:model="amount" class="form-control ui-input @error('amount') is-invalid @enderror" {{ $section === \App\Models\IncomeStatementEntry::TAX || $isLocked ? 'disabled' : '' }}>
+                                <label for="income-state-amount" class="muted-label">Amount</label>
+                                <input id="income-state-amount" type="number" step="0.01" wire:model="amount" class="ui-input @error('amount') is-invalid @enderror" {{ $section === \App\Models\IncomeStatementEntry::TAX || $isLocked ? 'disabled' : '' }}>
                                 @error('amount')<div class="ui-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                         <div class="w-full md:w-6/12 px-2">
                             <div class="mb-4">
-                                <label class="muted-label">Tax %</label>
-                                <input type="number" step="0.01" wire:model="percentage" class="form-control ui-input @error('percentage') is-invalid @enderror" {{ $section === \App\Models\IncomeStatementEntry::TAX && !$isLocked ? '' : 'disabled' }}>
+                                <label for="income-state-percentage" class="muted-label">Tax %</label>
+                                <input id="income-state-percentage" type="number" step="0.01" wire:model="percentage" class="ui-input @error('percentage') is-invalid @enderror" {{ $section === \App\Models\IncomeStatementEntry::TAX && !$isLocked ? '' : 'disabled' }}>
                                 @error('percentage')<div class="ui-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
                     <div class="mb-4">
-                        <label class="muted-label">Date</label>
-                        <input type="date" wire:model="entryDate" class="form-control ui-input @error('entryDate') is-invalid @enderror" {{ $isLocked ? 'disabled' : '' }}>
+                        <label for="income-state-entrydate" class="muted-label">Date</label>
+                        <input id="income-state-entrydate" type="date" wire:model="entryDate" class="ui-input @error('entryDate') is-invalid @enderror" {{ $isLocked ? 'disabled' : '' }}>
                         @error('entryDate')<div class="ui-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="mb-4">
-                        <label class="muted-label">Notes</label>
-                        <textarea wire:model="notes" class="form-control ui-input" rows="2" {{ $isLocked ? 'disabled' : '' }}></textarea>
+                        <label for="income-state-notes" class="muted-label">Notes</label>
+                        <textarea id="income-state-notes" wire:model="notes" class="ui-input" rows="2" {{ $isLocked ? 'disabled' : '' }}></textarea>
                     </div>
-                    <button type="button" wire:click="saveEntry" class="btn ui-button ui-button-primary w-full" {{ $isLocked ? 'disabled' : '' }}>
+                    <button type="button" wire:click="saveEntry" class="ui-button ui-button-primary w-full" {{ $isLocked ? 'disabled' : '' }}>
                         Save Line
                     </button>
                 </div>
 
                 <div class="income-panel p-4 mb-4">
                     <h5 class="font-semibold mb-4">Recurring Templates</h5>
-                    <button type="button" wire:click="applyTemplates" class="btn ui-button ui-button-secondary w-full mb-4" {{ $isLocked ? 'disabled' : '' }}>
+                    <button type="button" wire:click="applyTemplates" class="ui-button ui-button-secondary w-full mb-4" {{ $isLocked ? 'disabled' : '' }}>
                         Apply Templates To Period
                     </button>
                     <div class="mb-4">
-                        <label class="muted-label">Type</label>
-                        <select wire:model.live="templateSection" class="form-control ui-input">
+                        <label for="income-state-templatesection" class="muted-label">Type</label>
+                        <select id="income-state-templatesection" wire:model.live="templateSection" class="ui-input">
                             @foreach($sections as $value => $label)
                                 <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="mb-4">
-                        <label class="muted-label">Template Name</label>
-                        <input type="text" wire:model="templateName" class="form-control ui-input @error('templateName') is-invalid @enderror" placeholder="Rent, Nurse Salary, Loan Interest">
+                        <label for="income-state-templatename" class="muted-label">Template Name</label>
+                        <input id="income-state-templatename" type="text" wire:model="templateName" class="ui-input @error('templateName') is-invalid @enderror" placeholder="Rent, Nurse Salary, Loan Interest">
                         @error('templateName')<div class="ui-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="flex flex-wrap -mx-2">
                         <div class="w-full md:w-6/12 px-2">
                             <div class="mb-4">
-                                <label class="muted-label">Amount</label>
-                                <input type="number" step="0.01" wire:model="templateAmount" class="form-control ui-input @error('templateAmount') is-invalid @enderror" {{ $templateSection === \App\Models\IncomeStatementEntry::TAX ? 'disabled' : '' }}>
+                                <label for="income-state-templateamount" class="muted-label">Amount</label>
+                                <input id="income-state-templateamount" type="number" step="0.01" wire:model="templateAmount" class="ui-input @error('templateAmount') is-invalid @enderror" {{ $templateSection === \App\Models\IncomeStatementEntry::TAX ? 'disabled' : '' }}>
                                 @error('templateAmount')<div class="ui-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                         <div class="w-full md:w-6/12 px-2">
                             <div class="mb-4">
-                                <label class="muted-label">Tax %</label>
-                                <input type="number" step="0.01" wire:model="templatePercentage" class="form-control ui-input @error('templatePercentage') is-invalid @enderror" {{ $templateSection === \App\Models\IncomeStatementEntry::TAX ? '' : 'disabled' }}>
+                                <label for="income-state-templatepercentage" class="muted-label">Tax %</label>
+                                <input id="income-state-templatepercentage" type="number" step="0.01" wire:model="templatePercentage" class="ui-input @error('templatePercentage') is-invalid @enderror" {{ $templateSection === \App\Models\IncomeStatementEntry::TAX ? '' : 'disabled' }}>
                                 @error('templatePercentage')<div class="ui-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                     </div>
                     <div class="mb-4">
-                        <label class="muted-label">Notes</label>
-                        <textarea wire:model="templateNotes" class="form-control ui-input" rows="2"></textarea>
+                        <label for="income-state-templatenotes" class="muted-label">Notes</label>
+                        <textarea id="income-state-templatenotes" wire:model="templateNotes" class="ui-input" rows="2"></textarea>
                     </div>
-                    <button type="button" wire:click="saveTemplate" class="btn ui-button ui-button-secondary w-full">Save Template</button>
+                    <button type="button" wire:click="saveTemplate" class="ui-button ui-button-secondary w-full">Save Template</button>
 
                     <hr>
                     @forelse($templates as $template)
@@ -452,7 +427,7 @@
                                 @else
                                     <div>{{ currency() }} {{ number_format($template->amount, 2) }}</div>
                                 @endif
-                                <button type="button" wire:click="deleteTemplate({{ $template->id }})" class="btn ui-button ui-button-sm ui-button-link text-red-700 p-0">Remove</button>
+                                <button type="button" wire:click="deleteTemplate({{ $template->id }})" class="ui-button ui-button-sm ui-button-link text-red-700 p-0">Remove</button>
                             </div>
                         </div>
                     @empty
@@ -474,13 +449,13 @@
                     <h5 class="font-semibold mb-4">Period Lock</h5>
                     @if($isLocked)
                         <p class="text-slate-500 text-sm">Unlock this period before changing entries or clinic expenses dated in it.</p>
-                        <button type="button" wire:click="unlockPeriod" class="btn ui-button ui-button-secondary w-full">Unlock Period</button>
+                        <button type="button" wire:click="unlockPeriod" class="ui-button ui-button-secondary w-full">Unlock Period</button>
                     @else
                         <div class="mb-4">
-                            <label class="muted-label">Lock Notes</label>
-                            <textarea wire:model="lockNotes" class="form-control ui-input" rows="2"></textarea>
+                            <label for="income-state-locknotes" class="muted-label">Lock Notes</label>
+                            <textarea id="income-state-locknotes" wire:model="lockNotes" class="ui-input" rows="2"></textarea>
                         </div>
-                        <button type="button" wire:click="lockPeriod" class="btn ui-button ui-button-secondary w-full">Lock Period</button>
+                        <button type="button" wire:click="lockPeriod" class="ui-button ui-button-secondary w-full">Lock Period</button>
                     @endif
                 </div>
 
@@ -491,40 +466,40 @@
                             @if($editingEntryId === $entry->id)
                                 <div class="w-full">
                                     <div class="mb-2">
-                                        <label class="muted-label">Name</label>
-                                        <input type="text" wire:model="editingName" class="form-control ui-input ui-input-sm @error('editingName') is-invalid @enderror">
+                                        <label for="income-state-editingname" class="muted-label">Name</label>
+                                        <input id="income-state-editingname" type="text" wire:model="editingName" class="ui-input ui-input-sm @error('editingName') is-invalid @enderror">
                                         @error('editingName')<div class="ui-error">{{ $message }}</div>@enderror
                                     </div>
                                     <div class="flex flex-wrap -mx-2">
                                         <div class="w-full md:w-4/12 px-2">
                                             <div class="mb-2">
-                                                <label class="muted-label">Amount</label>
-                                                <input type="number" step="0.01" wire:model="editingAmount" class="form-control ui-input ui-input-sm @error('editingAmount') is-invalid @enderror" {{ $entry->section === \App\Models\IncomeStatementEntry::TAX ? 'disabled' : '' }}>
+                                                <label for="income-state-editingamount" class="muted-label">Amount</label>
+                                                <input id="income-state-editingamount" type="number" step="0.01" wire:model="editingAmount" class="ui-input ui-input-sm @error('editingAmount') is-invalid @enderror" {{ $entry->section === \App\Models\IncomeStatementEntry::TAX ? 'disabled' : '' }}>
                                                 @error('editingAmount')<div class="ui-error">{{ $message }}</div>@enderror
                                             </div>
                                         </div>
                                         <div class="w-full md:w-4/12 px-2">
                                             <div class="mb-2">
-                                                <label class="muted-label">Tax %</label>
-                                                <input type="number" step="0.01" wire:model="editingPercentage" class="form-control ui-input ui-input-sm @error('editingPercentage') is-invalid @enderror" {{ $entry->section === \App\Models\IncomeStatementEntry::TAX ? '' : 'disabled' }}>
+                                                <label for="income-state-editingpercentage" class="muted-label">Tax %</label>
+                                                <input id="income-state-editingpercentage" type="number" step="0.01" wire:model="editingPercentage" class="ui-input ui-input-sm @error('editingPercentage') is-invalid @enderror" {{ $entry->section === \App\Models\IncomeStatementEntry::TAX ? '' : 'disabled' }}>
                                                 @error('editingPercentage')<div class="ui-error">{{ $message }}</div>@enderror
                                             </div>
                                         </div>
                                         <div class="w-full md:w-4/12 px-2">
                                             <div class="mb-2">
-                                                <label class="muted-label">Date</label>
-                                                <input type="date" wire:model="editingDate" class="form-control ui-input ui-input-sm @error('editingDate') is-invalid @enderror">
+                                                <label for="income-state-editingdate" class="muted-label">Date</label>
+                                                <input id="income-state-editingdate" type="date" wire:model="editingDate" class="ui-input ui-input-sm @error('editingDate') is-invalid @enderror">
                                                 @error('editingDate')<div class="ui-error">{{ $message }}</div>@enderror
                                             </div>
                                         </div>
                                     </div>
                                     <div class="mb-2">
-                                        <label class="muted-label">Notes</label>
-                                        <textarea wire:model="editingNotes" class="form-control ui-input ui-input-sm" rows="2"></textarea>
+                                        <label for="income-state-editingnotes" class="muted-label">Notes</label>
+                                        <textarea id="income-state-editingnotes" wire:model="editingNotes" class="ui-input ui-input-sm" rows="2"></textarea>
                                     </div>
                                     <div class="text-right">
-                                        <button type="button" wire:click="updateEntry" class="btn ui-button ui-button-sm ui-button-primary">Save</button>
-                                        <button type="button" wire:click="cancelEdit" class="btn ui-button ui-button-sm ui-button-secondary">Cancel</button>
+                                        <button type="button" wire:click="updateEntry" class="ui-button ui-button-sm ui-button-primary">Save</button>
+                                        <button type="button" wire:click="cancelEdit" class="ui-button ui-button-sm ui-button-secondary">Cancel</button>
                                     </div>
                                 </div>
                             @else
@@ -540,8 +515,8 @@
                                         <div>{{ currency() }} {{ number_format($entry->amount, 2) }}</div>
                                     @endif
                                     @if(!$isLocked)
-                                        <button type="button" wire:click="editEntry({{ $entry->id }})" class="btn ui-button ui-button-sm ui-button-link text-teal-700 p-0 mr-2">Edit</button>
-                                        <button type="button" wire:click="deleteEntry({{ $entry->id }})" class="btn ui-button ui-button-sm ui-button-link text-red-700 p-0">Delete</button>
+                                        <button type="button" wire:click="editEntry({{ $entry->id }})" class="ui-button ui-button-sm ui-button-link text-teal-700 p-0 mr-2">Edit</button>
+                                        <button type="button" wire:click="deleteEntry({{ $entry->id }})" class="ui-button ui-button-sm ui-button-link text-red-700 p-0">Delete</button>
                                     @endif
                                 </div>
                             @endif

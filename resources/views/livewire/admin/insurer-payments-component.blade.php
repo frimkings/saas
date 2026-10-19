@@ -1,46 +1,30 @@
 <div class="clinic-ui ui-page">
   {{-- Page Header --}}
-  <div class="content-header">
-    <div class="w-full">
-      <div class="flex flex-wrap -mx-2 mb-2 items-center">
-        <div class="w-full sm:w-6/12 px-2">
-          <h1 class="m-0"><i class="fas fa-money-check-alt mr-2 text-sky-700"></i>Insurer Payments</h1>
-          <small class="text-slate-500">Record what insurers pay and the claims each payment settles.</small>
-        </div>
-        <div class="w-full sm:w-6/12 px-2">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('admin.insurance.claims') }}">Insurance</a></li>
-            <li class="breadcrumb-item active">Payments</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
+  <x-ui.page-header title="Insurer Payments" description="Money received from insurers and the claims it pays." />
 
   <div class="content">
     <div class="w-full">
 
-      <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-info shadow-sm">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 flex-wrap" style="gap:8px;">
+      <div class="ui-panel">
+        <div class="ui-section-heading" style="gap:8px;">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
-            <select wire:model.live="insurerFilter" class="form-control ui-input ui-input-sm" style="max-width:220px;">
+            <select wire:model.live="insurerFilter" class="ui-input ui-input-sm" style="max-width:220px;">
               <option value="">All insurers</option>
               @foreach($insurerList as $id => $name)
                 <option value="{{ $id }}">{{ $name }}</option>
               @endforeach
             </select>
             <div class="ml-auto">
-              <button wire:click="openForm('{{ $insurerFilter }}')" class="btn ui-button ui-button-primary ui-button-sm">
+              <button wire:click="openForm('{{ $insurerFilter }}')" class="ui-button ui-button-primary ui-button-sm">
                 <i class="fas fa-plus mr-1"></i>Record payment
               </button>
             </div>
           </div>
         </div>
 
-        <div class="card-body p-0">
+        <div class="">
           <div class="ui-table-wrap">
-            <table class="table ui-table ui-table-sm mb-0">
+            <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>
                   <th>Date paid</th>
@@ -67,7 +51,7 @@
                   <td class="text-right font-semibold">{{ currency() }} {{ number_format((float) $p->amount, 2) }}</td>
                   <td class="text-sm">{{ $p->receiver?->name ?? '—' }}</td>
                   <td class="text-right">
-                    <button wire:click="viewPayment({{ $p->id }})" class="btn ui-button ui-button-sm ui-button-secondary">
+                    <button wire:click="viewPayment({{ $p->id }})" class="ui-button ui-button-sm ui-button-secondary">
                       {{ $viewPaymentId === $p->id ? 'Hide' : 'Details' }}
                     </button>
                   </td>
@@ -75,7 +59,7 @@
                 @if($viewPayment && $viewPayment->id === $p->id)
                 <tr>
                   <td colspan="8" class="bg-slate-50">
-                    <table class="table ui-table ui-table-sm mb-0 text-sm">
+                    <table class="ui-table ui-table-sm mb-0 text-sm">
                       <thead><tr><th>Claim</th><th>Patient</th><th>Bill</th><th class="text-right">Applied</th><th>Claim status</th></tr></thead>
                       <tbody>
                         @foreach($viewPayment->allocations as $allocation)
@@ -133,8 +117,8 @@
         <div class="p-4">
           <div class="flex flex-wrap -mx-2">
             <div class="mb-4 w-full md:w-4/12 px-2">
-              <label>Insurer <span class="text-red-700">*</span></label>
-              <select wire:model.live="insurerId" class="form-control ui-input @error('insurerId') is-invalid @enderror">
+              <label for="insurer-paym-insurerid">Insurer <span class="text-red-700">*</span></label>
+              <select id="insurer-paym-insurerid" wire:model.live="insurerId" class="ui-input @error('insurerId') is-invalid @enderror">
                 <option value="">Choose…</option>
                 @foreach($insurerList as $id => $name)
                   <option value="{{ $id }}">{{ $name }}</option>
@@ -143,27 +127,27 @@
               @error('insurerId')<div class="ui-error">{{ $message }}</div>@enderror
             </div>
             <div class="mb-4 w-full md:w-2/12 px-2">
-              <label>Amount paid <span class="text-red-700">*</span></label>
-              <input wire:model.live.debounce.400ms="payment.amount" type="number" min="0" step="0.01"
-                     class="form-control ui-input @error('payment.amount') is-invalid @enderror" placeholder="0.00">
+              <label for="insurer-paym-payment-amount">Amount paid <span class="text-red-700">*</span></label>
+              <input id="insurer-paym-payment-amount" wire:model.live.debounce.400ms="payment.amount" type="number" min="0" step="0.01"
+                     class="ui-input @error('payment.amount') is-invalid @enderror" placeholder="0.00">
               @error('payment.amount')<div class="ui-error">{{ $message }}</div>@enderror
             </div>
             <div class="mb-4 w-full md:w-2/12 px-2">
-              <label>Date paid <span class="text-red-700">*</span></label>
-              <input wire:model="payment.paid_on" type="date" class="form-control ui-input @error('payment.paid_on') is-invalid @enderror">
+              <label for="insurer-paym-payment-paid-on">Date paid <span class="text-red-700">*</span></label>
+              <input id="insurer-paym-payment-paid-on" wire:model="payment.paid_on" type="date" class="ui-input @error('payment.paid_on') is-invalid @enderror">
               @error('payment.paid_on')<div class="ui-error">{{ $message }}</div>@enderror
             </div>
             <div class="mb-4 w-full md:w-2/12 px-2">
-              <label>Method</label>
-              <select wire:model="payment.payment_method" class="form-control ui-input">
+              <label for="insurer-paym-payment-payment-method">Method</label>
+              <select id="insurer-paym-payment-payment-method" wire:model="payment.payment_method" class="ui-input">
                 @foreach($methods as $value => $label)
                   <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
               </select>
             </div>
             <div class="mb-4 w-full md:w-2/12 px-2">
-              <label>Reference</label>
-              <input wire:model="payment.reference" type="text" maxlength="100" class="form-control ui-input" placeholder="Bank ref / cheque no.">
+              <label for="insurer-paym-payment-reference">Reference</label>
+              <input id="insurer-paym-payment-reference" wire:model="payment.reference" type="text" maxlength="100" class="ui-input" placeholder="Bank ref / cheque no.">
             </div>
           </div>
 
@@ -171,7 +155,7 @@
             <div class="flex items-center mb-2" style="gap:8px;">
               <h6 class="font-semibold mb-0">Claims this payment covers</h6>
               @if($claims->isNotEmpty())
-                <button type="button" wire:click="autoAllocate" class="btn ui-button ui-button-sm ui-button-secondary">Fill oldest first</button>
+                <button type="button" wire:click="autoAllocate" class="ui-button ui-button-sm ui-button-secondary">Fill oldest first</button>
               @endif
               @php $difference = round((float) ($payment['amount'] ?: 0) - $allocated, 2); @endphp
               <span class="ml-auto text-sm {{ abs($difference) < 0.005 ? 'text-green-700' : 'text-red-700' }}">
@@ -182,7 +166,7 @@
             @error('allocations')<div class="rounded-lg border px-3 text-sm border-red-200 bg-red-50 text-red-800 py-2">{{ $message }}</div>@enderror
 
             <div class="ui-table-wrap" style="max-height:50vh;overflow-y:auto;">
-              <table class="table ui-table ui-table-sm mb-0">
+              <table class="ui-table ui-table-sm mb-0">
                 <thead class="" style="position:sticky;top:0;">
                   <tr>
                     <th>Claim</th>
@@ -211,7 +195,7 @@
                     <td class="text-right font-semibold">{{ number_format($claim->outstandingAmount(), 2) }}</td>
                     <td>
                       <input wire:model.live.debounce.400ms="allocations.{{ $claim->id }}.amount" type="number" min="0" step="0.01"
-                             class="form-control ui-input ui-input-sm @error('allocations.' . $claim->id . '.amount') is-invalid @enderror" placeholder="0.00">
+                             class="ui-input ui-input-sm @error('allocations.' . $claim->id . '.amount') is-invalid @enderror" placeholder="0.00">
                     </td>
                     <td class="text-center">
                       <input wire:model="allocations.{{ $claim->id }}.settle" type="checkbox">
@@ -230,13 +214,13 @@
           @endif
 
           <div class="mt-4 mb-0">
-            <label>Notes</label>
-            <textarea wire:model="payment.notes" class="form-control ui-input" rows="2" maxlength="500" placeholder="Optional"></textarea>
+            <label for="insurer-paym-payment-notes">Notes</label>
+            <textarea id="insurer-paym-payment-notes" wire:model="payment.notes" class="ui-input" rows="2" maxlength="500" placeholder="Optional"></textarea>
           </div>
         </div>
         <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-          <button wire:click="closeForm" class="btn ui-button ui-button-secondary">Cancel</button>
-          <button wire:click="save" wire:loading.attr="disabled" class="btn ui-button ui-button-primary">
+          <button wire:click="closeForm" class="ui-button ui-button-secondary">Cancel</button>
+          <button wire:click="save" wire:loading.attr="disabled" class="ui-button ui-button-primary">
             <i class="fas fa-save mr-1"></i>Save payment
           </button>
         </div>

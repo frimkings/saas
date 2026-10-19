@@ -1,48 +1,31 @@
 <div class="clinic-ui ui-page"> {{-- single Livewire root required by Livewire 2 --}}
 
-<div class="w-full py-6">
+<div class="w-full">
 
-    {{-- Header --}}
-    <div class="flex flex-wrap -mx-2 mb-6 items-center">
-        <div class="min-w-0 flex-1 px-2">
-            <h4 class="font-semibold text-teal-700 mb-1">Roles &amp; Permissions</h4>
-            <p class="text-slate-500 text-sm mb-0">Create custom roles, define permissions, and control what each role can access.</p>
-        </div>
-    </div>
+    <x-ui.page-header title="Roles & Permissions" description="What each role can see and do. Give staff a role under Users." />
 
     {{-- Tabs --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mb-4">
-        <div class="card-body p-4 py-2">
-            <div class="inline-flex flex-wrap gap-1">
-                <button wire:click="$set('activeTab', 'roles')"
-                    class="btn ui-button {{ $activeTab === 'roles' ? 'ui-button-primary' : 'ui-button-secondary' }}">
-                    <i class="fas fa-user-tag mr-1"></i> Roles
-                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $activeTab === 'roles' ? 'light text-teal-700' : 'secondary' }} ml-1">{{ $roles->count() }}</span>
-                </button>
-                <button wire:click="$set('activeTab', 'permissions')"
-                    class="btn ui-button {{ $activeTab === 'permissions' ? 'ui-button-primary' : 'ui-button-secondary' }}">
-                    <i class="fas fa-key mr-1"></i> Permissions
-                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $activeTab === 'permissions' ? 'light text-teal-700' : 'secondary' }} ml-1">{{ $permissions->count() }}</span>
-                </button>
-                <button wire:click="$set('activeTab', 'matrix')"
-                    class="btn ui-button {{ $activeTab === 'matrix' ? 'ui-button-primary' : 'ui-button-secondary' }}">
-                    <i class="fas fa-table mr-1"></i> Matrix
-                </button>
-            </div>
-        </div>
+    <div class="mb-4 flex flex-wrap gap-1 border-b border-slate-200" role="tablist" aria-label="Roles and permissions">
+        @foreach(['roles' => ['Roles', 'fa-user-tag', $roles->count()], 'permissions' => ['Permissions', 'fa-key', $permissions->count()], 'matrix' => ['Matrix', 'fa-table', null]] as $tabKey => [$tabLabel, $tabIcon, $tabCount])
+            <button type="button" role="tab" aria-selected="{{ $activeTab === $tabKey ? 'true' : 'false' }}" wire:click="$set('activeTab', '{{ $tabKey }}')"
+                    class="-mb-px flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-semibold {{ $activeTab === $tabKey ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800' }}">
+                <i class="fas {{ $tabIcon }}" aria-hidden="true"></i>{{ $tabLabel }}
+                @if($tabCount !== null)<span class="rounded-full bg-slate-100 px-2 text-xs text-slate-700">{{ $tabCount }}</span>@endif
+            </button>
+        @endforeach
     </div>
 
     {{-- ══ ROLES TAB ══════════════════════════════════════════════════════════ --}}
     @if($activeTab === 'roles')
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-        <div class="card-header border-b px-4 bg-white border-slate-200 flex items-center justify-between py-4">
+    <div class="ui-panel">
+        <div class="ui-section-heading">
             <span class="font-semibold text-slate-900">All Roles</span>
-            <button wire:click="openCreateRole" class="btn ui-button ui-button-sm ui-button-primary shadow-none">
+            <button wire:click="openCreateRole" class="ui-button ui-button-sm ui-button-primary shadow-none">
                 <i class="fas fa-plus mr-1"></i> New Role
             </button>
         </div>
         <div class="ui-table-wrap">
-            <table class="table ui-table align-middle mb-0">
+            <table class="ui-table align-middle mb-0">
                 <thead class="bg-slate-50">
                     <tr class="text-sm uppercase font-semibold text-slate-500">
                         <th class="pl-6 border-0">Role Name</th>
@@ -92,23 +75,23 @@
                             </td>
                             <td class="pr-6 text-right whitespace-nowrap">
                                 <button wire:click="openEditRole({{ $role->id }})"
-                                        class="btn ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
+                                        class="ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
                                         title="Edit role &amp; permissions">
                                     <i class="fas fa-edit mr-1"></i> Edit
                                 </button>
                                 <button wire:click="openRoleUsers({{ $role->id }})"
-                                        class="btn ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
+                                        class="ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
                                         title="Assign users">
                                     <i class="fas fa-users mr-1"></i> Users
                                 </button>
                                 @if(!in_array($role->name, $protectedRoles))
                                     <button onclick="confirmDeleteRole({{ $role->id }}, {{ json_encode($role->name) }}, {{ $role->users_count }})"
-                                            class="btn ui-button ui-button-sm ui-button-danger shadow-none"
+                                            class="ui-button ui-button-sm ui-button-danger shadow-none"
                                             title="Delete role">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 @else
-                                    <button class="btn ui-button ui-button-sm ui-button-secondary shadow-none" disabled title="Protected role">
+                                    <button class="ui-button ui-button-sm ui-button-secondary shadow-none" disabled title="Protected role">
                                         <i class="fas fa-lock"></i>
                                     </button>
                                 @endif
@@ -130,12 +113,12 @@
 
     {{-- ══ PERMISSIONS TAB ════════════════════════════════════════════════════ --}}
     @if($activeTab === 'permissions')
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mb-4">
-        <div class="card-header border-b px-4 bg-white border-slate-200 py-4">
+    <div class="ui-panel mb-4">
+        <div class="ui-section-heading">
             <div class="font-semibold text-slate-900"><i class="fas fa-layer-group mr-1 text-teal-700"></i> Permission Presets</div>
             <div class="text-slate-500 text-sm mt-1">Create standard permission groups, then assign them from the Roles tab.</div>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
             <div class="flex flex-wrap -mx-2">
                 @foreach($permissionPresets as $group => $presetPermissions)
                     @php
@@ -151,7 +134,7 @@
                                 </span>
                             </div>
                             <div class="text-sm text-slate-500 mb-4">{{ implode(', ', $presetPermissions) }}</div>
-                            <button type="button" class="btn ui-button ui-button-sm ui-button-secondary"
+                            <button type="button" class="ui-button ui-button-sm ui-button-secondary"
                                     wire:click="createPermissionPreset('{{ $group }}')">
                                 <i class="fas fa-plus mr-1"></i> Apply Preset
                             </button>
@@ -162,18 +145,18 @@
         </div>
     </div>
 
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-        <div class="card-header border-b px-4 bg-white border-slate-200 flex items-center justify-between py-4">
+    <div class="ui-panel">
+        <div class="ui-section-heading">
             <div>
                 <span class="font-semibold text-slate-900">All Permissions</span>
                 <div class="text-slate-500 text-sm mt-1">Use lowercase with spaces, e.g. <code>manage users</code>, <code>view reports</code></div>
             </div>
-            <button wire:click="openCreatePermission" class="btn ui-button ui-button-sm ui-button-primary shadow-none">
+            <button wire:click="openCreatePermission" class="ui-button ui-button-sm ui-button-primary shadow-none">
                 <i class="fas fa-plus mr-1"></i> New Permission
             </button>
         </div>
         <div class="ui-table-wrap">
-            <table class="table ui-table align-middle mb-0">
+            <table class="ui-table align-middle mb-0">
                 <thead class="bg-slate-50">
                     <tr class="text-sm uppercase font-semibold text-slate-500">
                         <th class="pl-6 border-0">Permission</th>
@@ -215,12 +198,12 @@
                             </td>
                             <td class="pr-6 text-right whitespace-nowrap">
                                 <button wire:click="openEditPermission({{ $perm->id }})"
-                                        class="btn ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
+                                        class="ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
                                         title="Rename permission">
                                     <i class="fas fa-edit mr-1"></i> Edit
                                 </button>
                                 <button onclick="confirmDeletePermission({{ $perm->id }}, {{ json_encode($perm->name) }}, {{ $perm->roles->count() }})"
-                                        class="btn ui-button ui-button-sm ui-button-danger shadow-none"
+                                        class="ui-button ui-button-sm ui-button-danger shadow-none"
                                         title="Delete permission">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -241,13 +224,13 @@
     @endif
 
     @if($activeTab === 'matrix')
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-        <div class="card-header border-b px-4 bg-white border-slate-200 py-4">
+    <div class="ui-panel">
+        <div class="ui-section-heading">
             <div class="font-semibold text-slate-900"><i class="fas fa-table mr-1 text-teal-700"></i> Role Permission Matrix</div>
             <div class="text-slate-500 text-sm mt-1">Green means the permission is assigned to that role. Use the Roles tab to make changes.</div>
         </div>
         <div class="ui-table-wrap">
-            <table class="table ui-table ui-table-sm mb-0 role-matrix-table">
+            <table class="ui-table ui-table-sm mb-0 role-matrix-table">
                 <thead class="bg-slate-50">
                     <tr>
                         <th class="whitespace-nowrap">Permission</th>
@@ -316,7 +299,7 @@
                     <input wire:model="roleName"
                            id="roleNameInput"
                            type="text"
-                           class="form-control ui-input @error('roleName') is-invalid @enderror"
+                           class="ui-input @error('roleName') is-invalid @enderror"
                            placeholder="e.g. Pharmacist, Lab Technician, Receptionist">
                     @error('roleName')
                         <div class="ui-error">{{ $message }}</div>
@@ -324,11 +307,11 @@
                 </div>
 
                 <div class="mb-4">
-                    <label class="font-semibold text-sm">
+                    <label for="role-permiss-dashboardroute" class="font-semibold text-sm">
                         Dashboard After Login
                         <span class="text-slate-500 font-normal">— where this role lands on login</span>
                     </label>
-                    <select wire:model="dashboardRoute" class="form-control ui-input">
+                    <select id="role-permiss-dashboardroute" wire:model="dashboardRoute" class="ui-input">
                         <option value="">— User Profile (default fallback) —</option>
                         <option value="admin.dashboard">Admin Dashboard</option>
                         <option value="doctor.dashboard">Doctor Dashboard</option>
@@ -350,7 +333,7 @@
                     <label class="font-semibold text-sm block mb-2">Role Templates</label>
                     <div class="flex flex-wrap" style="gap:.4rem">
                         @foreach($roleTemplates as $template => $templatePermissions)
-                            <button type="button" class="btn ui-button ui-button-sm ui-button-secondary"
+                            <button type="button" class="ui-button ui-button-sm ui-button-secondary"
                                     wire:click="applyRoleTemplate('{{ $template }}')"
                                     title="{{ implode(', ', $templatePermissions) }}">
                                 <i class="fas fa-magic mr-1"></i>{{ $template }}
@@ -415,8 +398,8 @@
                 @endif
             </div>
             <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 bg-slate-50">
-                <button type="button" class="btn ui-button ui-button-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn ui-button ui-button-primary" id="roleSaveBtn" onclick="submitRole()">
+                <button type="button" class="ui-button ui-button-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="ui-button ui-button-primary" id="roleSaveBtn" onclick="submitRole()">
                     <i class="fas fa-save mr-1"></i>
                     <span id="roleSaveBtnText">Create Role</span>
                 </button>
@@ -438,8 +421,8 @@
             <div class="p-4">
                 <div class="flex flex-wrap -mx-2 items-end mb-4">
                     <div class="min-w-0 flex-1 px-2">
-                        <label class="font-semibold text-sm">Assign User</label>
-                        <select wire:model="userToAssign" class="form-control ui-input @error('userToAssign') is-invalid @enderror">
+                        <label for="role-permiss-usertoassign" class="font-semibold text-sm">Assign User</label>
+                        <select id="role-permiss-usertoassign" wire:model="userToAssign" class="ui-input @error('userToAssign') is-invalid @enderror">
                             <option value="">Choose staff member...</option>
                             @foreach($assignableUsers as $user)
                                 <option value="{{ $user->id }}">
@@ -452,7 +435,7 @@
                         @enderror
                     </div>
                     <div class="w-auto px-2">
-                        <button type="button" class="btn ui-button ui-button-primary font-semibold" wire:click="assignUserToManagedRole">
+                        <button type="button" class="ui-button ui-button-primary font-semibold" wire:click="assignUserToManagedRole">
                             <i class="fas fa-user-plus mr-1"></i> Assign
                         </button>
                     </div>
@@ -465,7 +448,7 @@
                                 <div class="font-semibold">{{ $user->name }}</div>
                                 <div class="text-slate-500 text-sm">{{ $user->email }} | {{ $user->roles->pluck('name')->implode(', ') ?: 'No role' }}</div>
                             </div>
-                            <button type="button" class="btn ui-button ui-button-sm ui-button-danger"
+                            <button type="button" class="ui-button ui-button-sm ui-button-danger"
                                     wire:click="removeUserFromManagedRole({{ $user->id }})"
                                     @if($managingRoleName === 'Super Admin' && auth()->id() === $user->id) disabled @endif>
                                 <i class="fas fa-user-minus mr-1"></i> Remove
@@ -479,7 +462,7 @@
                 </div>
             </div>
             <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 bg-slate-50">
-                <button type="button" class="btn ui-button ui-button-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="ui-button ui-button-secondary" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -500,7 +483,7 @@
                     <input wire:model="permissionName"
                            id="permissionNameInput"
                            type="text"
-                           class="form-control ui-input @error('permissionName') is-invalid @enderror"
+                           class="ui-input @error('permissionName') is-invalid @enderror"
                            placeholder="e.g. manage billing, view reports, process refunds">
                     @error('permissionName')
                         <div class="ui-error">{{ $message }}</div>
@@ -512,8 +495,8 @@
                 </div>
             </div>
             <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 bg-slate-50">
-                <button type="button" class="btn ui-button ui-button-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn ui-button ui-button-primary" id="permissionSaveBtn" onclick="submitPermission()">
+                <button type="button" class="ui-button ui-button-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="ui-button ui-button-primary" id="permissionSaveBtn" onclick="submitPermission()">
                     <i class="fas fa-save mr-1"></i>
                     <span id="permissionSaveBtnText">Create Permission</span>
                 </button>

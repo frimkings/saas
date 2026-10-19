@@ -1,55 +1,45 @@
 <div class="clinic-ui ui-page" data-livewire-root>
-<div class="w-full py-6">
+<div class="w-full">
     {{-- Header Section --}}
     <div class="mb-6">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                @if($fromOptical)<a href="{{ route('optical.dashboard') }}" class="text-sm inline-block mb-1">← Back to Optical</a>@endif
-                <h2 class="mb-1">User Management</h2>
-                <p class="text-slate-500 mb-0">Manage staff members, roles, and permissions</p>
-            </div>
-            <div class="flex">
-                <button wire:click="export" class="btn ui-button ui-button-secondary mr-2">
-                    <i class="fas fa-download mr-1"></i> Export CSV
-                </button>
-                <button wire:click="openImport" class="btn ui-button ui-button-secondary mr-2">
-                    <i class="fas fa-file-csv mr-1"></i> Import CSV
-                </button>
-                <button wire:click="create" class="btn ui-button ui-button-primary">
-                    <i class="fas fa-plus mr-1"></i> Add Staff Member
-                </button>
-            </div>
-        </div>
+        @if($fromOptical)<a href="{{ route('optical.dashboard') }}" class="mb-2 inline-block text-sm">← Back to Optical</a>@endif
+        <x-ui.page-header title="Users" description="Your staff, their roles and whether they can sign in.">
+            <x-ui.menu label="Import / export">
+                <button type="button" wire:click="export" class="ui-menu-item" role="menuitem"><i class="fas fa-download" aria-hidden="true"></i>Export CSV</button>
+                <button type="button" wire:click="openImport" class="ui-menu-item" role="menuitem"><i class="fas fa-file-csv" aria-hidden="true"></i>Import CSV</button>
+            </x-ui.menu>
+            <x-ui.button variant="primary" wire:click="create"><i class="fas fa-plus" aria-hidden="true"></i>Add staff member</x-ui.button>
+        </x-ui.page-header>
 
         {{-- Statistics Cards --}}
         <div class="flex flex-wrap -mx-2 mb-6">
             <div class="w-full md:w-3/12 px-2 mb-4">
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm">
-                    <div class="card-body p-4">
+                <div class="ui-panel">
+                    <div class="p-5">
                         <h6 class="text-slate-500 uppercase mb-2">Total Users</h6>
                         <h3 class="mb-0">{{ $stats['total'] }}</h3>
                     </div>
                 </div>
             </div>
             <div class="w-full md:w-3/12 px-2 mb-4">
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm">
-                    <div class="card-body p-4">
+                <div class="ui-panel">
+                    <div class="p-5">
                         <h6 class="text-slate-500 uppercase mb-2">Active Users</h6>
                         <h3 class="mb-0 text-green-700">{{ $stats['active'] }}</h3>
                     </div>
                 </div>
             </div>
             <div class="w-full md:w-3/12 px-2 mb-4">
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm">
-                    <div class="card-body p-4">
+                <div class="ui-panel">
+                    <div class="p-5">
                         <h6 class="text-slate-500 uppercase mb-2">Inactive Users</h6>
                         <h3 class="mb-0 text-red-700">{{ $stats['inactive'] }}</h3>
                     </div>
                 </div>
             </div>
             <div class="w-full md:w-3/12 px-2 mb-4">
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm">
-                    <div class="card-body p-4">
+                <div class="ui-panel">
+                    <div class="p-5">
                         <h6 class="text-slate-500 uppercase mb-2">Verified</h6>
                         <h3 class="mb-0 text-teal-700">{{ $stats['verified'] }}</h3>
                     </div>
@@ -140,9 +130,9 @@
     </div>
 
     {{-- Users Table --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="ui-panel">
         <div class="ui-table-wrap">
-            <table class="table ui-table mb-0">
+            <table class="ui-table mb-0">
                 <thead class="">
                     <tr>
                         <th wire:click="sortBy('id')" style="cursor: pointer;">
@@ -253,13 +243,13 @@
                             </td>
                             <td class="text-right">
                                 <button wire:click="edit({{ $user->id }})"
-                                    class="btn ui-button ui-button-sm ui-button-secondary"
+                                    class="ui-button ui-button-sm ui-button-secondary"
                                     title="Edit user">
                                     <i class="fas fa-edit"></i>
                                 </button>
 
                                 <button wire:click="openResetPassword({{ $user->id }})"
-                                    class="btn ui-button ui-button-sm ui-button-secondary"
+                                    class="ui-button ui-button-sm ui-button-secondary"
                                     title="Reset password">
                                     <i class="fas fa-key"></i>
                                 </button>
@@ -267,17 +257,17 @@
                                 <div class="inline-flex flex-wrap gap-1" role="group" x-data="{ confirmDelete: false }">
                                     <button x-show="!confirmDelete"
                                         @click="confirmDelete = true"
-                                        class="btn ui-button ui-button-sm ui-button-danger"
+                                        class="ui-button ui-button-sm ui-button-danger"
                                         title="Remove from this clinic (their account and other clinics are kept)">
                                         <i class="fas fa-user-minus"></i>
                                     </button>
                                     <div x-show="confirmDelete" x-cloak class="inline-flex flex-wrap gap-1" role="group">
                                         <button wire:click="delete({{ $user->id }})"
-                                            class="btn ui-button ui-button-sm ui-button-danger">
+                                            class="ui-button ui-button-sm ui-button-danger">
                                             Remove
                                         </button>
                                         <button @click="confirmDelete = false"
-                                            class="btn ui-button ui-button-sm ui-button-secondary">
+                                            class="ui-button ui-button-sm ui-button-secondary">
                                             Cancel
                                         </button>
                                     </div>
@@ -291,7 +281,7 @@
                                 <h5 class="text-slate-500">No users found</h5>
                                 <p class="text-slate-500">Try adjusting your search or filter criteria</p>
                                 @if($search || $filterRole || $filterStatus !== '' || $filterEmailVerified !== '')
-                                    <button wire:click="clearFilters" class="btn ui-button ui-button-primary">
+                                    <button wire:click="clearFilters" class="ui-button ui-button-primary">
                                         Clear All Filters
                                     </button>
                                 @endif
@@ -330,12 +320,12 @@
                     <div class="p-4" style="max-height: 60vh; overflow-y: auto;">
                         {{-- Name Field --}}
                         <div class="mb-4">
-                            <label class="font-semibold">
+                            <label for="user-role-ma-name" class="font-semibold">
                                 Full Name <span class="text-red-700">*</span>
                             </label>
-                            <input type="text" 
+                            <input id="user-role-ma-name" type="text" 
                                 wire:model.live.debounce.400ms="name"
-                                class="form-control ui-input @error('name') is-invalid @enderror"
+                                class="ui-input @error('name') is-invalid @enderror"
                                 placeholder="Enter full name">
                             @error('name') 
                                 <div class="ui-error">{{ $message }}</div>
@@ -344,12 +334,12 @@
 
                         {{-- Email Field --}}
                         <div class="mb-4">
-                            <label class="font-semibold">
+                            <label for="user-role-ma-email" class="font-semibold">
                                 Email Address <span class="text-red-700">*</span>
                             </label>
-                            <input type="email" 
+                            <input id="user-role-ma-email" type="email" 
                                 wire:model.live.debounce.400ms="email"
-                                class="form-control ui-input @error('email') is-invalid @enderror"
+                                class="ui-input @error('email') is-invalid @enderror"
                                 placeholder="email@example.com">
                             @error('email') 
                                 <div class="ui-error">{{ $message }}</div>
@@ -365,11 +355,11 @@
                                 <input type="password"
                                     id="staff-password"
                                     wire:model.live.debounce.400ms="password"
-                                    class="form-control ui-input @error('password') is-invalid @enderror"
+                                    class="ui-input @error('password') is-invalid @enderror"
                                     placeholder="{{ $isEdit ? 'Leave blank to keep current password' : 'Enter secure password' }}">
                                 <div class="flex">
                                     <button type="button"
-                                        class="btn ui-button ui-button-secondary password-toggle"
+                                        class="ui-button ui-button-secondary password-toggle"
                                         data-password-toggle="staff-password"
                                         aria-label="Show password"
                                         title="Show/hide password">
@@ -394,11 +384,11 @@
                                 <input type="password"
                                     id="staff-password-confirmation"
                                     wire:model.live.debounce.400ms="password_confirmation"
-                                    class="form-control ui-input @error('password_confirmation') is-invalid @enderror"
+                                    class="ui-input @error('password_confirmation') is-invalid @enderror"
                                     placeholder="{{ $isEdit ? 'Repeat new password when changing it' : 'Repeat secure password' }}">
                                 <div class="flex">
                                     <button type="button"
-                                        class="btn ui-button ui-button-secondary password-toggle"
+                                        class="ui-button ui-button-secondary password-toggle"
                                         data-password-toggle="staff-password-confirmation"
                                         aria-label="Show confirm password"
                                         title="Show/hide password">
@@ -447,7 +437,7 @@
                             <input type="text"
                                 wire:model.live.debounce.300ms="roleSearch"
                                 placeholder="Search roles..."
-                                class="form-control ui-input ui-input-sm mb-2">
+                                class="ui-input ui-input-sm mb-2">
 
                             <div class="border border-slate-200 rounded-md p-2 bg-slate-50" style="max-height: 150px; overflow-y: auto;">
                                 <div class="flex flex-wrap -mx-2">
@@ -511,8 +501,8 @@
                         <div class="flex flex-wrap -mx-2">
                             <div class="w-full md:w-6/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Membership Status <span class="text-red-700">*</span></label>
-                                    <select wire:model="membershipStatus" class="ui-input @error('membershipStatus') is-invalid @enderror">
+                                    <label for="user-role-ma-membershipstatus" class="font-semibold text-sm">Membership Status <span class="text-red-700">*</span></label>
+                                    <select id="user-role-ma-membershipstatus" wire:model="membershipStatus" class="ui-input @error('membershipStatus') is-invalid @enderror">
                                         <option value="active">Active</option>
                                         <option value="inactive">Inactive</option>
                                     </select>
@@ -521,8 +511,8 @@
                             </div>
                             <div class="w-full md:w-6/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Staff ID</label>
-                                    <input type="text" wire:model="staff_id" maxlength="30" class="form-control ui-input @error('staff_id') is-invalid @enderror" placeholder="e.g. EMP-0042">
+                                    <label for="user-role-ma-staff-id" class="font-semibold text-sm">Staff ID</label>
+                                    <input id="user-role-ma-staff-id" type="text" wire:model="staff_id" maxlength="30" class="ui-input @error('staff_id') is-invalid @enderror" placeholder="e.g. EMP-0042">
                                     <small class="mt-1 block text-xs text-slate-500">This clinic's own number for the person. Must be unique within this clinic.</small>
                                     @error('staff_id')<div class="ui-error">{{ $message }}</div>@enderror
                                 </div>
@@ -544,8 +534,8 @@
                             </div>
                             <div class="w-full md:w-5/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Default Branch <span class="text-red-700">*</span></label>
-                                    <select wire:model="defaultBranchId" class="ui-input @error('defaultBranchId') is-invalid @enderror">
+                                    <label for="user-role-ma-defaultbranchid" class="font-semibold text-sm">Default Branch <span class="text-red-700">*</span></label>
+                                    <select id="user-role-ma-defaultbranchid" wire:model="defaultBranchId" class="ui-input @error('defaultBranchId') is-invalid @enderror">
                                         <option value="">Select default</option>
                                         @foreach($availableBranches as $branch)
                                             @if(in_array($branch->id, array_map('intval', $selectedBranchIds)))
@@ -575,7 +565,7 @@
                                         </div>
                                         <input type="text"
                                             wire:model="phone"
-                                            class="form-control ui-input @error('phone') is-invalid @enderror"
+                                            class="ui-input @error('phone') is-invalid @enderror"
                                             placeholder="+63 912 345 6789">
                                         @error('phone')<div class="ui-error">{{ $message }}</div>@enderror
                                     </div>
@@ -584,8 +574,8 @@
                             {{-- Gender --}}
                             <div class="w-full md:w-4/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Gender</label>
-                                    <select wire:model="gender"
+                                    <label for="user-role-ma-gender" class="font-semibold text-sm">Gender</label>
+                                    <select id="user-role-ma-gender" wire:model="gender"
                                             class="ui-input @error('gender') is-invalid @enderror">
                                         <option value="">— Select —</option>
                                         <option value="Male">Male</option>
@@ -598,30 +588,30 @@
                             {{-- Date of Birth --}}
                             <div class="w-full md:w-4/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Date of Birth</label>
-                                    <input type="date"
+                                    <label for="user-role-ma-date-of-birth" class="font-semibold text-sm">Date of Birth</label>
+                                    <input id="user-role-ma-date-of-birth" type="date"
                                         wire:model="date_of_birth"
-                                        class="form-control ui-input @error('date_of_birth') is-invalid @enderror">
+                                        class="ui-input @error('date_of_birth') is-invalid @enderror">
                                     @error('date_of_birth')<div class="ui-error">{{ $message }}</div>@enderror
                                 </div>
                             </div>
                             {{-- Hire Date --}}
                             <div class="w-full md:w-4/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Hire Date</label>
-                                    <input type="date"
+                                    <label for="user-role-ma-hire-date" class="font-semibold text-sm">Hire Date</label>
+                                    <input id="user-role-ma-hire-date" type="date"
                                         wire:model="hire_date"
-                                        class="form-control ui-input @error('hire_date') is-invalid @enderror">
+                                        class="ui-input @error('hire_date') is-invalid @enderror">
                                     @error('hire_date')<div class="ui-error">{{ $message }}</div>@enderror
                                 </div>
                             </div>
                             {{-- Department --}}
                             <div class="w-full md:w-full px-2">
                                 <div class="mb-0">
-                                    <label class="font-semibold text-sm">Department</label>
-                                    <input type="text"
+                                    <label for="user-role-ma-department" class="font-semibold text-sm">Department</label>
+                                    <input id="user-role-ma-department" type="text"
                                         wire:model="department"
-                                        class="form-control ui-input @error('department') is-invalid @enderror"
+                                        class="ui-input @error('department') is-invalid @enderror"
                                         placeholder="e.g. Ophthalmology, Administration">
                                     @error('department')<div class="ui-error">{{ $message }}</div>@enderror
                                 </div>
@@ -631,10 +621,10 @@
 
                     {{-- Modal Footer --}}
                     <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                        <button type="button" class="btn ui-button ui-button-secondary" wire:click="closeModal">
+                        <button type="button" class="ui-button ui-button-secondary" wire:click="closeModal">
                             Cancel
                         </button>
-                        <button type="submit" class="btn ui-button ui-button-primary">
+                        <button type="submit" class="ui-button ui-button-primary">
                             {{ $isEdit ? 'Save Changes' : 'Create Staff Member' }}
                         </button>
                     </div>
@@ -675,11 +665,11 @@
                                 <input type="password"
                                     id="reset-password"
                                     wire:model.live.debounce.400ms="newPassword"
-                                    class="form-control ui-input @error('newPassword') is-invalid @enderror"
+                                    class="ui-input @error('newPassword') is-invalid @enderror"
                                     placeholder="Min. 6 characters">
                                 <div class="flex">
                                     <button type="button"
-                                        class="btn ui-button ui-button-secondary password-toggle"
+                                        class="ui-button ui-button-secondary password-toggle"
                                         data-password-toggle="reset-password"
                                         aria-label="Show new password"
                                         title="Show/hide password">
@@ -699,11 +689,11 @@
                                 <input type="password"
                                     id="reset-password-confirmation"
                                     wire:model.live.debounce.400ms="newPasswordConfirmation"
-                                    class="form-control ui-input @error('newPasswordConfirmation') is-invalid @enderror"
+                                    class="ui-input @error('newPasswordConfirmation') is-invalid @enderror"
                                     placeholder="Repeat new password">
                                 <div class="flex">
                                     <button type="button"
-                                        class="btn ui-button ui-button-secondary password-toggle"
+                                        class="ui-button ui-button-secondary password-toggle"
                                         data-password-toggle="reset-password-confirmation"
                                         aria-label="Show confirm password"
                                         title="Show/hide password">
@@ -718,8 +708,8 @@
                     </div>
 
                     <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                        <button type="button" class="btn ui-button ui-button-secondary ui-button-sm" wire:click="closeResetModal">Cancel</button>
-                        <button type="submit" class="btn ui-button ui-button-sm text-white ui-button-secondary"
+                        <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="closeResetModal">Cancel</button>
+                        <button type="submit" class="ui-button ui-button-sm text-white ui-button-secondary"
                             style="background:linear-gradient(135deg,#0f3460,#0d7377);">
                             <i class="fas fa-check mr-1"></i> Reset Password
                         </button>
@@ -753,7 +743,7 @@
                         Required columns: <code>name</code>, <code>email</code>, <code>password</code>, <code>role</code>.
                         Optional: <code>phone</code>, <code>staff_id</code>, <code>gender</code>, <code>date_of_birth</code>, <code>department</code>, <code>hire_date</code>.
                         <br>
-                        <button wire:click="downloadTemplate" class="btn ui-button ui-button-link ui-button-sm p-0 mt-1">
+                        <button wire:click="downloadTemplate" class="ui-button ui-button-link ui-button-sm p-0 mt-1">
                             <i class="fas fa-download mr-1"></i> Download template CSV
                         </button>
                     </div>
@@ -761,8 +751,8 @@
                     {{-- File input --}}
                     @if(empty($importResults))
                         <div class="mb-4">
-                            <label class="font-semibold">Select CSV File <span class="text-red-700">*</span></label>
-                            <input type="file"
+                            <label for="user-role-ma-importfile" class="font-semibold">Select CSV File <span class="text-red-700">*</span></label>
+                            <input id="user-role-ma-importfile" type="file"
                                    wire:model.live="importFile"
                                    accept=".csv,.txt"
                                    class="form-control-file @error('importFile') is-invalid @enderror">
@@ -802,7 +792,7 @@
                             </div>
                         @endif
 
-                        <button wire:click="$set('importResults', [])" class="btn ui-button ui-button-sm ui-button-secondary mt-4">
+                        <button wire:click="$set('importResults', [])" class="ui-button ui-button-sm ui-button-secondary mt-4">
                             <i class="fas fa-redo mr-1"></i> Import Another File
                         </button>
                     @endif
@@ -810,12 +800,12 @@
                 </div>
 
                 <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                    <button type="button" class="btn ui-button ui-button-secondary" wire:click="closeImportModal">
+                    <button type="button" class="ui-button ui-button-secondary" wire:click="closeImportModal">
                         {{ empty($importResults) ? 'Cancel' : 'Close' }}
                     </button>
                     @if(empty($importResults))
                         <button type="button"
-                                class="btn ui-button ui-button-primary"
+                                class="ui-button ui-button-primary"
                                 wire:click="importCsv"
                                 wire:loading.attr="disabled"
                                 wire:target="importCsv"

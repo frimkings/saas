@@ -1,34 +1,18 @@
 <div class="clinic-ui ui-page">
   {{-- Page Header --}}
-  <div class="content-header">
-    <div class="w-full">
-      <div class="flex flex-wrap -mx-2 mb-2 items-center">
-        <div class="w-full sm:w-6/12 px-2">
-          <h1 class="m-0"><i class="fas fa-hand-holding-usd mr-2 text-sky-700"></i>Insurer Receivables</h1>
-          <small class="text-slate-500">The insurer's share of insured bills, until the claim is marked paid.</small>
-        </div>
-        <div class="w-full sm:w-6/12 px-2">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('admin.insurance.claims') }}">Insurance</a></li>
-            <li class="breadcrumb-item active">Receivables</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
+  <x-ui.page-header title="Receivables" description="What each insurer still owes the clinic." />
 
   <div class="content">
     <div class="w-full">
 
       {{-- Aging by insurer --}}
-      <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-info shadow-sm">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+      <div class="ui-panel">
+        <div class="ui-section-heading">
           <h3 class="font-semibold mb-0">Owed by insurer</h3>
         </div>
-        <div class="card-body p-0">
+        <div class="">
           <div class="ui-table-wrap">
-            <table class="table ui-table ui-table-sm mb-0">
+            <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>
                   <th>Insurer</th>
@@ -80,38 +64,38 @@
       </div>
 
       {{-- Bills --}}
-      <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 flex-wrap" style="gap:8px;">
+      <div class="ui-panel">
+        <div class="ui-section-heading" style="gap:8px;">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="inline-flex flex-wrap gap-1">
-              <button wire:click="switchView('open')" class="btn ui-button {{ $view === 'open' ? 'ui-button-primary' : 'ui-button-secondary' }}">Awaiting payment</button>
-              <button wire:click="switchView('rejected')" class="btn ui-button {{ $view === 'rejected' ? 'ui-button-danger' : 'ui-button-danger' }}">
+              <button wire:click="switchView('open')" class="ui-button {{ $view === 'open' ? 'ui-button-primary' : 'ui-button-secondary' }}">Awaiting payment</button>
+              <button wire:click="switchView('rejected')" class="ui-button {{ $view === 'rejected' ? 'ui-button-danger' : 'ui-button-danger' }}">
                 Rejected @if($rejectedCount)<span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 ml-1">{{ $rejectedCount }}</span>@endif
               </button>
             </div>
             <div class="flex items-stretch" style="max-width:260px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
-              <input wire:model.live.debounce.300ms="search" type="text" class="form-control ui-input" placeholder="Patient, ID or bill number…">
+              <input wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Patient, ID or bill number…">
             </div>
-            <select wire:model.live="insurerFilter" class="form-control ui-input ui-input-sm" style="max-width:200px;">
+            <select wire:model.live="insurerFilter" class="ui-input ui-input-sm" style="max-width:200px;">
               <option value="">All insurers</option>
               @foreach($insurerList as $id => $name)
                 <option value="{{ $id }}">{{ $name }}</option>
               @endforeach
             </select>
-            <a href="{{ route('admin.insurance.claims') }}" class="btn ui-button ui-button-sm ui-button-secondary ml-auto">
+            <a href="{{ route('admin.insurance.claims') }}" class="ui-button ui-button-sm ui-button-secondary ml-auto">
               <i class="fas fa-file-medical mr-1"></i>Manage claims
             </a>
             @if(auth()->user()?->hasRole('Super Admin') || auth()->user()?->can(\App\Models\InsurerPayment::PERMISSION))
-              <a href="{{ route('admin.insurance.payments', array_filter(['insurer' => $insurerFilter])) }}" class="btn ui-button ui-button-sm ui-button-primary">
+              <a href="{{ route('admin.insurance.payments', array_filter(['insurer' => $insurerFilter])) }}" class="ui-button ui-button-sm ui-button-primary">
                 <i class="fas fa-money-check-alt mr-1"></i>Record payment
               </a>
             @endif
           </div>
         </div>
-        <div class="card-body p-0">
+        <div class="">
           <div class="ui-table-wrap">
-            <table class="table ui-table ui-table-sm mb-0">
+            <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>
                   <th>Bill date</th>
