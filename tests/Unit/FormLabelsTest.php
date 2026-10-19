@@ -34,6 +34,13 @@ class FormLabelsTest extends TestCase
         'livewire/doctor/allrecords-component.blade.php',
         'livewire/doctor/patient-timeline-component.blade.php',
         'livewire/doctor/referral-component.blade.php',
+        'livewire/optical/optical-order-create-component.blade.php',
+        'livewire/optical/partials/shared-lens-receipt.blade.php',
+        'livewire/optical/optical-stock-management-component.blade.php',
+        'livewire/secretary/spectacle-component.blade.php',
+        'livewire/secretary/patients-component.blade.php',
+        'livewire/cashier/cashier-patient-clearance-component.blade.php',
+        'livewire/pos-component.blade.php',
     ];
 
     public function test_every_field_on_converted_pages_has_a_label(): void
@@ -86,6 +93,11 @@ class FormLabelsTest extends TestCase
                 continue;
             }
             if (preg_match('/\bid="([^"]+)"/', $attributes, $id) && str_contains($source, 'for="'.$id[1].'"')) {
+                continue;
+            }
+            // A field inside an open <label> element is named by it.
+            $before = substr($source, 0, $offset);
+            if (strrpos($before, '<label') !== false && strrpos($before, '<label') > (int) strrpos($before, '</label>')) {
                 continue;
             }
             preg_match('/(wire:model[\w.\-]*|x-model)="([^"]+)"/', $attributes, $model);

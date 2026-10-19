@@ -41,13 +41,7 @@
             <button wire:click="setStep({{ $stepNum }})" type="button" 
                 wire:loading.attr="disabled"
                 @disabled($stepNum > $currentStep && $stepNum !== $nextStep)
-                class="py-2.5 px-2 rounded-lg border transition-all flex items-center justify-center font-semibold text-[11px]
-                {{ $currentStep === $stepNum 
-                    ? 'bg-teal-600 text-white border-teal-700 shadow-sm font-bold' 
-                    : ($currentStep > $stepNum 
-                        ? 'bg-emerald-700 text-white border-emerald-800 font-semibold' 
-                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200') 
-                }}">
+                class="py-2.5 px-2 rounded-lg border transition-all flex items-center justify-center font-semibold text-[11px] {{ $currentStep === $stepNum ? 'bg-teal-600 text-white border-teal-700 shadow-sm font-bold' : ($currentStep > $stepNum ? 'bg-emerald-700 text-white border-emerald-800 font-semibold' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200') }}">
                 {{ $stepLabel }}
             </button>
         @endforeach
@@ -97,7 +91,7 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div class="md:col-span-6" data-tour="opt-source">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Order source *</label>
+                    <label for="order-source" class="block text-xs font-bold text-slate-700 mb-1">Order source *</label>
                     <select id="order-source" onchange="const source=this.value; const isPatient=source==='in_clinic'; const isPartner=source==='partner'; const name=document.getElementById('order-customer-name'); const phone=document.getElementById('order-customer-phone'); const bill=document.getElementById('order-bill-to'); document.getElementById('partner-requester-panel').style.display=isPartner?'':'none'; document.getElementById('patient-requester-panel').style.display=isPatient?'':'none'; document.getElementById('partner-billing-panel').style.display=isPartner?'':'none'; name.readOnly=isPatient; phone.readOnly=isPatient; name.classList.toggle('bg-slate-50',isPatient); phone.classList.toggle('bg-slate-50',isPatient); if(!isPatient){ name.value=''; phone.value=''; } if(isPartner){ bill.value='partner'; } document.getElementById('requester-name-label').textContent=isPatient?'Patient name':(isPartner?'Wearer name (optional)':'Walk-in customer name *'); document.getElementById('order-reference').placeholder=isPartner?'Partner clinic job reference':'Job reference or customer request';" class="ui-input w-full text-xs bg-white">
                         <option value="in_clinic" @selected($order_source === 'in_clinic')>In-clinic patient</option>
                         <option value="partner" @selected($order_source === 'partner')>Partner clinic</option>
@@ -106,14 +100,14 @@
                     <p class="text-xs text-slate-500 mt-1">Immediate walk-in retail purchases are handled in <a wire:navigate href="{{ route('optical.pos') }}" class="text-teal-700 underline">Optical POS</a>.</p>
                 </div>
                 <div class="md:col-span-6" data-tour="opt-work-type">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Work type *</label>
+                    <label for="order-work-type" class="block text-xs font-bold text-slate-700 mb-1">Work type *</label>
                     <select id="order-work-type" class="ui-input w-full text-xs bg-white">
                         <option value="prescription">Prescription glasses / lenses</option>
                         <option value="service">Optical service job</option>
                     </select>
                 </div>
                 <div id="partner-billing-panel" class="md:col-span-3" style="{{ $order_source === 'partner' ? '' : 'display:none' }}">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Bill to *</label>
+                    <label for="order-bill-to" class="block text-xs font-bold text-slate-700 mb-1">Bill to *</label>
                     <select id="order-bill-to" onchange="const customer=this.value==='customer'; document.getElementById('requester-name-label').textContent=customer?'Customer / wearer name *':'Wearer name (optional)';" class="ui-input w-full text-xs bg-white">
                         <option value="customer">Customer</option>
                         <option value="partner">Partner / referring clinic</option>
@@ -129,7 +123,7 @@
                     </div>
                     <div id="partner-picker" style="{{ $partner_id ? 'display:none' : '' }}">
                         <span class="sr-only">Find partner clinic</span>
-                        <input type="search" placeholder="Search partner clinic name, phone, or contact person" autocomplete="off"
+                        <input aria-label="Search partner clinic name, phone, or contact person" type="search" placeholder="Search partner clinic name, phone, or contact person" autocomplete="off"
                             oninput="const term=this.value.toLowerCase().trim(); document.querySelectorAll('#partner-clinic-results [data-partner-search]').forEach(row => row.style.display=row.dataset.partnerSearch.includes(term)?'':'none')"
                             class="ui-input w-full text-xs">
                         <div id="partner-clinic-results" class="mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm" role="listbox" aria-label="Available partner clinics">
@@ -165,12 +159,12 @@
                     @error('patient_id') <p class="mt-1 text-xs text-red-600">Select an existing patient from the search results.</p> @enderror
                 </div>
                 <div class="md:col-span-6">
-                    <label id="requester-name-label" class="block text-xs font-bold text-slate-700 mb-1">{{ $order_source === 'partner' ? ($bill_to === 'customer' ? 'Customer / wearer name *' : 'Wearer name (optional)') : ($order_source === 'in_clinic' ? 'Patient name' : 'Walk-in customer name *') }}</label>
+                    <label for="order-customer-name" id="requester-name-label" class="block text-xs font-bold text-slate-700 mb-1">{{ $order_source === 'partner' ? ($bill_to === 'customer' ? 'Customer / wearer name *' : 'Wearer name (optional)') : ($order_source === 'in_clinic' ? 'Patient name' : 'Walk-in customer name *') }}</label>
                     @if($order_source === 'in_clinic')<input id="order-customer-name" autocomplete="off" type="text" value="{{ $customer_name }}" readonly class="ui-input w-full text-xs bg-slate-50">@else<input id="order-customer-name" autocomplete="off" type="text" value="{{ $customer_name }}" maxlength="255" class="ui-input w-full text-xs">@endif
                     @error('customer_name')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div class="md:col-span-3">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                    <label for="order-customer-phone" class="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
                     @if($order_source === 'in_clinic')<input id="order-customer-phone" autocomplete="off" type="text" value="{{ $customer_phone }}" readonly class="ui-input w-full text-xs bg-slate-50">@else<input id="order-customer-phone" autocomplete="off" type="tel" value="{{ $customer_phone }}" maxlength="50" class="ui-input w-full text-xs">@endif
                     @error('customer_phone')<p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>@enderror
                 </div>
@@ -240,8 +234,8 @@
                 @endif
                 @if($clinicRefractions->isNotEmpty())
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Authorized Clinic Refraction</label>
-                        <select wire:change="chooseRefraction($event.target.value)" class="ui-input w-full text-xs bg-white">
+                        <label for="optical-orde-authorized-clinic-refraction" class="block text-xs font-bold text-slate-700 mb-1">Authorized Clinic Refraction</label>
+                        <select id="optical-orde-authorized-clinic-refraction" wire:change="chooseRefraction($event.target.value)" class="ui-input w-full text-xs bg-white">
                             <option value="">Select a clinic refraction</option>
                             @foreach($clinicRefractions as $refraction)
                                 <option value="{{ $refraction->id }}" @selected((int) $refraction_id === (int) $refraction->id)>{{ $refraction->created_at?->format('d M Y') }} · OD {{ $refraction->subjective_od_sphere }} / OS {{ $refraction->subjective_os_sphere }}</option>
@@ -251,8 +245,8 @@
                 @endif
                 @if($prescriptions->isNotEmpty())
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Saved Prescription</label>
-                        <select wire:change="choosePrescription($event.target.value)" class="ui-input w-full text-xs bg-white">
+                        <label for="optical-orde-saved-prescription" class="block text-xs font-bold text-slate-700 mb-1">Saved Prescription</label>
+                        <select id="optical-orde-saved-prescription" wire:change="choosePrescription($event.target.value)" class="ui-input w-full text-xs bg-white">
                             <option value="">Enter measurements below</option>
                             @foreach($prescriptions as $prescription)
                                 <option value="{{ $prescription->id }}" @selected((int) $optical_prescription_id === (int) $prescription->id)>{{ ucfirst($prescription->source) }} · {{ $prescription->prescribed_at?->format('d M Y') }}</option>
@@ -274,17 +268,17 @@
                         <tbody>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Right (OD)</td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-sph" type="text" value="{{ $rx_od_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_sph') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-cyl" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-add" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-sph" aria-label="Right eye (OD) sphere" type="text" value="{{ $rx_od_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_sph') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-cyl" aria-label="Right eye (OD) cylinder" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-axis" aria-label="Right eye (OD) axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-add" aria-label="Right eye (OD) addition" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
                             </tr>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Left (OS)</td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-sph" type="text" value="{{ $rx_os_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_sph') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-cyl" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-add" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-sph" aria-label="Left eye (OS) sphere" type="text" value="{{ $rx_os_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_sph') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-cyl" aria-label="Left eye (OS) cylinder" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-axis" aria-label="Left eye (OS) axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-add" aria-label="Left eye (OS) addition" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
                             </tr>
                         </tbody>
                     </table>
@@ -434,8 +428,8 @@
                     </div>
                 </fieldset>
                 <div x-show="source === 'stock'" style="{{ $frame_source === 'stock' ? '' : 'display:none' }}">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Stock Frame *</label>
-                    <select wire:change="selectFrameOpticalProduct($event.target.value)" x-on:change="const option = $event.target.selectedOptions[0]; frameName = option.dataset.name || ''; framePrice = option.dataset.price || '0'; $wire.set('frame_model_number', frameName, false); $wire.set('frame_price', framePrice, false)" class="ui-input w-full text-xs bg-white">
+                    <label for="optical-orde-stock-frame" class="block text-xs font-bold text-slate-700 mb-1">Stock Frame *</label>
+                    <select id="optical-orde-stock-frame" wire:change="selectFrameOpticalProduct($event.target.value)" x-on:change="const option = $event.target.selectedOptions[0]; frameName = option.dataset.name || ''; framePrice = option.dataset.price || '0'; $wire.set('frame_model_number', frameName, false); $wire.set('frame_price', framePrice, false)" class="ui-input w-full text-xs bg-white">
                         <option value="">Choose a stock frame</option>
                         @foreach($frames as $frame)
                             <option value="{{ $frame->id }}" data-name="{{ $frame->name }}" data-price="{{ $frame->selling_price }}" @selected((int) $frame_optical_product_id === $frame->id)>{{ $frame->sku }} · {{ $frame->name }} · {{ currency() }} {{ number_format($frame->selling_price, 2) }} ({{ $frame->stocks->first()?->quantity ?? 0 }} at branch)</option>
@@ -450,20 +444,20 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="md:col-span-2">
-                        <label class="block text-xs font-bold text-slate-700 mb-1" x-text="source === 'customer' ? 'Customer frame description (optional)' : 'Frame Brand & Model Number *'"></label>
-                        <input autocomplete="off" type="text" wire:model="frame_model_number" x-model="frameName" x-bind:required="source !== 'customer'" x-bind:placeholder="source === 'customer' ? 'e.g. Black full-rim frame supplied by customer' : 'e.g. Ray-Ban RB3025 Aviator Gold'" class="ui-input w-full text-xs">
+                        <label for="optical-orde-frame-model-number" class="block text-xs font-bold text-slate-700 mb-1" x-text="source === 'customer' ? 'Customer frame description (optional)' : 'Frame Brand & Model Number *'"></label>
+                        <input id="optical-orde-frame-model-number" autocomplete="off" type="text" wire:model="frame_model_number" x-model="frameName" x-bind:required="source !== 'customer'" x-bind:placeholder="source === 'customer' ? 'e.g. Black full-rim frame supplied by customer' : 'e.g. Ray-Ban RB3025 Aviator Gold'" class="ui-input w-full text-xs">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Frame Structure</label>
-                        <select wire:model="frame_structure" class="ui-input w-full text-xs bg-white">
+                        <label for="optical-orde-frame-structure" class="block text-xs font-bold text-slate-700 mb-1">Frame Structure</label>
+                        <select id="optical-orde-frame-structure" wire:model="frame_structure" class="ui-input w-full text-xs bg-white">
                             <option value="Full Frame">Full Frame</option>
                             <option value="Half-Rim / Supra">Half-Rim / Supra</option>
                             <option value="Rimless / 3-Piece Drill">Rimless / 3-Piece Drill</option>
                         </select>
                     </div>
                     <div x-show="source !== 'customer'" style="{{ $frame_source === 'customer' ? 'display:none' : '' }}">
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Frame Price ({{ currency() }}) *</label>
-                        <input autocomplete="off" type="number" min="0" step="0.01" wire:model="frame_price" x-model="framePrice" @readonly($frame_optical_product_id) class="ui-input w-full text-xs font-mono font-bold text-teal-800">
+                        <label for="optical-orde-frame-price" class="block text-xs font-bold text-slate-700 mb-1">Frame Price ({{ currency() }}) *</label>
+                        <input id="optical-orde-frame-price" autocomplete="off" type="number" min="0" step="0.01" wire:model="frame_price" x-model="framePrice" @readonly($frame_optical_product_id) class="ui-input w-full text-xs font-mono font-bold text-teal-800">
                     </div>
                 </div>
             </div>
@@ -510,13 +504,13 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Expected Ready / Collection Date</label>
-                        <input autocomplete="off" type="date" wire:model="pickUpDate" class="ui-input w-full text-xs bg-white">
+                        <label for="optical-orde-pickupdate" class="block text-xs font-semibold text-slate-700 mb-1">Expected Ready / Collection Date</label>
+                        <input id="optical-orde-pickupdate" autocomplete="off" type="date" wire:model="pickUpDate" class="ui-input w-full text-xs bg-white">
                         @if($leadTimeNote !== '')<p class="mt-1 text-[11px] text-slate-500">{{ $leadTimeNote }}</p>@endif
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Glazing / Workshop Instructions</label>
-                        <input autocomplete="off" type="text" wire:model="lab_instructions" placeholder="e.g. High index bevel, thin edge required" class="ui-input w-full text-xs">
+                        <label for="optical-orde-lab-instructions" class="block text-xs font-semibold text-slate-700 mb-1">Glazing / Workshop Instructions</label>
+                        <input id="optical-orde-lab-instructions" autocomplete="off" type="text" wire:model="lab_instructions" placeholder="e.g. High index bevel, thin edge required" class="ui-input w-full text-xs">
                     </div>
                 </div>
             </div>
@@ -595,9 +589,9 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl">
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Deposit Paid Amount ({{ currency() }}) *</label>
+                    <label for="optical-orde-paid-amount" class="block text-xs font-bold text-slate-700 mb-1">Deposit Paid Amount ({{ currency() }}) *</label>
                     @php $minimumDeposit = $this->minimumDeposit(); @endphp
-                    <input autocomplete="off" type="number" min="{{ $minimumDeposit }}" step="0.01" wire:model="paid_amount" class="ui-input w-full text-xs font-mono font-bold text-teal-800 @error('paid_amount') border-red-500 @enderror">
+                    <input id="optical-orde-paid-amount" autocomplete="off" type="number" min="{{ $minimumDeposit }}" step="0.01" wire:model="paid_amount" class="ui-input w-full text-xs font-mono font-bold text-teal-800 @error('paid_amount') border-red-500 @enderror">
                     @if($minimumDeposit > 0)
                         <p class="mt-1 text-[11px] text-slate-600">Minimum deposit: <strong class="font-mono">{{ currency() }} {{ number_format($minimumDeposit, 2) }}</strong> ({{ $this->minimumDepositPercent() }}% of the total).
                             <button type="button" class="font-semibold text-teal-700 underline" wire:click="$set('paid_amount', '{{ number_format($minimumDeposit, 2, '.', '') }}')">Use minimum</button></p>
@@ -607,8 +601,8 @@
                     @error('paid_amount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
-                    <select wire:model="payment_method" class="ui-input w-full text-xs bg-white">
+                    <label for="optical-orde-payment-method" class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                    <select id="optical-orde-payment-method" wire:model="payment_method" class="ui-input w-full text-xs bg-white">
                         @foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL) as $methodKey => $methodLabel)
                             <option value="{{ $methodKey }}">{{ $methodLabel }}</option>
                         @endforeach
@@ -649,8 +643,8 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block font-bold text-slate-700 mb-1">Additional Internal Notes</label>
-                    <textarea wire:model="notes" rows="2" placeholder="Any special notes..." class="ui-input w-full text-xs"></textarea>
+                    <label for="optical-orde-notes" class="block font-bold text-slate-700 mb-1">Additional Internal Notes</label>
+                    <textarea id="optical-orde-notes" wire:model="notes" rows="2" placeholder="Any special notes..." class="ui-input w-full text-xs"></textarea>
                 </div>
             </div>
         @endif

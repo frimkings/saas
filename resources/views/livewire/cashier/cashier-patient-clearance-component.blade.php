@@ -316,7 +316,7 @@
                                             onclick="window.pickService(this)">✗ Clear as unpaid (no charge)</button>
                                 </div>
                             </div>
-                            <select class="hidden" wire:model="selectedServiceId" id="selectedServiceId" onchange="window.toggleClearancePaymentMethod(this.value)" aria-hidden="true" tabindex="-1">
+                            <select class="hidden" wire:model="selectedServiceId" id="selectedServiceId" aria-label="Service" onchange="window.toggleClearancePaymentMethod(this.value)" aria-hidden="true" tabindex="-1">
                                 <option value="">Select service…</option>
                                 @foreach($services as $svc)
                                     <option value="{{ $svc->id }}">{{ $svc->name }} — {{ currency() }} {{ number_format($svc->selling_price, 2) }}</option>

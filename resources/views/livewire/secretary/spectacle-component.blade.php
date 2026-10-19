@@ -84,7 +84,7 @@
         <div class="so-filter-grid">
             <label class="so-search">
                 <i class="fas fa-search"></i>
-                <input type="search" wire:model.live.debounce.400ms="searchTerm" placeholder="Search patient, folder no., order ID, frame">
+                <input aria-label="Search" type="search" wire:model.live.debounce.400ms="searchTerm" placeholder="Search patient, folder no., order ID, frame">
                 @if($searchTerm)
                     <button type="button" wire:click="$set('searchTerm', '')" aria-label="Clear search"><i class="fas fa-times"></i></button>
                 @endif
@@ -94,7 +94,7 @@
 
             <label class="so-field">
                 <span>Status</span>
-                <select wire:model.live="statusFilter">
+                <select aria-label="Status" wire:model.live="statusFilter">
                     <option value="">All statuses</option>
                     <option value="Pending">Awaiting order</option>
                     <option value="Ordered">Pending</option>
@@ -167,7 +167,7 @@
             @if(count($selectedOrders) > 0)
                 <div class="so-bulk-actions">
                     <strong>{{ count($selectedOrders) }} selected</strong>
-                    <select wire:model.live="bulkStatus">
+                    <select wire:model.live="bulkStatus" aria-label="Move the selected orders to">
                         <option value="">Move to status</option>
                         <option value="Pending">Pending</option>
                         <option value="In Lab">In Lab</option>
@@ -423,7 +423,7 @@
                             @endforeach
                         </div>
                         @if(auth()->user()->hasAnyRole(['Manager','Super Admin']))
-                            <label class="so-form-field mt-2"><span>Override reason (required only to skip a stage)</span><input type="text" wire:model="statusOverrideReason" placeholder="Reason for authorized override"></label>
+                            <label class="so-form-field mt-2"><span>Override reason (required only to skip a stage)</span><input aria-label="Reason for authorized override" type="text" wire:model="statusOverrideReason" placeholder="Reason for authorized override"></label>
                         @endif
 
                         <div class="so-contact-row">
@@ -675,7 +675,7 @@
                         </label>
                         <label class="so-form-field so-order-notes">
                             <span>Notes</span>
-                            <textarea wire:model="orderNotes" rows="2" placeholder="Optional notes"></textarea>
+                            <textarea aria-label="Optional notes" wire:model="orderNotes" rows="2" placeholder="Optional notes"></textarea>
                             @error('orderNotes')<small>{{ $message }}</small>@enderror
                         </label>
                     </div>
@@ -706,7 +706,7 @@
             <div class="so-modal-body">
                 <label class="so-form-field">
                     <span>Reason</span>
-                    <textarea wire:model="cancelReason" rows="3" placeholder="Optional cancellation reason"></textarea>
+                    <textarea aria-label="Optional cancellation reason" wire:model="cancelReason" rows="3" placeholder="Optional cancellation reason"></textarea>
                 </label>
             </div>
             <footer class="so-modal-footer">

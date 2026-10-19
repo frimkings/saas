@@ -55,7 +55,7 @@
     @if($entryMode === 'single')
     <details class="text-xs"><summary class="cursor-pointer text-teal-800">Link an existing SKU (optional)</summary>
     <p class="mt-2">Use this for lenses already recorded as products, to keep their existing balance and history.</p>
-    <input autocomplete="off" type="search" wire:model.live.debounce.250ms="productSearch" class="ui-input w-full" placeholder="Search existing SKU">
+    <input aria-label="Search existing SKU" autocomplete="off" type="search" wire:model.live.debounce.250ms="productSearch" class="ui-input w-full" placeholder="Search existing SKU">
     @if($productId)<p>Selected: {{ $selectedProduct?->name }}</p><button type="button" wire:click="$set('productId', null)" class="underline">Clear selection</button>@else
     @foreach($productMatches as $match)<button type="button" wire:click="selectProduct({{ $match->id }})" class="block p-2 text-teal-800">{{ $match->sku }} / {{ $match->name }}</button>@endforeach
     @endif</details>

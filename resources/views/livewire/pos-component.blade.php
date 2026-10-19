@@ -309,7 +309,7 @@ window.printReceiptFromDom = function(event) {
                             <i class="fas fa-check-circle"></i>
                             <span>Direct Purchase</span>
                         </div>
-                        <input class="pos-co-input"
+                        <input aria-label="Customer name (optional)" class="pos-co-input"
                                type="text"
                                maxlength="150"
                                placeholder="Customer name (optional)"
@@ -324,7 +324,7 @@ window.printReceiptFromDom = function(event) {
                     </div>
                 @elseif(!$patientId)
                     <div class="pos-patient-wrap" style="position:relative;">
-                        <input class="pos-co-input"
+                        <input aria-label="Search by name or contact" class="pos-co-input"
                                type="text"
                                placeholder="Search by name or contact…"
                                wire:model.live.debounce.300ms="patientSearchTerm"
@@ -423,20 +423,20 @@ window.printReceiptFromDom = function(event) {
                                         @else
                                             <div class="pos-qty">
                                                 <button wire:click="updateQuantity('{{ $wireCartKey }}', {{ $quantity - 1 }})">−</button>
-                                                <input type="number" value="{{ $quantity }}" min="1"
+                                                <input type="number" value="{{ $quantity }}" min="1" aria-label="Quantity of {{ $product?->name ?? 'item' }}"
                                                        wire:change="updateQuantity('{{ $wireCartKey }}', $event.target.value)">
                                                 <button wire:click="updateQuantity('{{ $wireCartKey }}', {{ $quantity + 1 }})">+</button>
                                             </div>
                                         @endif
                                         @if($showDrugOptions)
-                                        <select class="pos-select"
+                                        <select class="pos-select" aria-label="How often to take {{ $product?->name ?? 'item' }}"
                                                 wire:change="updateCartItemMetadata('{{ $wireCartKey }}', $event.target.value, '{{ addslashes($eye ?? '') }}')">
                                             <option value="">Freq —</option>
                                             @foreach(\App\Enums\ProductFrequency::options() as $value => $label)
                                                 <option value="{{ $value }}" {{ $frequency === $value ? 'selected' : '' }}>{{ $label }}</option>
                                             @endforeach
                                         </select>
-                                        <select class="pos-select"
+                                        <select class="pos-select" aria-label="Which eye for {{ $product?->name ?? 'item' }}"
                                                 wire:change="updateCartItemMetadata('{{ $wireCartKey }}', '{{ addslashes($frequency ?? '') }}', $event.target.value)">
                                             <option value="">Eye —</option>
                                             <option value="OD" {{ in_array(strtoupper($eye ?? ''), ['OD','RIGHT']) ? 'selected' : '' }}>OD (Right)</option>
@@ -465,7 +465,7 @@ window.printReceiptFromDom = function(event) {
                         <span class="pos-frame-adder__hint">Prescription cart — only Frame products can be added</span>
                     </div>
                     <div class="pos-frame-adder__search" x-data="{ open: false }" @click.outside="open = false">
-                        <input
+                        <input aria-label="Search frames by name or batch no"
                             type="text"
                             class="pos-frame-adder__input"
                             placeholder="Search frames by name or batch no…"
@@ -527,7 +527,7 @@ window.printReceiptFromDom = function(event) {
                                         wire:click="$set('discountType', 'fixed')"
                                         {{ $discountApproved ? 'disabled' : '' }}>{{ currency() }}</button>
                             </div>
-                            <input class="pos-disc-input"
+                            <input class="pos-disc-input" aria-label="Discount {{ $discountType === 'percentage' ? 'percentage' : 'amount' }}"
                                    type="number"
                                    wire:model.live.debounce.500ms="discountValue"
                                    placeholder="{{ $discountType === 'percentage' ? '0%' : '0.00' }}"
@@ -610,13 +610,13 @@ window.printReceiptFromDom = function(event) {
                             @if($billInsurer)
                                 <div class="mt-2 flex items-center justify-between gap-1.5">
                                     <span class="text-slate-500">Insurer pays</span>
-                                    <input type="number" class="pos-co-input" style="max-width:120px;" min="0" step="0.01"
+                                    <input type="number" class="pos-co-input" style="max-width:120px;" min="0" step="0.01" aria-label="Insurer pays"
                                            wire:model.live.debounce.500ms="insurerOverride"
                                            placeholder="{{ number_format(min($computedInsurerAmount, $finalAmount), 2, '.', '') }}">
                                 </div>
                             @endif
                             @if(!$billInsurer || abs($insurerAmount - min($computedInsurerAmount, $finalAmount)) > 0.005)
-                                <input type="text" class="pos-co-input mt-2" maxlength="200"
+                                <input aria-label="Reason for changing what the insurer pays (required)" type="text" class="pos-co-input mt-2" maxlength="200"
                                        wire:model.blur="insuranceReason"
                                        placeholder="Reason for changing what the insurer pays (required)">
                             @endif
@@ -652,7 +652,7 @@ window.printReceiptFromDom = function(event) {
                             @endforeach
                         </div>
                         <div class="pos-pay-amount-row">
-                            <input class="pos-co-input pos-pay-input"
+                            <input aria-label="Amount" class="pos-co-input pos-pay-input"
                                    type="number"
                                    wire:model.live.debounce.400ms="newPaymentAmount"
                                    placeholder="Amount"
@@ -717,8 +717,7 @@ window.printReceiptFromDom = function(event) {
 
                 {{-- Checkout CTA --}}
                 <div class="pos-co-action">
-                    <button class="pos-cta-btn
-                            {{ $discountBlocked ? 'pos-cta-btn--blocked' : ($isPartPayment ? 'pos-cta-btn--partial' : 'pos-cta-btn--ready') }}"
+                    <button class="pos-cta-btn {{ $discountBlocked ? 'pos-cta-btn--blocked' : ($isPartPayment ? 'pos-cta-btn--partial' : 'pos-cta-btn--ready') }}"
                             wire:click="initiateCheckout"
                             wire:loading.attr="disabled"
                             {{ $canCheckout ? '' : 'disabled' }}>
@@ -1006,17 +1005,17 @@ window.printReceiptFromDom = function(event) {
             @endif
 
             <div class="pos-field">
-                <label>Manager / Super Admin Email</label>
+                <label for="pos-approvalemail">Manager / Super Admin Email</label>
                 <div class="pos-input-group">
                     <i class="fas fa-envelope"></i>
-                    <input type="email" wire:model="approvalEmail" placeholder="manager@example.com" autocomplete="off">
+                    <input id="pos-approvalemail" type="email" wire:model="approvalEmail" placeholder="manager@example.com" autocomplete="off">
                 </div>
             </div>
             <div class="pos-field">
-                <label>Password</label>
+                <label for="pos-approvalpassword">Password</label>
                 <div class="pos-input-group">
                     <i class="fas fa-lock"></i>
-                    <input type="password" wire:model="approvalPassword" placeholder="••••••••" autocomplete="new-password">
+                    <input id="pos-approvalpassword" type="password" wire:model="approvalPassword" placeholder="••••••••" autocomplete="new-password">
                 </div>
             </div>
 
