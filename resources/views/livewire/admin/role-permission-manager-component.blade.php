@@ -295,7 +295,7 @@
             <div class="p-4">
 
                 <div class="mb-4">
-                    <label class="font-semibold text-sm">Role Name <span class="text-red-700">*</span></label>
+                    <label for="roleNameInput" class="font-semibold text-sm">Role Name <span class="text-red-700">*</span></label>
                     <input wire:model="roleName"
                            id="roleNameInput"
                            type="text"
@@ -479,7 +479,7 @@
             </div>
             <div class="p-4">
                 <div class="mb-2">
-                    <label class="font-semibold text-sm">Permission Name <span class="text-red-700">*</span></label>
+                    <label for="permissionNameInput" class="font-semibold text-sm">Permission Name <span class="text-red-700">*</span></label>
                     <input wire:model="permissionName"
                            id="permissionNameInput"
                            type="text"

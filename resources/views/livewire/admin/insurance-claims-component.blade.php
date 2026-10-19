@@ -47,15 +47,15 @@
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="flex items-stretch" style="max-width:240px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
-              <input wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Patient name or Px#…">
+              <input aria-label="Search" wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Patient name or Px#…">
             </div>
-            <select wire:model.live="insurerFilter" class="ui-input" style="max-width:200px;">
+            <select aria-label="Insurer" wire:model.live="insurerFilter" class="ui-input" style="max-width:200px;">
               <option value="">All Insurers</option>
               @foreach($insurers as $ins)
                 <option value="{{ $ins->id }}">{{ $ins->name }}</option>
               @endforeach
             </select>
-            <select wire:model.live="preAuthFilter" class="ui-input" style="max-width:170px;">
+            <select wire:model.live="preAuthFilter" aria-label="Pre-authorisation" class="ui-input" style="max-width:170px;">
               <option value="">All Pre-Auth</option>
               <option value="not_required">Not Required</option>
               <option value="pending">Pending</option>
@@ -205,9 +205,9 @@
             {{-- Patient search --}}
             <div class="w-full md:w-6/12 px-2">
               <div class="mb-4">
-                <label>Patient <span class="text-red-700">*</span></label>
+                <label for="insurance-cl-state-patient-search">Patient <span class="text-red-700">*</span></label>
                 <div class="relative">
-                  <input wire:model.live.debounce.300ms="state.patient_search" type="text"
+                  <input id="insurance-cl-state-patient-search" wire:model.live.debounce.300ms="state.patient_search" type="text"
                          class="ui-input @error('state.patient_id') is-invalid @enderror"
                          placeholder="Search name or Px#…" autocomplete="off">
                   @if(count($patientResults))
@@ -227,9 +227,9 @@
             {{-- Insurer --}}
             <div class="w-full md:w-6/12 px-2">
               <div class="mb-4">
-                <label>Insurer <span class="text-red-700">*</span></label>
+                <label for="insurance-cl-state-insurer-search">Insurer <span class="text-red-700">*</span></label>
                 <div class="relative">
-                  <input wire:model.live.debounce.250ms="state.insurer_search" type="text"
+                  <input id="insurance-cl-state-insurer-search" wire:model.live.debounce.250ms="state.insurer_search" type="text"
                          class="ui-input @error('state.insurer_id') is-invalid @enderror"
                          placeholder="Search insurer name, code, or scheme..." autocomplete="off">
                   @if(count($insurerResults))
@@ -247,7 +247,7 @@
                   </div>
                   @endif
                 </div>
-                <select wire:model="state.insurer_id" class="hidden @error('state.insurer_id') is-invalid @enderror">
+                <select wire:model="state.insurer_id" aria-label="Insurer" class="hidden @error('state.insurer_id') is-invalid @enderror">
                   <option value="">— Select insurer —</option>
                   @foreach($insurers as $ins)
                     <option value="{{ $ins->id }}">{{ $ins->name }}</option>
@@ -290,10 +290,10 @@
             {{-- Claim amount --}}
             <div class="w-full md:w-4/12 px-2">
               <div class="mb-4">
-                <label>Claim Amount <span class="text-red-700">*</span></label>
+                <label for="insurance-cl-state-claim-amount">Claim Amount <span class="text-red-700">*</span></label>
                 <div class="flex items-stretch">
                   <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">{{ currency() }}</span></div>
-                  <input wire:model="state.claim_amount" type="number" step="0.01" min="0"
+                  <input id="insurance-cl-state-claim-amount" wire:model="state.claim_amount" type="number" step="0.01" min="0"
                          class="ui-input @error('state.claim_amount') is-invalid @enderror" placeholder="0.00">
                   @error('state.claim_amount')<div class="ui-error">{{ $message }}</div>@enderror
                 </div>
@@ -337,10 +337,10 @@
             @if($state['pre_auth_status'] === 'approved')
             <div class="w-full md:w-4/12 px-2">
               <div class="mb-4">
-                <label>Pre-Auth Amount</label>
+                <label for="insurance-cl-state-pre-auth-amount">Pre-Auth Amount</label>
                 <div class="flex items-stretch">
                   <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">{{ currency() }}</span></div>
-                  <input wire:model="state.pre_auth_amount" type="number" step="0.01" min="0"
+                  <input id="insurance-cl-state-pre-auth-amount" wire:model="state.pre_auth_amount" type="number" step="0.01" min="0"
                          class="ui-input @error('state.pre_auth_amount') is-invalid @enderror" placeholder="0.00">
                   @error('state.pre_auth_amount')<div class="ui-error">{{ $message }}</div>@enderror
                 </div>
@@ -407,10 +407,10 @@
               @error('statusState.approval_date')<div class="ui-error">{{ $message }}</div>@enderror
             </div>
             <div class="mb-4">
-              <label>Approved Amount <span class="text-red-700">*</span></label>
+              <label for="insurance-cl-statusstate-approved-amount">Approved Amount <span class="text-red-700">*</span></label>
               <div class="flex items-stretch">
                 <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">{{ currency() }}</span></div>
-                <input wire:model="statusState.approved_amount" type="number" step="0.01" min="0"
+                <input id="insurance-cl-statusstate-approved-amount" wire:model="statusState.approved_amount" type="number" step="0.01" min="0"
                        class="ui-input @error('statusState.approved_amount') is-invalid @enderror" placeholder="0.00">
                 @error('statusState.approved_amount')<div class="ui-error">{{ $message }}</div>@enderror
               </div>

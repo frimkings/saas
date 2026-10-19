@@ -75,9 +75,9 @@
             </div>
             <div class="flex items-stretch" style="max-width:260px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
-              <input wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Patient, ID or bill number…">
+              <input aria-label="Search" wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Patient, ID or bill number…">
             </div>
-            <select wire:model.live="insurerFilter" class="ui-input ui-input-sm" style="max-width:200px;">
+            <select aria-label="Insurer" wire:model.live="insurerFilter" class="ui-input ui-input-sm" style="max-width:200px;">
               <option value="">All insurers</option>
               @foreach($insurerList as $id => $name)
                 <option value="{{ $id }}">{{ $name }}</option>

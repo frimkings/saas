@@ -8,7 +8,7 @@
       <div class="ui-panel">
         <div class="ui-section-heading" style="gap:8px;">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
-            <select wire:model.live="insurerFilter" class="ui-input ui-input-sm" style="max-width:220px;">
+            <select aria-label="Insurer" wire:model.live="insurerFilter" class="ui-input ui-input-sm" style="max-width:220px;">
               <option value="">All insurers</option>
               @foreach($insurerList as $id => $name)
                 <option value="{{ $id }}">{{ $name }}</option>
@@ -194,11 +194,11 @@
                     <td class="text-right">{{ number_format((float) $claim->amount_received, 2) }}</td>
                     <td class="text-right font-semibold">{{ number_format($claim->outstandingAmount(), 2) }}</td>
                     <td>
-                      <input wire:model.live.debounce.400ms="allocations.{{ $claim->id }}.amount" type="number" min="0" step="0.01"
+                      <input wire:model.live.debounce.400ms="allocations.{{ $claim->id }}.amount" aria-label="Amount for claim {{ $claim->id }}" type="number" min="0" step="0.01"
                              class="ui-input ui-input-sm @error('allocations.' . $claim->id . '.amount') is-invalid @enderror" placeholder="0.00">
                     </td>
                     <td class="text-center">
-                      <input wire:model="allocations.{{ $claim->id }}.settle" type="checkbox">
+                      <input wire:model="allocations.{{ $claim->id }}.settle" type="checkbox" aria-label="Settle claim {{ $claim->id }}">
                     </td>
                   </tr>
                   @empty

@@ -64,7 +64,7 @@
                                 </div>
                                 <div class="filter-input-wrap filter-input-wrap--inline">
                                     <i class="fas fa-search filter-input-icon"></i>
-                                    <input type="text" wire:model.live.debounce.500ms="searchTerm"
+                                    <input aria-label="Search" type="text" wire:model.live.debounce.500ms="searchTerm"
                                            class="filter-range__input" style="padding-left:20px; text-align:left;"
                                            placeholder="Patient name or folder number…">
                                 </div>
@@ -90,9 +90,9 @@
                                     <i class="fas fa-user-alt mr-1" style="color:#17a2b8;"></i>Age <span class="text-slate-500">(yrs)</span>
                                 </div>
                                 <div class="filter-range__controls">
-                                    <input type="number" wire:model.blur="ageMin" class="filter-range__input" placeholder="Min" min="0" max="120">
+                                    <input aria-label="Minimum age" type="number" wire:model.blur="ageMin" class="filter-range__input" placeholder="Min" min="0" max="120">
                                     <span class="filter-range__sep">–</span>
-                                    <input type="number" wire:model.blur="ageMax" class="filter-range__input" placeholder="Max" min="0" max="120">
+                                    <input aria-label="Maximum age" type="number" wire:model.blur="ageMax" class="filter-range__input" placeholder="Max" min="0" max="120">
                                 </div>
                             </div>
                         </div>
@@ -104,7 +104,7 @@
                                     <i class="fas fa-venus-mars mr-1" style="color:#e83e8c;"></i>Gender
                                 </div>
                                 <div class="filter-range__controls">
-                                    <select wire:model.live="genderFilter" class="filter-range__select" style="width:100%;">
+                                    <select aria-label="Gender" wire:model.live="genderFilter" class="filter-range__select" style="width:100%;">
                                         <option value="">All Genders</option>
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>
@@ -143,7 +143,7 @@
                                     <div class="diag-panel diag-dropdown-panel">
                                         <div class="diag-search-wrap">
                                             <i class="fas fa-search diag-search-icon"></i>
-                                            <input type="text" class="diag-search diag-search-input" placeholder="Search diagnoses…">
+                                            <input aria-label="Search diagnoses" type="text" class="diag-search diag-search-input" placeholder="Search diagnoses…">
                                         </div>
                                         <div class="diag-list" style="max-height:220px; overflow-y:auto;">
                                             @forelse ($diagnoses as $diag)
@@ -177,9 +177,9 @@
                                     <i class="fas fa-tachometer-alt mr-1" style="color:#fd7e14;"></i>IOP <span class="text-slate-500">(mmHg)</span>
                                 </div>
                                 <div class="filter-range__controls">
-                                    <input type="number" wire:model.blur="iopMin" class="filter-range__input" placeholder="Min" min="0" max="100" step="0.5">
+                                    <input aria-label="Minimum IOP" type="number" wire:model.blur="iopMin" class="filter-range__input" placeholder="Min" min="0" max="100" step="0.5">
                                     <span class="filter-range__sep">–</span>
-                                    <input type="number" wire:model.blur="iopMax" class="filter-range__input" placeholder="Max" min="0" max="100" step="0.5">
+                                    <input aria-label="Maximum IOP" type="number" wire:model.blur="iopMax" class="filter-range__input" placeholder="Max" min="0" max="100" step="0.5">
                                 </div>
                             </div>
                         </div>
@@ -191,9 +191,9 @@
                                     <i class="fas fa-dot-circle mr-1" style="color:#6f42c1;"></i>CDR <span class="text-slate-500">(0–1)</span>
                                 </div>
                                 <div class="filter-range__controls">
-                                    <input type="number" wire:model.blur="cdrMin" class="filter-range__input" placeholder="0.0" min="0" max="1" step="0.1">
+                                    <input aria-label="Minimum cup-to-disc ratio" type="number" wire:model.blur="cdrMin" class="filter-range__input" placeholder="0.0" min="0" max="1" step="0.1">
                                     <span class="filter-range__sep">–</span>
-                                    <input type="number" wire:model.blur="cdrMax" class="filter-range__input" placeholder="1.0" min="0" max="1" step="0.1">
+                                    <input aria-label="Maximum cup-to-disc ratio" type="number" wire:model.blur="cdrMax" class="filter-range__input" placeholder="1.0" min="0" max="1" step="0.1">
                                 </div>
                             </div>
                         </div>
@@ -205,14 +205,14 @@
                                     <i class="fas fa-eye mr-1" style="color:#28a745;"></i>Visual Acuity <span class="text-slate-500">(OD or OS)</span>
                                 </div>
                                 <div class="filter-range__controls">
-                                    <select wire:model.live="vaMin" class="filter-range__select">
+                                    <select aria-label="Best visual acuity" wire:model.live="vaMin" class="filter-range__select">
                                         <option value="">Best</option>
                                         @foreach($vaOptions as $va)
                                             <option value="{{ $va }}">{{ $va }}</option>
                                         @endforeach
                                     </select>
                                     <span class="filter-range__sep">–</span>
-                                    <select wire:model.live="vaMax" class="filter-range__select">
+                                    <select aria-label="Worst visual acuity" wire:model.live="vaMax" class="filter-range__select">
                                         <option value="">Worst</option>
                                         @foreach($vaOptions as $va)
                                             <option value="{{ $va }}">{{ $va }}</option>

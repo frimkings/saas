@@ -29,13 +29,13 @@
                         <div class="flex">
                             <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-white border-r-0"><i class="fas fa-search text-slate-500"></i></span>
                         </div>
-                        <input type="text" wire:model.live.debounce.400ms="searchQuery"
+                        <input aria-label="Search" type="text" wire:model.live.debounce.400ms="searchQuery"
                             class="ui-input border-l-0"
                             placeholder="Patient, referral to, diagnosis…">
                     </div>
                 </div>
                 <div class="w-full md:w-2/12 px-2 mb-2 md:mb-0">
-                    <select wire:model.live="typeFilter" class="ui-input ui-input-sm">
+                    <select aria-label="Type" wire:model.live="typeFilter" class="ui-input ui-input-sm">
                         <option value="">All Types</option>
                         <option value="referral">Referral</option>
                         <option value="medical_report">Medical Report</option>
@@ -43,7 +43,7 @@
                     </select>
                 </div>
                 <div class="w-full md:w-2/12 px-2 mb-2 md:mb-0">
-                    <select wire:model.live="statusFilter" class="ui-input ui-input-sm">
+                    <select aria-label="Status" wire:model.live="statusFilter" class="ui-input ui-input-sm">
                         <option value="">All Statuses</option>
                         <option value="pending">Pending</option>
                         <option value="completed">Completed</option>
@@ -52,7 +52,7 @@
                 </div>
                 <div class="w-full md:w-4/12 px-2 mb-2 md:mb-0"><x-date-range from="fromDate" to="toDate" presets="activity" /></div>
                 <div class="w-full md:w-1/12 px-2">
-                    <select wire:model.live="perPage" class="ui-input ui-input-sm">
+                    <select aria-label="Rows per page" wire:model.live="perPage" class="ui-input ui-input-sm">
                         <option value="10">10</option>
                         <option value="15">15</option>
                         <option value="25">25</option>

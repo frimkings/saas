@@ -348,7 +348,7 @@
 
                         {{-- Password Field --}}
                         <div class="mb-4">
-                            <label class="font-semibold">
+                            <label for="staff-password" class="font-semibold">
                                 Password {{ $isEdit ? '' : '*' }}
                             </label>
                             <div class="flex items-stretch">
@@ -377,7 +377,7 @@
 
                         {{-- Confirm Password Field --}}
                         <div class="mb-4">
-                            <label class="font-semibold">
+                            <label for="staff-password-confirmation" class="font-semibold">
                                 Confirm Password {{ $isEdit ? '' : '*' }}
                             </label>
                             <div class="flex items-stretch">
@@ -434,7 +434,7 @@
                             @endfeature
 
                             @if($roleAssignmentMode === 'shared')
-                            <input type="text"
+                            <input aria-label="Search roles" type="text"
                                 wire:model.live.debounce.300ms="roleSearch"
                                 placeholder="Search roles..."
                                 class="ui-input ui-input-sm mb-2">
@@ -558,12 +558,12 @@
                             {{-- Phone --}}
                             <div class="w-full md:w-6/12 px-2">
                                 <div class="mb-4">
-                                    <label class="font-semibold text-sm">Phone</label>
+                                    <label for="user-role-ma-phone" class="font-semibold text-sm">Phone</label>
                                     <div class="flex items-stretch">
                                         <div class="flex">
                                             <span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-phone text-slate-500"></i></span>
                                         </div>
-                                        <input type="text"
+                                        <input id="user-role-ma-phone" type="text"
                                             wire:model="phone"
                                             class="ui-input @error('phone') is-invalid @enderror"
                                             placeholder="+63 912 345 6789">
@@ -660,7 +660,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <label class="font-semibold text-sm">New Password <span class="text-red-700">*</span></label>
+                            <label for="reset-password" class="font-semibold text-sm">New Password <span class="text-red-700">*</span></label>
                             <div class="flex items-stretch">
                                 <input type="password"
                                     id="reset-password"
@@ -684,7 +684,7 @@
                         </div>
 
                         <div class="mb-0">
-                            <label class="font-semibold text-sm">Confirm Password <span class="text-red-700">*</span></label>
+                            <label for="reset-password-confirmation" class="font-semibold text-sm">Confirm Password <span class="text-red-700">*</span></label>
                             <div class="flex items-stretch">
                                 <input type="password"
                                     id="reset-password-confirmation"

@@ -11,9 +11,9 @@
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="flex items-stretch" style="max-width:260px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
-              <input wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Search name or code…">
+              <input aria-label="Search" wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Search name or code…">
             </div>
-            <select wire:model.live="schemeFilter" class="ui-input" style="max-width:160px;">
+            <select aria-label="Scheme" wire:model.live="schemeFilter" class="ui-input" style="max-width:160px;">
               <option value="">All Schemes</option>
               <option value="NHIS">NHIS</option>
               <option value="Private">Private</option>
@@ -286,7 +286,7 @@
                     </div>
                   @else
                     <div class="relative">
-                      <input wire:model.live.debounce.300ms="ruleProductSearch" type="text" placeholder="Search by name…"
+                      <input aria-label="Search products" wire:model.live.debounce.300ms="ruleProductSearch" type="text" placeholder="Search by name…"
                              class="ui-input ui-input-sm @error('ruleState.product_id') is-invalid @enderror">
                       @error('ruleState.product_id')<div class="ui-error">{{ $message }}</div>@enderror
                       @if($ruleProductResults)
