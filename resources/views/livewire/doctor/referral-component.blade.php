@@ -8,21 +8,21 @@
             <p class="text-slate-500 text-sm mb-0">Referrals, Medical Reports &amp; Excuse Duty Letters</p>
         </div>
         <div class="flex" style="gap:8px;">
-            <button wire:click="openCreate('referral')" class="btn ui-button ui-button-primary ui-button-sm">
+            <button wire:click="openCreate('referral')" class="ui-button ui-button-primary ui-button-sm">
                 <i class="fas fa-paper-plane mr-1"></i>Referral
             </button>
-            <button wire:click="openCreate('medical_report')" class="btn ui-button ui-button-primary ui-button-sm">
+            <button wire:click="openCreate('medical_report')" class="ui-button ui-button-primary ui-button-sm">
                 <i class="fas fa-file-medical-alt mr-1"></i>Medical Report
             </button>
-            <button wire:click="openCreate('excuse_duty')" class="btn ui-button ui-button-secondary ui-button-sm">
+            <button wire:click="openCreate('excuse_duty')" class="ui-button ui-button-secondary ui-button-sm">
                 <i class="fas fa-calendar-times mr-1"></i>Excuse Duty
             </button>
         </div>
     </div>
 
     {{-- ── FILTER BAR ── --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-6">
-        <div class="card-body p-4 py-4">
+    <div class="ui-panel mb-6">
+        <div class="p-5">
             <div class="flex flex-wrap -mx-2 items-center">
                 <div class="w-full md:w-3/12 px-2 mb-2 md:mb-0">
                     <div class="flex items-stretch">
@@ -30,12 +30,12 @@
                             <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-white border-r-0"><i class="fas fa-search text-slate-500"></i></span>
                         </div>
                         <input type="text" wire:model.live.debounce.400ms="searchQuery"
-                            class="form-control ui-input border-l-0"
+                            class="ui-input border-l-0"
                             placeholder="Patient, referral to, diagnosis…">
                     </div>
                 </div>
                 <div class="w-full md:w-2/12 px-2 mb-2 md:mb-0">
-                    <select wire:model.live="typeFilter" class="form-control ui-input ui-input-sm">
+                    <select wire:model.live="typeFilter" class="ui-input ui-input-sm">
                         <option value="">All Types</option>
                         <option value="referral">Referral</option>
                         <option value="medical_report">Medical Report</option>
@@ -43,7 +43,7 @@
                     </select>
                 </div>
                 <div class="w-full md:w-2/12 px-2 mb-2 md:mb-0">
-                    <select wire:model.live="statusFilter" class="form-control ui-input ui-input-sm">
+                    <select wire:model.live="statusFilter" class="ui-input ui-input-sm">
                         <option value="">All Statuses</option>
                         <option value="pending">Pending</option>
                         <option value="completed">Completed</option>
@@ -52,7 +52,7 @@
                 </div>
                 <div class="w-full md:w-4/12 px-2 mb-2 md:mb-0"><x-date-range from="fromDate" to="toDate" presets="activity" /></div>
                 <div class="w-full md:w-1/12 px-2">
-                    <select wire:model.live="perPage" class="form-control ui-input ui-input-sm">
+                    <select wire:model.live="perPage" class="ui-input ui-input-sm">
                         <option value="10">10</option>
                         <option value="15">15</option>
                         <option value="25">25</option>
@@ -64,14 +64,14 @@
     </div>
 
     {{-- ── LETTERS TABLE ── --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm">
-        <div class="card-header border-b border-slate-200 px-4 bg-white border-0 py-4 flex justify-between items-center">
+    <div class="ui-panel">
+        <div class="ui-section-heading">
             <h6 class="mb-0 font-semibold">Letter Records</h6>
             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $referrals->total() }} total</span>
         </div>
-        <div class="card-body p-0">
+        <div class="">
             <div class="ui-table-wrap">
-                <table class="table ui-table mb-0 referral-table">
+                <table class="ui-table mb-0 referral-table">
                     <thead class="">
                         <tr>
                             <th>Date</th>
@@ -139,18 +139,18 @@
                             </td>
                             <td class="text-right whitespace-nowrap">
                                 <a href="{{ route('doctor.referral.pdf', $ref->id) }}" target="_blank"
-                                   class="btn ui-button ui-button-sm ui-button-danger" title="Print Letter">
+                                   class="ui-button ui-button-sm ui-button-danger" title="Print Letter">
                                     <i class="fas fa-print"></i>
                                 </a>
-                                <button wire:click="openEdit({{ $ref->id }})" class="btn ui-button ui-button-sm ui-button-secondary ml-1" title="Edit">
+                                <button wire:click="openEdit({{ $ref->id }})" class="ui-button ui-button-sm ui-button-secondary ml-1" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 @if(auth()->user()->hasRole('Super Admin'))
-                                <button wire:click="confirmDelete({{ $ref->id }})" class="btn ui-button ui-button-sm ui-button-danger ml-1" title="Delete">
+                                <button wire:click="confirmDelete({{ $ref->id }})" class="ui-button ui-button-sm ui-button-danger ml-1" title="Delete">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 @else
-                                <button class="btn ui-button ui-button-sm ui-button-secondary ml-1" disabled title="Only Super Admin can delete">
+                                <button class="ui-button ui-button-sm ui-button-secondary ml-1" disabled title="Only Super Admin can delete">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 @endif
@@ -162,13 +162,13 @@
                                 <i class="fas fa-file-medical fa-3x text-slate-500 mb-4 block"></i>
                                 <p class="text-slate-500 mb-4">No letters found.</p>
                                 <div class="flex justify-center" style="gap:8px;">
-                                    <button wire:click="openCreate('referral')" class="btn ui-button ui-button-sm ui-button-primary">
+                                    <button wire:click="openCreate('referral')" class="ui-button ui-button-sm ui-button-primary">
                                         <i class="fas fa-paper-plane mr-1"></i>New Referral
                                     </button>
-                                    <button wire:click="openCreate('medical_report')" class="btn ui-button ui-button-sm ui-button-primary">
+                                    <button wire:click="openCreate('medical_report')" class="ui-button ui-button-sm ui-button-primary">
                                         <i class="fas fa-file-medical-alt mr-1"></i>Medical Report
                                     </button>
-                                    <button wire:click="openCreate('excuse_duty')" class="btn ui-button ui-button-sm ui-button-secondary">
+                                    <button wire:click="openCreate('excuse_duty')" class="ui-button ui-button-sm ui-button-secondary">
                                         <i class="fas fa-calendar-times mr-1"></i>Excuse Duty
                                     </button>
                                 </div>

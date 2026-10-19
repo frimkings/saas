@@ -11,8 +11,8 @@
         <div class="w-full">
 
             {{-- Patient header card --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-primary mb-4">
-                <div class="card-body p-4 py-4">
+            <div class="ui-panel mb-4">
+                <div class="p-5">
                     <div class="flex items-center flex-wrap" style="gap:16px;">
                         <div class="rounded-full flex items-center justify-center text-white font-semibold"
                             style="width:56px;height:56px;font-size:22px;background:#003087;flex-shrink:0;">
@@ -31,7 +31,7 @@
                             <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-semibold rounded-full bg-slate-50 text-slate-600 border border-slate-200" style="font-size:12px; padding:6px 10px;">
                                 {{ $timeline->count() }} event(s)
                             </span>
-                            <a href="javascript:history.back()" class="btn ui-button ui-button-sm ui-button-secondary">
+                            <a href="javascript:history.back()" class="ui-button ui-button-sm ui-button-secondary">
                                 <i class="fas fa-arrow-left mr-1"></i> Back
                             </a>
                         </div>
@@ -40,8 +40,8 @@
             </div>
 
             {{-- Filter tabs --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-secondary mb-4">
-                <div class="card-body p-4 py-2">
+            <div class="ui-panel mb-4">
+                <div class="p-5">
                     <div class="flex flex-wrap" style="gap:6px;">
                         @foreach([
                             'all'          => ['All Events',    'fas fa-list',            'secondary'],
@@ -53,7 +53,7 @@
                         ] as $type => [$label, $icon, $color])
                             <button
                                 wire:click="$set('filterType', '{{ $type }}')"
-                                class="btn ui-button ui-button-sm {{ $filterType === $type ? "btn-$color" : "btn-outline-$color" }}">
+                                class="ui-button ui-button-sm {{ $filterType === $type ?"btn-$color" : "btn-outline-$color" }}">
                                 <i class="{{ $icon }} mr-1"></i>{{ $label }}
                             </button>
                         @endforeach
@@ -63,8 +63,8 @@
 
             {{-- Timeline --}}
             @if($timeline->isEmpty())
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div class="card-body p-4 text-center py-12 text-slate-500">
+                <div class="ui-panel">
+                    <div class="px-5 py-12 text-center text-slate-500">
                         <i class="fas fa-inbox fa-3x mb-4 block"></i>
                         <h5>No events found</h5>
                         <p class="mb-0">No clinical history recorded for this patient yet.</p>
@@ -124,7 +124,7 @@
                                     @endif
 
                                     <button wire:click="toggleExpand('{{ $key }}')"
-                                        class="btn ui-button ui-button-sm ui-button-secondary ml-2">
+                                        class="ui-button ui-button-sm ui-button-secondary ml-2">
                                         <i class="fas fa-{{ $open ? 'chevron-up' : 'chevron-down' }}"></i>
                                     </button>
                                 </h3>
@@ -135,7 +135,7 @@
                                     @if($type === 'consultation')
                                         <div class="flex flex-wrap -mx-2">
                                             <div class="w-full md:w-6/12 px-2">
-                                                <table class="table ui-table ui-table-sm mb-2">
+                                                <table class="ui-table ui-table-sm mb-2">
                                                     <tr><th class="text-slate-500" style="width:130px;">Chief Complaint</th><td>{{ $data->chiefComplaint ?: '—' }}</td></tr>
                                                     <tr><th class="text-slate-500">IOP OD / OS</th><td>{{ $data->IOPOD ?: '—' }} / {{ $data->IOPOS ?: '—' }} mmHg</td></tr>
                                                     <tr><th class="text-slate-500">VA OD / OS</th><td>{{ $data->vaOD6m ?: '—' }} / {{ $data->vaOS6m ?: '—' }}</td></tr>
@@ -153,7 +153,7 @@
                                             <div class="w-full md:w-6/12 px-2">
                                                 @if($data->cartItems->isNotEmpty())
                                                     <div class="mb-1"><strong class="text-slate-500" style="font-size:11px;">PRESCRIBED ITEMS</strong></div>
-                                                    <table class="table ui-table ui-table-sm">
+                                                    <table class="ui-table ui-table-sm">
                                                         <thead class=""><tr><th>Item</th><th>Eye</th><th>Freq</th><th>Qty</th></tr></thead>
                                                         <tbody>
                                                             @foreach($data->cartItems as $ci)
@@ -170,7 +170,7 @@
                                                     <p class="text-slate-500 text-sm">No prescribed items.</p>
                                                 @endif
                                                 <a href="{{ route('doctor.prescription.print', $data) }}" target="_blank"
-                                                    class="btn ui-button ui-button-sm ui-button-secondary mt-1">
+                                                    class="ui-button ui-button-sm ui-button-secondary mt-1">
                                                     <i class="fas fa-prescription mr-1"></i>Print Prescription
                                                 </a>
                                             </div>
@@ -182,7 +182,7 @@
                                         <div class="flex flex-wrap -mx-2">
                                             <div class="w-full md:w-6/12 px-2">
                                                 <strong class="text-slate-500 block mb-1" style="font-size:11px;">RIGHT EYE (OD)</strong>
-                                                <table class="table ui-table ui-table-sm mb-2">
+                                                <table class="ui-table ui-table-sm mb-2">
                                                     <tr><th>Sphere</th><td>{{ $data->subjective_od_sphere ?? $data->refractionOD_sphere ?? $data->sphereOD ?? '—' }}</td></tr>
                                                     <tr><th>Cylinder</th><td>{{ $data->subjective_od_cylinder ?? $data->refractionOD_cylinder ?? $data->cylinderOD ?? '—' }}</td></tr>
                                                     <tr><th>Axis</th><td>{{ $data->subjective_od_axis ?? $data->refractionOD_axis ?? $data->axisOD ?? '—' }}</td></tr>
@@ -191,7 +191,7 @@
                                             </div>
                                             <div class="w-full md:w-6/12 px-2">
                                                 <strong class="text-slate-500 block mb-1" style="font-size:11px;">LEFT EYE (OS)</strong>
-                                                <table class="table ui-table ui-table-sm mb-2">
+                                                <table class="ui-table ui-table-sm mb-2">
                                                     <tr><th>Sphere</th><td>{{ $data->subjective_os_sphere ?? $data->refractionOS_sphere ?? $data->sphereOS ?? '—' }}</td></tr>
                                                     <tr><th>Cylinder</th><td>{{ $data->subjective_os_cylinder ?? $data->refractionOS_cylinder ?? $data->cylinderOS ?? '—' }}</td></tr>
                                                     <tr><th>Axis</th><td>{{ $data->subjective_os_axis ?? $data->refractionOS_axis ?? $data->axisOS ?? '—' }}</td></tr>
@@ -206,7 +206,7 @@
 
                                     {{-- LENS ORDER detail --}}
                                     @if($type === 'lens_order')
-                                        <table class="table ui-table ui-table-sm">
+                                        <table class="ui-table ui-table-sm">
                                             <tr><th class="text-slate-500" style="width:140px;">Frame Model</th><td>{{ $data->frame_model_number ?: '—' }}</td></tr>
                                             <tr><th class="text-slate-500">Frame Price</th><td>{{ currency() }} {{ number_format($data->frame_price, 2) }}</td></tr>
                                             <tr><th class="text-slate-500">Lens Price</th><td>{{ currency() }} {{ number_format($data->lens_price, 2) }}</td></tr>
@@ -232,21 +232,21 @@
 
                                     {{-- REFERRAL detail --}}
                                     @if($type === 'referral')
-                                        <table class="table ui-table ui-table-sm">
+                                        <table class="ui-table ui-table-sm">
                                             <tr><th class="text-slate-500" style="width:140px;">Type</th><td>{{ $data->letter_type_label ?? ucfirst(str_replace('_', ' ', $data->letter_type)) }}</td></tr>
                                             @if($data->referral_to)<tr><th class="text-slate-500">Referred To</th><td>{{ $data->referral_to }}</td></tr>@endif
                                             @if($data->diagnosis)<tr><th class="text-slate-500">Diagnosis</th><td>{{ $data->diagnosis }}</td></tr>@endif
                                             @if($data->referredBy)<tr><th class="text-slate-500">Issued By</th><td>{{ $data->referredBy->name }}</td></tr>@endif
                                         </table>
                                         <a href="{{ route('doctor.referral.pdf', $data) }}" target="_blank"
-                                            class="btn ui-button ui-button-sm ui-button-secondary">
+                                            class="ui-button ui-button-sm ui-button-secondary">
                                             <i class="fas fa-print mr-1"></i>Print Letter
                                         </a>
                                     @endif
 
                                     {{-- APPOINTMENT detail --}}
                                     @if($type === 'appointment')
-                                        <table class="table ui-table ui-table-sm">
+                                        <table class="ui-table ui-table-sm">
                                             <tr><th class="text-slate-500" style="width:140px;">Title</th><td>{{ $data->title ?: '—' }}</td></tr>
                                             <tr><th class="text-slate-500">Category</th><td>{{ $data->recall_category ?: '—' }}</td></tr>
                                             <tr><th class="text-slate-500">Scheduled</th><td>{{ $data->scheduled_at ? \Carbon\Carbon::parse($data->scheduled_at)->format('M d, Y h:i A') : '—' }}</td></tr>

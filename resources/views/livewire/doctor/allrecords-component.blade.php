@@ -160,7 +160,7 @@
                                         <div class="diag-footer">
                                             <small class="text-slate-500">{{ count($diagnosisFilter) }} selected</small>
                                             <button type="button" wire:click="$set('diagnosisFilter', [])"
-                                                    class="btn ui-button ui-button-link ui-button-sm text-red-700 p-0" style="font-size:.78rem;">
+                                                    class="ui-button ui-button-link ui-button-sm text-red-700 p-0" style="font-size:.78rem;">
                                                 <i class="fas fa-times mr-1"></i>Clear
                                             </button>
                                         </div>
@@ -229,7 +229,7 @@
                     @if($hasAge || $hasIop || $hasCdr || $hasVa)
                     <div class="mt-2 text-right">
                         <button wire:click="clearClinicalFilters"
-                                class="btn ui-button ui-button-sm ui-button-danger rounded-full px-4">
+                                class="ui-button ui-button-sm ui-button-danger rounded-full px-4">
                             <i class="fas fa-times mr-1"></i>Clear Clinical Filters
                         </button>
                     </div>
@@ -311,10 +311,10 @@
                 <small class="text-slate-500 mt-2 font-semibold" style="font-size:.8rem;">Searching records…</small>
             </div>
 
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0" style="border-radius:10px; overflow:hidden;">
+            <div class="ui-panel" style="border-radius:10px; overflow:hidden;">
 
                 {{-- Export toolbar (shown always; selection count updates dynamically) --}}
-                <div class="card-header border-b bg-white border-slate-200 flex justify-between items-center py-2 px-4">
+                <div class="ui-section-heading">
                     <div class="flex items-center" style="gap:8px;">
                         <span class="text-sm text-slate-500">
                             @if(count($selectedIds))
@@ -325,7 +325,7 @@
                         </span>
                         @if(count($selectedIds))
                         <span class="text-slate-500">|</span>
-                        <button wire:click="$set('selectedIds', [])" class="btn ui-button ui-button-link ui-button-sm text-red-700 p-0"
+                        <button wire:click="$set('selectedIds', [])" class="ui-button ui-button-link ui-button-sm text-red-700 p-0"
                                 style="font-size:.78rem;">
                             <i class="fas fa-times mr-1"></i>Deselect all
                         </button>
@@ -337,7 +337,7 @@
                         </span>
                         <a wire:click="exportCsv" href="#"
                            wire:loading.class="disabled" wire:target="exportCsv"
-                           class="btn ui-button ui-button-sm ui-button-secondary rounded-full px-4"
+                           class="ui-button ui-button-sm ui-button-secondary rounded-full px-4"
                            style="font-size:.78rem;">
                             <span wire:loading.remove wire:target="exportCsv">
                                 <i class="fas fa-file-csv mr-1"></i>CSV
@@ -348,7 +348,7 @@
                         </a>
                         <a wire:click="exportPdf" href="#"
                            wire:loading.class="disabled" wire:target="exportPdf"
-                           class="btn ui-button ui-button-sm ui-button-danger rounded-full px-4"
+                           class="ui-button ui-button-sm ui-button-danger rounded-full px-4"
                            style="font-size:.78rem;">
                             <span wire:loading.remove wire:target="exportPdf">
                                 <i class="fas fa-file-pdf mr-1"></i>PDF
@@ -360,9 +360,9 @@
                     </div>
                 </div>
 
-                <div class="card-body p-0">
+                <div class="">
                     <div class="ui-table-wrap">
-                        <table class="table ui-table mb-0" style="font-size:.875rem;">
+                        <table class="ui-table mb-0" style="font-size:.875rem;">
                             <thead style="background:linear-gradient(135deg,#2c3e50 0%,#3d5166 100%);">
                                 <tr>
                                     <th class="px-4 border-0" style="width:36px;">
@@ -492,12 +492,12 @@
 
                                     <td class="text-right px-4 align-middle">
                                         <a href="{{ route('doctor.patient-records', $record->clearance) }}"
-                                           class="btn ui-button ui-button-sm ui-button-primary rounded-full px-4 shadow-sm"
+                                           class="ui-button ui-button-sm ui-button-primary rounded-full px-4 shadow-sm"
                                            style="font-size:.78rem;">
                                             <i class="fas fa-folder-open mr-1"></i>Open
                                         </a>
                                         <a href="{{ route('doctor.patient-timeline', $record->patient) }}"
-                                           class="btn ui-button ui-button-sm ui-button-secondary rounded-full px-2 shadow-sm ml-1"
+                                           class="ui-button ui-button-sm ui-button-secondary rounded-full px-2 shadow-sm ml-1"
                                            title="Clinical Timeline" style="font-size:.78rem;">
                                             <i class="fas fa-stream"></i>
                                         </a>

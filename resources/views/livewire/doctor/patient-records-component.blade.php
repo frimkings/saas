@@ -145,7 +145,7 @@
                         <div style="position:relative;">
                             <div class="search-box">
                                 <i class="fas fa-search search-box__icon"></i>
-                                <input type="text" wire:model.live.debounce.300ms="searchTerm" class="search-box__input" placeholder="Search records..." @focus="historyView='records'">
+                                <input type="text" wire:model.live.debounce.300ms="searchTerm" aria-label="Search past records" class="search-box__input" placeholder="Search records..." @focus="historyView='records'">
                             </div>
                         </div>
                     </div>
@@ -346,7 +346,7 @@
                                 <small class="text-slate-500">Capture complaint, exam findings, diagnosis, and management plan.</small>
                             @endif
                         </div>
-                        <button wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary">
+                        <button wire:click="cancelAndGoBack" class="ui-button ui-button-secondary">
                             <i class="fas fa-arrow-left"></i> Cancel
                         </button>
                     </div>
@@ -383,7 +383,7 @@
                                     wire:click="createUrgentReferralDraft"
                                     wire:loading.attr="disabled"
                                     wire:target="createUrgentReferralDraft"
-                                    class="btn ui-button ui-button-danger ui-button-sm">
+                                    class="ui-button ui-button-danger ui-button-sm">
                                     <span wire:loading.remove wire:target="createUrgentReferralDraft">
                                         <i class="fas fa-paper-plane"></i> Create Urgent Referral Draft
                                     </span>
@@ -411,7 +411,7 @@
                         </nav>
                         {{-- Chief Complaint & History --}}
                         <div id="consultation-section-history" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}">
-                            <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50">
+                            <div class="ui-section-heading">
                                 <h6 class="mb-0 font-semibold">
                                     Patient History
                                     @if($consultationFieldsLocked)
@@ -419,20 +419,20 @@
                                     @endif
                                 </h6>
                             </div>
-                            <div class="card-body p-4">
+                            <div class="p-5">
                                 <div class="flex flex-wrap -mx-2 consultation-history-grid">
                                     <div class="w-full md:w-6/12 px-2 mb-4 order-1 consultation-history-chief">
                                         <label class="font-semibold">Chief Complaint <span
                                                 class="text-red-700">*</span></label>
-                                        <textarea id="consultation-chief-complaint" wire:model="state.chiefComplaint" aria-describedby="chief-complaint-error"
-                                            class="form-control ui-input {{ $historyHasErrors ? 'is-invalid' : '' }}"
+                                        <textarea id="consultation-chief-complaint" wire:model="state.chiefComplaint" aria-label="Chief complaint" aria-describedby="chief-complaint-error"
+                                            class="ui-input {{ $historyHasErrors ? 'is-invalid' : '' }}"
                                             rows="3" placeholder="Enter patient's main complaint"
                                             {{ $consultationFieldsLocked ? 'disabled' : '' }}></textarea>
                                         @if($historyHasErrors)<div id="chief-complaint-error" class="ui-error block"><i class="fas fa-exclamation-circle mr-1"></i>{{ $errors->first('chiefComplaint') ?: $errors->first('state.chiefComplaint') }}</div>@endif
                                     </div>
                                     <div class="w-full md:w-6/12 px-2 mb-4 order-3 consultation-history-other">
-                                        <label class="font-semibold">Other History</label>
-                                        <textarea wire:model="state.others" class="form-control ui-input" rows="3"
+                                        <label for="patient-reco-state-others" class="font-semibold">Other History</label>
+                                        <textarea id="patient-reco-state-others" wire:model="state.others" class="ui-input" rows="3"
                                             placeholder="Additional medical history"
                                             {{ $consultationFieldsLocked ? 'disabled' : '' }}></textarea>
                                     </div>
@@ -462,8 +462,8 @@
                                         <div x-data="{selected:$wire.entangle('state.odq'),details:$wire.entangle('state.odq_details'),options:@js($allOdqOptions->all()),keys:@js($odqDetailKeys->all()),custom:'',locked:@js($consultationFieldsLocked),init(){if(!Array.isArray(this.selected))this.selected=[];if(!this.details||Array.isArray(this.details))this.details={};this.selected.forEach(s=>this.ensure(s))},key(s){return this.keys[s]||('custom_'+encodeURIComponent(s.toLowerCase()).replaceAll('.','%2E'))},ensure(s){const k=this.key(s);if(!this.details[k])this.details[k]={symptom:s,severity:'',eye:''};this.details[k].symptom=s},toggle(s,on){if(on){if(!this.selected.includes(s))this.selected.push(s);this.ensure(s)}else this.selected=this.selected.filter(v=>v!==s)},add(){const s=this.custom.trim();if(!s||s.length>100)return;const found=this.options.find(v=>v.toLowerCase()===s.toLowerCase());const value=found||s;if(!found)this.options.push(value);if(!this.selected.includes(value))this.selected.push(value);this.ensure(value);this.custom=''}}" x-cloak>
                                             <label class="font-semibold">Ocular Symptoms <span class="text-slate-500 font-normal">(ODQ)</span></label>
                                             <div class="odq-chip-picker"><template x-for="option in options" :key="option"><label class="odq-chip" :class="{'is-selected':selected.includes(option)}"><input type="checkbox" :checked="selected.includes(option)" @change="toggle(option,$event.target.checked)" :disabled="locked"><span x-text="option"></span></label></template></div>
-                                            <div class="odq-detail-list mt-2" x-show="selected.length"><template x-for="symptom in selected" :key="key(symptom)"><div class="odq-detail-row"><strong x-text="symptom"></strong><select x-model="details[key(symptom)].severity" class="form-control ui-input ui-input-sm" :disabled="locked"><option value="">No grade</option><option value="+">+ Mild</option><option value="++">++ Moderate</option><option value="+++">+++ Severe</option></select><select x-model="details[key(symptom)].eye" class="form-control ui-input ui-input-sm" :disabled="locked"><option value="">Eye not specified</option><option value="OD">OD — Right</option><option value="OS">OS — Left</option><option value="OU">OU — Both</option></select></div></template></div>
-                                            <div class="flex items-stretch mt-2 odq-custom-entry" x-show="!locked"><input type="text" x-model="custom" @keydown.enter.prevent="add()" class="form-control ui-input" maxlength="100" placeholder="Add another ocular symptom"><div class="flex"><button type="button" @click="add()" class="btn ui-button ui-button-secondary"><i class="fas fa-plus mr-1"></i>Add</button></div></div>
+                                            <div class="odq-detail-list mt-2" x-show="selected.length"><template x-for="symptom in selected" :key="key(symptom)"><div class="odq-detail-row"><strong x-text="symptom"></strong><select x-model="details[key(symptom)].severity" aria-label="Severity" class="ui-input ui-input-sm" :disabled="locked"><option value="">No grade</option><option value="+">+ Mild</option><option value="++">++ Moderate</option><option value="+++">+++ Severe</option></select><select x-model="details[key(symptom)].eye" aria-label="Which eye" class="ui-input ui-input-sm" :disabled="locked"><option value="">Eye not specified</option><option value="OD">OD — Right</option><option value="OS">OS — Left</option><option value="OU">OU — Both</option></select></div></template></div>
+                                            <div class="flex items-stretch mt-2 odq-custom-entry" x-show="!locked"><input type="text" x-model="custom" @keydown.enter.prevent="add()" aria-label="Add another symptom" class="ui-input" maxlength="100" placeholder="Add another ocular symptom"><div class="flex"><button type="button" @click="add()" class="ui-button ui-button-secondary"><i class="fas fa-plus mr-1"></i>Add</button></div></div>
                                             <small class="text-slate-500">Select symptoms, then optionally record severity and eye. Changes save with the consultation.</small>
                                         </div>
                                     </div>
@@ -479,7 +479,7 @@
                             suffixes(eye){return eye==='od'?['OD']:(eye==='os'?['OS']:['OD','OS'])}, fill(eye){this.suffixes(eye).forEach(s=>Object.entries(this.normals).forEach(([k,v])=>{const key=k+s;if(!String(this.exam[key]||'').trim())this.exam[key]=v}))}, clear(eye){this.suffixes(eye).forEach(s=>Object.keys(this.normals).forEach(k=>this.exam[k+s]=''))},
                             findingClass(key){const value=String(this.exam[key]??'').trim();if(!value)return '';const base=key.replace(/OD$|OS$/,'');return this.normals[base]&&value.toLowerCase()===this.normals[base].toLowerCase()?'exam-field--normal':'exam-field--recorded'}
                         }">
-                            <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50 flex items-center justify-between flex-wrap">
+                            <div class="ui-section-heading">
                                 <h6 class="mb-0 font-semibold">
                                     Examination
                                     @if($consultationFieldsLocked)
@@ -489,29 +489,29 @@
                                 @unless($consultationFieldsLocked)
                                     <div class="flex flex-wrap mt-1 sm:mt-0" style="gap:.5rem;">
                                         <div class="inline-flex flex-wrap gap-1" role="group" aria-label="Fill normal examination findings">
-                                            <button type="button" class="btn ui-button exam-action exam-action--ou ui-button-secondary"
+                                            <button type="button" class="ui-button exam-action exam-action--ou ui-button-secondary"
                                                 @click="fill('both')" title="Fill empty normal findings for both eyes">
                                                 <i class="fas fa-check-double mr-1"></i> Fill Normal
                                             </button>
-                                            <button type="button" class="btn ui-button exam-action exam-action--od ui-button-secondary"
+                                            <button type="button" class="ui-button exam-action exam-action--od ui-button-secondary"
                                                 @click="fill('od')" title="Fill empty normal findings for the right eye">OD</button>
-                                            <button type="button" class="btn ui-button exam-action exam-action--os ui-button-secondary"
+                                            <button type="button" class="ui-button exam-action exam-action--os ui-button-secondary"
                                                 @click="fill('os')" title="Fill empty normal findings for the left eye">OS</button>
                                         </div>
                                         <div class="inline-flex flex-wrap gap-1" role="group" aria-label="Clear examination findings">
-                                            <button type="button" class="btn ui-button ui-button-danger"
+                                            <button type="button" class="ui-button ui-button-danger"
                                                 @click="appConfirm('Clear examination findings for both eyes?').then(ok => ok && clear('both'))" title="Clear descriptive findings for both eyes">
                                                 <i class="fas fa-eraser mr-1"></i> Clear
                                             </button>
-                                            <button type="button" class="btn ui-button ui-button-danger"
+                                            <button type="button" class="ui-button ui-button-danger"
                                                 @click="appConfirm('Clear OD examination findings?').then(ok => ok && clear('od'))" title="Clear descriptive findings for the right eye">OD</button>
-                                            <button type="button" class="btn ui-button ui-button-danger"
+                                            <button type="button" class="ui-button ui-button-danger"
                                                 @click="appConfirm('Clear OS examination findings?').then(ok => ok && clear('os'))" title="Clear descriptive findings for the left eye">OS</button>
                                         </div>
                                     </div>
                                 @endunless
                             </div>
-                            <div class="card-body p-4">
+                            <div class="p-5">
                                 <div class="examination-legend"><span><i class="exam-legend-dot exam-legend-dot--od"></i> OD — Right</span><span><i class="exam-legend-dot exam-legend-dot--os"></i> OS — Left</span><span><i class="exam-legend-dot exam-legend-dot--normal"></i> Normal preset</span><span><i class="exam-legend-dot exam-legend-dot--attention"></i> Review finding</span><span><i class="exam-legend-dot exam-legend-dot--urgent"></i> Validation/urgent</span></div>
                                 <div class="flex flex-wrap -mx-2 mb-2 font-semibold examination-eye-headings">
                                     <div class="w-full md:w-2/12 px-2"></div>
@@ -562,13 +562,13 @@
                                             @if(Str::contains($odKey, 'IOP'))
                                                 <input type="number" step="0.1" min="0" max="80"
                                                     id="consultation-iop-od"
-                                                    x-model="exam['{{ $odKey }}']" :class="findingClass('{{ $odKey }}')"
-                                                    class="form-control ui-input ui-input-sm {{ ($odKey === 'IOPOD' && $examinationHasErrors) ? 'is-invalid' : '' }}"
+                                                    x-model="exam['{{ $odKey }}']" aria-label="{{ $examLabels[$odKey] }}, right eye (OD)" :class="findingClass('{{ $odKey }}')"
+                                                    class="ui-input ui-input-sm {{ ($odKey === 'IOPOD' && $examinationHasErrors) ? 'is-invalid' : '' }}"
                                                     placeholder="mmHg"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @elseif(Str::startsWith($odKey, 'va'))
-                                                <select x-model="exam['{{ $odKey }}']" :class="findingClass('{{ $odKey }}')"
-                                                    class="form-control ui-input ui-input-sm"
+                                                <select x-model="exam['{{ $odKey }}']" aria-label="{{ $examLabels[$odKey] }}, right eye (OD)" :class="findingClass('{{ $odKey }}')"
+                                                    class="ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                                     <option value="">— select —</option>
                                                     @foreach(\App\Livewire\Doctor\PatientRecordsComponent::vaLogMarTable($vaNotation) as $label => $logmar)
@@ -576,8 +576,8 @@
                                                     @endforeach
                                                 </select>
                                             @else
-                                                <input type="text" x-model="exam['{{ $odKey }}']" :class="findingClass('{{ $odKey }}')"
-                                                    class="form-control ui-input ui-input-sm"
+                                                <input type="text" x-model="exam['{{ $odKey }}']" aria-label="{{ $examLabels[$odKey] }}, right eye (OD)" :class="findingClass('{{ $odKey }}')"
+                                                    class="ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @endif
                                         </div>
@@ -587,13 +587,13 @@
                                             @if(Str::contains($osKey, 'IOP'))
                                                 <input type="number" step="0.1" min="0" max="80"
                                                     id="consultation-iop-os"
-                                                    x-model="exam['{{ $osKey }}']" :class="findingClass('{{ $osKey }}')"
-                                                    class="form-control ui-input ui-input-sm {{ ($osKey === 'IOPOS' && $examinationHasErrors) ? 'is-invalid' : '' }}"
+                                                    x-model="exam['{{ $osKey }}']" aria-label="{{ $examLabels[$odKey] }}, left eye (OS)" :class="findingClass('{{ $osKey }}')"
+                                                    class="ui-input ui-input-sm {{ ($osKey === 'IOPOS' && $examinationHasErrors) ? 'is-invalid' : '' }}"
                                                     placeholder="mmHg"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @elseif(Str::startsWith($osKey, 'va'))
-                                                <select x-model="exam['{{ $osKey }}']" :class="findingClass('{{ $osKey }}')"
-                                                    class="form-control ui-input ui-input-sm"
+                                                <select x-model="exam['{{ $osKey }}']" aria-label="{{ $examLabels[$odKey] }}, left eye (OS)" :class="findingClass('{{ $osKey }}')"
+                                                    class="ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                                     <option value="">— select —</option>
                                                     @foreach(\App\Livewire\Doctor\PatientRecordsComponent::vaLogMarTable($vaNotation) as $label => $logmar)
@@ -601,8 +601,8 @@
                                                     @endforeach
                                                 </select>
                                             @else
-                                                <input type="text" x-model="exam['{{ $osKey }}']" :class="findingClass('{{ $osKey }}')"
-                                                    class="form-control ui-input ui-input-sm"
+                                                <input type="text" x-model="exam['{{ $osKey }}']" aria-label="{{ $examLabels[$odKey] }}, left eye (OS)" :class="findingClass('{{ $osKey }}')"
+                                                    class="ui-input ui-input-sm"
                                                     {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                                             @endif
                                         </div>
@@ -613,11 +613,11 @@
 
                         </div>
                         <div class="w-full lg:w-6/12 px-2">
-<div id="consultation-section-management" class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4 consultation-section">
-    <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50">
+<div id="consultation-section-management" class="ui-panel mb-4">
+    <div class="ui-section-heading">
         <h6 class="mb-0 font-semibold">Diagnosis & Management</h6>
     </div>
-    <div class="card-body p-4">
+    <div class="p-5">
         <div class="flex flex-wrap -mx-2">
 
             {{-- Diagnosis Search, Selected Tags & Clinical Notes --}}
@@ -635,8 +635,8 @@
                         <div class="flex">
                             <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-white"><i class="fas fa-search"></i></span>
                         </div>
-                        <input type="text" class="form-control ui-input" placeholder="Search for a diagnosis..."
-                            wire:model.live.debounce.400ms="diagnosisSearch"
+                        <input type="text" class="ui-input" placeholder="Search for a diagnosis..."
+                            wire:model.live.debounce.400ms="diagnosisSearch" aria-label="Search diagnoses"
                             @input="open=true"
                             {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                     </div>
@@ -661,7 +661,7 @@
 
                     {{-- Selected Diagnoses Tags Area --}}
                     <div class="mt-2 flex flex-wrap" style="gap: 5px;">
-                        <template x-for="(diag,index) in selected" :key="diag.id"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 p-2 shadow-sm"><i class="fas fa-stethoscope mr-1"></i><span x-text="diag.name"></span><button type="button" @click="remove(index)" class="btn ui-button ui-button-sm text-white ml-2 p-0 ui-button-secondary" style="line-height:1" {{ $consultationFieldsLocked ? 'disabled' : '' }}><i class="fas fa-times-circle"></i></button></span></template>
+                        <template x-for="(diag,index) in selected" :key="diag.id"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 p-2 shadow-sm"><i class="fas fa-stethoscope mr-1"></i><span x-text="diag.name"></span><button type="button" @click="remove(index)" class="ui-button ui-button-sm text-white ml-2 p-0 ui-button-secondary" style="line-height:1" {{ $consultationFieldsLocked ? 'disabled' : '' }}><i class="fas fa-times-circle"></i></button></span></template>
                     </div>
                     @if($managementHasErrors)<small class="consultation-inline-error"><i class="fas fa-exclamation-circle mr-1"></i>{{ $errors->first('diagnoses') ?: $errors->first('selectedDiagnoses') }}</small>@endif
                 </div>
@@ -698,13 +698,13 @@
                             </div>
                         @endif
 
-                        <textarea wire:model="clinicalAddendum"
-                            class="form-control ui-input clinical-notes-textarea @error('clinicalAddendum') is-invalid @enderror"
+                        <textarea wire:model="clinicalAddendum" aria-label="Clinical addendum"
+                            class="ui-input clinical-notes-textarea @error('clinicalAddendum') is-invalid @enderror"
                             rows="5" placeholder="Add a signed addendum, management update, or follow-up note..."></textarea>
                         @error('clinicalAddendum') <div class="ui-error">{{ $message }}</div> @enderror
                         <small class="text-green-700">Stored separately with the author and timestamp; the original note cannot be overwritten.</small>
                     @else
-                        <textarea wire:model="state.notes" class="form-control ui-input clinical-notes-textarea" rows="8"
+                        <textarea wire:model="state.notes" aria-label="Consultation notes" class="ui-input clinical-notes-textarea" rows="8"
                             placeholder="Enter additional clinical observations, management plans, or notes..."></textarea>
                     @endif
                 </div>
@@ -715,13 +715,13 @@
              
 
                 {{-- ⭐ APPOINTMENT BOOKING SECTION - Right Column ⭐ --}}
-                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4">
-                    <div class="card-header border-b border-slate-200 px-4 bg-slate-50 py-2">
+                <div class="ui-panel mb-4">
+                    <div class="ui-section-heading">
                         <h6 class="mb-0 font-semibold">
                             <i class="fas fa-calendar-check text-teal-700"></i> Upcoming Appointment
                         </h6>
                     </div>
-                    <div class="card-body p-4 py-4">
+                    <div class="p-5">
                         @if($upcomingAppointment)
                             <div class="flex justify-between items-start">
                                 <div>
@@ -742,24 +742,24 @@
                 </div>
 
                 {{-- Next routine eye exam: the recall SMS goes out ahead of it (when the clinic switches it on) --}}
-                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4">
-                    <div class="card-header border-b border-slate-200 px-4 bg-slate-50 py-2 flex justify-between items-center">
+                <div class="ui-panel mb-4">
+                    <div class="ui-section-heading">
                         <h6 class="mb-0 font-semibold"><i class="fas fa-calendar-alt text-teal-700"></i> Next Routine Eye Exam</h6>
                         @if($patient->next_exam_due_on)
                             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">Due {{ $patient->next_exam_due_on->format('d M Y') }}</span>
                         @endif
                     </div>
-                    <div class="card-body p-4 py-4">
+                    <div class="p-5">
                         <div class="flex flex-wrap items-center">
-                            <input type="date" wire:model="nextExamDueOn" min="{{ today()->addDay()->toDateString() }}"
-                                   class="form-control ui-input ui-input-sm mr-2 mb-2 @error('nextExamDueOn') is-invalid @enderror" style="max-width:170px" aria-label="Next eye exam due">
-                            <button type="button" wire:click="saveNextExamDue" class="btn ui-button ui-button-sm ui-button-primary mr-2 mb-2"><i class="fas fa-save"></i> Save</button>
+                            <input type="date" wire:model="nextExamDueOn" aria-label="Next examination due on" min="{{ today()->addDay()->toDateString() }}"
+                                   class="ui-input ui-input-sm mr-2 mb-2 @error('nextExamDueOn') is-invalid @enderror" style="max-width:170px" aria-label="Next eye exam due">
+                            <button type="button" wire:click="saveNextExamDue" class="ui-button ui-button-sm ui-button-primary mr-2 mb-2"><i class="fas fa-save"></i> Save</button>
                             <span class="text-sm text-slate-500 mr-2 mb-2">or in</span>
                             @foreach([6 => '6 months', 12 => '1 year', 24 => '2 years'] as $months => $label)
-                                <button type="button" wire:click="setNextExamIn({{ $months }})" class="btn ui-button ui-button-sm ui-button-secondary mr-1 mb-2">{{ $label }}</button>
+                                <button type="button" wire:click="setNextExamIn({{ $months }})" class="ui-button ui-button-sm ui-button-secondary mr-1 mb-2">{{ $label }}</button>
                             @endforeach
                             @if($patient->next_exam_due_on)
-                                <button type="button" wire:click="clearNextExamDue" class="btn ui-button ui-button-sm ui-button-link text-red-700 mb-2">Clear</button>
+                                <button type="button" wire:click="clearNextExamDue" class="ui-button ui-button-sm ui-button-link text-red-700 mb-2">Clear</button>
                             @endif
                         </div>
                         @error('nextExamDueOn') <div class="text-red-700 text-sm">{{ $message }}</div> @enderror
@@ -775,7 +775,7 @@
 
                 <div class="border-t border-slate-200 pt-4" x-data="{showAppointment:@js($showAppointmentSection)}">
                     <div class="mb-2">
-                        <button type="button" @click="showAppointment=!showAppointment" :class="showAppointment?'ui-button-secondary':'ui-button-secondary'" class="btn ui-button ui-button-sm w-full font-semibold shadow-sm ui-button-secondary">
+                        <button type="button" @click="showAppointment=!showAppointment" :class="showAppointment?'ui-button-secondary':'ui-button-secondary'" class="ui-button ui-button-sm w-full font-semibold shadow-sm ui-button-secondary">
                             <i class="fas" :class="showAppointment?'fa-minus-circle':'fa-calendar-plus'"></i><span x-text="showAppointment?'Hide Appointment Form':'Schedule Follow-up Appointment'"></span>
                         </button>
                     </div>
@@ -790,9 +790,9 @@
     </div>
 </div>
 
-                        <div id="consultation-section-review" class="card overflow-hidden rounded-xl border bg-white border-slate-200 mb-4 consultation-review consultation-section" x-data="{ state:$wire.entangle('state'), diagnoses:$wire.entangle('selectedDiagnoses'), filled(v){return String(v??'').trim().length>0}, get historyReady(){return this.filled(this.state.chiefComplaint)}, get examinationReady(){return ['vaOD6m','vaOS6m','lidsOD','lidsOS','corneaOD','corneaOS','IOPOD','IOPOS'].some(k=>this.filled(this.state[k]))}, get diagnosisReady(){return Array.isArray(this.diagnoses)&&this.diagnoses.length>0}, get ready(){return this.historyReady&&this.diagnosisReady} }">
-                            <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50 flex justify-between items-center"><h6 class="mb-0 font-semibold"><i class="fas fa-clipboard-check text-teal-700 mr-1"></i> Clinical Review</h6><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" :class="ready?'bg-green-100 text-green-800':'bg-amber-100 text-amber-800'" x-text="ready?'Ready to save':'Needs attention'"></span></div>
-                            <div class="card-body p-4 py-4"><div class="consultation-review-grid">
+                        <div id="consultation-section-review" class="ui-panel mb-4" x-data="{ state:$wire.entangle('state'), diagnoses:$wire.entangle('selectedDiagnoses'), filled(v){return String(v??'').trim().length>0}, get historyReady(){return this.filled(this.state.chiefComplaint)}, get examinationReady(){return ['vaOD6m','vaOS6m','lidsOD','lidsOS','corneaOD','corneaOS','IOPOD','IOPOS'].some(k=>this.filled(this.state[k]))}, get diagnosisReady(){return Array.isArray(this.diagnoses)&&this.diagnoses.length>0}, get ready(){return this.historyReady&&this.diagnosisReady} }">
+                            <div class="ui-section-heading"><h6 class="mb-0 font-semibold"><i class="fas fa-clipboard-check text-teal-700 mr-1"></i> Clinical Review</h6><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" :class="ready?'bg-green-100 text-green-800':'bg-amber-100 text-amber-800'" x-text="ready?'Ready to save':'Needs attention'"></span></div>
+                            <div class="p-5"><div class="consultation-review-grid">
                                 <a href="#consultation-section-history" :class="historyReady?'is-complete':'is-missing'"><i class="fas" :class="historyReady?'fa-check-circle':'fa-exclamation-circle'"></i><span><strong>History</strong><small x-text="historyReady?'Chief complaint recorded':'Chief complaint required'"></small></span></a>
                                 <a href="#consultation-section-examination" :class="examinationReady?'is-complete':'is-optional'"><i class="fas" :class="examinationReady?'fa-check-circle':'fa-info-circle'"></i><span><strong>Examination</strong><small x-text="examinationReady?'Findings recorded':'No findings recorded'"></small></span></a>
                                 <a href="#consultation-section-management" :class="diagnosisReady?'is-complete':'is-missing'"><i class="fas" :class="diagnosisReady?'fa-check-circle':'fa-exclamation-circle'"></i><span><strong>Diagnosis & Plan</strong><small x-text="diagnosisReady?diagnoses.length+' selected':'Diagnosis required'"></small></span></a>
@@ -821,10 +821,10 @@
                             </aside>
                         @endif
                         <div class="consultation-actions text-right">
-                            <button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary px-6">
+                            <button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack" class="ui-button ui-button-secondary px-6">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
-                            <button type="submit" class="btn ui-button {{ $consultationFieldsLocked ? 'ui-button-primary' : 'ui-button-primary' }} px-12" wire:loading.attr="disabled">
+                            <button type="submit" class="ui-button {{ $consultationFieldsLocked ? 'ui-button-primary' : 'ui-button-primary' }} px-12" wire:loading.attr="disabled">
                                 <span wire:loading.remove
                                     wire:target="{{ $isEditMode ? 'updateConsultation' : 'createConsultation' }}">
                                     <i class="fas fa-save"></i>
@@ -862,7 +862,7 @@
             </div>
             @if(count($productsList) > 0 && $consultationID)
                 <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
-                    class="btn ui-button ui-button-sm ui-button-danger">
+                    class="ui-button ui-button-sm ui-button-danger">
                     <i class="fas fa-trash"></i> Clear All
                 </button>
             @endif
@@ -873,17 +873,17 @@
             {{-- LEFT COLUMN: Compact Search Bar (25%) --}}
             <div class="w-full md:w-3/12 px-2">
                 {{-- No overflow-hidden here: the search results drop down outside the card. --}}
-                <div class="card rounded-xl border bg-white border-slate-200 shadow-xs sticky top-0 z-30" style="top: 10px;">
-                    <div class="card-header rounded-t-xl border-b border-slate-200 bg-teal-700 text-white py-1 px-4">
+                <div class="ui-panel sticky top-0" style="top: 10px;">
+                    <div class="ui-section-heading">
                         <h6 class="mb-0 font-semibold" style="font-size: 13px;">
                             <i class="fas fa-search"></i> Quick Add Product
                         </h6>
                     </div>
-                    <div class="card-body p-2">
+                    <div class="p-5">
                         {{-- Product Search --}}
                         <div class="relative mb-2">
-                            <input type="text" wire:model.live.debounce.400ms="productSearch"
-                                class="form-control ui-input ui-input-sm" placeholder="Type product name..."
+                            <input type="text" wire:model.live.debounce.400ms="productSearch" aria-label="Search drugs and items"
+                                class="ui-input ui-input-sm" placeholder="Type product name..."
                                 autocomplete="off">
                             <i class="fas fa-search absolute"
                                 style="right: 10px; top: 8px; color: #999; font-size: 12px;"></i>
@@ -929,8 +929,8 @@
 
             {{-- RIGHT COLUMN: Products List with Eye & Frequency (75%) --}}
             <div class="w-full md:w-9/12 px-2">
-                <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 shadow-sm">
-                    <div class="card-header border-b border-slate-200 px-4 py-2 bg-slate-50 flex justify-between items-center flex-wrap">
+                <div class="ui-panel">
+                    <div class="ui-section-heading">
                         <h6 class="mb-0 font-semibold">
                             <i class="fas fa-list-alt"></i> Prescription Items
                             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 ml-2">{{ count($productsList) }}</span>
@@ -976,7 +976,7 @@
 
                                 {{-- Refresh button --}}
                                 <button wire:click="refreshPrescriptionStatus"
-                                    class="btn ui-button ui-button-sm ui-button-secondary ml-1" title="Refresh status"
+                                    class="ui-button ui-button-sm ui-button-secondary ml-1" title="Refresh status"
                                     wire:loading.attr="disabled">
                                     <span wire:loading.remove wire:target="refreshPrescriptionStatus">
                                         <i class="fas fa-sync-alt"></i>
@@ -988,10 +988,10 @@
                             </div>
                         @endif
                     </div>
-                          <div class="card-body p-0">
+                          <div class="">
                         @if(count($productsList) > 0)
                             <div class="ui-table-wrap" style="max-height: 260px; overflow-y: auto;">
-                                <table class="table ui-table ui-table-sm mb-0" style="font-size: 12px;">
+                                <table class="ui-table ui-table-sm mb-0" style="font-size: 12px;">
                                     <thead class="sticky top-0 z-20" style="top: 0; z-index: 10;">
                                         <tr>
                                             <th width="3%" class="py-1">#</th>
@@ -1032,9 +1032,9 @@
                                                 <td class="py-1 px-1 align-middle">
                                                     @if(!$isLocked)
                                                         <input type="number"
-                                                            wire:model.blur="productsList.{{ $index }}.quantity"
+                                                            wire:model.blur="productsList.{{ $index }}.quantity" aria-label="Quantity of {{ $item['name'] ?? 'item' }}"
                                                             wire:change="updateProductQuantity({{ $index }}, $event.target.value)"
-                                                            class="form-control ui-input ui-input-sm text-center" min="1"
+                                                            class="ui-input ui-input-sm text-center" min="1"
                                                             style="width: 48px;">
                                                     @else
                                                         <span class="inline-flex items-center rounded text-xs font-semibold bg-slate-100 text-slate-700 px-1 py-0.5" style="font-size: 10px;">
@@ -1048,8 +1048,8 @@
                                                     @if(!$isDrug)
                                                         <small class="text-slate-500" style="font-size: 10px;">Not applicable</small>
                                                     @elseif(!$isLocked)
-                                                        <select class="form-control ui-input ui-input-sm" style="min-width: 112px;"
-                                                                wire:change="updateEye({{ $index }}, $event.target.value)">
+                                                        <select class="ui-input ui-input-sm" style="min-width: 112px;"
+                                                                wire:change="updateEye({{ $index }}, $event.target.value)" aria-label="Which eye for {{ $item['name'] ?? 'this drug' }}">
                                                             <option value="">-- Eye --</option>
                                                             @foreach(\App\Enums\EyeLaterality::cases() as $eye)
                                                                 <option value="{{ $eye->value }}" {{ ($item['eye'] ?? '') === $eye->value ? 'selected' : '' }}>
@@ -1073,7 +1073,7 @@
                                                             @if(!$isLocked)
                                                                 <button type="button" 
                                                                         wire:click="editFrequency({{ $index }})"
-                                                                        class="btn ui-button ui-button-sm ui-button-secondary py-0 px-1" style="font-size: 10px;">
+                                                                        class="ui-button ui-button-sm ui-button-secondary py-0 px-1" style="font-size: 10px;">
                                                                     <i class="fas fa-eye"></i> Set
                                                                 </button>
                                                             @else
@@ -1089,8 +1089,8 @@
                                                         <small class="text-slate-500" style="font-size: 10px;">Not applicable</small>
                                                     @elseif(!$isLocked)
                                                         <div class="flex items-center">
-                                                            <select class="form-control ui-input ui-input-sm mr-1" style="min-width: 110px;"
-                                                                    wire:change="updateFrequency({{ $index }}, $event.target.value)">
+                                                            <select class="ui-input ui-input-sm mr-1" style="min-width: 110px;"
+                                                                    wire:change="updateFrequency({{ $index }}, $event.target.value)" aria-label="How often to take {{ $item['name'] ?? 'this drug' }}">
                                                                 <option value="">-- Select --</option>
                                                                 @foreach(\App\Enums\ProductFrequency::options() as $value => $label)
                                                                     <option value="{{ $value }}" {{ ($item['frequency'] ?? '') === $value ? 'selected' : '' }}>
@@ -1100,7 +1100,7 @@
                                                             </select>
                                                             <button type="button" 
                                                                     wire:click="cancelFrequencyEdit"
-                                                                    class="btn ui-button ui-button-sm ui-button-secondary py-0 px-1">
+                                                                    class="ui-button ui-button-sm ui-button-secondary py-0 px-1">
                                                                 <i class="fas fa-times"></i>
                                                             </button>
                                                         </div>
@@ -1120,7 +1120,7 @@
                                                             @if(!$isLocked)
                                                                 <button type="button" 
                                                                         wire:click="editFrequency({{ $index }})"
-                                                                        class="btn ui-button ui-button-sm ui-button-secondary py-0 px-1" style="font-size: 10px;">
+                                                                        class="ui-button ui-button-sm ui-button-secondary py-0 px-1" style="font-size: 10px;">
                                                                     <i class="fas fa-plus-circle"></i> Set
                                                                 </button>
                                                             @else
@@ -1144,12 +1144,12 @@
                                                         <div class="flex items-center" style="gap: 3px;">
                                                             @if(($item['duration_unit'] ?? 'days') !== 'until_finished')
                                                                 <input type="number" min="1"
-                                                                    wire:model.blur="productsList.{{ $index }}.duration_value"
-                                                                    class="form-control ui-input ui-input-sm text-center"
+                                                                    wire:model.blur="productsList.{{ $index }}.duration_value" aria-label="How long to take {{ $item['name'] ?? 'it' }}"
+                                                                    class="ui-input ui-input-sm text-center"
                                                                     style="width: 48px;">
                                                             @endif
-                                                            <select wire:model.live="productsList.{{ $index }}.duration_unit"
-                                                                class="form-control ui-input ui-input-sm"
+                                                            <select wire:model.live="productsList.{{ $index }}.duration_unit" aria-label="Duration unit"
+                                                                class="ui-input ui-input-sm"
                                                                 style="min-width: 84px;">
                                                                 <option value="days">Days</option>
                                                                 <option value="weeks">Weeks</option>
@@ -1180,7 +1180,7 @@
                                                 <td class="text-center py-1 px-1 align-middle">
                                                     @if(!$isLocked)
                                                         <button wire:click="removeProduct({{ $index }})"
-                                                            class="btn ui-button ui-button-sm ui-button-danger py-0 px-1"
+                                                            class="ui-button ui-button-sm ui-button-danger py-0 px-1"
                                                             wire:confirm="Remove this product?" title="Remove item">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
@@ -1217,10 +1217,10 @@
                 @if(count($productsList) > 0)
                     <div class="mt-2 flex justify-between items-center bg-white p-2 border border-slate-200 rounded-md shadow-xs">
                         <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
-                            class="btn ui-button ui-button-sm ui-button-danger font-semibold">
+                            class="ui-button ui-button-sm ui-button-danger font-semibold">
                             <i class="fas fa-trash mr-1"></i> Clear Unsaved Items
                         </button>
-                        <button wire:click="savePrescription" class="btn ui-button ui-button-sm ui-button-primary px-6 font-semibold shadow-xs"
+                        <button wire:click="savePrescription" class="ui-button ui-button-sm ui-button-primary px-6 font-semibold shadow-xs"
                             wire:loading.attr="disabled">
                             <span wire:loading.remove wire:target="savePrescription">
                                 <i class="fas fa-paper-plane mr-1"></i> Save &amp; Send to Pharmacy / Cashier
@@ -1244,7 +1244,7 @@
                         <h5 class="mb-0 text-teal-700 font-semibold">
                             <i class="fas fa-glasses"></i> Refraction Details
                         </h5>
-                        <button wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary">
+                        <button wire:click="cancelAndGoBack" class="ui-button ui-button-secondary">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                     </div>
@@ -1272,21 +1272,21 @@
                         <div class="text-right">
                             @if($consultationID)
                                 <button type="button" wire:click="resetRefractionChanges"
-                                    class="btn ui-button ui-button-secondary px-6"
+                                    class="ui-button ui-button-secondary px-6"
                                     wire:confirm="Discard unsaved refraction changes and reload the saved values?">
                                     <i class="fas fa-undo"></i> Reset Changes
                                 </button>
                             @endif
-                            <button type="button" wire:click="cancelAndGoBack" class="btn ui-button ui-button-secondary px-6">
+                            <button type="button" wire:click="cancelAndGoBack" class="ui-button ui-button-secondary px-6">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
                             @if($consultationID)
-                                <button type="submit" class="btn ui-button ui-button-primary px-12" wire:loading.attr="disabled" wire:target="saveRefraction">
+                                <button type="submit" class="ui-button ui-button-primary px-12" wire:loading.attr="disabled" wire:target="saveRefraction">
                                     <span wire:loading.remove wire:target="saveRefraction"><i class="fas fa-save"></i> Save Refraction</span>
                                     <span wire:loading wire:target="saveRefraction"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
                                 </button>
                             @else
-                                <button type="button" disabled class="btn ui-button ui-button-secondary px-12" title="Select a consultation first">
+                                <button type="button" disabled class="ui-button ui-button-secondary px-12" title="Select a consultation first">
                                     <i class="fas fa-save"></i> Save Refraction
                                 </button>
                             @endif
@@ -1310,18 +1310,18 @@
 
                     <div class="flex flex-wrap -mx-2">
                         <div class="w-full lg:w-5/12 px-2 mb-4">
-                            <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 h-full">
-                                <div class="card-header border-b border-slate-200 px-4 bg-slate-50 py-2">
+                            <div class="ui-panel h-full">
+                                <div class="ui-section-heading">
                                     <h6 class="mb-0 font-semibold">
                                         <i class="fas fa-paperclip text-teal-700"></i> Attach Clinical Document 
                                     </h6>
                                 </div>
-                                <div class="card-body p-4">
+                                <div class="p-5">
                                     <form wire:submit="uploadPatientDocument">
                                         <div class="flex flex-wrap -mx-2">
                                             <div class="w-full md:w-6/12 px-2 mb-4">
-                                                <label class="font-semibold text-sm">Document Type</label>
-                                                <select wire:model.live="documentType" class="form-control ui-input ui-input-sm">
+                                                <label for="patient-reco-documenttype" class="font-semibold text-sm">Document Type</label>
+                                                <select id="patient-reco-documenttype" wire:model.live="documentType" class="ui-input ui-input-sm">
                                                     <option value="fundus_photo">Fundus Photo</option>
                                                     <option value="oct">OCT</option>
                                                     <option value="visual_field">Visual Field</option>
@@ -1331,8 +1331,8 @@
                                                 @error('documentType') <small class="text-red-700">{{ $message }}</small> @enderror
                                             </div>
                                             <div class="w-full md:w-6/12 px-2 mb-4">
-                                                <label class="font-semibold text-sm">Visit</label>
-                                                <select wire:model.live="documentConsultationId" class="form-control ui-input ui-input-sm">
+                                                <label for="patient-reco-documentconsultationid" class="font-semibold text-sm">Visit</label>
+                                                <select id="patient-reco-documentconsultationid" wire:model.live="documentConsultationId" class="ui-input ui-input-sm">
                                                     <option value="">General patient file</option>
                                                     @foreach($patientRecords as $record)
                                                         <option value="{{ $record->id }}">{{ $record->created_at->format('d M Y') }}</option>
@@ -1343,18 +1343,18 @@
                                         </div>
 
                                         <div class="mb-4">
-                                            <label class="font-semibold text-sm">Title</label>
-                                            <input type="text" wire:model="documentTitle" class="form-control ui-input ui-input-sm"
+                                            <label for="patient-reco-documenttitle" class="font-semibold text-sm">Title</label>
+                                            <input id="patient-reco-documenttitle" type="text" wire:model="documentTitle" class="ui-input ui-input-sm"
                                                 placeholder="e.g. Left eye OCT macula">
                                             @error('documentTitle') <small class="text-red-700">{{ $message }}</small> @enderror
                                         </div>
 
                                         <div class="mb-4">
-                                            <label class="font-semibold text-sm">File</label>
-                                            <input type="file"
+                                            <label for="patient-reco-documentfiles" class="font-semibold text-sm">File</label>
+                                            <input id="patient-reco-documentfiles" type="file"
                                                 wire:model.live="documentFiles"
                                                 wire:key="patient-document-upload-{{ $documentUploadKey }}"
-                                                class="form-control ui-input ui-input-sm"
+                                                class="ui-input ui-input-sm"
                                                 accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
                                                 multiple>
                                             <small class="text-slate-500">Select one or more JPG, PNG, PDF, DOC, DOCX files. Max 10MB each, 10 files per upload.</small>
@@ -1363,12 +1363,12 @@
                                         </div>
 
                                         <div class="mb-4">
-                                            <label class="font-semibold text-sm">Notes</label>
-                                            <textarea wire:model="documentNotes" class="form-control ui-input ui-input-sm" rows="2"></textarea>
+                                            <label for="patient-reco-documentnotes" class="font-semibold text-sm">Notes</label>
+                                            <textarea id="patient-reco-documentnotes" wire:model="documentNotes" class="ui-input ui-input-sm" rows="2"></textarea>
                                             @error('documentNotes') <small class="text-red-700">{{ $message }}</small> @enderror
                                         </div>
 
-                                        <button type="submit" class="btn ui-button ui-button-primary ui-button-sm"
+                                        <button type="submit" class="ui-button ui-button-primary ui-button-sm"
                                             wire:loading.attr="disabled" wire:target="uploadPatientDocument,documentFiles">
                                             <span wire:loading.remove wire:target="uploadPatientDocument,documentFiles">
                                                 <i class="fas fa-upload"></i> Upload
@@ -1383,16 +1383,16 @@
                         </div>
 
                         <div class="w-full lg:w-7/12 px-2 mb-4">
-                            <div class="card overflow-hidden rounded-xl border bg-white border-slate-200 h-full">
-                                <div class="card-header border-b border-slate-200 px-4 bg-slate-50 flex justify-between items-center py-2">
+                            <div class="ui-panel h-full">
+                                <div class="ui-section-heading">
                                     <h6 class="mb-0 font-semibold">
                                         <i class="fas fa-folder-open text-green-700"></i> Attached Images & Documents
                                     </h6>
                                     <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $patientDocumentCount }}</span>
                                 </div>
-                                <div class="card-body p-0">
+                                <div class="">
                                     <div class="ui-table-wrap">
-                                        <table class="table ui-table ui-table-sm mb-0">
+                                        <table class="ui-table ui-table-sm mb-0">
                                             <thead class="">
                                                 <tr>
                                                     <th>Type</th>
@@ -1420,17 +1420,17 @@
                                                             <small class="block text-slate-500">{{ $document->uploadedBy->name ?? 'System' }}</small>
                                                         </td>
                                                         <td class="text-center">
-                                                            <a href="{{ $document->url }}" target="_blank" class="btn ui-button ui-button-sm ui-button-secondary">
+                                                            <a href="{{ $document->url }}" target="_blank" class="ui-button ui-button-sm ui-button-secondary">
                                                                 <i class="fas fa-eye"></i>
                                                             </a>
                                                             @if(auth()->user()->hasRole('Super Admin'))
                                                                 <button wire:click="deletePatientDocument({{ $document->id }})"
                                                                     wire:confirm="Delete this document?"
-                                                                    class="btn ui-button ui-button-sm ui-button-danger">
+                                                                    class="ui-button ui-button-sm ui-button-danger">
                                                                     <i class="fas fa-trash"></i>
                                                                 </button>
                                                             @else
-                                                                <button type="button" class="btn ui-button ui-button-sm ui-button-secondary" disabled
+                                                                <button type="button" class="ui-button ui-button-sm ui-button-secondary" disabled
                                                                     title="Only Super Admin can delete uploads">
                                                                     <i class="fas fa-lock"></i>
                                                                 </button>
