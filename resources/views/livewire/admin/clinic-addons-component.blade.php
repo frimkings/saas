@@ -1,6 +1,6 @@
-<div class="card overflow-hidden rounded-xl border border-slate-200 bg-white mt-4">
-    <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2"><h3 class="font-semibold">Add-ons</h3></div>
-    <div class="card-body p-4">
+<div class="ui-panel mt-4">
+    <div class="ui-section-heading"><h3 class="font-semibold">Add-ons</h3></div>
+    <div class="p-5">
         <p class="text-slate-500 text-sm mb-4">Extra features on top of your plan, billed each month with your subscription. When one is added, the rest of the current period is charged straight away.</p>
 
         @if($active->isNotEmpty())
@@ -26,16 +26,16 @@
                             @if(in_array($feature, $pending, true))
                                 <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">Requested · waiting for approval</span>
                             @elseif($requesting !== $feature)
-                                <button type="button" class="btn ui-button ui-button-sm ui-button-secondary" wire:click="ask('{{ $feature }}')">Request</button>
+                                <button type="button" class="ui-button ui-button-sm ui-button-secondary" wire:click="ask('{{ $feature }}')">Request</button>
                             @endif
                         </div>
                         @if($requesting === $feature)
                             <div class="mt-2">
-                                <textarea class="form-control ui-input ui-input-sm" rows="2" wire:model="message" placeholder="Anything we should know? (optional)" aria-label="Message with the request"></textarea>
+                                <textarea class="ui-input ui-input-sm" rows="2" wire:model="message" placeholder="Anything we should know? (optional)" aria-label="Message with the request"></textarea>
                                 @error('message')<small class="text-red-700">{{ $message }}</small>@enderror
                                 <div class="mt-2">
-                                    <button type="button" class="btn ui-button ui-button-sm ui-button-primary" wire:click="send" wire:loading.attr="disabled">Send request</button>
-                                    <button type="button" class="btn ui-button ui-button-sm ui-button-link" wire:click="$set('requesting', null)">Cancel</button>
+                                    <button type="button" class="ui-button ui-button-sm ui-button-primary" wire:click="send" wire:loading.attr="disabled">Send request</button>
+                                    <button type="button" class="ui-button ui-button-sm ui-button-link" wire:click="$set('requesting', null)">Cancel</button>
                                 </div>
                             </div>
                         @endif

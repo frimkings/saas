@@ -81,8 +81,8 @@
         <div class="w-full lg:w-8/12 px-2 mb-6">
 
             {{-- Tab nav --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-0" style="border-radius:10px;overflow:hidden">
-                <div class="card-header border-b border-slate-200 py-2 bg-white border-b-0 pb-0 pt-4 px-4">
+            <div class="ui-panel mb-0" style="border-radius:10px;overflow:hidden">
+                <div class="ui-section-heading">
                     <ul class="flex flex-wrap" role="tablist" aria-label="Profile sections">
                         <li class="">
                             <button type="button" wire:click="switchTab('account')"
@@ -117,7 +117,7 @@
 
                 {{-- ── Account Tab ───────────────────────────── --}}
                 @if($activeTab === 'account')
-                <div class="card-body p-4 px-6 py-6">
+                <div class="p-5">
 
                     <h6 class="uppercase text-slate-500 font-semibold mb-4" style="font-size:.72rem;letter-spacing:.08em">
                         Personal Information
@@ -125,17 +125,17 @@
 
                     <div class="flex flex-wrap -mx-2">
                         <div class="w-full md:w-6/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">Full Name</label>
-                            <input type="text"
+                            <label for="user-profile-name" class="text-sm font-semibold text-slate-500 mb-1">Full Name</label>
+                            <input id="user-profile-name" type="text"
                                    wire:model="name"
-                                   class="form-control ui-input @error('name') is-invalid @enderror"
+                                   class="ui-input @error('name') is-invalid @enderror"
                                    placeholder="Your full name">
                             @error('name')<div class="ui-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="w-full md:w-6/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">Email Address</label>
+                            <label for="user-profile-email-address" class="text-sm font-semibold text-slate-500 mb-1">Email Address</label>
                             <div class="flex items-stretch">
-                                <input type="email" value="{{ $email }}" class="form-control ui-input bg-slate-50" readonly>
+                                <input id="user-profile-email-address" type="email" value="{{ $email }}" class="ui-input bg-slate-50" readonly>
                                 <div class="flex">
                                     <span class="flex items-center border border-slate-300 px-2 text-sm bg-slate-50 text-slate-500" title="Contact admin to change"><i class="fas fa-lock"></i></span>
                                 </div>
@@ -146,21 +146,21 @@
 
                     <div class="flex flex-wrap -mx-2 mt-2">
                         <div class="w-full md:w-4/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">Phone Number</label>
+                            <label for="user-profile-phone" class="text-sm font-semibold text-slate-500 mb-1">Phone Number</label>
                             <div class="flex items-stretch">
                                 <div class="flex">
                                     <span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-slate-50"><i class="fas fa-phone text-slate-500"></i></span>
                                 </div>
-                                <input type="text"
+                                <input id="user-profile-phone" type="text"
                                        wire:model="phone"
-                                       class="form-control ui-input @error('phone') is-invalid @enderror"
+                                       class="ui-input @error('phone') is-invalid @enderror"
                                        placeholder="+63 912 345 6789">
                                 @error('phone')<div class="ui-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
                         <div class="w-full md:w-4/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">Gender</label>
-                            <select wire:model="gender"
+                            <label for="user-profile-gender" class="text-sm font-semibold text-slate-500 mb-1">Gender</label>
+                            <select id="user-profile-gender" wire:model="gender"
                                     class="ui-input @error('gender') is-invalid @enderror">
                                 <option value="">— Not specified —</option>
                                 <option value="Male">Male</option>
@@ -170,10 +170,10 @@
                             @error('gender')<div class="ui-error">{{ $message }}</div>@enderror
                         </div>
                         <div class="w-full md:w-4/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">Date of Birth</label>
-                            <input type="date"
+                            <label for="user-profile-date-of-birth" class="text-sm font-semibold text-slate-500 mb-1">Date of Birth</label>
+                            <input id="user-profile-date-of-birth" type="date"
                                    wire:model="date_of_birth"
-                                   class="form-control ui-input @error('date_of_birth') is-invalid @enderror">
+                                   class="ui-input @error('date_of_birth') is-invalid @enderror">
                             @error('date_of_birth')<div class="ui-error">{{ $message }}</div>@enderror
                         </div>
                     </div>
@@ -196,12 +196,12 @@
                         </div>
                         <div class="grow">
                             <div class="mb-2">
-                                <label class="btn ui-button ui-button-secondary ui-button-sm mb-0" style="cursor:pointer">
+                                <label class="ui-button ui-button-secondary ui-button-sm mb-0" style="cursor:pointer">
                                     <i class="fas fa-upload mr-1"></i> Choose Photo
                                     <input type="file" wire:model.live="avatar" accept="image/*" style="display:none">
                                 </label>
                                 @if($user->avatar)
-                                <button type="button" wire:click="removeAvatar" class="btn ui-button ui-button-danger ui-button-sm ml-1"
+                                <button type="button" wire:click="removeAvatar" class="ui-button ui-button-danger ui-button-sm ml-1"
                                         wire:confirm="Remove your profile photo?">
                                     <i class="fas fa-trash mr-1"></i> Remove
                                 </button>
@@ -222,16 +222,16 @@
 
                     <div class="flex flex-wrap -mx-2">
                         <div class="w-full md:w-6/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">New Password</label>
+                            <label for="pwField" class="text-sm font-semibold text-slate-500 mb-1">New Password</label>
                             <div class="flex items-stretch">
                                 <input type="password"
                                        id="pwField"
                                        wire:model="password"
-                                       class="form-control ui-input @error('password') is-invalid @enderror"
+                                       class="ui-input @error('password') is-invalid @enderror"
                                        placeholder="Min 8 characters"
                                        oninput="updateStrength(this.value)">
                                 <div class="flex">
-                                    <button type="button" class="btn ui-button ui-button-secondary" onclick="togglePw('pwField',this)">
+                                    <button type="button" class="ui-button ui-button-secondary" onclick="togglePw('pwField',this)">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                 </div>
@@ -246,15 +246,15 @@
                             </div>
                         </div>
                         <div class="w-full md:w-6/12 px-2 mb-4">
-                            <label class="text-sm font-semibold text-slate-500 mb-1">Confirm New Password</label>
+                            <label for="pwConfirm" class="text-sm font-semibold text-slate-500 mb-1">Confirm New Password</label>
                             <div class="flex items-stretch">
                                 <input type="password"
                                        id="pwConfirm"
                                        wire:model="password_confirmation"
-                                       class="form-control ui-input"
+                                       class="ui-input"
                                        placeholder="Repeat password">
                                 <div class="flex">
-                                    <button type="button" class="btn ui-button ui-button-secondary" onclick="togglePw('pwConfirm',this)">
+                                    <button type="button" class="ui-button ui-button-secondary" onclick="togglePw('pwConfirm',this)">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                 </div>
@@ -264,7 +264,7 @@
 
                     <div class="flex justify-end mt-4">
                         <button type="button" wire:click="updateProfile"
-                                class="btn ui-button ui-button-primary px-6 font-semibold shadow-sm"
+                                class="ui-button ui-button-primary px-6 font-semibold shadow-sm"
                                 style="background:{{ $roleColor['bg'] }};border-color:{{ $roleColor['bg'] }}">
                             <span wire:loading.remove wire:target="updateProfile"><i class="fas fa-save mr-2"></i>Save Changes</span>
                             <span wire:loading wire:target="updateProfile"><i class="fas fa-spinner fa-spin mr-2"></i>Saving…</span>
@@ -274,7 +274,7 @@
 
                 {{-- ── Security Tab ───────────────────────────── --}}
                 @else
-                <div class="card-body p-4 px-6 py-6">
+                <div class="p-5">
 
                     <h6 class="uppercase text-slate-500 font-semibold mb-4" style="font-size:.72rem;letter-spacing:.08em">
                         Recent Login Activity
@@ -282,7 +282,7 @@
 
                     @if($loginLogs->isNotEmpty())
                     <div class="ui-table-wrap">
-                        <table class="table ui-table ui-table-sm">
+                        <table class="ui-table ui-table-sm">
                             <thead class="">
                                 <tr>
                                     <th><i class="fas fa-clock mr-1 text-slate-500"></i>Date &amp; Time</th>
@@ -353,12 +353,12 @@
         <div class="w-full lg:w-4/12 px-2">
 
             {{-- Stats Card --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-4" style="border-radius:10px;overflow:hidden">
-                <div class="card-header border-b font-semibold uppercase text-sm text-slate-500 border-slate-200 bg-white py-2 px-4"
+            <div class="ui-panel mb-4" style="border-radius:10px;overflow:hidden">
+                <div class="ui-section-heading"
                      style="letter-spacing:.06em">
                     Account Overview
                 </div>
-                <div class="card-body p-4 px-4 py-4">
+                <div class="p-5">
                     <div class="flex justify-between items-center mb-4">
                         <span class="text-sm text-slate-500"><i class="fas fa-calendar-plus mr-2 text-teal-700"></i>Member Since</span>
                         <span class="text-sm font-semibold">{{ $user->created_at->format('d M Y') }}</span>
@@ -410,12 +410,12 @@
             </div>
 
             {{-- Staff Info Card --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-4" style="border-radius:10px;overflow:hidden">
-                <div class="card-header border-b font-semibold uppercase text-sm text-slate-500 border-slate-200 bg-white py-2 px-4"
+            <div class="ui-panel mb-4" style="border-radius:10px;overflow:hidden">
+                <div class="ui-section-heading"
                      style="letter-spacing:.06em">
                     <i class="fas fa-id-card mr-1"></i> Staff Details
                 </div>
-                <div class="card-body p-4 px-4 py-4">
+                <div class="p-5">
                     <div class="flex justify-between items-center mb-4">
                         <span class="text-sm text-slate-500"><i class="fas fa-barcode mr-2 text-slate-500"></i>Staff ID</span>
                         <span class="text-sm font-semibold font-monospace">{{ $staff_id ?: '—' }}</span>
@@ -453,12 +453,12 @@
             </div>
 
             {{-- Roles Card --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-4" style="border-radius:10px;overflow:hidden">
-                <div class="card-header border-b font-semibold uppercase text-sm text-slate-500 border-slate-200 bg-white py-2 px-4"
+            <div class="ui-panel mb-4" style="border-radius:10px;overflow:hidden">
+                <div class="ui-section-heading"
                      style="letter-spacing:.06em">
                     <i class="fas fa-id-badge mr-1"></i> Access Roles
                 </div>
-                <div class="card-body p-4 px-4 py-4">
+                <div class="p-5">
                     @foreach($roles as $role)
                     @php
                         $rColor = match($role) {
@@ -488,8 +488,8 @@
             </div>
 
             {{-- Quick Links --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm" style="border-radius:10px;overflow:hidden">
-                <div class="card-header border-b font-semibold uppercase text-sm text-slate-500 border-slate-200 bg-white py-2 px-4"
+            <div class="ui-panel" style="border-radius:10px;overflow:hidden">
+                <div class="ui-section-heading"
                      style="letter-spacing:.06em">
                     <i class="fas fa-bolt mr-1"></i> Quick Links
                 </div>

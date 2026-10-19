@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="9btpM60A07J8uolZS0AA7d3vAzrIDTAoQgnUgG2K">
+    <title>User Management - My Eye Clinic</title>
+    <link rel="preload" as="style" href="http://127.0.0.1:8899/build/assets/app-CMc8tBdX.css" /><link rel="modulepreload" as="script" href="http://127.0.0.1:8899/build/assets/app-B5lG5f1U.js" /><link rel="stylesheet" href="http://127.0.0.1:8899/build/assets/app-CMc8tBdX.css" data-navigate-track="reload" /><script type="module" src="http://127.0.0.1:8899/build/assets/app-B5lG5f1U.js" data-navigate-track="reload"></script>    <link rel="stylesheet" href="http://127.0.0.1:8899/backend/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="http://127.0.0.1:8899/backend/plugins/vendor-css/pikaday.css">
+    
+    <link rel="stylesheet" href="http://127.0.0.1:8899/backend/plugins/sweetalert2/sweetalert2.min.css">
+    <script src="http://127.0.0.1:8899/backend/plugins/sweetalert2/sweetalert2.js"></script>
+    <script src="http://127.0.0.1:8899/backend/plugins/vendor-js/chart.min.js"></script>
+    <!-- Livewire Styles --><style >[wire\:loading][wire\:loading], [wire\:loading\.delay][wire\:loading\.delay], [wire\:loading\.inline-block][wire\:loading\.inline-block], [wire\:loading\.inline][wire\:loading\.inline], [wire\:loading\.block][wire\:loading\.block], [wire\:loading\.flex][wire\:loading\.flex], [wire\:loading\.table][wire\:loading\.table], [wire\:loading\.grid][wire\:loading\.grid], [wire\:loading\.inline-flex][wire\:loading\.inline-flex] {display: none;}[wire\:loading\.delay\.none][wire\:loading\.delay\.none], [wire\:loading\.delay\.shortest][wire\:loading\.delay\.shortest], [wire\:loading\.delay\.shorter][wire\:loading\.delay\.shorter], [wire\:loading\.delay\.short][wire\:loading\.delay\.short], [wire\:loading\.delay\.default][wire\:loading\.delay\.default], [wire\:loading\.delay\.long][wire\:loading\.delay\.long], [wire\:loading\.delay\.longer][wire\:loading\.delay\.longer], [wire\:loading\.delay\.longest][wire\:loading\.delay\.longest] {display: none;}[wire\:offline][wire\:offline] {display: none;}[wire\:dirty]:not(textarea):not(input):not(select) {display: none;}:root {--livewire-progress-bar-color: #0d9488;}[x-cloak] {display: none !important;}[wire\:cloak] {display: none !important;}dialog#livewire-error::backdrop {background-color: rgba(0, 0, 0, .6);}</style>
+    
+    <script>
+(function () {
+    var IDLE_LIMIT = 30 * 60 * 1000; // 30 minutes
+    var WARN_BEFORE = 60 * 1000;     // warn 1 minute before
+    var ACTIVITY_KEY = 'eyeclinic:lastActivityAt';
+    var LOGOUT_KEY = 'eyeclinic:forceLogoutAt';
+    var warnTimer;
+    var logoutTimer;
+    var warningOpen = false;
+    var warningTitle = 'Session Expiring';
+
+    function now() {
+        return Date.now();
+    }
+
+    function lastActivityAt() {
+        return parseInt(localStorage.getItem(ACTIVITY_KEY) || '0', 10) || now();
+    }
+
+    function submitLogout() {
+        localStorage.setItem(LOGOUT_KEY, String(now()));
+
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'http://127.0.0.1:8899/logout';
+        form.style.display = 'none';
+
+        var token = document.createElement('input');
+        token.type = 'hidden';
+        token.name = '_token';
+        token.value = '9btpM60A07J8uolZS0AA7d3vAzrIDTAoQgnUgG2K';
+
+        form.appendChild(token);
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    function resetTimers() {
+        clearTimeout(warnTimer);
+        clearTimeout(logoutTimer);
+
+        if (warningOpen && window.Swal && Swal.isVisible() && Swal.getTitle()?.textContent === warningTitle) {
+            Swal.close();
+        } else if (warningOpen && !window.Swal) {
+            window.dispatchEvent(new CustomEvent('app-confirm-close'));
+        }
+        warningOpen = false;
+
+        var remaining = Math.max(0, IDLE_LIMIT - (now() - lastActivityAt()));
+        var warnIn = Math.max(0, remaining - WARN_BEFORE);
+
+        warnTimer = setTimeout(function () {
+            warningOpen = true;
+
+            if (window.Swal) {
+                Swal.fire({
+                    title: warningTitle,
+                    html: 'Your session will expire in <strong>1 minute</strong> due to inactivity.',
+                    icon: 'warning',
+                    timer: WARN_BEFORE,
+                    timerProgressBar: true,
+                    showCancelButton: false,
+                    confirmButtonText: 'Stay Logged In',
+                    confirmButtonColor: '#3085d6',
+                }).then(function (result) {
+                    warningOpen = false;
+
+                    if (result.isConfirmed) {
+                        markActivity();
+                    }
+                });
+            } else if (window.appAlert) {
+                // Layouts without SweetAlert (the Tailwind clinic layout) use the shared dialog.
+                window.appAlert(warningTitle, 'Your session will expire in 1 minute due to inactivity.', 'warning')
+                    .then(function () { warningOpen = false; markActivity(); });
+            }
+
+            logoutTimer = setTimeout(function () {
+                if ((now() - lastActivityAt()) >= IDLE_LIMIT) {
+                    submitLogout();
+                    return;
+                }
+
+                resetTimers();
+            }, WARN_BEFORE);
+        }, warnIn);
+    }
+
+    function markActivity() {
+        localStorage.setItem(ACTIVITY_KEY, String(now()));
+        resetTimers();
+    }
+
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'pointerdown'].forEach(function (evt) {
+        document.addEventListener(evt, function () {
+            markActivity();
+        }, { passive: true });
+    });
+
+    window.addEventListener('storage', function (event) {
+        if (event.key === ACTIVITY_KEY) {
+            resetTimers();
+        }
+
+        if (event.key === LOGOUT_KEY) {
+            submitLogout();
+        }
+    });
+
+    // A page load is activity (the server just reset its own timer), and it also clears the
+    // stale timestamp left in localStorage by a previous session that timed out.
+    localStorage.setItem(ACTIVITY_KEY, String(now()));
+
+    resetTimers();
+})();
+
+// One poll for the whole page (PulseController). Widgets subscribe to the parts they show with
+// appPulse.on(part, fn). Nothing is fetched while the tab is hidden; showing it polls at once.
+window.appPulse = (function () {
+    var INTERVAL = 20000;
+    var url = 'http://127.0.0.1:8899/pulse';
+    var handlers = {};
+    var timer = null;
+    var stopped = false;
+    var lastPollAt = Date.now(); // the page load itself was the last server contact
+
+    function lastActivityAt() {
+        try { return parseInt(localStorage.getItem('eyeclinic:lastActivityAt') || '0', 10) || 0; } catch (e) { return 0; }
+    }
+
+    function poll() {
+        var parts = Object.keys(handlers);
+        if (stopped || !parts.length || document.hidden) return;
+
+        // Tell the server whether the user has done anything since the last poll, so real
+        // work keeps the session alive but an untouched tab still times out.
+        var active = lastActivityAt() > lastPollAt;
+        lastPollAt = Date.now();
+
+        fetch(url + '?parts=' + parts.join(',') + (active ? '&active=1' : ''), {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+            .then(function (response) {
+                // Signed out or session expired: stop; the idle-logout script handles the page.
+                if (response.status === 401 || response.status === 419) { stopped = true; return null; }
+                return response.ok ? response.json() : null;
+            })
+            .then(function (data) {
+                if (!data) return;
+                parts.forEach(function (part) {
+                    if (!(part in data)) return;
+                    handlers[part].forEach(function (fn) { try { fn(data[part]); } catch (e) {} });
+                });
+            })
+            .catch(function () {});
+    }
+
+    function schedule(delay) {
+        clearTimeout(timer);
+        timer = setTimeout(function () { poll(); schedule(INTERVAL); }, delay);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && Date.now() - lastPollAt > 5000) schedule(0);
+    });
+    document.addEventListener('DOMContentLoaded', function () { schedule(2000); });
+
+    return {
+        on: function (part, fn) { (handlers[part] = handlers[part] || []).push(fn); },
+        refresh: function () { schedule(1000); }
+    };
+})();
+
+(function () {
+    var approveUrl = 'http://127.0.0.1:8899/discount-approval-notices/__REQUEST_ID__/approve';
+    var rejectUrl = 'http://127.0.0.1:8899/discount-approval-notices/__REQUEST_ID__/reject';
+    var csrfToken = '9btpM60A07J8uolZS0AA7d3vAzrIDTAoQgnUgG2K';
+    var activeRequestId = null;
+    var isPromptOpen = false;
+    var dismissedKey = 'discountApprovalNoticeDismissed';
+
+    function dismissedIds() {
+        try {
+            return JSON.parse(sessionStorage.getItem(dismissedKey) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function markDismissed(requestId) {
+        var ids = dismissedIds();
+        if (ids.indexOf(requestId) === -1) {
+            ids.push(requestId);
+            sessionStorage.setItem(dismissedKey, JSON.stringify(ids.slice(-50)));
+        }
+    }
+
+    function requestUrl(template, requestId) {
+        return template.replace('__REQUEST_ID__', requestId);
+    }
+
+    function postDecision(url) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        }).then(function (response) {
+            return response.json().then(function (data) {
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to update discount request.');
+                }
+
+                return data;
+            });
+        });
+    }
+
+    function showDiscountPrompt(request) {
+        activeRequestId = request.id;
+        isPromptOpen = true;
+
+        Swal.fire({
+            title: 'Discount Approval Request',
+            html: `
+                <div class="text-start">
+                    <p class="mb-2"><strong>${request.cashier_name}</strong> requested a discount for <strong>${request.patient_name}</strong>.</p>
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <th>Full Amount:</th>
+                            <td>GH\u20B5 ${request.gross_amount}</td>
+                        </tr>
+                        <tr>
+                            <th>Discount:</th>
+                            <td class="text-danger">GH\u20B5 ${request.discount_amount}</td>
+                        </tr>
+                        <tr>
+                            <th>Final Amount:</th>
+                            <td><strong>GH\u20B5 ${request.final_amount}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Requested:</th>
+                            <td>${request.created_at}</td>
+                        </tr>
+                    </table>
+                </div>
+            `,
+            icon: 'warning',
+            showDenyButton: true,
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            denyButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="fas fa-check me-2"></i>Approve',
+            denyButtonText: '<i class="fas fa-times me-2"></i>Reject',
+            cancelButtonText: 'Later',
+            reverseButtons: true,
+            allowOutsideClick: false
+        }).then(function (result) {
+            if (result.isConfirmed || result.isDenied) {
+                Swal.fire({
+                    title: result.isConfirmed ? 'Approving...' : 'Rejecting...',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: function () {
+                        Swal.showLoading();
+                    }
+                });
+
+                var url = result.isConfirmed
+                    ? requestUrl(approveUrl, request.id)
+                    : requestUrl(rejectUrl, request.id);
+
+                postDecision(url)
+                    .then(function (data) {
+                        Swal.fire({
+                            title: 'Done',
+                            text: data.message,
+                            icon: 'success',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    })
+                    .catch(function (error) {
+                        Swal.fire({
+                            title: 'Notice',
+                            text: error.message,
+                            icon: 'info'
+                        });
+                    })
+                    .finally(function () {
+                        activeRequestId = null;
+                        isPromptOpen = false;
+                        window.appPulse.refresh(); // show the next waiting request, if any
+                    });
+
+                return;
+            }
+
+            markDismissed(request.id);
+            activeRequestId = null;
+            isPromptOpen = false;
+        });
+    }
+
+    window.appPulse.on('discount', function (request) {
+        if (isPromptOpen || !request || request.id === activeRequestId || dismissedIds().indexOf(request.id) !== -1) {
+            return;
+        }
+
+        showDiscountPrompt(request);
+    });
+})();
+</script>
+
+<!--[NativePHP Livewire Dispatcher]-->
+<script type="module">
+window.addEventListener('message', (event) => {
+    if (event.data.type === 'native-event') {
+        const { event: eventName, payload } = event.data;
+
+        LivewireDispatcher.handle(eventName, payload);
+    }
+});
+
+const LivewireDispatcher = {
+    handle: function (eventName, payload) {
+        // Livewire 3
+        if (window.Livewire) {
+            window.Livewire.dispatch('native:' + eventName, payload);
+        }
+
+        // Livewire 2
+        if (window.livewire) {
+            window.livewire.components.components().forEach((component) => {
+                if (Array.isArray(component.listeners)) {
+                    component.listeners.forEach((event) => {
+                        if (event.startsWith('native')) {
+                            let event_parts = event.split(/(native:|native-)|:|,/);
+
+                            if (event_parts[1] === 'native:') {
+                                event_parts.splice(2, 0, 'private', undefined, 'nativephp', undefined);
+                            }
+
+                            let [s1, signature, channel_type, s2, channel, s3, event_name] = event_parts;
+
+                            if (eventName === event_name) {
+                                // @ts-ignore
+                                window.livewire.emit(event, payload);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    },
+};
+
+</script>
+</head>
+
+<body class="clinic-ui min-h-screen bg-slate-100 text-slate-800">
+<div x-data="{
+        toasts: [],
+        add(detail) {
+            const toast = { id: Date.now() + Math.random(), type: 'success', ...detail };
+            this.toasts = [toast, ...this.toasts].slice(0, 4);
+            if (toast.type !== 'error' && ! toast.link) this.schedule(toast, 5000);
+        },
+        schedule(toast, ms) { clearTimeout(toast.timer); toast.timer = setTimeout(() => this.close(toast.id), ms) },
+        close(id) { this.toasts = this.toasts.filter(t => t.id !== id) },
+     }"
+     x-on:notify.window="add($event.detail)"
+     class="optical-toasts" aria-live="polite">
+    <template x-for="toast in toasts" :key="toast.id">
+        <div class="optical-toast" :class="'optical-toast--' + toast.type" :role="toast.type === 'error' ? 'alert' : 'status'"
+             x-on:mouseenter="clearTimeout(toast.timer)" x-on:mouseleave="if (toast.type !== 'error' && ! toast.link) schedule(toast, 2000)">
+            <span class="optical-toast__icon" aria-hidden="true" x-text="{ success: '✓', error: '!', warning: '!', info: 'i' }[toast.type] ?? 'i'"></span>
+            <div class="flex-1 min-w-0">
+                <p x-text="toast.message"></p>
+                <a x-show="toast.link" :href="toast.link" :target="toast.newTab ? '_blank' : null" class="optical-toast__link" x-text="toast.linkLabel" x-on:click="close(toast.id)"></a>
+            </div>
+            <button type="button" class="optical-toast__close" aria-label="Dismiss notification" x-on:click="close(toast.id)">&times;</button>
+        </div>
+    </template>
+</div>
+<div x-data="{ nav: false }" x-on:keydown.escape.window="nav = false" class="min-h-screen md:flex">
+    
+    <div x-show="nav" x-cloak x-transition.opacity class="fixed inset-0 z-30 bg-slate-900/50 md:hidden" x-on:click="nav = false" aria-hidden="true"></div>
+    <aside class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col bg-slate-900 text-slate-300 transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0"
+           :class="nav && '!translate-x-0'" aria-label="Main menu">
+        <a href="http://127.0.0.1:8899/dashboard" class="flex items-center gap-3 border-b border-slate-800 px-4 py-3 text-white no-underline hover:text-white">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-600" aria-hidden="true"><i class="fas fa-clinic-medical"></i></span>
+                        <span class="min-w-0 leading-tight">
+                <span class="block truncate text-[15px] font-semibold">My Eye Clinic</span>
+                <span class="block truncate text-xs text-slate-400">Owner Ama</span>
+            </span>
+        </a>
+        <div class="border-b border-slate-800 px-4 py-2 text-xs empty:hidden" data-tour="nav-workspace"><form method="POST" action="http://127.0.0.1:8899/context/navigation-workspace" class="flex items-center gap-1.5" aria-label="Switch workspace">
+        <input type="hidden" name="_token" value="9btpM60A07J8uolZS0AA7d3vAzrIDTAoQgnUgG2K" autocomplete="off">        <label for="navigation-workspace" class="text-slate-400">Workspace</label>
+        <select id="navigation-workspace" name="workspace" class="h-8 rounded-md border border-slate-600 bg-slate-800 px-2 text-xs text-slate-100">
+                            <option value="administration" selected>Administration</option>
+                            <option value="clinical" >Clinical</option>
+                            <option value="optical" >Optical</option>
+                    </select>
+        <button type="submit" class="h-8 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-600" aria-label="Open selected workspace">Go</button>
+    </form>
+</div>
+        <nav class="flex-1 space-y-1 overflow-y-auto p-3 text-sm">
+                                                <a href="http://127.0.0.1:8899/admin/dashboard"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-tachometer-alt w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">Business Overview</span>
+    </a>
+                                                                                    <div x-data="{ open: false }" data-tour="nav-finances">
+                        <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()"
+                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                            <i class="fas fa-chart-line w-4 text-center" aria-hidden="true"></i>
+                            <span class="flex-1">Finances</span>
+                            <i class="fas fa-chevron-down text-[10px] transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                        </button>
+                        <div x-show="open" x-cloak class="mt-1 space-y-1 pl-7">
+                                                            <a href="http://127.0.0.1:8899/admin/reports"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Clinic Sales Reports</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/cashier/sales-records"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Sales Records</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/income-statement"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Income Statement</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/combined-statement"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Combined Statement</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/expenses"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Expenses</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/daily-cash-summary"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Daily Cash Summary</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/cash-book"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Cash Book</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/cashier/day-close"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Day Close</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/cashier/outstanding-balances"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Outstanding Balances</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/lens-outstanding-report"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Lens Outstanding PDF</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/quotations"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Quotations</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/patient-ledger"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Patient Ledger</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/approvals"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Approvals</span>
+    </a>
+                                                    </div>
+                    </div>
+                                                                                    <div x-data="{ open: false }" data-tour="nav-communications">
+                        <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()"
+                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                            <i class="fas fa-comments w-4 text-center" aria-hidden="true"></i>
+                            <span class="flex-1">Communications</span>
+                            <i class="fas fa-chevron-down text-[10px] transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                        </button>
+                        <div x-show="open" x-cloak class="mt-1 space-y-1 pl-7">
+                                                            <a href="http://127.0.0.1:8899/admin/communications/messages"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-comment-dots w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">Messages</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/communications/sms"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-sms w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">SMS Credits &amp; Sending</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/communications/whatsapp"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-whatsapp w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">WhatsApp</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/communications/broadcast"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-bullhorn w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">Broadcast</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/patient-recall"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-user-clock w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">Patient Recall</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/sms-logs"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+    <i class="fas fa-list w-4 text-center" aria-hidden="true"></i>    <span class="flex-1">SMS Logs</span>
+    </a>
+                                                    </div>
+                    </div>
+                                                                                    <div x-data="{ open: true }" data-tour="nav-staff-security">
+                        <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()"
+                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-white">
+                            <i class="fas fa-users-cog w-4 text-center" aria-hidden="true"></i>
+                            <span class="flex-1">Staff &amp; Security</span>
+                            <i class="fas fa-chevron-down text-[10px] transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                        </button>
+                        <div x-show="open" x-cloak class="mt-1 space-y-1 pl-7">
+                                                            <a href="http://127.0.0.1:8899/admin/users"  aria-current="page"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline bg-teal-600 font-semibold text-white hover:text-white">
+        <span class="flex-1">Users</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/roles-permissions"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Roles &amp; Permissions</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/attendance"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Attendance</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/login-history"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Login History</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/audit-trail"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Audit Trail</span>
+    </a>
+                                                    </div>
+                    </div>
+                                                                                    <div x-data="{ open: false }" data-tour="nav-system">
+                        <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()"
+                                class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                            <i class="fas fa-cog w-4 text-center" aria-hidden="true"></i>
+                            <span class="flex-1">System</span>
+                            <i class="fas fa-chevron-down text-[10px] transition-transform" :class="open && 'rotate-180'" aria-hidden="true"></i>
+                        </button>
+                        <div x-show="open" x-cloak class="mt-1 space-y-1 pl-7">
+                                                            <a href="http://127.0.0.1:8899/admin/settings"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Settings</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/backups"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Backups</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/branches"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Branches</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/offline-health"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">Offline Health</span>
+    </a>
+                                                            <a href="http://127.0.0.1:8899/admin/license"    class="flex items-center gap-3 rounded-lg px-3 py-2 no-underline text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+        <span class="flex-1">License &amp; Subscription</span>
+    </a>
+                                                    </div>
+                    </div>
+                                    </nav>
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+        <header class="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 md:px-6">
+            <button type="button" class="-ml-1 flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 md:hidden" x-on:click="nav = true" aria-label="Open menu">
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
+            <div class="flex flex-1 flex-wrap items-center justify-end gap-2 text-xs">
+                                                                                    <div wire:snapshot="{&quot;data&quot;:{&quot;unreadCount&quot;:0},&quot;memo&quot;:{&quot;id&quot;:&quot;BtH8Nc965OBFt97WStk0&quot;,&quot;name&quot;:&quot;staff-messages-dropdown-component&quot;,&quot;path&quot;:&quot;admin\/users&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;en&quot;},&quot;checksum&quot;:&quot;e4672a95827153e61ae9360d9e10c9a520280524bcc3ad9cc4d1823b7a3d49ef&quot;}" wire:effects="[]" wire:id="BtH8Nc965OBFt97WStk0" x-data="{ open: false }" class="relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
+    <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()" aria-haspopup="true" aria-label="Messages"
+            class="relative flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100">
+        <i class="far fa-comments text-base" aria-hidden="true"></i>
+        <span id="msg-badge" class="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-[1.1rem] text-white hidden">0</span>
+    </button>
+
+    <div x-show="open" x-cloak x-transition.opacity.duration.100ms
+         class="absolute right-0 z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-lg">
+        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
+            <span class="font-semibold text-slate-800">Messages</span>
+            <a href="http://127.0.0.1:8899/messages" class="text-xs font-semibold text-teal-700 no-underline hover:underline">View all</a>
+        </div>
+        <!--[if BLOCK]><![endif]-->            <p class="px-4 py-6 text-center text-slate-500"><i class="far fa-envelope-open mb-2 block text-2xl opacity-40" aria-hidden="true"></i>No messages</p>
+        <!--[if ENDBLOCK]><![endif]-->    </div>
+
+    
+    <script>
+        (function () {
+            if (!window.appPulse || window.clinicMessagesPulse) return;
+            window.clinicMessagesPulse = true;
+            window.appPulse.on('messages', function (count) {
+                var badge = document.getElementById('msg-badge');
+                if (!badge) return;
+                badge.textContent = count;
+                badge.classList.toggle('hidden', !(count > 0));
+            });
+        })();
+    </script>
+</div>
+                    <div wire:snapshot="{&quot;data&quot;:{&quot;unreadCount&quot;:0},&quot;memo&quot;:{&quot;id&quot;:&quot;waH8ILGyHDyZYYq8q9z2&quot;,&quot;name&quot;:&quot;notification-bell-component&quot;,&quot;path&quot;:&quot;admin\/users&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;en&quot;},&quot;checksum&quot;:&quot;9f211126db22f33f584355ebbdf556ca99f2a064fdca6b1a15ce2ec6847197da&quot;}" wire:effects="[]" wire:id="waH8ILGyHDyZYYq8q9z2" x-data="{ open: false }" class="relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
+    <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()" aria-haspopup="true" aria-label="Notifications"
+            class="relative flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100">
+        <i class="far fa-bell text-base" aria-hidden="true"></i>
+        <span id="notif-badge" class="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-[1.1rem] text-white hidden">0</span>
+    </button>
+
+    <div x-show="open" x-cloak x-transition.opacity.duration.100ms
+         class="absolute right-0 z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-lg">
+        <div class="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
+            <span class="font-semibold text-slate-800">
+                <!--[if BLOCK]><![endif]--> Notifications <!--[if ENDBLOCK]><![endif]-->            </span>
+            <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->        </div>
+        <div class="max-h-96 overflow-y-auto">
+            <!--[if BLOCK]><![endif]-->                <p class="px-4 py-6 text-center text-slate-500"><i class="far fa-bell-slash mb-2 block text-2xl opacity-40" aria-hidden="true"></i>No notifications yet</p>
+            <!--[if ENDBLOCK]><![endif]-->        </div>
+    </div>
+
+    
+    <script>
+        (function () {
+            if (!window.appPulse || window.clinicBellPulse) return;
+            window.clinicBellPulse = true;
+            window.appPulse.on('notifications', function (count) {
+                var badge = document.getElementById('notif-badge');
+                var header = document.getElementById('notif-header-count');
+                if (!badge) return;
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.classList.toggle('hidden', !(count > 0));
+                if (header) header.textContent = count > 99 ? '99+' : count;
+            });
+        })();
+    </script>
+</div>
+                    <div x-data="{ open: false }" class="relative" x-on:click.outside="open = false">
+                        <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()" aria-haspopup="menu"
+                                class="flex h-9 items-center gap-2 rounded-md px-2 text-slate-700 hover:bg-slate-100">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-800" aria-hidden="true">OA</span>
+                            <span class="hidden max-w-[10rem] truncate text-sm sm:inline">Owner Ama</span>
+                            <i class="fas fa-chevron-down text-[10px] text-slate-400" aria-hidden="true"></i>
+                        </button>
+                        <div x-show="open" x-cloak x-transition.opacity.duration.100ms role="menu"
+                             class="absolute right-0 z-30 mt-1 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
+                            <a href="http://127.0.0.1:8899/profile" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">My profile</a>
+                            <a href="http://127.0.0.1:8899/messages" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">Messages</a>
+                            <form method="POST" action="http://127.0.0.1:8899/logout" class="border-t border-slate-100"><input type="hidden" name="_token" value="9btpM60A07J8uolZS0AA7d3vAzrIDTAoQgnUgG2K" autocomplete="off">                                <button type="submit" role="menuitem" class="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50">Sign out</button>
+                            </form>
+                        </div>
+                    </div>
+                            </div>
+        </header>
+                        <main class="min-w-0 flex-1">
+            <div wire:snapshot="{&quot;data&quot;:{&quot;name&quot;:null,&quot;email&quot;:null,&quot;password&quot;:null,&quot;password_confirmation&quot;:null,&quot;userId&quot;:null,&quot;selectedRoles&quot;:[[],{&quot;s&quot;:&quot;arr&quot;}],&quot;roleAssignmentMode&quot;:&quot;shared&quot;,&quot;branchRoles&quot;:[[],{&quot;s&quot;:&quot;arr&quot;}],&quot;selectedBranchIds&quot;:[[],{&quot;s&quot;:&quot;arr&quot;}],&quot;defaultBranchId&quot;:null,&quot;membershipStatus&quot;:&quot;active&quot;,&quot;isOpen&quot;:false,&quot;isEdit&quot;:false,&quot;phone&quot;:&quot;&quot;,&quot;staff_id&quot;:&quot;&quot;,&quot;gender&quot;:&quot;&quot;,&quot;date_of_birth&quot;:&quot;&quot;,&quot;department&quot;:&quot;&quot;,&quot;hire_date&quot;:&quot;&quot;,&quot;resetUserId&quot;:null,&quot;resetUserName&quot;:null,&quot;newPassword&quot;:null,&quot;newPasswordConfirmation&quot;:null,&quot;isResetOpen&quot;:false,&quot;importFile&quot;:null,&quot;isImportOpen&quot;:false,&quot;importResults&quot;:[[],{&quot;s&quot;:&quot;arr&quot;}],&quot;search&quot;:&quot;&quot;,&quot;roleSearch&quot;:&quot;&quot;,&quot;filterRole&quot;:&quot;&quot;,&quot;filterStatus&quot;:&quot;&quot;,&quot;filterEmailVerified&quot;:&quot;&quot;,&quot;filterDateFrom&quot;:&quot;&quot;,&quot;filterDateTo&quot;:&quot;&quot;,&quot;sortField&quot;:&quot;created_at&quot;,&quot;sortDirection&quot;:&quot;desc&quot;,&quot;perPage&quot;:10,&quot;showFilters&quot;:false,&quot;fromOptical&quot;:false,&quot;paginators&quot;:[{&quot;page&quot;:1},{&quot;s&quot;:&quot;arr&quot;}]},&quot;memo&quot;:{&quot;id&quot;:&quot;f6nCn6HnIU6Le63Rj1pI&quot;,&quot;name&quot;:&quot;admin.user-role-manager-component&quot;,&quot;path&quot;:&quot;admin\/users&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;en&quot;},&quot;checksum&quot;:&quot;728f29d29e04633d579e4f014d6ec3809f7f2ac88585dba46f230ed96bebb1a7&quot;}" wire:effects="{&quot;url&quot;:{&quot;paginators.page&quot;:{&quot;as&quot;:&quot;page&quot;,&quot;use&quot;:&quot;push&quot;,&quot;alwaysShow&quot;:false,&quot;except&quot;:null}}}" wire:id="f6nCn6HnIU6Le63Rj1pI" class="clinic-ui ui-page" data-livewire-root>
+<div class="w-full">
+    
+    <div class="mb-6">
+        <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->        <header class="ui-heading">
+    <div class="min-w-0">
+        <h1 class="flex flex-wrap items-center gap-2">Users<!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]--></h1>
+        <!--[if BLOCK]><![endif]--><p class="ui-muted">Your staff, their roles and whether they can sign in.</p><!--[if ENDBLOCK]><![endif]-->    </div>
+    <!--[if BLOCK]><![endif]-->        <div class="ui-actions"><div class="relative inline-block" x-data="{ open: false }" x-on:keydown.escape.window="open = false" x-on:click.outside="open = false">
+    <button type="button" class="ui-button ui-button-secondary" x-on:click="open = ! open" :aria-expanded="open.toString()" aria-haspopup="menu">
+        <i class="fas fa-ellipsis-h" aria-hidden="true"></i>Import / export
+    </button>
+    <div x-show="open" x-cloak x-transition.opacity.duration.100ms role="menu" x-on:click="open = false"
+         class="ui-menu right-0">
+        <button type="button" wire:click="export" class="ui-menu-item" role="menuitem"><i class="fas fa-download" aria-hidden="true"></i>Export CSV</button>
+                <button type="button" wire:click="openImport" class="ui-menu-item" role="menuitem"><i class="fas fa-file-csv" aria-hidden="true"></i>Import CSV</button>
+    </div>
+</div>
+            <!--[if BLOCK]><![endif]--><button class="ui-button ui-button-primary" type="button" wire:click="create"><i class="fas fa-plus" aria-hidden="true"></i>Add staff member</button>
+<!--[if ENDBLOCK]><![endif]--></div>
+    <!--[if ENDBLOCK]><![endif]--></header>
+
+        
+        <div class="flex flex-wrap -mx-2 mb-6">
+            <div class="w-full md:w-3/12 px-2 mb-4">
+                <div class="ui-panel">
+                    <div class="p-5">
+                        <h6 class="text-slate-500 uppercase mb-2">Total Users</h6>
+                        <h3 class="mb-0">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="w-full md:w-3/12 px-2 mb-4">
+                <div class="ui-panel">
+                    <div class="p-5">
+                        <h6 class="text-slate-500 uppercase mb-2">Active Users</h6>
+                        <h3 class="mb-0 text-green-700">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="w-full md:w-3/12 px-2 mb-4">
+                <div class="ui-panel">
+                    <div class="p-5">
+                        <h6 class="text-slate-500 uppercase mb-2">Inactive Users</h6>
+                        <h3 class="mb-0 text-red-700">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="w-full md:w-3/12 px-2 mb-4">
+                <div class="ui-panel">
+                    <div class="p-5">
+                        <h6 class="text-slate-500 uppercase mb-2">Verified</h6>
+                        <h3 class="mb-0 text-teal-700">0</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+        <div class="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center gap-2 p-4">
+            
+            <div class="relative min-w-[14rem] flex-1">
+                <label for="staff-search" class="sr-only">Search staff</label>
+                <i class="fas fa-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400" aria-hidden="true"></i>
+                <input id="staff-search" wire:model.live.debounce.400ms="search" type="search"
+                    class="ui-input !py-2 text-sm !pl-9 " placeholder="Search by name or email…">
+                <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->            </div>
+
+            
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" wire:click="$toggle('showFilters')" aria-expanded="false"
+                    class="ui-button ui-button-secondary !py-2">
+                    <i class="fas fa-filter mr-1" aria-hidden="true"></i> Filters
+                    <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                </button>
+                <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                <label for="staff-per-page" class="sr-only">Rows per page</label>
+                <select id="staff-per-page" wire:model.live="perPage" class="ui-input !py-2 text-sm !w-auto">
+                    <option value="10">10 per page</option>
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                </select>
+            </div>
+        </div>
+
+        
+        <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->    </div>
+
+    
+    <div class="ui-panel">
+        <div class="ui-table-wrap">
+            <table class="ui-table mb-0">
+                <thead class="">
+                    <tr>
+                        <th wire:click="sortBy('id')" style="cursor: pointer;">
+                            ID
+                            <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                        </th>
+                        <th wire:click="sortBy('name')" style="cursor: pointer;">
+                            User Details
+                            <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                        </th>
+                        <th>Roles</th>
+                        <th class="text-center" wire:click="sortBy('is_active')" style="cursor: pointer;">
+                            Status
+                            <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                        </th>
+                        <th class="text-center" wire:click="sortBy('email_verified_at')" style="cursor: pointer;">
+                            Verified
+                            <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                        </th>
+                        <th>Last Login</th>
+                        <th wire:click="sortBy('created_at')" style="cursor: pointer;">
+                            Created
+                            <!--[if BLOCK]><![endif]-->                                <i class="fas fa-sort-down ml-1"></i>
+                            <!--[if ENDBLOCK]><![endif]-->                        </th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!--[if BLOCK]><![endif]-->                        <tr>
+                            <td colspan="8" class="text-center py-12">
+                                <i class="fas fa-users fa-3x text-slate-500 mb-4"></i>
+                                <h5 class="text-slate-500">No users found</h5>
+                                <p class="text-slate-500">Try adjusting your search or filter criteria</p>
+                                <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                            </td>
+                        </tr>
+                    <!--[if ENDBLOCK]><![endif]-->                </tbody>
+            </table>
+        </div>
+
+        
+        <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->    </div>
+
+    
+    <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->
+    
+    <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->
+    
+    <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->
+</div>
+
+
+<style>
+    [x-cloak] { display: none !important; }
+    
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .custom-switch .custom-control-label::before {
+        cursor: pointer;
+    }
+    
+    .custom-switch .custom-control-input:checked ~ .custom-control-label::before {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+</style>
+
+<script>
+    document.addEventListener('click', function (event) {
+        const button = event.target.closest('[data-password-toggle]');
+        if (!button) {
+            return;
+        }
+
+        const input = document.getElementById(button.dataset.passwordToggle);
+        const icon = button.querySelector('i');
+
+        if (!input || !icon) {
+            return;
+        }
+
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        icon.classList.toggle('fa-eye', !isPassword);
+        icon.classList.toggle('fa-eye-slash', isPassword);
+        button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+    });
+</script>
+</div>
+        </main>
+    </div>
+</div>
+<div x-data="{
+        open: false, title: '', body: '', confirmText: 'Confirm', danger: false, icon: '?', mode: 'confirm', resolve: null,
+        show(detail) {
+            Object.assign(this, { confirmText: 'Confirm', danger: false, icon: '?', mode: 'confirm', resolve: null }, detail, { open: true });
+            if (this.mode !== 'busy') this.$nextTick(() => (this.danger && this.mode === 'confirm' ? this.$refs.back : this.$refs.ok).focus());
+        },
+        answer(ok) { if (this.mode === 'busy') return; this.open = false; this.resolve && this.resolve(ok); this.resolve = null },
+        close() { this.open = false; this.resolve = null },
+     }"
+     x-on:app-confirm.window="show($event.detail)"
+     x-on:app-confirm-close.window="close()">
+    
+    <template x-if="open">
+        <dialog class="app-confirm" x-init="$el.showModal()" x-on:cancel.prevent="answer(false)" x-on:click.self="answer(false)">
+            <div class="app-confirm__box" :role="mode === 'busy' ? 'status' : 'alertdialog'" aria-modal="true" aria-labelledby="app-confirm-title" aria-describedby="app-confirm-body">
+                <div class="app-confirm__spinner" x-show="mode === 'busy'" aria-hidden="true"></div>
+                <div class="app-confirm__icon" x-show="mode !== 'busy'" :class="danger && 'app-confirm__icon--danger'" aria-hidden="true" x-text="icon"></div>
+                <h2 id="app-confirm-title" class="app-confirm__title" x-text="title"></h2>
+                <p id="app-confirm-body" class="app-confirm__body" x-show="body" x-text="body"></p>
+                <div class="app-confirm__actions" x-show="mode !== 'busy'">
+                    <button type="button" x-ref="back" class="app-confirm__btn" x-show="mode === 'confirm'" x-on:click="answer(false)">Go back</button>
+                    <button type="button" x-ref="ok" class="app-confirm__btn app-confirm__btn--ok" :class="danger && 'app-confirm__btn--danger'" x-on:click="answer(true)" x-text="confirmText"></button>
+                </div>
+            </div>
+        </dialog>
+    </template>
+</div>
+<style>
+.app-confirm { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 16px; background: rgb(15 23 42 / 55%); }
+.app-confirm::backdrop { background: transparent; }
+.app-confirm__box { width: 100%; max-width: 420px; padding: 24px; border-radius: 14px; background: #fff; color: #0f172a; text-align: center; box-shadow: 0 24px 48px rgb(15 23 42 / 25%); font-family: inherit; }
+.app-confirm__icon { width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 999px; display: grid; place-items: center; font-size: 22px; font-weight: 700; color: #0f766e; background: #ccfbf1; }
+.app-confirm__icon--danger { color: #b91c1c; background: #fee2e2; }
+.app-confirm__spinner { width: 40px; height: 40px; margin: 0 auto 14px; border-radius: 999px; border: 4px solid #ccfbf1; border-top-color: #0f766e; animation: app-confirm-spin .8s linear infinite; }
+@keyframes app-confirm-spin { to { transform: rotate(360deg); } }
+.app-confirm__title { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.35; }
+.app-confirm__body { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: #475569; white-space: pre-line; overflow-wrap: anywhere; }
+.app-confirm__actions { margin-top: 20px; display: flex; gap: 8px; justify-content: center; }
+.app-confirm__btn { min-width: 110px; padding: 9px 16px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #0f172a; font-size: 14px; font-weight: 600; cursor: pointer; }
+.app-confirm__btn:hover { background: #f1f5f9; }
+.app-confirm__btn--ok { border-color: #0f766e; background: #0f766e; color: #fff; }
+.app-confirm__btn--ok:hover { background: #115e59; }
+.app-confirm__btn--danger { border-color: #b91c1c; background: #b91c1c; }
+.app-confirm__btn--danger:hover { background: #991b1b; }
+.app-confirm__btn:focus-visible { outline: 3px solid #5eead4; outline-offset: 2px; }
+</style>
+<script data-navigate-once>
+    (() => {
+        const DANGER = /\b(delete|remove|reverse|void|refund|archive|trash|discard|clear|reset|deactivate|suspend|revoke|cancel|reject|release|write off)\b/i;
+        const VERBS = /^(delete|remove|reverse|void|refund|archive|discard|clear|reset|deactivate|suspend|revoke|reject|release|approve|process|send|re-send|resend|move|restore|collect|complete|mark|convert|apply|activate|close|submit|confirm)\b/i;
+        const show = detail => window.dispatchEvent(new CustomEvent('app-confirm', { detail }));
+
+        /** "Delete this claim? This cannot be undone." -> title + body; the verb names the button. */
+        function describe(message, el) {
+            const opt = el instanceof Element
+                ? { title: el.dataset.confirmTitle, confirmText: el.dataset.confirmButton, danger: el.dataset.confirmDanger && el.dataset.confirmDanger === 'true' }
+                : (el || {});
+            message = String(message || 'Are you sure?').replaceAll('\\n', '\n').trim();
+            const split = message.match(/^([^?]*\?)\s+([\s\S]+)$/);
+            const title = opt.title || (split ? split[1] : message);
+            const body = opt.title ? message : (split ? split[2] : '');
+            const verb = title.match(VERBS)?.[1];
+            const danger = typeof opt.danger === 'boolean' ? opt.danger : DANGER.test(message);
+            const confirmText = opt.confirmText || (verb && ! /^cancel$/i.test(verb) ? verb[0].toUpperCase() + verb.slice(1).toLowerCase() : (danger ? 'Yes, continue' : 'Confirm'));
+            return { title, body, confirmText, danger, icon: danger ? '!' : '?' };
+        }
+
+        window.appConfirm = (message, el = null) => new Promise(resolve => show({ ...describe(message, el), resolve }));
+
+        window.appAlert = (title, body = '', tone = 'info') => new Promise(resolve => show({
+            mode: 'alert', title, body, confirmText: 'OK', danger: tone === 'error',
+            icon: { success: '✓', error: '!', warning: '!' }[tone] || 'i', resolve,
+        }));
+
+        window.appBusy = (title, body = '') => {
+            show({ mode: 'busy', title, body });
+            return () => window.dispatchEvent(new CustomEvent('app-confirm-close'));
+        };
+
+        // Livewire's wire:confirm uses the browser's blocking confirm(). Replace it after Livewire
+        // sets it up: stop the click now, and run the action only once the user confirms.
+        document.addEventListener('livewire:init', () => {
+            window.Livewire.hook('directive.init', ({ el, directive }) => {
+                if (directive.value !== 'confirm' || directive.modifiers.includes('prompt')) return;
+                el.__livewire_confirm = (action, instead) => {
+                    instead();
+                    window.appConfirm(directive.expression, el).then(ok => ok && action());
+                };
+            });
+        });
+    })();
+</script>
+<!-- Livewire Scripts -->
+<script src="http://127.0.0.1:8899/vendor/livewire/livewire.js?id=e5e7ff8c"   data-csrf="9btpM60A07J8uolZS0AA7d3vAzrIDTAoQgnUgG2K" data-update-uri="/livewire/update" data-navigate-once="true"></script>
+<script>
+(function () {
+    var posMoney = function (value) { return 'GH₵' + ' ' + (value ?? '0.00'); };
+    var posRows = function (rows) {
+        return '<table class="w-full text-left text-sm">' + rows.map(function (row) {
+            return '<tr class="border-b border-slate-100 ' + (row[2] || '') + '"><th class="py-1.5 pr-3 font-medium text-slate-600">' + row[0] + '</th><td class="py-1.5 text-right">' + row[1] + '</td></tr>';
+        }).join('') + '</table>';
+    };
+
+    window.addEventListener('confirm-sell-without-pending-discount', function (event) {
+        var d = event.detail || {};
+        Swal.fire({
+            title: 'Discount approval pending',
+            html: '<p class="mb-2 text-sm">This cart has a discount waiting for Manager/Super Admin approval.</p>' + posRows([
+                ['Full amount', posMoney(d.fullAmount)],
+                ['Pending discount', '-' + posMoney(d.discountAmount), 'text-red-700'],
+                ['Discounted amount', posMoney(d.discountedAmount)],
+            ]),
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#0f766e',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Sell without discount',
+            cancelButtonText: 'Wait for approval',
+            reverseButtons: true,
+        }).then(function (result) {
+            if (result.isConfirmed) window.dispatchEvent(new CustomEvent('sell-without-pending-discount'));
+        });
+    });
+
+    window.addEventListener('show-checkout-confirmation', function (event) {
+        var d = event.detail || {};
+        var rows = [['Items', d.itemCount]];
+        if (d.insurerName) {
+            rows.push(['Bill total', posMoney(d.billTotal)]);
+            rows.push(['Billed to ' + String(d.insurerName).replace(/[<>&"]/g, ''), posMoney(d.insurerAmount)]);
+        }
+        rows.push([d.insurerName ? 'Patient pays' : 'Total amount', posMoney(d.totalAmount)]);
+        rows.push(['Amount paid', posMoney(d.amountPaid)]);
+        rows.push(['Change', '<strong>' + posMoney(d.change) + '</strong>', 'bg-green-50']);
+
+        Swal.fire({
+            title: 'Confirm sale',
+            html: posRows(rows),
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0f766e',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Confirm & process',
+            cancelButtonText: 'Cancel',
+            reverseButtons: true,
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            Swal.fire({
+                title: 'Processing sale…',
+                html: 'Please wait while we process your transaction',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: function () { Swal.showLoading(); },
+            });
+            // The POS component's idempotency key remains the server-side retry safeguard.
+            Livewire.dispatch('confirmCheckout');
+        });
+    });
+
+    window.addEventListener('close-processing-modal', function () { window.Swal && Swal.close(); });
+    window.addEventListener('notify', function (event) {
+        if ((event.detail || {}).type === 'error' && window.Swal) Swal.close();
+    });
+})();
+</script>
+<script>
+(function () {
+    function target(el) {
+        var selector = el.getAttribute('data-target') || el.getAttribute('href');
+        return selector && selector.charAt(0) === '#' ? document.querySelector(selector) : null;
+    }
+
+    window.uiModal = function (id, open) {
+        var dialog = typeof id === 'string' ? document.getElementById(id) : id;
+        if (!dialog) return;
+        dialog.setAttribute('data-ui-modal', '');
+        dialog.classList.toggle('hidden', !open);
+        dialog.classList.toggle('flex', open);
+        if (open) dialog.dispatchEvent(new CustomEvent('ui-modal-shown', { bubbles: true }));
+        else dialog.dispatchEvent(new CustomEvent('ui-modal-hidden', { bubbles: true }));
+    };
+
+    function closeDropdowns(except) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(function (menu) {
+            if (menu !== except) menu.classList.remove('show');
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        var toggle = e.target.closest('[data-toggle]');
+        if (toggle) {
+            var kind = toggle.getAttribute('data-toggle');
+            if (kind === 'modal') {
+                e.preventDefault();
+                window.uiModal(target(toggle), true);
+                return;
+            }
+            if (kind === 'collapse') {
+                e.preventDefault();
+                var panel = target(toggle);
+                if (panel) {
+                    var open = panel.classList.toggle('show');
+                    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                }
+                return;
+            }
+            if (kind === 'dropdown') {
+                e.preventDefault();
+                var menu = toggle.parentElement && toggle.parentElement.querySelector('.dropdown-menu');
+                closeDropdowns(menu);
+                if (menu) menu.classList.toggle('show');
+                return;
+            }
+        }
+        var dismiss = e.target.closest('[data-dismiss="modal"]');
+        if (dismiss) {
+            var overlay = dismiss.closest('.fixed.inset-0');
+            if (overlay) window.uiModal(overlay, false);
+            return;
+        }
+        // A click on an overlay's backdrop closes it, as Bootstrap's did; a click elsewhere closes menus.
+        if (e.target.hasAttribute && e.target.hasAttribute('data-ui-modal') && !e.target.hasAttribute('data-static')) {
+            window.uiModal(e.target, false);
+        }
+        if (!e.target.closest('.dropdown-menu')) closeDropdowns(null);
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        closeDropdowns(null);
+        var open = Array.prototype.filter.call(document.querySelectorAll('[data-ui-modal].flex'), function (el) { return !el.classList.contains('hidden'); });
+        if (open.length) window.uiModal(open[open.length - 1], false);
+    });
+})();
+</script>
+<script>
+(function () {
+    window.addEventListener('show-delete-confirmation', function (event) {
+        var id = event.detail && event.detail.id;
+        var method = (event.detail && event.detail.method) || 'confirmDelete';
+        window.appConfirm("You won't be able to undo this.", { title: 'Are you sure?', confirmText: 'Yes, delete it', danger: true })
+            .then(function (ok) { if (ok) Livewire.dispatch(method, { id: id }); });
+    });
+
+    window.addEventListener('printRefraction', function (event) {
+        var printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            window.appAlert('Pop-up blocked', 'Please allow pop-ups for this site to print.', 'warning');
+            return;
+        }
+        printWindow.document.write(event.detail.html);
+        printWindow.document.close();
+    });
+})();
+</script>
+</body>
+</html>

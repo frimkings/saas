@@ -55,12 +55,12 @@
                                         <tr wire:key="branch-link-{{ $id }}">
                                             <td class="align-middle font-semibold" style="white-space:nowrap">{{ $row['name'] }}</td>
                                             <td>
-                                                <input type="text" wire:model="branchLinks.{{ $id }}.map_link" maxlength="500" placeholder="Clinic's link"
+                                                <input aria-label="Clinic's link" type="text" wire:model="branchLinks.{{ $id }}.map_link" maxlength="500" placeholder="Clinic's link"
                                                        class="{{ $optical ? 'ui-input' : 'form-control ui-input ui-input-sm' }} @error('branchLinks.'.$id.'.map_link') is-invalid @enderror">
                                                 @error('branchLinks.'.$id.'.map_link')<small class="{{ $optical ? 'text-xs text-red-600' : 'text-red-700 text-sm' }}">{{ $message }}</small>@enderror
                                             </td>
                                             <td>
-                                                <input type="text" wire:model="branchLinks.{{ $id }}.whatsapp_link" maxlength="500" placeholder="Clinic's WhatsApp"
+                                                <input aria-label="Clinic's WhatsApp" type="text" wire:model="branchLinks.{{ $id }}.whatsapp_link" maxlength="500" placeholder="Clinic's WhatsApp"
                                                        class="{{ $optical ? 'ui-input' : 'form-control ui-input ui-input-sm' }} @error('branchLinks.'.$id.'.whatsapp_link') is-invalid @enderror">
                                                 @error('branchLinks.'.$id.'.whatsapp_link')<small class="{{ $optical ? 'text-xs text-red-600' : 'text-red-700 text-sm' }}">{{ $message }}</small>@enderror
                                             </td>

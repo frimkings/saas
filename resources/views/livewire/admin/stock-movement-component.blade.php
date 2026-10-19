@@ -1,11 +1,11 @@
 <div class="clinic-ui ui-page">
     <div class="w-full">
-        <div class="flex justify-between items-center mb-4">
+        <div class="ui-heading">
             <div>
-                <h3 class="mb-0 text-teal-700 font-semibold">Stock Receiving</h3>
-                <small class="text-slate-500 uppercase font-semibold">Goods received note and stock movement log</small>
+                <h1 class="flex flex-wrap items-center gap-2">Stock Receiving</h1>
+                <p class="ui-muted">Record stock arriving from suppliers, by batch.</p>
             </div>
-            <a href="{{ route('admin.product') }}" class="btn ui-button ui-button-secondary">
+            <a href="{{ route('admin.product') }}" class="ui-button ui-button-secondary">
                 <i class="fas fa-boxes mr-1"></i> Products
             </a>
         </div>
@@ -42,22 +42,22 @@
 
         <div class="flex flex-wrap -mx-2">
             <div class="w-full lg:w-4/12 px-2">
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-                    <div class="card-header border-b border-slate-200 px-4 py-2 bg-teal-700 text-white">
+                <div class="ui-panel">
+                    <div class="ui-section-heading">
                         <h3 class="font-semibold mb-0">
                             <i class="fas fa-plus-circle mr-1"></i> Receive New Stock
                         </h3>
                     </div>
                     <form wire:submit="receiveStock">
-                        <div class="card-body p-4">
+                        <div class="p-5">
                             <div class="mb-4">
-                                <label>Find Product</label>
-                                <input type="text" class="form-control ui-input" wire:model.live.debounce.300ms="productSearch" placeholder="Search product, batch or category...">
+                                <label for="stock-moveme-productsearch">Find Product</label>
+                                <input id="stock-moveme-productsearch" type="text" class="ui-input" wire:model.live.debounce.300ms="productSearch" placeholder="Search product, batch or category...">
                             </div>
 
                             <div class="mb-4">
-                                <label>Product <span class="text-red-700">*</span></label>
-                                <select class="form-control ui-input @error('productId') is-invalid @enderror" wire:model.live="productId">
+                                <label for="stock-moveme-productid">Product <span class="text-red-700">*</span></label>
+                                <select id="stock-moveme-productid" class="ui-input @error('productId') is-invalid @enderror" wire:model.live="productId">
                                     <option value="">Select product...</option>
                                     @foreach($products as $product)
                                         <option value="{{ $product->id }}">
@@ -69,54 +69,54 @@
                             </div>
 
                             <div class="mb-4">
-                                <label>Supplier</label>
-                                <input type="text" class="form-control ui-input @error('supplier') is-invalid @enderror" wire:model="supplier" placeholder="Supplier name">
+                                <label for="stock-moveme-supplier">Supplier</label>
+                                <input id="stock-moveme-supplier" type="text" class="ui-input @error('supplier') is-invalid @enderror" wire:model="supplier" placeholder="Supplier name">
                                 @error('supplier') <span class="ui-error">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="flex flex-wrap -mx-2">
                                 <div class="mb-4 w-full md:w-6/12 px-2">
-                                    <label>Quantity <span class="text-red-700">*</span></label>
-                                    <input type="number" min="1" class="form-control ui-input @error('quantity') is-invalid @enderror" wire:model="quantity">
+                                    <label for="stock-moveme-quantity">Quantity <span class="text-red-700">*</span></label>
+                                    <input id="stock-moveme-quantity" type="number" min="1" class="ui-input @error('quantity') is-invalid @enderror" wire:model="quantity">
                                     @error('quantity') <span class="ui-error">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="mb-4 w-full md:w-6/12 px-2">
-                                    <label>Cost Price</label>
-                                    <input type="number" min="0" step="0.01" class="form-control ui-input @error('costPrice') is-invalid @enderror" wire:model="costPrice">
+                                    <label for="stock-moveme-costprice">Cost Price</label>
+                                    <input id="stock-moveme-costprice" type="number" min="0" step="0.01" class="ui-input @error('costPrice') is-invalid @enderror" wire:model="costPrice">
                                     @error('costPrice') <span class="ui-error">{{ $message }}</span> @enderror
                                 </div>
                             </div>
 
                             <div class="mb-4">
-                                <label>Batch Number</label>
-                                <input type="text" class="form-control ui-input @error('batchNumber') is-invalid @enderror" wire:model="batchNumber">
+                                <label for="stock-moveme-batchnumber">Batch Number</label>
+                                <input id="stock-moveme-batchnumber" type="text" class="ui-input @error('batchNumber') is-invalid @enderror" wire:model="batchNumber">
                                 @error('batchNumber') <span class="ui-error">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="flex flex-wrap -mx-2">
                                 <div class="mb-4 w-full md:w-6/12 px-2">
-                                    <label>Manufacture Date</label>
-                                    <input type="date" class="form-control ui-input @error('manufactureDate') is-invalid @enderror" wire:model="manufactureDate">
+                                    <label for="stock-moveme-manufacturedate">Manufacture Date</label>
+                                    <input id="stock-moveme-manufacturedate" type="date" class="ui-input @error('manufactureDate') is-invalid @enderror" wire:model="manufactureDate">
                                     @error('manufactureDate') <span class="ui-error">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="mb-4 w-full md:w-6/12 px-2">
-                                    <label>Expiry Date</label>
-                                    <input type="date" class="form-control ui-input @error('expiryDate') is-invalid @enderror" wire:model="expiryDate">
+                                    <label for="stock-moveme-expirydate">Expiry Date</label>
+                                    <input id="stock-moveme-expirydate" type="date" class="ui-input @error('expiryDate') is-invalid @enderror" wire:model="expiryDate">
                                     @error('expiryDate') <span class="ui-error">{{ $message }}</span> @enderror
                                 </div>
                             </div>
 
                             <div class="mb-0">
-                                <label>Notes</label>
-                                <textarea class="form-control ui-input @error('notes') is-invalid @enderror" rows="3" wire:model="notes" placeholder="Invoice number, delivery note, condition of goods..."></textarea>
+                                <label for="stock-moveme-notes">Notes</label>
+                                <textarea id="stock-moveme-notes" class="ui-input @error('notes') is-invalid @enderror" rows="3" wire:model="notes" placeholder="Invoice number, delivery note, condition of goods..."></textarea>
                                 @error('notes') <span class="ui-error">{{ $message }}</span> @enderror
                             </div>
                         </div>
                         <div class="border-t border-slate-200 px-4 py-2 bg-white flex justify-between">
-                            <button type="button" class="btn ui-button ui-button-secondary border border-slate-200" wire:click="resetReceiveForm">
+                            <button type="button" class="ui-button ui-button-secondary border border-slate-200" wire:click="resetReceiveForm">
                                 <i class="fas fa-undo mr-1"></i> Reset
                             </button>
-                            <button type="submit" class="btn ui-button ui-button-primary">
+                            <button type="submit" class="ui-button ui-button-primary">
                                 <span wire:loading.remove wire:target="receiveStock">
                                     <i class="fas fa-save mr-1"></i> Save GRN
                                 </span>
@@ -130,16 +130,16 @@
             </div>
 
             <div class="w-full lg:w-8/12 px-2">
-                <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-                    <div class="card-header border-b border-slate-200 px-4 py-2 bg-white">
+                <div class="ui-panel">
+                    <div class="ui-section-heading">
                         <div class="flex flex-wrap -mx-2 items-end">
                             <div class="w-full md:w-5/12 px-2 mb-2">
-                                <label class="text-sm text-slate-500 font-semibold">Search Movements</label>
-                                <input type="text" class="form-control ui-input" wire:model.live.debounce.400ms="search" placeholder="Reference, product, supplier, batch...">
+                                <label for="stock-moveme-search" class="text-sm text-slate-500 font-semibold">Search Movements</label>
+                                <input id="stock-moveme-search" type="text" class="ui-input" wire:model.live.debounce.400ms="search" placeholder="Reference, product, supplier, batch...">
                             </div>
                             <div class="w-full md:w-4/12 px-2 mb-2"><label class="text-sm text-slate-500 font-semibold block">Date</label><x-date-range from="fromDate" to="toDate" presets="activity" clearable /></div>
                             <div class="w-full md:w-1/12 px-2 mb-2">
-                                <button class="btn ui-button ui-button-secondary border border-slate-200 w-full" wire:click="$set('search','')" title="Clear search">
+                                <button class="ui-button ui-button-secondary border border-slate-200 w-full" wire:click="$set('search','')" title="Clear search">
                                     <i class="fas fa-times"></i>
                                 </button>
                             </div>
@@ -147,7 +147,7 @@
                     </div>
 
                     <div class="ui-table-wrap">
-                        <table class="table ui-table mb-0">
+                        <table class="ui-table mb-0">
                             <thead class="">
                                 <tr>
                                     <th>Reference</th>

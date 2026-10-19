@@ -8,9 +8,9 @@
             ['label'=>'Rejected', 'key'=>'rejected', 'color'=>'danger',  'icon'=>'fa-times-circle'],
         ] as $stat)
         <div class="w-full md:w-4/12 px-2 mb-4">
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm" style="cursor:pointer"
+            <div class="ui-panel" style="cursor:pointer"
                  wire:click="$set('filterStatus','{{ $stat['key'] }}')">
-                <div class="card-body p-4 flex items-center justify-between">
+                <div class="p-5 flex items-center justify-between">
                     <div>
                         <div class="text-sm text-slate-500 uppercase font-semibold">{{ $stat['label'] }}</div>
                         <div class="text-xl font-semibold mb-0 text-{{ $stat['color'] }}">{{ $counts[$stat['key']] }}</div>
@@ -31,7 +31,7 @@
     <div class="mb-4">
         @foreach(['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected',''=>'All'] as $val=>$label)
             <button wire:click="$set('filterStatus','{{ $val }}')"
-                    class="btn ui-button ui-button-sm mr-1 {{ $filterStatus === $val ? 'ui-button-secondary' : 'ui-button-secondary' }}">
+                    class="ui-button ui-button-sm mr-1 {{ $filterStatus === $val ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                 {{ $label }}
                 @if($val === 'pending' && $counts['pending'] > 0)
                     <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-1">{{ $counts['pending'] }}</span>
@@ -41,9 +41,9 @@
     </div>
 
     {{-- Table --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="ui-panel">
         <div class="ui-table-wrap">
-            <table class="table ui-table mb-0 align-middle">
+            <table class="ui-table mb-0 align-middle">
                 <thead class="">
                     <tr>
                         <th>Patient</th>
@@ -100,21 +100,21 @@
                                 @if($order->renewal_approval_status === 'pending')
                                     @if($patient?->contact)
                                         <button wire:click="openConfirm({{ $order->id }}, 'approve')"
-                                                class="btn ui-button ui-button-sm ui-button-primary mr-1">
+                                                class="ui-button ui-button-sm ui-button-primary mr-1">
                                             <i class="fas fa-check mr-1"></i> Approve &amp; Send
                                         </button>
                                     @else
-                                        <span class="btn ui-button ui-button-sm ui-button-primary mr-1 disabled" title="No contact number">
+                                        <span class="ui-button ui-button-sm ui-button-primary mr-1 disabled" title="No contact number">
                                             <i class="fas fa-check mr-1"></i> Approve
                                         </span>
                                     @endif
                                     <button wire:click="openConfirm({{ $order->id }}, 'reject')"
-                                            class="btn ui-button ui-button-sm ui-button-danger">
+                                            class="ui-button ui-button-sm ui-button-danger">
                                         <i class="fas fa-times mr-1"></i> Reject
                                     </button>
                                 @elseif($order->renewal_approval_status === 'rejected')
                                     <button wire:click="requeue({{ $order->id }})"
-                                            class="btn ui-button ui-button-sm ui-button-secondary">
+                                            class="ui-button ui-button-sm ui-button-secondary">
                                         <i class="fas fa-undo mr-1"></i> Re-queue
                                     </button>
                                 @else
@@ -174,14 +174,14 @@
                             </p>
                         @endif
                         <div class="mb-0">
-                            <label class="text-sm font-semibold">Note <span class="text-slate-500 font-normal">(optional)</span></label>
-                            <textarea wire:model.live.debounce.400ms="noteInput" class="form-control ui-input ui-input-sm"
+                            <label for="spectacle-re-noteinput" class="text-sm font-semibold">Note <span class="text-slate-500 font-normal">(optional)</span></label>
+                            <textarea id="spectacle-re-noteinput" wire:model.live.debounce.400ms="noteInput" class="ui-input ui-input-sm"
                                       rows="2" placeholder="Reason or remark…"></textarea>
                         </div>
                     </div>
                     <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                        <button class="btn ui-button ui-button-secondary ui-button-sm" wire:click="cancelConfirm">Cancel</button>
-                        <button class="btn ui-button ui-button-sm {{ $confirmAction === 'approve' ? 'ui-button-primary' : 'ui-button-danger' }}"
+                        <button class="ui-button ui-button-secondary ui-button-sm" wire:click="cancelConfirm">Cancel</button>
+                        <button class="ui-button ui-button-sm {{ $confirmAction === 'approve' ? 'ui-button-primary' : 'ui-button-danger' }}"
                                 wire:click="execute"
                                 wire:loading.attr="disabled" wire:target="execute">
                             <span wire:loading.remove wire:target="execute">Confirm {{ $confirmAction === 'approve' ? 'Send' : 'Reject' }}</span>

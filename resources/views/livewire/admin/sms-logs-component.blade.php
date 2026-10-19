@@ -23,48 +23,30 @@
     </div>
 
     @if(!$showArchive)
-    <div class="flex flex-wrap -mx-2 mb-6">
-        <div class="w-full sm:w-4/12 px-2">
-            <div class="info-box mb-0 shadow-sm border-0">
-                <span class="info-box-icon bg-slate-500 text-white"><i class="fas fa-paper-plane"></i></span>
-                <div class="info-box-content">
-                    <span class="info-box-text">Total Sent</span>
-                    <span class="info-box-number">{{ number_format($totals['total']) }}</span>
-                </div>
-            </div>
+    <div class="ui-tiles ui-tiles--auto mb-6">
+        <div>
+            <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-paper-plane" aria-hidden="true"></i>Total Sent</span><span class="ui-tile__value">{{ number_format($totals['total']) }}</span></div>
         </div>
-        <div class="w-full sm:w-4/12 px-2">
-            <div class="info-box mb-0 shadow-sm border-0">
-                <span class="info-box-icon bg-green-600 text-white"><i class="fas fa-check"></i></span>
-                <div class="info-box-content">
-                    <span class="info-box-text">Sent</span>
-                    <span class="info-box-number">{{ number_format($totals['success']) }}</span>
-                </div>
-            </div>
+        <div>
+            <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-check" aria-hidden="true"></i>Sent</span><span class="ui-tile__value">{{ number_format($totals['success']) }}</span></div>
         </div>
-        <div class="w-full sm:w-4/12 px-2">
-            <div class="info-box mb-0 shadow-sm border-0">
-                <span class="info-box-icon bg-red-600 text-white"><i class="fas fa-times"></i></span>
-                <div class="info-box-content">
-                    <span class="info-box-text">Failed</span>
-                    <span class="info-box-number">{{ number_format($totals['failed']) }}</span>
-                </div>
-            </div>
+        <div>
+            <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-times" aria-hidden="true"></i>Failed</span><span class="ui-tile__value">{{ number_format($totals['failed']) }}</span></div>
         </div>
     </div>
     @endif
 
     {{-- Filters --}}
-    <div class="card overflow-hidden border border-slate-200 bg-white border-0 shadow-sm rounded-lg mb-6">
-        <div class="card-body p-4 py-4">
+    <div class="ui-panel mb-6">
+        <div class="p-5">
             <div class="flex flex-wrap -mx-2 items-end">
                 <div class="w-full md:w-2/12 px-2">
-                    <input type="text" wire:model.live.debounce.300ms="search"
-                           class="form-control ui-input ui-input-sm bg-slate-50 border-0"
+                    <input aria-label="Search" type="text" wire:model.live.debounce.300ms="search"
+                           class="ui-input ui-input-sm bg-slate-50 border-0"
                            placeholder="Search name, phone, message…">
                 </div>
                 <div class="w-full md:w-2/12 px-2">
-                    <select wire:model.live="filterStatus" class="form-control ui-input ui-input-sm bg-slate-50 border-0">
+                    <select wire:model.live="filterStatus" aria-label="Status" class="ui-input ui-input-sm bg-slate-50 border-0">
                         <option value="">All statuses</option>
                         <option value="sent">Sent</option>
                         <option value="queued">Queued</option>
@@ -73,7 +55,7 @@
                     </select>
                 </div>
                 <div class="w-full md:w-1/12 px-2">
-                    <select wire:model.live="filterChannel" class="form-control ui-input ui-input-sm bg-slate-50 border-0">
+                    <select wire:model.live="filterChannel" aria-label="Channel" class="ui-input ui-input-sm bg-slate-50 border-0">
                         <option value="">All channels</option>
                         <option value="sms">SMS</option>
                         <option value="whatsapp">WhatsApp</option>
@@ -81,7 +63,7 @@
                 </div>
                 @if($branches->count() > 1)
                 <div class="w-full md:w-2/12 px-2">
-                    <select wire:model.live="filterBranch" class="form-control ui-input ui-input-sm bg-slate-50 border-0">
+                    <select wire:model.live="filterBranch" aria-label="Branch" class="ui-input ui-input-sm bg-slate-50 border-0">
                         <option value="">All branches</option>
                         @foreach($branches as $id => $name)
                             <option value="{{ $id }}">{{ $name }}</option>
@@ -90,7 +72,7 @@
                 </div>
                 @endif
                 <div class="w-full md:w-2/12 px-2">
-                    <select wire:model.live="filterTemplate" class="form-control ui-input ui-input-sm bg-slate-50 border-0">
+                    <select wire:model.live="filterTemplate" aria-label="Message type" class="ui-input ui-input-sm bg-slate-50 border-0">
                         <option value="">All templates</option>
                         @foreach($templates as $tpl)
                             <option value="{{ $tpl }}">{{ ucwords(str_replace('_', ' ', $tpl)) }}</option>
@@ -99,7 +81,7 @@
                 </div>
                 <div class="w-full md:w-3/12 px-2"><x-date-range from="dateFrom" to="dateTo" presets="activity" clearable /></div>
                 <div class="w-full md:w-1/12 px-2">
-                    <button wire:click="clearFilters" class="btn ui-button ui-button-sm ui-button-secondary w-full"
+                    <button wire:click="clearFilters" class="ui-button ui-button-sm ui-button-secondary w-full"
                             title="Clear filters"><i class="fas fa-times"></i></button>
                 </div>
             </div>
@@ -107,10 +89,10 @@
     </div>
 
     {{-- Table --}}
-    <div class="card overflow-hidden border border-slate-200 bg-white border-0 shadow-sm rounded-lg">
-        <div class="card-body p-0">
+    <div class="ui-panel">
+        <div class="">
             <div class="ui-table-wrap">
-                <table class="table ui-table ui-table-sm mb-0">
+                <table class="ui-table ui-table-sm mb-0">
                     <thead class="">
                         <tr>
                             <th style="width:140px;">Date / Time</th>

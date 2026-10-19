@@ -1,8 +1,5 @@
 <div class="clinic-ui ui-page">
-    <div class="mb-4">
-        <h2 class="text-teal-700 font-semibold mb-0">Settings</h2>
-        <p class="text-slate-500 text-sm uppercase font-semibold mb-0">Clinic Configuration</p>
-    </div>
+    <x-ui.page-header title="Settings" description="Your clinic's details, receipts, payment methods, reminders and backups." />
 
     {{-- Tab bar --}}
     <ul class="flex flex-wrap border-b border-slate-200 mb-0">

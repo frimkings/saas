@@ -6,20 +6,11 @@
         <div class="w-full">
             <div class="flex flex-wrap -mx-2 items-center">
                 <div class="w-full sm:w-6/12 px-2">
-                    <h1 class="m-0 flex items-center gap-2">
-                        <span class="dx-icon"><i class="fas fa-stethoscope"></i></span>
-                        Diagnosis Registry
-                        <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-semibold rounded-full dx-total-badge">{{ $diagnoses->total() }}</span>
-                    </h1>
-                    <p class="text-slate-500 mb-0" style="font-size:.82rem; margin-top:.2rem;">
-                        Manage the ophthalmic diagnosis reference list used across consultations.
-                    </p>
+                    <h1 class="flex flex-wrap items-center gap-2">Diagnoses
+                        <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-semibold rounded-full dx-total-badge">{{ $diagnoses->total() }}</span></h1>
+                    <p class="ui-muted">The diagnosis list doctors pick from.</p>
                 </div>
                 <div class="w-full sm:w-6/12 px-2">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Diagnoses</li>
-                    </ol>
                 </div>
             </div>
         </div>
@@ -30,7 +21,7 @@
 
             {{-- ── Add / Edit Form ── --}}
             <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white dx-form-card mb-6 {{ $isEditing ? 'dx-form-card--editing' : '' }}">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+                <div class="ui-section-heading">
                     <h3 class="font-semibold">
                         @if($isEditing)
                             <i class="fas fa-edit mr-2 text-amber-600"></i>Edit Diagnosis
@@ -39,13 +30,13 @@
                         @endif
                     </h3>
                 </div>
-                <div class="card-body p-4">
+                <div class="p-5">
                     <form wire:submit="{{ $isEditing ? 'update' : 'store' }}">
                         <div class="flex flex-wrap -mx-2 items-start">
                             <div class="w-full md:w-8/12 px-2">
                                 <div class="mb-0">
-                                    <input type="text"
-                                           class="form-control ui-input  dx-name-input @error('name') is-invalid @enderror"
+                                    <input aria-label="e.g. Acute Angle Closure Glaucoma" type="text"
+                                           class="ui-input dx-name-input @error('name') is-invalid @enderror"
                                            placeholder="e.g. Acute Angle Closure Glaucoma"
                                            wire:model="name"
                                            autofocus>
@@ -60,7 +51,7 @@
                             <div class="w-full md:w-4/12 px-2">
                                 <div class="flex gap-2 mt-1">
                                     <button type="submit"
-                                            class="btn ui-button  grow {{ $isEditing ? 'ui-button-secondary' : 'ui-button-primary' }}"
+                                            class="ui-button grow {{ $isEditing ? 'ui-button-secondary' : 'ui-button-primary' }}"
                                             wire:loading.attr="disabled"
                                             wire:target="{{ $isEditing ? 'update' : 'store' }}">
                                         <span wire:loading.remove wire:target="{{ $isEditing ? 'update' : 'store' }}">
@@ -73,7 +64,7 @@
                                     </button>
                                     @if($isEditing)
                                         <button type="button"
-                                                class="btn ui-button ui-button-secondary"
+                                                class="ui-button ui-button-secondary"
                                                 wire:click="resetFields">
                                             <i class="fas fa-times"></i>
                                         </button>
@@ -86,8 +77,8 @@
             </div>
 
             {{-- ── Registry Table Card ── --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white dx-table-card">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <div class="ui-panel">
+                <div class="ui-section-heading">
                     <div class="flex items-center">
                         <h3 class="font-semibold mr-4">
                             <i class="fas fa-list mr-2"></i>All Diagnoses
@@ -96,13 +87,13 @@
                         @if(count($selectedDiagnosisIds) > 0)
                             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 ml-2">{{ count($selectedDiagnosisIds) }} selected</span>
                             <button type="button"
-                                    class="btn ui-button ui-button-sm ui-button-danger ml-2"
+                                    class="ui-button ui-button-sm ui-button-danger ml-2"
                                     wire:click="deleteSelected"
                                     wire:confirm="Delete selected diagnosis records? This cannot be undone.">
                                 <i class="fas fa-trash-alt mr-1"></i>Delete Selected
                             </button>
                             <button type="button"
-                                    class="btn ui-button ui-button-sm ui-button-link text-slate-500"
+                                    class="ui-button ui-button-sm ui-button-link text-slate-500"
                                     wire:click="clearSelection">
                                 Clear
                             </button>
@@ -121,14 +112,14 @@
                                     </span>
                                 </span>
                             </div>
-                            <input type="text"
-                                   class="form-control ui-input border-l-0"
+                            <input aria-label="Search" type="text"
+                                   class="ui-input border-l-0"
                                    placeholder="Search diagnoses…"
                                    wire:model.live.debounce.300ms="search"
                                    style="width:220px;">
                             @if($search)
                                 <div class="flex">
-                                    <button class="btn ui-button ui-button-secondary" wire:click="clearSearch" title="Clear search">
+                                    <button class="ui-button ui-button-secondary" wire:click="clearSearch" title="Clear search">
                                         <i class="fas fa-times" style="font-size:.75rem;"></i>
                                     </button>
                                 </div>
@@ -136,7 +127,7 @@
                         </div>
 
                         {{-- Import --}}
-                        <button class="btn ui-button ui-button-sm {{ $showImportPanel ? 'ui-button-primary' : 'ui-button-secondary' }}"
+                        <button class="ui-button ui-button-sm {{ $showImportPanel ? 'ui-button-primary' : 'ui-button-secondary' }}"
                                 wire:click="$toggle('showImportPanel')"
                                 title="Import from CSV">
                             <i class="fas fa-file-import mr-1"></i>Import CSV
@@ -144,7 +135,7 @@
 
                         {{-- Export --}}
                         <button wire:click="export"
-                                class="btn ui-button ui-button-sm ui-button-secondary"
+                                class="ui-button ui-button-sm ui-button-secondary"
                                 title="Export as CSV">
                             <i class="fas fa-download mr-1"></i>Export CSV
                         </button>
@@ -196,11 +187,11 @@
                             @endif
 
                             <div class="flex" style="gap:.5rem; margin-top:1rem;">
-                                <button class="btn ui-button ui-button-primary ui-button-sm"
+                                <button class="ui-button ui-button-primary ui-button-sm"
                                         wire:click="clearImport">
                                     <i class="fas fa-check mr-1"></i>Done
                                 </button>
-                                <button class="btn ui-button ui-button-secondary ui-button-sm"
+                                <button class="ui-button ui-button-secondary ui-button-sm"
                                         wire:click="clearImport">
                                     <i class="fas fa-redo mr-1"></i>Import Another File
                                 </button>
@@ -262,7 +253,7 @@
                                     @enderror
 
                                     <div class="flex" style="gap:.5rem; margin-top:.85rem;">
-                                        <button class="btn ui-button ui-button-primary ui-button-sm grow"
+                                        <button class="ui-button ui-button-primary ui-button-sm grow"
                                                 wire:click="importCsv"
                                                 wire:loading.attr="disabled"
                                                 wire:target="importCsv"
@@ -274,13 +265,13 @@
                                                 <i class="fas fa-spinner fa-spin mr-1"></i>Importing…
                                             </span>
                                         </button>
-                                        <button class="btn ui-button ui-button-secondary ui-button-sm"
+                                        <button class="ui-button ui-button-secondary ui-button-sm"
                                                 wire:click="downloadTemplate">
                                             <i class="fas fa-download mr-1"></i>Template
                                         </button>
                                     </div>
 
-                                    <button class="btn ui-button ui-button-link ui-button-sm text-slate-500 p-0 mt-2"
+                                    <button class="ui-button ui-button-link ui-button-sm text-slate-500 p-0 mt-2"
                                             wire:click="clearImport">
                                         <i class="fas fa-times mr-1"></i>Cancel
                                     </button>
@@ -292,9 +283,9 @@
                 </div>
                 @endif
 
-                <div class="card-body p-0">
+                <div class="">
                     <div class="ui-table-wrap">
-                        <table class="table ui-table dx-table mb-0">
+                        <table class="ui-table dx-table mb-0">
                             <thead>
                                 <tr>
                                     <th style="width:44px;" class="text-center">
@@ -347,19 +338,19 @@
                                                 @if($inlineEditingId == $diagnosis->id)
                                                     <div class="dx-inline-edit">
                                                         <input type="text"
-                                                               class="form-control ui-input ui-input-sm dx-inline-input @error('inlineName') is-invalid @enderror"
-                                                               wire:model="inlineName"
+                                                               class="ui-input ui-input-sm dx-inline-input @error('inlineName') is-invalid @enderror"
+                                                               wire:model="inlineName" aria-label="Diagnosis name"
                                                                wire:keydown.enter="saveInlineEdit"
                                                                wire:keydown.escape="cancelInlineEdit"
                                                                autofocus>
                                                         <button type="button"
-                                                                class="btn ui-button ui-button-sm ui-button-primary dx-inline-btn"
+                                                                class="ui-button ui-button-sm ui-button-primary dx-inline-btn"
                                                                 wire:click="saveInlineEdit"
                                                                 title="Save">
                                                             <i class="fas fa-check"></i>
                                                         </button>
                                                         <button type="button"
-                                                                class="btn ui-button ui-button-sm ui-button-secondary dx-inline-btn"
+                                                                class="ui-button ui-button-sm ui-button-secondary dx-inline-btn"
                                                                 wire:click="cancelInlineEdit"
                                                                 title="Cancel">
                                                             <i class="fas fa-times"></i>
@@ -384,12 +375,12 @@
                                             <code class="dx-id-code">{{ $diagnosis->id }}</code>
                                         </td>
                                         <td class="text-center">
-                                            <button class="btn ui-button ui-button-sm dx-action-btn dx-action-btn--edit ui-button-secondary"
+                                            <button class="ui-button ui-button-sm dx-action-btn dx-action-btn--edit ui-button-secondary"
                                                     wire:click="startInlineEdit({{ $diagnosis->id }})"
                                                     title="Edit inline">
                                                 <i class="fas fa-pencil-alt"></i>
                                             </button>
-                                            <button class="btn ui-button ui-button-sm dx-action-btn dx-action-btn--delete ui-button-secondary"
+                                            <button class="ui-button ui-button-sm dx-action-btn dx-action-btn--delete ui-button-secondary"
                                                     wire:click="delete({{ $diagnosis->id }})"
                                                     wire:confirm="Delete &quot;{{ $diagnosis->name }}&quot;? This cannot be undone."
                                                     title="Delete this diagnosis">

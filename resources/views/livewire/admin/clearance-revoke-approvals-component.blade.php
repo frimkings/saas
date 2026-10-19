@@ -2,27 +2,27 @@
 <div class="w-full">
 
     {{-- Tabs + Filters --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mb-4">
-        <div class="card-body p-4 py-2">
+    <div class="ui-panel mb-4">
+        <div class="p-5">
             <div class="flex flex-wrap mx-0 items-center">
                 <div class="w-full md:w-5/12 px-2">
                     <div class="inline-flex flex-wrap gap-1">
                         <button wire:click="switchTab('pending')"
-                            class="btn ui-button {{ $activeTab === 'pending' ? 'ui-button-secondary text-slate-900' : 'ui-button-secondary' }}">
+                            class="ui-button {{ $activeTab === 'pending' ? 'ui-button-secondary text-slate-900' : 'ui-button-secondary' }}">
                             <i class="fas fa-clock mr-1"></i> Pending
                             @if($pendingCount > 0)
                                 <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-800 text-white ml-1">{{ $pendingCount }}</span>
                             @endif
                         </button>
                         <button wire:click="switchTab('history')"
-                            class="btn ui-button {{ $activeTab === 'history' ? 'ui-button-secondary' : 'ui-button-secondary' }}">
+                            class="ui-button {{ $activeTab === 'history' ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                             <i class="fas fa-history mr-1"></i> History
                         </button>
                     </div>
                 </div>
                 <div class="w-full md:w-4/12 px-1">
-                    <input wire:model.live.debounce.300ms="search" type="text"
-                           class="form-control ui-input ui-input-sm shadow-none"
+                    <input aria-label="Search" wire:model.live.debounce.300ms="search" type="text"
+                           class="ui-input ui-input-sm shadow-none"
                            placeholder="Search patient or reason…">
                 </div>
                 @if($activeTab === 'history')
@@ -37,9 +37,9 @@
     </div>
 
     {{-- Table --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
+    <div class="ui-panel">
         <div class="ui-table-wrap" wire:loading.class="opacity-50">
-            <table class="table ui-table align-middle mb-0">
+            <table class="ui-table align-middle mb-0">
                 <thead class="bg-slate-50">
                     <tr class="text-sm uppercase font-semibold text-slate-500">
                         <th class="pl-6 border-0">Patient</th>
@@ -104,13 +104,13 @@
                                         </span>
                                     @else
                                         <button type="button"
-                                                class="btn ui-button ui-button-sm ui-button-primary shadow-none mr-1"
+                                                class="ui-button ui-button-sm ui-button-primary shadow-none mr-1"
                                                 wire:click="approve({{ $log->id }})"
                                                 wire:confirm="Approve this clearance revoke request? The clearance will be permanently removed.">
                                             <i class="fas fa-check mr-1"></i>Approve
                                         </button>
                                         <button wire:click="openRejectModal({{ $log->id }})"
-                                                class="btn ui-button ui-button-sm ui-button-danger shadow-none">
+                                                class="ui-button ui-button-sm ui-button-danger shadow-none">
                                             <i class="fas fa-times"></i>
                                         </button>
                                     @endif
@@ -141,7 +141,7 @@
 </div>
 
 {{-- Reject Modal --}}
-<div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4  {{ $showRejectModal ? 'show' : '' }}" id="rejectRevokeModal" tabindex="-1" role="dialog" style="{{ $showRejectModal ? 'display:block; background:rgba(0,0,0,.45);' : 'display:none;' }}" aria-modal="{{ $showRejectModal ? 'true' : 'false' }}">
+<div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 {{ $showRejectModal ? 'show' : '' }}" id="rejectRevokeModal" tabindex="-1" role="dialog" style="{{ $showRejectModal ? 'display:block; background:rgba(0,0,0,.45);' : 'display:none;' }}" aria-modal="{{ $showRejectModal ? 'true' : 'false' }}">
     <div class="mx-auto my-8 w-full max-w-lg" role="document">
         <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl border-0 shadow">
             <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 bg-red-600 text-white">
@@ -150,9 +150,9 @@
             </div>
             <div class="p-4">
                 <div class="mb-0">
-                    <label class="font-semibold text-sm">Reason for Rejection <span class="text-red-700">*</span></label>
-                    <textarea wire:model="rejectionReason"
-                              class="form-control ui-input @error('rejectionReason') is-invalid @enderror"
+                    <label for="clearance-re-rejectionreason" class="font-semibold text-sm">Reason for Rejection <span class="text-red-700">*</span></label>
+                    <textarea id="clearance-re-rejectionreason" wire:model="rejectionReason"
+                              class="ui-input @error('rejectionReason') is-invalid @enderror"
                               rows="3"
                               placeholder="Explain why this revoke request is being rejected…"></textarea>
                     @error('rejectionReason')
@@ -161,8 +161,8 @@
                 </div>
             </div>
             <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 bg-slate-50">
-                <button type="button" class="btn ui-button ui-button-secondary" wire:click="closeRejectModal">Cancel</button>
-                <button type="button" class="btn ui-button ui-button-danger" wire:click="confirmReject">
+                <button type="button" class="ui-button ui-button-secondary" wire:click="closeRejectModal">Cancel</button>
+                <button type="button" class="ui-button ui-button-danger" wire:click="confirmReject">
                     <i class="fas fa-times mr-1"></i> Confirm Rejection
                 </button>
             </div>

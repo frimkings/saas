@@ -3,14 +3,10 @@
         <div class="w-full">
             <div class="flex flex-wrap -mx-2 mb-2 items-center">
                 <div class="w-full sm:w-6/12 px-2">
-                    <h1 class="m-0">Categories <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $categories->total() }}</span></h1>
-                    <small class="text-slate-500">Manage POS, inventory, reporting, and clinical product groups.</small>
+                    <h1 class="flex flex-wrap items-center gap-2">Categories <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">{{ $categories->total() }}</span></h1>
+                    <p class="ui-muted">Groups for the things you charge for, used in reports and the income statement.</p>
                 </div>
                 <div class="w-full sm:w-6/12 px-2">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="#">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Categories</li>
-                    </ol>
                 </div>
             </div>
         </div>
@@ -18,34 +14,34 @@
 
     <div class="content">
         <div class="w-full">
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white category-admin-card">
-                <div class="card-header border-b border-slate-200 px-4 py-2 bg-white flex justify-between items-center">
+            <div class="ui-panel">
+                <div class="ui-section-heading">
                     <div>
                         <h5 class="mb-0 font-semibold">Category Directory</h5>
                         <small class="text-slate-500">Use clear category types for POS filtering and income reports.</small>
                     </div>
-                    <button wire:click.prevent="openCategoryModal" class="btn ui-button ui-button-primary">
+                    <button wire:click.prevent="openCategoryModal" class="ui-button ui-button-primary">
                         <i class="fa fa-plus-circle mr-1"></i> Add Category
                     </button>
                 </div>
 
-                <div class="card-body p-4">
+                <div class="p-5">
                     <div class="flex flex-wrap -mx-2 mb-4">
                         <div class="w-full md:w-5/12 px-2">
                             <div class="flex items-stretch">
                                 <div class="flex">
                                     <span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fa fa-search"></i></span>
                                 </div>
-                                <input type="text"
+                                <input aria-label="Search" type="text"
                                     wire:model.live.debounce.300ms="searchTerm"
-                                    class="form-control ui-input"
+                                    class="ui-input"
                                     placeholder="Search category, type, or description...">
                             </div>
                         </div>
                     </div>
 
                     <div class="ui-table-wrap">
-                        <table class="table ui-table mb-0">
+                        <table class="ui-table mb-0">
                             <thead class="">
                                 <tr>
                                     <th>Category</th>
@@ -77,7 +73,7 @@
                                         <td>
                                             <button type="button"
                                                 wire:click="toggleCategoryStatus({{ $category->id }})"
-                                                class="btn ui-button ui-button-sm {{ $category->is_active ? 'ui-button-secondary' : 'ui-button-secondary' }}">
+                                                class="ui-button ui-button-sm {{ $category->is_active ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                                                 <i class="fa {{ $category->is_active ? 'fa-check-circle' : 'fa-pause-circle' }} mr-1"></i>
                                                 {{ $category->is_active ? 'Active' : 'Inactive' }}
                                             </button>
@@ -85,14 +81,14 @@
                                         <td class="text-right">
                                             <button type="button"
                                                 wire:click.prevent="editCategoryModal({{ $category->id }})"
-                                                class="btn ui-button ui-button-sm ui-button-secondary"
+                                                class="ui-button ui-button-sm ui-button-secondary"
                                                 title="Edit category">
                                                 <i class="fa fa-edit"></i>
                                             </button>
 
                                             <button type="button"
                                                 wire:click.prevent="confirmCategoryDeletion({{ $category->id }})"
-                                                class="btn ui-button ui-button-sm {{ $category->products_count > 0 ? 'ui-button-secondary' : 'ui-button-danger' }}"
+                                                class="ui-button ui-button-sm {{ $category->products_count > 0 ? 'ui-button-secondary' : 'ui-button-danger' }}"
                                                 title="{{ $category->products_count > 0 ? 'Move products before deleting this category' : 'Delete category' }}">
                                                 <i class="fa {{ $category->products_count > 0 ? 'fa-lock' : 'fa-trash' }}"></i>
                                             </button>
@@ -137,7 +133,7 @@
                             <label for="category-name">Name <span class="text-red-700">*</span></label>
                             <input type="text"
                                 wire:model="state.name"
-                                class="form-control ui-input @error('state.name') is-invalid @enderror"
+                                class="ui-input @error('state.name') is-invalid @enderror"
                                 id="category-name"
                                 placeholder="e.g. Drugs, Frames, Lenses">
                             @error('state.name')
@@ -148,7 +144,7 @@
                         <div class="mb-4">
                             <label for="category-type">Category Type <span class="text-red-700">*</span></label>
                             <select wire:model="state.type"
-                                class="form-control ui-input @error('state.type') is-invalid @enderror"
+                                class="ui-input @error('state.type') is-invalid @enderror"
                                 id="category-type">
                                 @foreach($categoryTypes as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
@@ -162,7 +158,7 @@
                         <div class="mb-4">
                             <label for="category-description">Description</label>
                             <textarea wire:model="state.description"
-                                class="form-control ui-input @error('state.description') is-invalid @enderror"
+                                class="ui-input @error('state.description') is-invalid @enderror"
                                 id="category-description"
                                 rows="3"
                                 placeholder="Optional note for reporting, POS, or inventory use"></textarea>
@@ -178,10 +174,10 @@
                     </div>
 
                     <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                        <button type="button" class="btn ui-button ui-button-secondary" data-dismiss="modal">
+                        <button type="button" class="ui-button ui-button-secondary" data-dismiss="modal">
                             <i class="fa fa-times mr-1"></i> Cancel
                         </button>
-                        <button type="submit" class="btn ui-button ui-button-primary">
+                        <button type="submit" class="ui-button ui-button-primary">
                             <i class="fa fa-save mr-1"></i>
                             {{ $showEditModal ? 'Update Category' : 'Save Category' }}
                         </button>

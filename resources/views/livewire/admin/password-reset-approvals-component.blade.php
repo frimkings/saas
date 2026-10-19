@@ -10,9 +10,9 @@
             ['label'=>'Completed', 'key'=>'completed', 'color'=>'secondary','icon'=>'fa-flag-checkered'],
         ] as $stat)
         <div class="w-full md:w-3/12 px-2 mb-4">
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm" style="cursor:pointer;"
+            <div class="ui-panel" style="cursor:pointer;"
                 wire:click="$set('filterStatus','{{ $stat['key'] }}')">
-                <div class="card-body p-4 flex items-center justify-between">
+                <div class="p-5 flex items-center justify-between">
                     <div>
                         <div class="text-sm text-slate-500 uppercase font-semibold">{{ $stat['label'] }}</div>
                         <div class="text-xl font-semibold mb-0 text-{{ $stat['color'] }}">{{ $counts[$stat['key']] }}</div>
@@ -34,7 +34,7 @@
     <div class="mb-4">
         @foreach(['pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected','completed'=>'Completed',''=>'All'] as $val=>$label)
             <button wire:click="$set('filterStatus','{{ $val }}')"
-                class="btn ui-button ui-button-sm mr-1 {{ $filterStatus === $val ? 'ui-button-secondary' : 'ui-button-secondary' }}">
+                class="ui-button ui-button-sm mr-1 {{ $filterStatus === $val ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                 {{ $label }}
                 @if($val === 'pending' && $counts['pending'] > 0)
                     <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-1">{{ $counts['pending'] }}</span>
@@ -44,9 +44,9 @@
     </div>
 
     {{-- Table --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="ui-panel">
         <div class="ui-table-wrap">
-            <table class="table ui-table mb-0">
+            <table class="ui-table mb-0">
                 <thead class="">
                     <tr>
                         <th>#</th>
@@ -98,16 +98,16 @@
                         <td class="text-right">
                             @if($req->isPending())
                                 <button wire:click="openConfirm({{ $req->id }}, 'approve')"
-                                    class="btn ui-button ui-button-sm ui-button-primary mr-1">
+                                    class="ui-button ui-button-sm ui-button-primary mr-1">
                                     <i class="fas fa-check mr-1"></i> Approve
                                 </button>
                                 <button wire:click="openConfirm({{ $req->id }}, 'reject')"
-                                    class="btn ui-button ui-button-sm ui-button-danger">
+                                    class="ui-button ui-button-sm ui-button-danger">
                                     <i class="fas fa-times mr-1"></i> Reject
                                 </button>
                             @elseif($req->isApproved())
                                 <button wire:click="openConfirm({{ $req->id }}, 'reject')"
-                                    class="btn ui-button ui-button-sm ui-button-danger">
+                                    class="ui-button ui-button-sm ui-button-danger">
                                     <i class="fas fa-ban mr-1"></i> Revoke
                                 </button>
                             @else
@@ -152,14 +152,14 @@
                         <span class="text-teal-700 font-semibold">{{ $target?->email }}</span>
                     </p>
                     <div class="mb-0">
-                        <label class="text-sm font-semibold">Note <span class="text-slate-500 font-normal">(optional)</span></label>
-                        <textarea wire:model.live.debounce.400ms="noteInput" class="form-control ui-input ui-input-sm"
+                        <label for="password-res-noteinput" class="text-sm font-semibold">Note <span class="text-slate-500 font-normal">(optional)</span></label>
+                        <textarea id="password-res-noteinput" wire:model.live.debounce.400ms="noteInput" class="ui-input ui-input-sm"
                             rows="2" placeholder="Reason or remark..."></textarea>
                     </div>
                 </div>
                 <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                    <button class="btn ui-button ui-button-secondary ui-button-sm" wire:click="cancelConfirm">Cancel</button>
-                    <button class="btn ui-button ui-button-sm {{ $confirmAction === 'approve' ? 'ui-button-primary' : 'ui-button-danger' }}"
+                    <button class="ui-button ui-button-secondary ui-button-sm" wire:click="cancelConfirm">Cancel</button>
+                    <button class="ui-button ui-button-sm {{ $confirmAction === 'approve' ? 'ui-button-primary' : 'ui-button-danger' }}"
                         wire:click="execute">
                         Confirm {{ ucfirst($confirmAction) }}
                     </button>

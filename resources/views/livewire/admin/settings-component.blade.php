@@ -1,11 +1,11 @@
 <div class="clinic-ui ui-page">
-    <div class="flex justify-between items-center mb-6">
+    <div class="ui-heading">
         <div>
-            <h2 class="text-teal-700 font-semibold mb-0">Clinic Profile &amp; Branding</h2>
-            <p class="text-slate-500 text-sm uppercase font-semibold mb-0">Manage the details displayed on clinic documents</p>
+            <h2 class="text-base font-semibold text-slate-900">Clinic profile &amp; branding</h2>
+            <p class="ui-muted">Manage the details displayed on clinic documents</p>
         </div>
         <div class="inline-flex flex-wrap gap-1 shadow-sm">
-            <button type="button" wire:click="discardChanges" class="btn ui-button ui-button-secondary">
+            <button type="button" wire:click="discardChanges" class="ui-button ui-button-secondary">
                 <i class="fas fa-undo mr-1"></i> Discard Changes
             </button>
         </div>
@@ -25,37 +25,37 @@
     <div class="flex flex-wrap -mx-2">
         {{-- Settings Form --}}
         <div class="w-full md:w-6/12 px-2">
-            <div class="card overflow-hidden border border-slate-200 bg-white border-0 shadow-sm rounded-lg mb-6">
-                <div class="card-header border-b border-slate-200 px-4 bg-teal-700 text-white py-4 border-0">
+            <div class="ui-panel mb-6">
+                <div class="ui-section-heading">
                     <h5 class="mb-0 font-semibold"><i class="fas fa-cogs mr-2"></i> Clinic Information</h5>
                 </div>
-                <div class="card-body p-4">
+                <div class="p-5">
                     <form wire:submit="updateSettings">
                         {{-- Clinic Name --}}
                         <div class="mb-4">
                             <label for="registered-clinic-name" class="text-sm font-semibold text-slate-500">REGISTERED CLINIC NAME</label>
-                            <input id="registered-clinic-name" type="text" value="{{ $setting->clinic_name }}" class="form-control ui-input bg-slate-50 border-0" readonly>
+                            <input id="registered-clinic-name" type="text" value="{{ $setting->clinic_name }}" class="ui-input bg-slate-50 border-0" readonly>
                             <small class="mt-1 block text-xs text-slate-500">Assigned during registration. Contact the developer to request a name change.</small>
                         </div>
 
                         {{-- Clinic Address --}}
                         <div class="mb-4">
-                            <label class="text-sm font-semibold text-slate-500">CLINIC ADDRESS (optional)</label>
-                            <textarea wire:model.live.debounce.300ms="state.clinic_address" class="form-control ui-input bg-slate-50 border-0 @error('state.clinic_address') is-invalid @enderror" rows="2" placeholder="e.g., 123 Visionary St., Optic City"></textarea>
+                            <label for="settings-state-clinic-address" class="text-sm font-semibold text-slate-500">CLINIC ADDRESS (optional)</label>
+                            <textarea id="settings-state-clinic-address" wire:model.live.debounce.300ms="state.clinic_address" class="ui-input bg-slate-50 border-0 @error('state.clinic_address') is-invalid @enderror" rows="2" placeholder="e.g., 123 Visionary St., Optic City"></textarea>
                             @error('state.clinic_address') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Clinic Contact --}}
                         <div class="mb-4">
-                            <label class="text-sm font-semibold text-slate-500">CONTACT NUMBER (optional)</label>
-                            <input type="text" wire:model.live.debounce.300ms="state.clinic_contact" class="form-control ui-input bg-slate-50 border-0 @error('state.clinic_contact') is-invalid @enderror" placeholder="e.g., +123 456 7890">
+                            <label for="settings-state-clinic-contact" class="text-sm font-semibold text-slate-500">CONTACT NUMBER (optional)</label>
+                            <input id="settings-state-clinic-contact" type="text" wire:model.live.debounce.300ms="state.clinic_contact" class="ui-input bg-slate-50 border-0 @error('state.clinic_contact') is-invalid @enderror" placeholder="e.g., +123 456 7890">
                             @error('state.clinic_contact') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Clinic Email --}}
                         <div class="mb-4">
-                            <label class="text-sm font-semibold text-slate-500">EMAIL ADDRESS (optional)</label>
-                            <input type="email" wire:model.live.debounce.300ms="state.clinic_email" class="form-control ui-input bg-slate-50 border-0 @error('state.clinic_email') is-invalid @enderror" placeholder="e.g., info@brightsight.com">
+                            <label for="settings-state-clinic-email" class="text-sm font-semibold text-slate-500">EMAIL ADDRESS (optional)</label>
+                            <input id="settings-state-clinic-email" type="email" wire:model.live.debounce.300ms="state.clinic_email" class="ui-input bg-slate-50 border-0 @error('state.clinic_email') is-invalid @enderror" placeholder="e.g., info@brightsight.com">
                             @error('state.clinic_email') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
                             <small class="mt-1 block text-xs text-slate-500">Leave blank if the clinic does not use an email address.</small>
                         </div>
@@ -73,14 +73,14 @@
                         </div>
 
                         @if ($currentLogo)
-                            <button type="button" wire:click="removeLogo" class="btn ui-button ui-button-danger ui-button-sm">
+                            <button type="button" wire:click="removeLogo" class="ui-button ui-button-danger ui-button-sm">
                                 <i class="fas fa-trash mr-1"></i> Remove Current Logo
                             </button>
                         @endif
 
                         <hr class="my-6">
 
-                        <button type="submit" class="btn ui-button ui-button-primary w-full py-2 font-semibold shadow-sm mt-6">
+                        <button type="submit" class="ui-button ui-button-primary w-full py-2 font-semibold shadow-sm mt-6">
                             <i class="fas fa-save mr-2"></i> SAVE SETTINGS
                         </button>
                     </form>
@@ -90,11 +90,11 @@
 
         {{-- Live Preview --}}
         <div class="w-full md:w-6/12 px-2">
-            <div class="card overflow-hidden border border-slate-200 bg-white border-0 shadow-sm rounded-lg mb-6">
-                <div class="card-header border-b border-slate-200 px-4 bg-sky-600 text-white py-4 border-0">
+            <div class="ui-panel mb-6">
+                <div class="ui-section-heading">
                     <h5 class="mb-0 font-semibold"><i class="fas fa-eye mr-2"></i> Live Preview</h5>
                 </div>
-                <div class="card-body text-center p-6">
+                <div class="p-5 text-center">
                     <p class="text-sm text-slate-500 mb-4">This is how your logo and clinic name will appear.</p>
                     
                     <div class="mb-6 p-4 border border-slate-200 rounded-md" style="background-color: #f8f9fa;">
@@ -134,13 +134,13 @@
             </div>
 
             {{-- Regional & clinical preferences (saved with SAVE SETTINGS) --}}
-            <div class="card overflow-hidden border border-slate-200 bg-white border-0 shadow-sm rounded-lg">
-                <div class="card-body p-6">
+            <div class="ui-panel">
+                <div class="p-5">
                     <h5 class="font-semibold mb-4"><i class="fas fa-globe-africa mr-2 text-teal-700"></i>Regional &amp; Clinical Preferences</h5>
     {{-- Currency --}}
     <div class="mb-4">
-        <label class="text-sm font-semibold text-slate-500">CURRENCY</label>
-        <select wire:model.live="currency_symbol" class="form-control ui-input bg-slate-50 border-0 @error('currency_symbol') is-invalid @enderror">
+        <label for="settings-currency-symbol" class="text-sm font-semibold text-slate-500">CURRENCY</label>
+        <select id="settings-currency-symbol" wire:model.live="currency_symbol" class="ui-input bg-slate-50 border-0 @error('currency_symbol') is-invalid @enderror">
             @foreach(\App\Models\Setting::CURRENCIES as $symbol => $label)
                 <option value="{{ $symbol }}">{{ $label }}</option>
             @endforeach

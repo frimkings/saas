@@ -3,8 +3,8 @@
         <div class="w-full">
 
             {{-- Pending Requests --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-primary shadow-sm mb-6">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <div class="ui-panel mb-6">
+                <div class="ui-section-heading">
                     <h3 class="!mb-0 text-base font-semibold">
                         <i class="fas fa-hourglass-half mr-2"></i>Pending POS Discount Requests
                     </h3>
@@ -12,9 +12,9 @@
                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800">{{ $pendingRequests->count() }} pending</span>
                     </div>
                 </div>
-                <div class="card-body p-0">
+                <div class="">
                     <div class="ui-table-wrap">
-                        <table class="table ui-table mb-0">
+                        <table class="ui-table mb-0">
                             <thead class="">
                                 <tr>
                                     <th>Requested</th>
@@ -61,11 +61,11 @@
                                         <td class="text-right">
                                             <button type="button"
                                                     wire:click="approveRequest({{ $request->id }})"
-                                                    class="btn ui-button ui-button-sm ui-button-primary"
+                                                    class="ui-button ui-button-sm ui-button-primary"
                                                     title="{{ ($pendingDuplicateProductIds[$request->id] ?? collect())->isNotEmpty() ? 'Approving this will reject duplicate pending requests for the same product.' : 'Approve discount request' }}">
                                                 <i class="fas fa-check mr-1"></i>Approve
                                             </button>
-                                            <button type="button" wire:click="rejectRequest({{ $request->id }})" class="btn ui-button ui-button-sm ui-button-danger">
+                                            <button type="button" wire:click="rejectRequest({{ $request->id }})" class="ui-button ui-button-sm ui-button-danger">
                                                 <i class="fas fa-times mr-1"></i>Reject
                                             </button>
                                         </td>
@@ -84,77 +84,59 @@
             </div>
 
             {{-- Summary Cards --}}
-            <div class="flex flex-wrap -mx-2 mb-6">
-                <div class="w-full md:w-4/12 px-2">
-                    <div class="info-box shadow-sm">
-                        <span class="info-box-icon bg-amber-400"><i class="fas fa-tag"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Total Discounted Sales</span>
-                            <span class="info-box-number">{{ number_format($summary->total_count ?? 0) }}</span>
-                        </div>
-                    </div>
+            <div class="ui-tiles ui-tiles--auto mb-6">
+                <div>
+                    <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-tag" aria-hidden="true"></i>Total Discounted Sales</span><span class="ui-tile__value">{{ number_format($summary->total_count ?? 0) }}</span></div>
                 </div>
-                <div class="w-full md:w-4/12 px-2">
-                    <div class="info-box shadow-sm">
-                        <span class="info-box-icon bg-red-600 text-white"><i class="fas fa-minus-circle"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Total Discount Given</span>
-                            <span class="info-box-number">{{ currency() }} {{ number_format($summary->total_discounted ?? 0, 2) }}</span>
-                        </div>
-                    </div>
+                <div>
+                    <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-minus-circle" aria-hidden="true"></i>Total Discount Given</span><span class="ui-tile__value">{{ currency() }} {{ number_format($summary->total_discounted ?? 0, 2) }}</span></div>
                 </div>
-                <div class="w-full md:w-4/12 px-2">
-                    <div class="info-box shadow-sm">
-                        <span class="info-box-icon bg-sky-600 text-white"><i class="fas fa-calculator"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Average Discount</span>
-                            <span class="info-box-number">{{ currency() }} {{ number_format($summary->avg_discount ?? 0, 2) }}</span>
-                        </div>
-                    </div>
+                <div>
+                    <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-calculator" aria-hidden="true"></i>Average Discount</span><span class="ui-tile__value">{{ currency() }} {{ number_format($summary->avg_discount ?? 0, 2) }}</span></div>
                 </div>
             </div>
 
             {{-- Filters --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-warning shadow-sm mb-6">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <div class="ui-panel mb-6">
+                <div class="ui-section-heading">
                     <h3 class="!mb-0 text-base font-semibold"><i class="fas fa-filter mr-2"></i>Filters</h3>
                     <div class="ml-auto flex items-center gap-1">
                         @if($search || $dateFrom || $dateTo || $filterType || $filterApprover)
-                            <button wire:click="clearFilters" class="btn ui-button ui-button-sm ui-button-secondary">
+                            <button wire:click="clearFilters" class="ui-button ui-button-sm ui-button-secondary">
                                 <i class="fas fa-times mr-1"></i>Clear Filters
                             </button>
                         @endif
                     </div>
                 </div>
-                <div class="card-body p-4">
+                <div class="p-5">
                     <div class="flex flex-wrap -mx-2">
                         <div class="w-full md:w-4/12 px-2">
-                            <input type="text"
+                            <input aria-label="Search" type="text"
                                    wire:model.live.debounce.400ms="search"
-                                   class="form-control ui-input ui-input-sm"
+                                   class="ui-input ui-input-sm"
                                    placeholder="Search by transaction ID or patient name...">
                         </div>
                         <div class="w-full md:w-2/12 px-2">
                             <input type="date"
-                                   wire:model.live="dateFrom"
-                                   class="form-control ui-input ui-input-sm"
+                                   wire:model.live="dateFrom" aria-label="From date"
+                                   class="ui-input ui-input-sm"
                                    title="From date">
                         </div>
                         <div class="w-full md:w-2/12 px-2">
                             <input type="date"
-                                   wire:model.live="dateTo"
-                                   class="form-control ui-input ui-input-sm"
+                                   wire:model.live="dateTo" aria-label="To date"
+                                   class="ui-input ui-input-sm"
                                    title="To date">
                         </div>
                         <div class="w-full md:w-2/12 px-2">
-                            <select wire:model.live="filterType" class="form-control ui-input ui-input-sm">
+                            <select wire:model.live="filterType" aria-label="Discount type" class="ui-input ui-input-sm">
                                 <option value="">All Types</option>
                                 <option value="percentage">Percentage (%)</option>
                                 <option value="fixed">Fixed Amount ({{ currency() }})</option>
                             </select>
                         </div>
                         <div class="w-full md:w-2/12 px-2">
-                            <select wire:model.live="filterApprover" class="form-control ui-input ui-input-sm">
+                            <select wire:model.live="filterApprover" aria-label="Approved by" class="ui-input ui-input-sm">
                                 <option value="">All Approvers</option>
                                 @foreach($approvers as $approver)
                                     <option value="{{ $approver->id }}">{{ $approver->name }}</option>
@@ -166,8 +148,8 @@
             </div>
 
             {{-- Table --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <div class="ui-panel">
+                <div class="ui-section-heading">
                     <h3 class="!mb-0 text-base font-semibold">
                         <i class="fas fa-list mr-2"></i>Approved Discount Records
                     </h3>
@@ -175,9 +157,9 @@
                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">{{ $sales->total() }} record(s)</span>
                     </div>
                 </div>
-                <div class="card-body p-0">
+                <div class="">
                     <div class="ui-table-wrap">
-                        <table class="table ui-table mb-0">
+                        <table class="ui-table mb-0">
                             <thead class="">
                                 <tr>
                                     <th>#</th>

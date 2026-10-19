@@ -1,10 +1,10 @@
 <div class="p-6">
     <div class="flex flex-wrap items-start justify-between mb-6" style="gap:.75rem">
         <div>
-            <h4 class="mb-1"><i class="fas fa-envelope-open-text mr-2 text-teal-700"></i>Owner Emails</h4>
-            <p class="text-slate-500 mb-0">Billing notices, approval requests, staff changes, stock alerts and sales summaries are emailed to the clinic owner only.</p>
+            <h1 class="flex flex-wrap items-center gap-2">Owner Emails</h1>
+            <p class="ui-muted">Billing notices, approval requests, staff changes, stock alerts and sales summaries are emailed to the clinic owner only.</p>
         </div>
-        <button type="button" wire:click="sendTest" wire:loading.attr="disabled" wire:target="sendTest" class="btn ui-button ui-button-secondary font-semibold">
+        <button type="button" wire:click="sendTest" wire:loading.attr="disabled" wire:target="sendTest" class="ui-button ui-button-secondary font-semibold">
             <span wire:loading.remove wire:target="sendTest"><i class="fas fa-paper-plane mr-1"></i> Send a test summary</span>
             <span wire:loading wire:target="sendTest"><i class="fas fa-spinner fa-spin mr-1"></i> Sending…</span>
         </button>
@@ -51,7 +51,7 @@
         <p class="text-slate-500">Nothing sent yet.</p>
     @else
         <div class="ui-table-wrap">
-            <table class="table ui-table ui-table-sm mb-0">
+            <table class="ui-table ui-table-sm mb-0">
                 <thead class="">
                     <tr><th>When</th><th>Email</th><th>Status</th></tr>
                 </thead>

@@ -1,20 +1,20 @@
 <div class="clinic-ui ui-page">
     <div class="w-full">
-        <h3 class="mb-0 text-teal-700 font-semibold">Inventory Alerts</h3>
-        <small class="text-slate-500 uppercase font-semibold">Low stock and expiry monitoring</small>
+        <h1 class="flex flex-wrap items-center gap-2">Inventory Alerts</h1>
+        <p class="ui-muted">Stock that is low, out, expiring or expired.</p>
 
         <div class="flex flex-wrap -mx-2 mt-4">
-            <div class="w-full md:w-4/12 px-2"><button class="info-box btn ui-button w-full text-left {{ $activeTab === 'low' ? 'bg-amber-400' : 'bg-white' }}" wire:click="$set('activeTab','low')"><span class="info-box-icon"><i class="fas fa-exclamation-triangle"></i></span><span class="info-box-content"><span class="info-box-text">Low Stock</span><span class="info-box-number">{{ $lowCount }}</span></span></button></div>
-            <div class="w-full md:w-4/12 px-2"><button class="info-box btn ui-button w-full text-left {{ $activeTab === 'expiring' ? 'bg-sky-600 text-white' : 'bg-white' }}" wire:click="$set('activeTab','expiring')"><span class="info-box-icon"><i class="fas fa-clock"></i></span><span class="info-box-content"><span class="info-box-text">Expiring Soon</span><span class="info-box-number">{{ $expiringCount }}</span></span></button></div>
-            <div class="w-full md:w-4/12 px-2"><button class="info-box btn ui-button w-full text-left {{ $activeTab === 'expired' ? 'bg-red-600 text-white' : 'bg-white' }}" wire:click="$set('activeTab','expired')"><span class="info-box-icon"><i class="fas fa-times-circle"></i></span><span class="info-box-content"><span class="info-box-text">Expired</span><span class="info-box-number">{{ $expiredCount }}</span></span></button></div>
+            <div class="w-full md:w-4/12 px-2"><button class="info-box ui-button w-full text-left {{ $activeTab === 'low' ? 'bg-amber-400' : 'bg-white' }}" wire:click="$set('activeTab','low')"><span class="info-box-icon"><i class="fas fa-exclamation-triangle"></i></span><span class="info-box-content"><span class="info-box-text">Low Stock</span><span class="info-box-number">{{ $lowCount }}</span></span></button></div>
+            <div class="w-full md:w-4/12 px-2"><button class="info-box ui-button w-full text-left {{ $activeTab === 'expiring' ? 'bg-sky-600 text-white' : 'bg-white' }}" wire:click="$set('activeTab','expiring')"><span class="info-box-icon"><i class="fas fa-clock"></i></span><span class="info-box-content"><span class="info-box-text">Expiring Soon</span><span class="info-box-number">{{ $expiringCount }}</span></span></button></div>
+            <div class="w-full md:w-4/12 px-2"><button class="info-box ui-button w-full text-left {{ $activeTab === 'expired' ? 'bg-red-600 text-white' : 'bg-white' }}" wire:click="$set('activeTab','expired')"><span class="info-box-icon"><i class="fas fa-times-circle"></i></span><span class="info-box-content"><span class="info-box-text">Expired</span><span class="info-box-number">{{ $expiredCount }}</span></span></button></div>
         </div>
 
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mt-4">
-            <div class="card-body p-4">
+        <div class="ui-panel mt-4">
+            <div class="p-5">
                 <div class="flex flex-wrap -mx-2 mb-4">
-                    <div class="w-full md:w-6/12 px-2"><input class="form-control ui-input" wire:model.live.debounce.400ms="search" placeholder="Search product, batch or category..."></div>
+                    <div class="w-full md:w-6/12 px-2"><input aria-label="Search" class="ui-input" wire:model.live.debounce.400ms="search" placeholder="Search product, batch or category..."></div>
                     <div class="w-full md:w-3/12 px-2">
-                        <select class="form-control ui-input" wire:model.live="expiryWindow">
+                        <select class="ui-input" wire:model.live="expiryWindow" aria-label="Expiring within">
                             <option value="30">30-day expiry window</option>
                             <option value="60">60-day expiry window</option>
                             <option value="90">90-day expiry window</option>
@@ -23,7 +23,7 @@
                     </div>
                 </div>
                 <div class="ui-table-wrap">
-                    <table class="table ui-table">
+                    <table class="ui-table">
                         <thead class=""><tr><th>Product</th><th>Category</th><th>Batch</th><th class="text-center">Qty</th><th class="text-right">Cost</th><th class="text-right">Selling</th><th>Expiry</th><th>Status</th></tr></thead>
                         <tbody>
                             @forelse($products as $product)

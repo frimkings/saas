@@ -11,7 +11,7 @@
                     @endif
                 </h4>
                 {{-- openCompose dispatches the browser event the script below listens for --}}
-                <button type="button" class="btn ui-button ui-button-primary ui-button-sm" wire:click="openCompose">
+                <button type="button" class="ui-button ui-button-primary ui-button-sm" wire:click="openCompose">
                     <i class="fas fa-plus mr-1"></i>Compose
                 </button>
             </div>
@@ -20,12 +20,12 @@
         {{-- Thread View --}}
         @if($activeView === 'thread' && $threadData)
 
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 flex justify-between items-center">
+            <div class="ui-panel">
+                <div class="ui-section-heading">
                     <div>
                         
                         <button type="button" wire:click="backToInbox"
-                                class="btn ui-button ui-button-sm ui-button-secondary mr-2">
+                                class="ui-button ui-button-sm ui-button-secondary mr-2">
                             <i class="fas fa-arrow-left"></i> Back
                         </button>
                         <strong>{{ $threadData->subject }}</strong>
@@ -34,13 +34,13 @@
                         <button type="button"
                                 wire:click="deleteThread({{ $threadData->id }})"
                                 wire:confirm="Delete this entire thread?"
-                                class="btn ui-button ui-button-sm ui-button-danger">
+                                class="ui-button ui-button-sm ui-button-danger">
                             <i class="fas fa-trash"></i>
                         </button>
                     @endif
                 </div>
 
-                <div class="card-body p-4" style="max-height:55vh;overflow-y:auto;" id="thread-scroll">
+                <div class="p-5" style="max-height:55vh;overflow-y:auto;" id="thread-scroll">
 
                     @php $uid = auth()->id(); @endphp
                     {{-- Root message --}}
@@ -81,12 +81,12 @@
                         <div class="rounded-lg border px-3 text-sm border-red-200 bg-red-50 text-red-800 py-1 mb-2">{{ $message }}</div>
                     @enderror
                     <div class="flex items-stretch">
-                        <textarea wire:model="replyBody"
-                                  class="form-control ui-input"
+                        <textarea aria-label="Write a reply" wire:model="replyBody"
+                                  class="ui-input"
                                   rows="2"
                                   placeholder="Write a reply…"></textarea>
                         <div class="flex">
-                            <button type="button" wire:click="sendReply" class="btn ui-button ui-button-primary">
+                            <button type="button" wire:click="sendReply" class="ui-button ui-button-primary">
                                 <i class="fas fa-reply"></i>
                             </button>
                         </div>
@@ -97,14 +97,14 @@
         @else
 
             {{-- Inbox / Sent List --}}
-            <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 pb-0">
+            <div class="ui-panel">
+                <div class="ui-section-heading">
                     <ul class="flex flex-wrap border-b border-slate-200 card-header-tabs">
                         <li class="">
                             {{-- <button> avoids Bootstrap anchor-click conflicts with Livewire --}}
                             <button type="button"
                                     wire:click="switchView('inbox')"
-                                    class="block px-3 py-2 btn ui-button ui-button-link {{ $activeView !== 'sent' ? 'active' : '' }}"
+                                    class="block px-3 py-2 ui-button ui-button-link {{ $activeView !== 'sent' ? 'active' : '' }}"
                                     style="border-radius:0">
                                 <i class="fas fa-inbox mr-1"></i>Inbox
                                 @if($unreadCount > 0)
@@ -115,21 +115,21 @@
                         <li class="">
                             <button type="button"
                                     wire:click="switchView('sent')"
-                                    class="block px-3 py-2 btn ui-button ui-button-link {{ $activeView === 'sent' ? 'active' : '' }}"
+                                    class="block px-3 py-2 ui-button ui-button-link {{ $activeView === 'sent' ? 'active' : '' }}"
                                     style="border-radius:0">
                                 <i class="fas fa-paper-plane mr-1"></i>Sent
                             </button>
                         </li>
                     </ul>
                     <div class="mt-2 mb-2">
-                        <input wire:model.live.debounce.300ms="search"
+                        <input aria-label="Search" wire:model.live.debounce.300ms="search"
                                type="search"
-                               class="form-control ui-input ui-input-sm"
+                               class="ui-input ui-input-sm"
                                placeholder="Search messages…">
                     </div>
                 </div>
 
-                <div class="card-body p-0">
+                <div class="">
                     @if($threads && $threads->count() > 0)
                         <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                             @foreach($threads as $thread)
@@ -189,9 +189,9 @@
             </div>
             <div class="p-4">
                     <div class="mb-4">
-                        <label>To</label>
-                        <select wire:model.live="recipientId"
-                                class="form-control ui-input @error('recipientId') is-invalid @enderror">
+                        <label for="staff-messag-recipientid">To</label>
+                        <select id="staff-messag-recipientid" wire:model.live="recipientId"
+                                class="ui-input @error('recipientId') is-invalid @enderror">
                             <option value="">Select recipient…</option>
                             @foreach($staffUsers as $staff)
                                 <option value="{{ $staff->id }}">{{ $staff->name }}</option>
@@ -202,19 +202,19 @@
                         @enderror
                     </div>
                     <div class="mb-4">
-                        <label>Subject</label>
-                        <input wire:model="composeSubject"
+                        <label for="staff-messag-composesubject">Subject</label>
+                        <input id="staff-messag-composesubject" wire:model="composeSubject"
                                type="text"
-                               class="form-control ui-input @error('composeSubject') is-invalid @enderror"
+                               class="ui-input @error('composeSubject') is-invalid @enderror"
                                placeholder="Subject">
                         @error('composeSubject')
                             <div class="ui-error">{{ $message }}</div>
                         @enderror
                     </div>
                     <div class="mb-4">
-                        <label>Message</label>
-                        <textarea wire:model="composeBody"
-                                  class="form-control ui-input @error('composeBody') is-invalid @enderror"
+                        <label for="staff-messag-composebody">Message</label>
+                        <textarea id="staff-messag-composebody" wire:model="composeBody"
+                                  class="ui-input @error('composeBody') is-invalid @enderror"
                                   rows="5"
                                   placeholder="Write your message…"></textarea>
                         @error('composeBody')

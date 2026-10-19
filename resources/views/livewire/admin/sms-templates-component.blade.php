@@ -18,13 +18,13 @@
     {{-- Header --}}
     <div class="mb-4">
         <p class="text-slate-500 text-sm uppercase font-semibold mb-0">Communications</p>
-        <h2 class="text-teal-700 font-semibold mb-1">Messages</h2>
-        <p class="text-slate-500 text-sm mb-0">Choose which SMS your patients get and how each one reads. Every message starts switched off, since each SMS uses your credits.</p>
+        <h1 class="flex flex-wrap items-center gap-2">Messages</h1>
+        <p class="ui-muted">Choose which SMS your patients get and how each one reads. Every message starts switched off, since each SMS uses your credits.</p>
     </div>
 
     {{-- Summary bar --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-4">
-        <div class="card-body p-4 py-4 msg-summary">
+    <div class="ui-panel mb-4">
+        <div class="p-5 msg-summary">
             <div class="flex flex-wrap items-center" style="gap:.5rem 1.25rem">
                 @if($availability['available'])
                     <span class="text-sm"><i class="fas fa-check-circle text-green-700 mr-1"></i>
@@ -36,7 +36,7 @@
                 <span class="text-sm"><strong>{{ $onCount }}</strong> of {{ $automaticCount }} automatic messages on</span>
             </div>
             <button type="button" wire:click="turnOnRecommended" wire:loading.attr="disabled" wire:target="turnOnRecommended"
-                    class="btn ui-button ui-button-sm {{ $onCount === 0 ? 'ui-button-primary' : 'ui-button-secondary' }} font-semibold"
+                    class="ui-button ui-button-sm {{ $onCount === 0 ? 'ui-button-primary' : 'ui-button-secondary' }} font-semibold"
                     title="{{ implode(', ', array_map(fn ($k) => $templates[$k]['label'] ?? $k, array_filter(\App\Support\Messaging\MessageCatalog::RECOMMENDED, fn ($k) => isset($templates[$k])))) }}">
                 <i class="fas fa-magic mr-1"></i> Turn on recommended
             </button>
@@ -44,11 +44,11 @@
         <div class="border-t border-slate-200 px-4 py-2 bg-white border-0 pt-0 pb-4 flex flex-wrap items-center" style="gap:.5rem">
             <div class="flex items-stretch" style="max-width:280px">
                 <div class="flex"><span class="flex items-center border border-slate-300 px-2 text-sm text-slate-600 bg-slate-50 border-0"><i class="fas fa-search"></i></span></div>
-                <input type="search" wire:model.live.debounce.300ms="search" class="form-control ui-input bg-slate-50 border-0" placeholder="Search messages" aria-label="Search messages">
+                <input type="search" wire:model.live.debounce.300ms="search" class="ui-input bg-slate-50 border-0" placeholder="Search messages" aria-label="Search messages">
             </div>
             <div class="inline-flex flex-wrap gap-1" role="group" aria-label="Show">
                 @foreach(['all' => 'All', 'on' => 'On', 'off' => 'Off'] as $value => $label)
-                    <button type="button" wire:click="$set('show', '{{ $value }}')" class="btn ui-button {{ $show === $value ? 'ui-button-secondary' : 'ui-button-secondary' }}">{{ $label }}</button>
+                    <button type="button" wire:click="$set('show', '{{ $value }}')" class="ui-button {{ $show === $value ? 'ui-button-secondary' : 'ui-button-secondary' }}">{{ $label }}</button>
                 @endforeach
             </div>
         </div>
@@ -59,8 +59,8 @@
             [$groupLabel, $groupIcon] = \App\Support\Messaging\MessageCatalog::GROUPS[$groupKey];
             $groupAutomatic = collect($messages)->reject(fn ($m) => $m['staff']);
         @endphp
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mb-4" x-data="{ open: true }" wire:key="group-{{ $groupKey }}">
-            <button type="button" class="card-header border-b border-slate-200 px-4 py-2 bg-white border-0 flex items-center justify-between w-full text-left" @click="open = !open" :aria-expanded="open">
+        <div class="ui-panel mb-4" x-data="{ open: true }" wire:key="group-{{ $groupKey }}">
+            <button type="button" class="ui-section-heading" @click="open = !open" :aria-expanded="open">
                 <span class="font-semibold"><i class="{{ $groupIcon }} text-teal-700 mr-2"></i>{{ $groupLabel }}</span>
                 <span class="text-sm text-slate-500">
                     @if($groupAutomatic->isNotEmpty()) {{ $groupAutomatic->where('is_enabled', true)->count() }} of {{ $groupAutomatic->count() }} on @endif
@@ -82,10 +82,10 @@
                                 @else
                                     <div class="flex items-center gap-2" title="Send this SMS to patients">
                                         <input type="checkbox" class="rounded border-slate-300 text-teal-700" id="sms-on-{{ $key }}" wire:click="toggleEnabled('{{ $key }}')" @checked($msg['is_enabled'])>
-                                        <label class=" text-sm font-semibold {{ $msg['is_enabled'] ? 'text-green-700' : 'text-slate-500' }}" for="sms-on-{{ $key }}">{{ $msg['is_enabled'] ? 'On' : 'Off' }}</label>
+                                        <label class="text-sm font-semibold {{ $msg['is_enabled'] ? 'text-green-700' : 'text-slate-500' }}" for="sms-on-{{ $key }}">{{ $msg['is_enabled'] ? 'On' : 'Off' }}</label>
                                     </div>
                                 @endif
-                                <button type="button" wire:click="edit('{{ $key }}')" class="btn ui-button ui-button-sm {{ $editing === $key ? 'ui-button-secondary' : 'ui-button-secondary' }}">
+                                <button type="button" wire:click="edit('{{ $key }}')" class="ui-button ui-button-sm {{ $editing === $key ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                                     {{ $editing === $key ? 'Close' : 'Edit' }}
                                 </button>
                             </div>
@@ -105,7 +105,7 @@
                                     <div class="w-full md:w-7/12 px-2 mb-4 md:mb-0">
                                         <label class="text-sm font-semibold text-slate-500 mb-1" for="tpl-{{ $key }}">Wording</label>
                                         <textarea id="tpl-{{ $key }}" x-ref="box" x-model="text" rows="4" maxlength="1000"
-                                                  class="form-control ui-input bg-white @error('templates.'.$key.'.message') is-invalid @enderror"></textarea>
+                                                  class="ui-input bg-white @error('templates.'.$key.'.message') is-invalid @enderror"></textarea>
                                         @error('templates.'.$key.'.message') <span class="text-red-700 text-sm block mt-1">{{ $message }}</span> @enderror
                                         <div class="mt-2">
                                             <span class="text-sm font-semibold text-slate-500 mr-1">Insert:</span>
@@ -136,15 +136,15 @@
 
                                 <div class="flex flex-wrap justify-between items-center mt-4" style="gap:.5rem">
                                     <div class="flex items-stretch" style="max-width:300px">
-                                        <input type="tel" wire:model="testPhone" class="form-control ui-input @error('testPhone') is-invalid @enderror" placeholder="Phone for a test SMS" aria-label="Phone for a test SMS">
+                                        <input type="tel" wire:model="testPhone" class="ui-input @error('testPhone') is-invalid @enderror" placeholder="Phone for a test SMS" aria-label="Phone for a test SMS">
                                         <div class="flex">
-                                            <button type="button" class="btn ui-button ui-button-secondary" wire:click="sendTest('{{ $key }}')" wire:loading.attr="disabled" wire:target="sendTest">Send test</button>
+                                            <button type="button" class="ui-button ui-button-secondary" wire:click="sendTest('{{ $key }}')" wire:loading.attr="disabled" wire:target="sendTest">Send test</button>
                                         </div>
                                     </div>
                                     <div class="flex" style="gap:.5rem">
-                                        <button type="button" wire:click="resetToDefault('{{ $key }}')" class="btn ui-button ui-button-sm ui-button-link text-slate-500">Reset to default wording</button>
-                                        <button type="button" wire:click="discardChanges('{{ $key }}')" class="btn ui-button ui-button-sm ui-button-secondary"><i class="fas fa-undo mr-1"></i> Discard</button>
-                                        <button type="button" wire:click="save('{{ $key }}')" wire:loading.attr="disabled" wire:target="save" class="btn ui-button ui-button-sm ui-button-primary font-semibold"><i class="fas fa-save mr-1"></i> Save</button>
+                                        <button type="button" wire:click="resetToDefault('{{ $key }}')" class="ui-button ui-button-sm ui-button-link text-slate-500">Reset to default wording</button>
+                                        <button type="button" wire:click="discardChanges('{{ $key }}')" class="ui-button ui-button-sm ui-button-secondary"><i class="fas fa-undo mr-1"></i> Discard</button>
+                                        <button type="button" wire:click="save('{{ $key }}')" wire:loading.attr="disabled" wire:target="save" class="ui-button ui-button-sm ui-button-primary font-semibold"><i class="fas fa-save mr-1"></i> Save</button>
                                     </div>
                                 </div>
                                 @error('testPhone') <span class="text-red-700 text-sm block mt-1">{{ $message }}</span> @enderror
@@ -155,7 +155,7 @@
             </div>
         </div>
     @empty
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm"><div class="card-body p-4 text-center text-slate-500 text-sm">No messages match.</div></div>
+        <div class="ui-panel"><div class="p-5 text-center text-slate-500 text-sm">No messages match.</div></div>
     @endforelse
 
     @if(!$campaigns)

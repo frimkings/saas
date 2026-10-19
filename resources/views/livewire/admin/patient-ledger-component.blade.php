@@ -3,32 +3,28 @@
 <div class="w-full">
 
     {{-- Header --}}
-    <div class="flex justify-between items-center mb-6">
+    <div class="ui-heading">
         <div>
-            <h3 class="mb-0 font-semibold" style="color:#2c3e50;">
-                <i class="fas fa-book-open mr-2 text-teal-700"></i>Patient Account Ledger
-            </h3>
-            <small class="text-slate-500 uppercase font-semibold" style="letter-spacing:.05em;">
-                Full financial history per patient
-            </small>
+            <h1 class="flex flex-wrap items-center gap-2">Patient Ledger</h1>
+            <p class="ui-muted">Each patient's charges, discounts, payments and refunds, with a running balance.</p>
         </div>
         @if($patientId)
-            <button wire:click="printPdf" class="btn ui-button ui-button-secondary ui-button-sm">
+            <button wire:click="printPdf" class="ui-button ui-button-secondary ui-button-sm">
                 <i class="fas fa-file-pdf mr-1"></i>Export PDF
             </button>
         @endif
     </div>
 
     {{-- Search / Filter Bar --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mb-4">
-        <div class="card-body p-4 py-2">
+    <div class="ui-panel mb-4">
+        <div class="p-5">
             <div class="flex flex-wrap -mx-2 items-end">
                 <div class="w-full md:w-5/12 px-2 mb-2 md:mb-0">
-                    <label class="text-sm font-semibold text-slate-500">PATIENT</label>
+                    <label for="patient-ledg-patientsearch" class="text-sm font-semibold text-slate-500">PATIENT</label>
                     <div class="relative">
-                        <input type="text"
+                        <input id="patient-ledg-patientsearch" type="text"
                                wire:model.live.debounce.300ms="patientSearch"
-                               class="form-control ui-input ui-input-sm"
+                               class="ui-input ui-input-sm"
                                placeholder="Search by name or PX number…"
                                autocomplete="off">
                         @if(!empty($patientResults))
@@ -41,7 +37,7 @@
                                         <strong>{{ $p['name'] }}</strong>
                                         <small class="text-slate-500 ml-2">{{ $p['pxnumber'] }}</small>
                                         @if($p['contact'])
-                                            <small class="text-slate-500 float-right">{{ $p['contact'] }}</small>
+                                            <small class="text-slate-500">{{ $p['contact'] }}</small>
                                         @endif
                                     </button>
                                 @endforeach
@@ -62,8 +58,8 @@
     </div>
 
     @if(!$patientId)
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-            <div class="card-body p-4 text-center py-12 text-slate-500">
+        <div class="ui-panel">
+            <div class="px-5 py-12 text-center text-slate-500">
                 <i class="fas fa-search fa-3x mb-4 block opacity-25"></i>
                 <p class="mb-0">Search for a patient to view their account ledger.</p>
             </div>
@@ -71,8 +67,8 @@
     @else
         {{-- Patient Info Card --}}
         @if($patient)
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mb-4" style="border-left:4px solid #17a2b8 !important;">
-            <div class="card-body p-4 py-2">
+        <div class="ui-panel mb-4" style="border-left:4px solid #17a2b8 !important;">
+            <div class="p-5">
                 <div class="flex flex-wrap -mx-2 items-center">
                     <div class="w-full md:w-4/12 px-2">
                         <strong>{{ $patient->name }}</strong>
@@ -106,10 +102,10 @@
         @endif
 
         {{-- Ledger Table --}}
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-            <div class="card-body p-0">
+        <div class="ui-panel">
+            <div class="">
                 <div class="ui-table-wrap">
-                    <table class="table ui-table mb-0" style="font-size:.85rem;">
+                    <table class="ui-table mb-0" style="font-size:.85rem;">
                         <thead class="">
                             <tr>
                                 <th>Date</th>

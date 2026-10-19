@@ -1,10 +1,10 @@
 <div class="clinic-ui ui-page clinical-task-center">
-    <div class="flex items-center justify-between mb-6">
+    <div class="ui-heading">
         <div>
-            <h2 class="mb-1"><i class="fas fa-clipboard-check mr-2 text-teal-700"></i>Clinical Task Center</h2>
-            <p class="text-slate-500 mb-0">One queue for patient care, billing, inventory, communication, and approval work that needs attention.</p>
+            <h1 class="flex flex-wrap items-center gap-2">Clinical Task Center</h1>
+            <p class="ui-muted">One queue for patient care, billing, inventory, communication, and approval work that needs attention.</p>
         </div>
-        <button type="button" class="btn ui-button ui-button-primary font-semibold" wire:click="refreshTasks" wire:loading.attr="disabled">
+        <button type="button" class="ui-button ui-button-primary font-semibold" wire:click="refreshTasks" wire:loading.attr="disabled">
             <span wire:loading.remove wire:target="refreshTasks"><i class="fas fa-sync-alt mr-1"></i> Refresh</span>
             <span wire:loading wire:target="refreshTasks"><i class="fas fa-spinner fa-spin mr-1"></i> Refreshing...</span>
         </button>

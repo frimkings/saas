@@ -31,24 +31,24 @@
     </div>
 
     {{-- Credentials --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-success shadow-sm mb-6">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+    <div class="ui-panel mb-6">
+        <div class="ui-section-heading">
             <h6 class="font-semibold mb-0"><i class="fas fa-key mr-1"></i> API Credentials</h6>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
             <div class="flex flex-wrap -mx-2">
                 <div class="w-full md:w-6/12 px-2 mb-4">
-                    <label>Phone Number ID <span class="text-red-700">*</span></label>
-                    <input wire:model="phoneNumberId" type="text"
-                        class="form-control ui-input @error('phoneNumberId') is-invalid @enderror"
+                    <label for="whatsapp-set-phonenumberid">Phone Number ID <span class="text-red-700">*</span></label>
+                    <input id="whatsapp-set-phonenumberid" wire:model="phoneNumberId" type="text"
+                        class="ui-input @error('phoneNumberId') is-invalid @enderror"
                         placeholder="e.g. 123456789012345">
                     <small class="text-slate-500">Found in Meta Developer → App → WhatsApp → API Setup</small>
                     @error('phoneNumberId')<div class="ui-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="w-full md:w-6/12 px-2 mb-4">
-                    <label>Access Token</label>
-                    <input wire:model="accessToken" type="password"
-                        class="form-control ui-input"
+                    <label for="whatsapp-set-accesstoken">Access Token</label>
+                    <input id="whatsapp-set-accesstoken" wire:model="accessToken" type="password"
+                        class="ui-input"
                         placeholder="Leave blank to keep existing token"
                         autocomplete="new-password">
                     <small class="text-slate-500">Enter only to update. Current value is stored encrypted.</small>
@@ -58,14 +58,14 @@
     </div>
 
     {{-- Template configuration --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-primary shadow-sm mb-6">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+    <div class="ui-panel mb-6">
+        <div class="ui-section-heading">
             <h6 class="font-semibold mb-0"><i class="fas fa-file-alt mr-1"></i> Message Templates</h6>
             <div class="ml-auto flex items-center gap-1">
                 <small class="text-slate-500">Templates must be pre-approved in Meta Business Manager</small>
             </div>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
 
             {{-- Appointment reminders --}}
             <div class="border border-slate-200 rounded-md p-4 mb-4 bg-slate-50">
@@ -76,15 +76,15 @@
                 </p>
                 <div class="flex flex-wrap -mx-2">
                     <div class="w-full md:w-6/12 px-2 mb-0">
-                        <label class="text-sm">Template Name</label>
-                        <input wire:model="apptTemplate" type="text"
-                            class="form-control ui-input ui-input-sm"
+                        <label for="whatsapp-set-appttemplate" class="text-sm">Template Name</label>
+                        <input id="whatsapp-set-appttemplate" wire:model="apptTemplate" type="text"
+                            class="ui-input ui-input-sm"
                             placeholder="e.g. appointment_reminder">
                     </div>
                     <div class="w-full md:w-3/12 px-2 mb-0">
-                        <label class="text-sm">Language Code</label>
-                        <input wire:model="apptTemplateLang" type="text"
-                            class="form-control ui-input ui-input-sm"
+                        <label for="whatsapp-set-appttemplatelang" class="text-sm">Language Code</label>
+                        <input id="whatsapp-set-appttemplatelang" wire:model="apptTemplateLang" type="text"
+                            class="ui-input ui-input-sm"
                             placeholder="e.g. en">
                     </div>
                 </div>
@@ -97,9 +97,9 @@
                     Parameters (in order): <code>{{1}}</code> Patient name &nbsp;|&nbsp; <code>{{2}}</code> Clinic name
                 </p>
                 <div class="w-full md:w-6/12 mb-0 px-0">
-                    <label class="text-sm">Template Name</label>
-                    <input wire:model="birthdayTemplate" type="text"
-                        class="form-control ui-input ui-input-sm"
+                    <label for="whatsapp-set-birthdaytemplate" class="text-sm">Template Name</label>
+                    <input id="whatsapp-set-birthdaytemplate" wire:model="birthdayTemplate" type="text"
+                        class="ui-input ui-input-sm"
                         placeholder="e.g. birthday_wishes (leave blank to use SMS only)">
                 </div>
             </div>
@@ -111,9 +111,9 @@
                     Parameters (in order): <code>{{1}}</code> Patient name &nbsp;|&nbsp; <code>{{2}}</code> Clinic name
                 </p>
                 <div class="w-full md:w-6/12 mb-0 px-0">
-                    <label class="text-sm">Template Name</label>
-                    <input wire:model="recallTemplate" type="text"
-                        class="form-control ui-input ui-input-sm"
+                    <label for="whatsapp-set-recalltemplate" class="text-sm">Template Name</label>
+                    <input id="whatsapp-set-recalltemplate" wire:model="recallTemplate" type="text"
+                        class="ui-input ui-input-sm"
                         placeholder="e.g. patient_recall (leave blank to use SMS only)">
                 </div>
             </div>
@@ -125,9 +125,9 @@
                     Parameters (in order): <code>{{1}}</code> Patient name &nbsp;|&nbsp; <code>{{2}}</code> Renewal date &nbsp;|&nbsp; <code>{{3}}</code> Clinic name
                 </p>
                 <div class="w-full md:w-6/12 mb-0 px-0">
-                    <label class="text-sm">Template Name</label>
-                    <input wire:model="renewalTemplate" type="text"
-                        class="form-control ui-input ui-input-sm"
+                    <label for="whatsapp-set-renewaltemplate" class="text-sm">Template Name</label>
+                    <input id="whatsapp-set-renewaltemplate" wire:model="renewalTemplate" type="text"
+                        class="ui-input ui-input-sm"
                         placeholder="e.g. spectacle_renewal (leave blank to use SMS only)">
                 </div>
             </div>
@@ -136,11 +136,11 @@
     </div>
 
     {{-- Bulk channel preference --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-warning shadow-sm mb-6">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+    <div class="ui-panel mb-6">
+        <div class="ui-section-heading">
             <h6 class="font-semibold mb-0"><i class="fas fa-broadcast-tower mr-1"></i> Bulk Notification Channel</h6>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
             <p class="text-sm text-slate-500 mb-2">Controls how birthday wishes, patient recalls, and spectacle renewal reminders are sent.</p>
             <div class="flex" style="gap: 12px; flex-wrap: wrap;">
                 <div class="flex items-center gap-2">
@@ -164,30 +164,30 @@
 
     {{-- Save --}}
     <div class="flex justify-end mb-6">
-        <button wire:click="save" class="btn ui-button ui-button-primary">
+        <button wire:click="save" class="ui-button ui-button-primary">
             <i class="fas fa-save mr-1"></i> Save WhatsApp Settings
         </button>
     </div>
 
     {{-- Test send --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-secondary shadow-sm">
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2">
+    <div class="ui-panel">
+        <div class="ui-section-heading">
             <h6 class="font-semibold mb-0"><i class="fas fa-paper-plane mr-1"></i> Send Test Message</h6>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
             <p class="text-sm text-slate-500 mb-4">
                 Sends a plain text message. <strong>Note:</strong> Plain text is only deliverable if the recipient has messaged your WhatsApp number in the last 24 hours. For template testing, use the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Meta Graph API Explorer</a>.
             </p>
             <div class="flex flex-wrap -mx-2 items-end">
                 <div class="w-full md:w-5/12 px-2 mb-0">
-                    <label>Phone Number</label>
-                    <input wire:model="testPhone" type="text"
-                        class="form-control ui-input @error('testPhone') is-invalid @enderror"
+                    <label for="whatsapp-set-testphone">Phone Number</label>
+                    <input id="whatsapp-set-testphone" wire:model="testPhone" type="text"
+                        class="ui-input @error('testPhone') is-invalid @enderror"
                         placeholder="e.g. 0244000000">
                     @error('testPhone')<div class="ui-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="w-full md:w-3/12 px-2">
-                    <button wire:click="sendTest" class="btn ui-button ui-button-secondary">
+                    <button wire:click="sendTest" class="ui-button ui-button-secondary">
                         <i class="fab fa-whatsapp mr-1"></i> Send Test
                     </button>
                 </div>

@@ -1,11 +1,11 @@
 <div class="clinic-ui ui-page">
     <section class="content-header">
-        <div class="flex flex-wrap items-center justify-between">
+        <div class="ui-heading">
             <div>
-                <h1 class="m-0"><i class="fas fa-heartbeat mr-2 text-green-700"></i>Offline Health Dashboard</h1>
-                <p class="text-slate-500 mb-0">Local status for scheduler, backups, mail, reports, SMS, and WhatsApp.</p>
+                <h1 class="flex flex-wrap items-center gap-2">Offline Health</h1>
+                <p class="ui-muted">Local status for scheduler, backups, mail, reports, SMS, and WhatsApp.</p>
             </div>
-            <button type="button" class="btn ui-button ui-button-primary font-semibold mt-2 md:mt-0" wire:click="refreshChecks">
+            <button type="button" class="ui-button ui-button-primary font-semibold mt-2 md:mt-0" wire:click="refreshChecks">
                 <i class="fas fa-sync-alt mr-1"></i> Run Checks Now
             </button>
         </div>
@@ -33,7 +33,7 @@
                     @endphp
                     <div class="w-full xl:w-4/12 lg:w-6/12 md:w-6/12 px-2 mb-4">
                         <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white h-full shadow-sm border-0 ohd-card ohd-card--{{ $tone['class'] }}">
-                            <div class="card-body p-4">
+                            <div class="p-5">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex items-center">
                                         <span class="ohd-icon bg-{{ $tone['class'] }}"><i class="fas {{ $card['icon'] }}"></i></span>
@@ -63,13 +63,13 @@
 
             <div class="flex flex-wrap -mx-2">
                 <div class="w-full lg:w-7/12 px-2 mb-4">
-                    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-                        <div class="card-header border-b border-slate-200 px-4 py-2 bg-white flex items-center justify-between">
+                    <div class="ui-panel">
+                        <div class="ui-section-heading">
                             <span class="font-semibold"><i class="fas fa-paper-plane mr-1 text-teal-700"></i>Recent Report Deliveries</span>
-                            <a href="{{ route('admin.settings', ['tab' => 'report']) }}" class="btn ui-button ui-button-sm ui-button-secondary">Open Outbox</a>
+                            <a href="{{ route('admin.settings', ['tab' => 'report']) }}" class="ui-button ui-button-sm ui-button-secondary">Open Outbox</a>
                         </div>
                         <div class="ui-table-wrap">
-                            <table class="table ui-table ui-table-sm mb-0">
+                            <table class="ui-table ui-table-sm mb-0">
                                 <thead>
                                     <tr>
                                         <th>Subject</th>
@@ -100,10 +100,10 @@
                 </div>
 
                 <div class="w-full lg:w-5/12 px-2 mb-4">
-                    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
-                        <div class="card-header border-b border-slate-200 px-4 py-2 bg-white flex items-center justify-between">
+                    <div class="ui-panel">
+                        <div class="ui-section-heading">
                             <span class="font-semibold"><i class="fas fa-comment-slash mr-1 text-red-700"></i>Failed Messages</span>
-                            <a href="{{ route('admin.sms-logs') }}" class="btn ui-button ui-button-sm ui-button-secondary">SMS Logs</a>
+                            <a href="{{ route('admin.sms-logs') }}" class="ui-button ui-button-sm ui-button-secondary">SMS Logs</a>
                         </div>
                         <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                             @forelse($recentFailedMessages as $log)

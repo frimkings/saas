@@ -1,5 +1,5 @@
 <div class="{{ $optical ? 'ui-panel p-6 space-y-4 max-w-2xl' : 'card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm rounded-lg h-full' }}">
-    @unless($optical)<div class="card-body p-4">@endunless
+    @unless($optical)<div class="p-5">@endunless
 
     <div class="{{ $optical ? '' : 'mb-4' }}">
         <h5 class="{{ $optical ? 'text-sm font-semibold text-slate-900' : 'font-semibold mb-1' }}">
@@ -28,7 +28,7 @@
                         <input type="checkbox" wire:model="methods.{{ $i }}.is_active" aria-label="Switch {{ $method['label'] }} on or off">
                     </td>
                     <td>
-                        <input type="text" wire:model="methods.{{ $i }}.label" maxlength="40"
+                        <input type="text" wire:model="methods.{{ $i }}.label" aria-label="Name shown for this payment method" maxlength="40"
                                class="{{ $optical ? 'ui-input' : 'form-control ui-input ui-input-sm' }} @error('methods.'.$i.'.label') is-invalid @enderror">
                         @if(!$method['built_in'])
                             <small class="{{ $optical ? 'ui-muted text-xs' : 'text-slate-500' }}">Your own method</small>
@@ -54,7 +54,7 @@
 
     <div class="{{ $optical ? 'flex gap-2 items-start' : 'flex items-start mb-4' }}" style="gap:8px;">
         <div class="{{ $optical ? 'flex-1' : 'grow' }}">
-            <input type="text" wire:model="newLabel" wire:keydown.enter.prevent="add" maxlength="40" placeholder="Add a method, e.g. Zeepay"
+            <input aria-label="Add a method, e.g. Zeepay" type="text" wire:model="newLabel" wire:keydown.enter.prevent="add" maxlength="40" placeholder="Add a method, e.g. Zeepay"
                    class="{{ $optical ? 'ui-input' : 'form-control ui-input ui-input-sm' }} @error('newLabel') is-invalid @enderror">
             @error('newLabel')<div class="{{ $optical ? 'text-xs text-red-600' : 'ui-error block' }}">{{ $message }}</div>@enderror
         </div>

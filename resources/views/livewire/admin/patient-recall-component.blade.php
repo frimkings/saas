@@ -1,20 +1,6 @@
 <div class="clinic-ui ui-page">
   {{-- Page Header --}}
-  <div class="content-header">
-    <div class="w-full">
-      <div class="flex flex-wrap -mx-2 mb-2 items-center">
-        <div class="w-full sm:w-6/12 px-2">
-          <h1 class="m-0"><i class="fas fa-user-clock mr-2 text-green-700"></i>Patient Recall</h1>
-        </div>
-        <div class="w-full sm:w-6/12 px-2">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-            <li class="breadcrumb-item active">Patient Recall</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
+  <x-ui.page-header title="Patient Recall" description="Patients due back for a review, and the reminders sent." />
 
   <div class="content">
     <div class="w-full">
@@ -30,49 +16,22 @@
       @endif
 
       {{-- Stats Row --}}
-      <div class="flex flex-wrap -mx-2 mb-4">
-        <div class="w-4/12 px-2">
-          <div class="info-box shadow-sm mb-0 {{ $activeTab === 'due' ? 'bg-amber-400' : '' }}">
-            <span class="info-box-icon {{ $activeTab === 'due' ? 'bg-amber-400' : 'bg-slate-50' }}">
-              <i class="fas fa-user-clock {{ $activeTab !== 'due' ? 'text-amber-600' : '' }}"></i>
-            </span>
-            <div class="info-box-content">
-              <span class="info-box-text">Due for Recall</span>
-              <span class="info-box-number">{{ $dueCount }}</span>
-              <span class="info-box-text text-sm">inactive &gt; {{ $months }} months</span>
-            </div>
-          </div>
+      <div class="ui-tiles ui-tiles--auto mb-4">
+        <div>
+          <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-user-clock {{ $activeTab !== 'due' ? 'text-amber-600' : '' }}" aria-hidden="true"></i>Due for Recall</span><span class="ui-tile__value">{{ $dueCount }}</span></div>
         </div>
-        <div class="w-4/12 px-2">
-          <div class="info-box shadow-sm mb-0 {{ $activeTab === 'sent' ? 'bg-teal-700 text-white text-white' : '' }}">
-            <span class="info-box-icon {{ $activeTab === 'sent' ? 'bg-teal-700 text-white' : 'bg-slate-50' }}">
-              <i class="fas fa-paper-plane {{ $activeTab !== 'sent' ? 'text-teal-700' : '' }}"></i>
-            </span>
-            <div class="info-box-content">
-              <span class="info-box-text">Recall Sent</span>
-              <span class="info-box-number">{{ $sentCount }}</span>
-              <span class="info-box-text text-sm">this cycle</span>
-            </div>
-          </div>
+        <div>
+          <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-paper-plane {{ $activeTab !== 'sent' ? 'text-teal-700' : '' }}" aria-hidden="true"></i>Recall Sent</span><span class="ui-tile__value">{{ $sentCount }}</span></div>
         </div>
-        <div class="w-4/12 px-2">
-          <div class="info-box shadow-sm mb-0 {{ $activeTab === 'returned' ? 'bg-green-600 text-white text-white' : '' }}">
-            <span class="info-box-icon {{ $activeTab === 'returned' ? 'bg-green-600 text-white' : 'bg-slate-50' }}">
-              <i class="fas fa-user-check {{ $activeTab !== 'returned' ? 'text-green-700' : '' }}"></i>
-            </span>
-            <div class="info-box-content">
-              <span class="info-box-text">Returned</span>
-              <span class="info-box-number">{{ $returnedCount }}</span>
-              <span class="info-box-text text-sm">came back after recall</span>
-            </div>
-          </div>
+        <div>
+          <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-user-check {{ $activeTab !== 'returned' ? 'text-green-700' : '' }}" aria-hidden="true"></i>Returned</span><span class="ui-tile__value">{{ $returnedCount }}</span></div>
         </div>
       </div>
 
-      <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white card-success shadow-sm">
+      <div class="ui-panel">
 
         {{-- Tabs --}}
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 p-0 border-b-0">
+        <div class="ui-section-heading !p-0 !border-b-0">
           <ul class="flex flex-wrap border-b border-slate-200">
             <li class="">
               <a class="block px-3 py-2 {{ $activeTab === 'due' ? 'active' : '' }}"
@@ -99,17 +58,17 @@
         </div>
 
         {{-- Filters --}}
-        <div class="card-header border-b border-slate-200 bg-slate-50 px-4 py-2 flex-wrap" style="gap:8px; border-top: 1px solid #dee2e6;">
+        <div class="ui-section-heading" style="gap:8px; border-top: 1px solid #dee2e6;">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="flex items-stretch" style="max-width:260px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
-              <input wire:model.live.debounce.300ms="search" type="text" class="form-control ui-input" placeholder="Search name or Px#…">
+              <input aria-label="Search" wire:model.live.debounce.300ms="search" type="text" class="ui-input" placeholder="Search name or Px#…">
             </div>
             @if($activeTab === 'due' && $dueCount > 0)
             <div class="ml-auto">
               <button wire:click="sendBulkRecall"
                       wire:confirm="Send recall SMS to all {{ $dueCount }} due patient(s)? This will use your configured SMS/WhatsApp channel."
-                      class="btn ui-button ui-button-secondary ui-button-sm" wire:loading.attr="disabled">
+                      class="ui-button ui-button-secondary ui-button-sm" wire:loading.attr="disabled">
                 <span wire:loading wire:target="sendBulkRecall"><i class="fas fa-spinner fa-spin mr-1"></i></span>
                 <span wire:loading.remove wire:target="sendBulkRecall"><i class="fas fa-bullhorn mr-1"></i></span>
                 Send Bulk Recall ({{ $dueCount }})
@@ -119,9 +78,9 @@
           </div>
         </div>
 
-        <div class="card-body p-0">
+        <div class="">
           <div class="ui-table-wrap">
-            <table class="table ui-table ui-table-sm mb-0">
+            <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>
                   <th>Patient</th>
@@ -162,7 +121,7 @@
                       <button wire:click="sendRecall({{ $patient->id }})"
                               wire:loading.attr="disabled"
                               wire:target="sendRecall({{ $patient->id }})"
-                              class="btn ui-button ui-button-sm ui-button-primary" title="Send recall SMS">
+                              class="ui-button ui-button-sm ui-button-primary" title="Send recall SMS">
                         <span wire:loading wire:target="sendRecall({{ $patient->id }})"><i class="fas fa-spinner fa-spin"></i></span>
                         <span wire:loading.remove wire:target="sendRecall({{ $patient->id }})"><i class="fas fa-paper-plane"></i></span>
                         Send
@@ -170,19 +129,19 @@
                     @elseif($activeTab === 'sent')
                       <button wire:click="sendRecall({{ $patient->id }})"
                               wire:confirm="Re-send recall to {{ $patient->name }}?"
-                              class="btn ui-button ui-button-sm ui-button-secondary" title="Re-send">
+                              class="ui-button ui-button-sm ui-button-secondary" title="Re-send">
                         <i class="fas fa-redo"></i> Re-send
                       </button>
                       <button wire:click="resetRecall({{ $patient->id }})"
                               wire:confirm="Reset recall cycle for {{ $patient->name }}? They will appear as due again."
-                              class="btn ui-button ui-button-sm ui-button-secondary" title="Reset cycle">
+                              class="ui-button ui-button-sm ui-button-secondary" title="Reset cycle">
                         <i class="fas fa-undo"></i>
                       </button>
                     @elseif($activeTab === 'returned')
                       <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800"><i class="fas fa-check mr-1"></i>Returned</span>
                       <button wire:click="resetRecall({{ $patient->id }})"
                               wire:confirm="Reset recall cycle for {{ $patient->name }}?"
-                              class="btn ui-button ui-button-sm ui-button-secondary ml-1" title="Reset cycle">
+                              class="ui-button ui-button-sm ui-button-secondary ml-1" title="Reset cycle">
                         <i class="fas fa-undo"></i>
                       </button>
                     @endif

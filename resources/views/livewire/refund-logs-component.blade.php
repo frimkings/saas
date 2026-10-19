@@ -10,20 +10,20 @@
             </p>
         </div>
         <div class="w-full md:w-4/12 px-2 md:text-right">
-            <button wire:click="exportCsv" class="btn ui-button ui-button-sm ui-button-primary shadow-none">
+            <button wire:click="exportCsv" class="ui-button ui-button-sm ui-button-primary shadow-none">
                 <i class="fas fa-file-csv mr-1"></i> Export CSV
             </button>
         </div>
     </div>
 
     {{-- Filters --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0 mb-6">
-        <div class="card-body p-4 py-4">
+    <div class="ui-panel mb-6">
+        <div class="p-5">
             <div class="flex flex-wrap mx-0">
                 <div class="w-full md:w-3/12 px-1">
-                    <label class="text-sm font-semibold uppercase text-slate-500">Search</label>
-                    <input wire:model.live.debounce.300ms="search" type="text"
-                           class="form-control ui-input ui-input-sm shadow-none"
+                    <label for="refund-logs-search" class="text-sm font-semibold uppercase text-slate-500">Search</label>
+                    <input id="refund-logs-search" wire:model.live.debounce.300ms="search" type="text"
+                           class="ui-input ui-input-sm shadow-none"
                            placeholder="TXN ID or reason…">
                 </div>
                 <div class="w-full md:w-3/12 px-1">
@@ -33,8 +33,8 @@
                     </div>
                 </div>
                 <div class="w-full md:w-3/12 px-1">
-                    <label class="text-sm font-semibold uppercase text-slate-500">Staff</label>
-                    <select wire:model.live="staffId" class="form-control ui-input ui-input-sm">
+                    <label for="refund-logs-staffid" class="text-sm font-semibold uppercase text-slate-500">Staff</label>
+                    <select id="refund-logs-staffid" wire:model.live="staffId" class="ui-input ui-input-sm">
                         <option value="">All Staff</option>
                         @foreach($staff as $s)
                             <option value="{{ $s->id }}">{{ $s->name }}</option>
@@ -42,15 +42,15 @@
                     </select>
                 </div>
                 <div class="w-full md:w-2/12 px-1">
-                    <label class="text-sm font-semibold uppercase text-slate-500">Per page</label>
-                    <select wire:model.live="perPage" class="form-control ui-input ui-input-sm">
+                    <label for="refund-logs-perpage" class="text-sm font-semibold uppercase text-slate-500">Per page</label>
+                    <select id="refund-logs-perpage" wire:model.live="perPage" class="ui-input ui-input-sm">
                         <option value="15">15</option>
                         <option value="25">25</option>
                         <option value="50">50</option>
                     </select>
                 </div>
                 <div class="w-full md:w-1/12 px-1 flex items-end">
-                    <button wire:click="resetFilters" class="btn ui-button ui-button-sm w-full ui-button-secondary shadow-none">
+                    <button wire:click="resetFilters" class="ui-button ui-button-sm w-full ui-button-secondary shadow-none">
                         Reset
                     </button>
                 </div>
@@ -59,9 +59,9 @@
     </div>
 
     {{-- Table --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm border-0">
+    <div class="ui-panel">
         <div class="ui-table-wrap" wire:loading.class="opacity-50">
-            <table class="table ui-table align-middle mb-0">
+            <table class="ui-table align-middle mb-0">
                 <thead class="bg-slate-50">
                     <tr class="text-sm uppercase font-semibold text-slate-500">
                         <th class="pl-6 border-0">#</th>

@@ -10,7 +10,7 @@
             <span class="text-slate-500 font-semibold">Send</span>
             <input type="number" min="1" max="60" wire:model="aftercareDays" class="{{ $numberInput }}" style="width:70px" aria-label="Days after collection">
             <span class="text-slate-500">days after the glasses are collected.</span>
-            <button type="button" wire:click="saveFollowUpTiming" class="btn ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
+            <button type="button" wire:click="saveFollowUpTiming" class="ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
         </div>
         @error('aftercareDays') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
         @break
@@ -20,7 +20,7 @@
             <span class="text-slate-500 font-semibold">Send</span>
             <input type="number" min="0" max="60" wire:model="recallLeadDays" class="{{ $numberInput }}" style="width:70px" aria-label="Days before the exam is due">
             <span class="text-slate-500">days before the exam is due. The doctor sets the date on the patient's consultation page.</span>
-            <button type="button" wire:click="saveFollowUpTiming" class="btn ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
+            <button type="button" wire:click="saveFollowUpTiming" class="ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
         </div>
         @error('recallLeadDays') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
         @break
@@ -34,7 +34,7 @@
             <span class="text-slate-500">days, at most</span>
             <input type="number" min="1" max="10" wire:model="balanceMax" class="{{ $numberInput }}" style="width:65px" aria-label="Most reminders per bill">
             <span class="text-slate-500">times per bill. One text per person with the total.</span>
-            <button type="button" wire:click="saveBalanceReminderSettings" class="btn ui-button ui-button-sm ui-button-secondary ml-2">Save schedule</button>
+            <button type="button" wire:click="saveBalanceReminderSettings" class="ui-button ui-button-sm ui-button-secondary ml-2">Save schedule</button>
         </div>
         @foreach(['balanceFirstDays', 'balanceEveryDays', 'balanceMax'] as $field)
             @error($field) <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
@@ -53,7 +53,7 @@
             <span class="text-slate-500 font-semibold">Send when a patient has not visited for</span>
             <input type="number" min="1" max="120" wire:model="recallMonths" class="{{ $numberInput }}" style="width:70px" aria-label="Months without a visit">
             <span class="text-slate-500">months. Each patient is contacted once per cycle.</span>
-            <button type="button" wire:click="saveRecallSettings" class="btn ui-button ui-button-sm ui-button-secondary ml-2">Save</button>
+            <button type="button" wire:click="saveRecallSettings" class="ui-button ui-button-sm ui-button-secondary ml-2">Save</button>
         </div>
         @error('recallMonths') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
         @break
@@ -63,7 +63,7 @@
             <span class="text-slate-500 font-semibold">Send</span>
             <input type="number" min="1" max="90" wire:model="renewalReminderDays" class="{{ $numberInput }}" style="width:70px" aria-label="Days before the renewal date">
             <span class="text-slate-500">days before the renewal date (reminders wait for Super Admin approval).</span>
-            <button type="button" wire:click="saveRenewalSettings" class="btn ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
+            <button type="button" wire:click="saveRenewalSettings" class="ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
         </div>
         @error('renewalReminderDays') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
         @break
@@ -71,7 +71,7 @@
     @case('birthday_wishes')
         <div class="{{ $optionRow }}" style="gap:.5rem">
             <span class="text-slate-500 font-semibold">Send to</span>
-            <select wire:model.live="birthdayFilter" class="form-control ui-input ui-input-sm bg-white" style="width:auto" aria-label="Which patients get birthday wishes">
+            <select wire:model.live="birthdayFilter" class="ui-input ui-input-sm bg-white" style="width:auto" aria-label="Which patients get birthday wishes">
                 <option value="all">All patients</option>
                 <option value="this_year">Patients seen this year</option>
                 <option value="last_24_months">Patients seen in the last 24 months</option>
@@ -81,7 +81,7 @@
                 <input type="number" min="1" max="120" wire:model="birthdayCustomMonths" class="{{ $numberInput }}" style="width:70px" aria-label="Months">
                 <span class="text-slate-500">months</span>
             @endif
-            <button type="button" wire:click="saveBirthdaySettings" class="btn ui-button ui-button-sm ui-button-secondary">Save</button>
+            <button type="button" wire:click="saveBirthdaySettings" class="ui-button ui-button-sm ui-button-secondary">Save</button>
         </div>
         @error('birthdayCustomMonths') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
         @break

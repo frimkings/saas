@@ -12,7 +12,7 @@
                     wire:click="runBackup"
                     wire:loading.attr="disabled"
                     wire:target="runBackup,runFullBackup"
-                    class="btn ui-button ui-button-primary font-semibold shadow-sm">
+                    class="ui-button ui-button-primary font-semibold shadow-sm">
                 <span wire:loading.remove wire:target="runBackup,runFullBackup">
                     <i class="fas fa-database mr-1"></i> DB Backup
                 </span>
@@ -24,7 +24,7 @@
                     wire:click="runFullBackup"
                     wire:loading.attr="disabled"
                     wire:target="runBackup,runFullBackup"
-                    class="btn ui-button ui-button-primary font-semibold shadow-sm"
+                    class="ui-button ui-button-primary font-semibold shadow-sm"
                     title="Back up the database plus uploaded pictures, documents, PDFs, and configured files">
                 <span wire:loading.remove wire:target="runBackup,runFullBackup">
                     <i class="fas fa-archive mr-1"></i> Full Backup
@@ -37,7 +37,7 @@
                     wire:click="cleanBackups"
                     wire:loading.attr="disabled"
                     wire:target="cleanBackups,runBackup,runFullBackup"
-                    class="btn ui-button ui-button-secondary"
+                    class="ui-button ui-button-secondary"
                     title="Remove old backups per retention policy">
                 <span wire:loading.remove wire:target="cleanBackups"><i class="fas fa-broom mr-1"></i> Prune Now</span>
                 <span wire:loading wire:target="cleanBackups"><i class="fas fa-spinner fa-spin mr-1"></i></span>
@@ -86,14 +86,14 @@
     </div>
 
     {{-- Backup diagnostics --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm mb-6">
-        <div class="card-header border-b border-slate-200 px-4 bg-white flex items-center justify-between py-4">
+    <div class="ui-panel mb-6">
+        <div class="ui-section-heading">
             <span class="font-semibold"><i class="fas fa-stethoscope mr-1 text-sky-700"></i> Backup Diagnostics</span>
             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold badge-{{ $diagnostics['full_backup_ready'] ? 'success' : ($diagnostics['db_backup_ready'] ? 'warning' : 'danger') }}">
                 {{ $diagnostics['full_backup_ready'] ? 'Ready' : ($diagnostics['db_backup_ready'] ? 'DB Ready' : 'Needs Attention') }}
             </span>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
             <div class="flex flex-wrap -mx-2">
                 <div class="w-full lg:w-6/12 px-2 mb-4">
                     <div class="p-4 h-full rounded-md" style="background:#f8fafc;border:1px solid #e5e7eb">
@@ -152,21 +152,21 @@
                 </div>
             </div>
 
-            <button type="button" class="btn ui-button ui-button-sm ui-button-secondary" data-toggle="collapse" data-target="#backupDiagnosticCandidates">
+            <button type="button" class="ui-button ui-button-sm ui-button-secondary" data-toggle="collapse" data-target="#backupDiagnosticCandidates">
                 <i class="fas fa-list mr-1"></i> Show Detection Paths
             </button>
         </div>
     </div>
 
     {{-- Backup list --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="card-header border-b border-slate-200 px-4 bg-white flex items-center justify-between py-4">
+    <div class="ui-panel">
+        <div class="ui-section-heading">
             <span class="font-semibold"><i class="fas fa-list mr-1"></i> Backup Archives</span>
             <small class="text-slate-500">Stored in <code>storage/app/backups/</code> · Retention: 7 days full, 4 weeks daily</small>
         </div>
 
         <div class="ui-table-wrap">
-            <table class="table ui-table mb-0">
+            <table class="ui-table mb-0">
                 <thead class="">
                     <tr>
                         <th style="width:45%">File</th>
@@ -197,13 +197,13 @@
                             </td>
                             <td class="align-middle text-right">
                                 <a href="{{ route('admin.backup.download', ['filename' => base64_encode($backup['path'])]) }}"
-                                   class="btn ui-button ui-button-sm ui-button-secondary"
+                                   class="ui-button ui-button-sm ui-button-secondary"
                                    title="Download">
                                     <i class="fas fa-download"></i>
                                 </a>
                                 <button type="button"
                                         wire:click="requestRestore({{ $loop->index }})"
-                                        class="btn ui-button ui-button-sm ui-button-secondary ml-1"
+                                        class="ui-button ui-button-sm ui-button-secondary ml-1"
                                         title="{{ $backup['extension'] === 'zip' ? 'Restore' : 'SQL backups are database-only downloads' }}"
                                         {{ $isRestoring || $backup['extension'] !== 'zip' ? 'disabled' : '' }}>
                                     @if($isRestoring)
@@ -214,7 +214,7 @@
                                 </button>
                                 <button type="button"
                                         wire:click="requestDeleteBackup({{ $loop->index }})"
-                                        class="btn ui-button ui-button-sm ui-button-danger ml-1"
+                                        class="ui-button ui-button-sm ui-button-danger ml-1"
                                         title="Delete">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -236,8 +236,8 @@
 
     {{-- Copy results after backup run --}}
     @if(!empty($copyResults))
-        <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mt-6">
-            <div class="card-header border-b border-slate-200 px-4 bg-white py-4 font-semibold">
+        <div class="ui-panel mt-6">
+            <div class="ui-section-heading">
                 <i class="fas fa-copy mr-1 text-teal-700"></i> External Copy Results
             </div>
             <ul class="overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -258,12 +258,12 @@
     @endif
 
     {{-- Backup Destinations --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mt-6">
-        <div class="card-header border-b border-slate-200 px-4 bg-white py-4 flex items-center justify-between">
+    <div class="ui-panel mt-6">
+        <div class="ui-section-heading">
             <span class="font-semibold"><i class="fas fa-hdd mr-1 text-green-700"></i> Backup Destinations</span>
             <small class="text-slate-500">Backups are always saved locally. Add external drives to also copy there.</small>
         </div>
-        <div class="card-body p-4">
+        <div class="p-5">
 
             {{-- Always-on local destination --}}
             <div class="flex items-center p-4 mb-4 rounded-md"
@@ -295,7 +295,7 @@
                     <button type="button"
                             wire:click="removePath({{ $index }})"
                             wire:confirm="Remove this backup destination?"
-                            class="btn ui-button ui-button-sm ui-button-danger"
+                            class="ui-button ui-button-sm ui-button-danger"
                             title="Remove">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -306,22 +306,22 @@
 
             {{-- Add new path --}}
             <div class="mt-4 pt-4 border-t border-slate-200">
-                <label class="font-semibold text-sm text-slate-500 uppercase mb-2" style="letter-spacing:.05em">
+                <label for="backup-manag-newpath" class="font-semibold text-sm text-slate-500 uppercase mb-2" style="letter-spacing:.05em">
                     Add External Destination
                 </label>
                 <div class="flex items-stretch">
                     <div class="flex">
                         <span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-folder text-slate-500"></i></span>
                     </div>
-                    <input type="text"
+                    <input id="backup-manag-newpath" type="text"
                            wire:model="newPath"
                            wire:keydown.enter="addPath"
-                           class="form-control ui-input @error('newPath') is-invalid @enderror"
+                           class="ui-input @error('newPath') is-invalid @enderror"
                            placeholder="e.g.  E:\backups  or  D:\MyClinicBackups">
                     <div class="flex">
                         <button type="button"
                                 wire:click="openBrowser"
-                                class="btn ui-button ui-button-secondary"
+                                class="ui-button ui-button-secondary"
                                 title="Browse folders">
                             <i class="fas fa-folder-open mr-1"></i> Browse
                         </button>
@@ -329,7 +329,7 @@
                                 wire:click="addPath"
                                 wire:loading.attr="disabled"
                                 wire:target="addPath"
-                                class="btn ui-button ui-button-primary font-semibold">
+                                class="ui-button ui-button-primary font-semibold">
                             <i class="fas fa-plus mr-1"></i> Add
                         </button>
                     </div>
@@ -356,7 +356,7 @@
                     <i class="fas fa-folder-open mr-2" style="font-size:1.1rem;color:#f6a623"></i>
                     <h5 class="mb-0 font-semibold" style="font-size:1rem">Browse for Folder</h5>
                     <button type="button" wire:click="closeBrowser"
-                            class="ml-auto btn ui-button ui-button-sm p-0 ui-button-secondary" style="color:rgba(255,255,255,.7);background:none;border:none;font-size:1.2rem;line-height:1">
+                            class="ml-auto ui-button ui-button-sm p-0 ui-button-secondary" style="color:rgba(255,255,255,.7);background:none;border:none;font-size:1.2rem;line-height:1">
                         &times;
                     </button>
                 </div>
@@ -365,14 +365,14 @@
                 <div class="flex items-center px-4 py-2" style="background:#2c5282;min-height:44px;gap:.5rem">
                     @if($browserPath)
                         <button type="button" wire:click="browserUp"
-                                class="btn ui-button ui-button-sm shrink-0 ui-button-secondary"
+                                class="ui-button ui-button-sm shrink-0 ui-button-secondary"
                                 style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);padding:.2rem .55rem"
                                 title="Up one level">
                             <i class="fas fa-arrow-up" style="font-size:.75rem"></i>
                         </button>
                         <code class="text-sm grow truncate" style="color:#bee3f8;font-size:.72rem">{{ $browserPath }}</code>
                         <button type="button" wire:click="toggleCreateFolder"
-                                class="btn ui-button ui-button-sm shrink-0 ui-button-secondary"
+                                class="ui-button ui-button-sm shrink-0 ui-button-secondary"
                                 style="background:{{ $creatingFolder ? 'rgba(246,166,35,.35)' : 'rgba(255,255,255,.12)' }};color:#fff;border:1px solid rgba(255,255,255,.25);font-size:.72rem;white-space:nowrap"
                                 title="Create a new sub-folder here">
                             <i class="fas fa-folder-plus mr-1"></i> New Folder
@@ -392,21 +392,21 @@
                                 <i class="fas fa-folder-plus text-amber-600"></i>
                             </span>
                         </div>
-                        <input type="text"
+                        <input aria-label="New folder name" type="text"
                                wire:model="newFolderName"
                                wire:keydown.enter="createFolder"
                                wire:keydown.escape="toggleCreateFolder"
-                               class="form-control ui-input @error('newFolderName') is-invalid @enderror"
+                               class="ui-input @error('newFolderName') is-invalid @enderror"
                                placeholder="New folder name…"
                                style="border-color:#ffe082"
                                autofocus>
                         <div class="flex">
                             <button type="button" wire:click="createFolder"
-                                    class="btn ui-button ui-button-secondary ui-button-sm font-semibold" title="Create">
+                                    class="ui-button ui-button-secondary ui-button-sm font-semibold" title="Create">
                                 <i class="fas fa-check"></i>
                             </button>
                             <button type="button" wire:click="toggleCreateFolder"
-                                    class="btn ui-button ui-button-secondary ui-button-sm" title="Cancel">
+                                    class="ui-button ui-button-secondary ui-button-sm" title="Cancel">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -472,7 +472,7 @@
                                 <span class="text-sm">This folder has no sub-folders</span>
                                 <div class="mt-2">
                                     <button type="button" wire:click="toggleCreateFolder"
-                                            class="btn ui-button ui-button-sm ui-button-secondary">
+                                            class="ui-button ui-button-sm ui-button-secondary">
                                         <i class="fas fa-folder-plus mr-1"></i> Create a folder here
                                     </button>
                                 </div>
@@ -495,11 +495,11 @@
                         @endif
                     </div>
                     <div class="flex shrink-0" style="gap:.4rem">
-                        <button type="button" class="btn ui-button ui-button-sm ui-button-secondary" wire:click="closeBrowser">
+                        <button type="button" class="ui-button ui-button-sm ui-button-secondary" wire:click="closeBrowser">
                             Cancel
                         </button>
                         <button type="button"
-                                class="btn ui-button ui-button-sm ui-button-primary font-semibold"
+                                class="ui-button ui-button-sm ui-button-primary font-semibold"
                                 wire:click="selectCurrentFolder"
                                 @if(!$browserPath) disabled @endif>
                             <i class="fas fa-check mr-1"></i> Select This Folder
@@ -513,11 +513,11 @@
     @endif
 
     {{-- Retention policy info --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mt-6">
-        <div class="card-header border-b border-slate-200 px-4 bg-white py-4 font-semibold">
+    <div class="ui-panel mt-6">
+        <div class="ui-section-heading">
             <i class="fas fa-info-circle mr-1 text-sky-700"></i> Retention Policy
         </div>
-        <div class="card-body p-4 pb-2">
+        <div class="p-5">
 
             {{-- Timeline --}}
             <div class="flex items-stretch" style="gap:0">
@@ -570,8 +570,8 @@
     </div>
 
     {{-- Restore Guide --}}
-    <div class="card overflow-hidden rounded-xl border border-slate-200 bg-white border-0 shadow-sm mt-6">
-        <div class="card-header border-b border-slate-200 px-4 bg-white py-4 flex items-center justify-between"
+    <div class="ui-panel mt-6">
+        <div class="ui-section-heading"
              data-toggle="collapse" data-target="#restoreGuide" style="cursor:pointer">
             <span class="font-semibold">
                 <i class="fas fa-undo-alt mr-1 text-red-700"></i> How to Restore a Backup
@@ -579,7 +579,7 @@
             <i class="fas fa-chevron-down text-slate-500" style="font-size:.75rem"></i>
         </div>
         <div id="restoreGuide" class="collapse">
-            <div class="card-body p-4">
+            <div class="p-5">
 
                 <div class="rounded-lg border px-3 text-sm border-amber-200 bg-amber-50 text-amber-900 py-2 mb-4">
                     <i class="fas fa-exclamation-triangle mr-1"></i>
