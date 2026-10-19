@@ -79,6 +79,8 @@ class ProductsComponent extends Component
 
     public function updatedSelectedCategoryFilter()
     {
+        // The category list is always on screen; choosing one is what turns the filter on.
+        $this->searchByCategory = filled($this->selectedCategoryFilter);
         $this->resetPage();
         $this->clearSelection();
     }

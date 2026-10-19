@@ -43,7 +43,7 @@
             </ul>
             <div style="padding:12px 20px;border-top:1px solid #eef1f5;display:flex;justify-content:flex-end;gap:8px">
                 <button type="button" x-on:click="open = false" style="border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:6px;padding:6px 14px;cursor:pointer">Later</button>
-                <a href="{{ $attentionSummary['line'] === 'optical' ? route('optical.attention') : route('attention') }}" style="background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px;text-decoration:none;font-weight:600">See the list</a>
+                <a href="{{ $attentionSummary['line'] === 'optical' ? route('optical.attention') : route('attention') }}" style="background:#087e83;color:#fff;border-radius:6px;padding:6px 14px;text-decoration:none;font-weight:600">See the list</a>
             </div>
         </div>
     </div>
