@@ -18,8 +18,26 @@
 </x-ui.panel>
 <footer class="ui-preview-footer ui-muted"><span>Design prototype · Sample data</span><span>Eye Clinic / Admin workspace</span></footer>
 </section>
-<details class="ui-preview-components"><summary>Component showcase</summary>
+<details class="ui-preview-components" open><summary>Component showcase</summary>
 <div class="ui-stack">
+<x-ui.page-header title="Products" description="What you sell, with prices and stock.">
+    <x-slot:badge><x-ui.badge>12 low</x-ui.badge></x-slot:badge>
+    <x-ui.menu label="More"><button type="button" class="ui-menu-item" role="menuitem"><i class="fas fa-file-csv" aria-hidden="true"></i>Export CSV</button><button type="button" class="ui-menu-item" role="menuitem"><i class="fas fa-file-import" aria-hidden="true"></i>Import CSV</button></x-ui.menu>
+    <x-ui.button variant="primary"><i class="fas fa-plus" aria-hidden="true"></i>Add product</x-ui.button>
+</x-ui.page-header>
+<div class="ui-tiles">
+    <x-ui.stat-tile label="Collected" value="GH₵ 545.00" hint="All methods" icon="fa-money-bill-wave" tone="accent" />
+    <x-ui.stat-tile label="Balanced" value="GH₵ 0.00" hint="Count matches" tone="good" />
+    <x-ui.stat-tile label="Still owed" value="GH₵ 80.00" hint="On today's sales" tone="warning" href="#" />
+    <x-ui.stat-tile label="Short" value="−GH₵ 5.00" hint="Less cash than expected" tone="danger" />
+</div>
+<x-ui.section title="Payments taken" description="A section with a step number, actions and an empty state." step="3">
+    <x-slot:actions><x-ui.button class="ui-button-sm">Export</x-ui.button></x-slot:actions>
+    <p class="ui-section-empty">No payments on this day.</p>
+</x-ui.section>
+<x-ui.section title="Field with a hint" icon="fa-pen">
+    <div class="ui-form ui-grid"><x-ui.field label="Amount" name="example.hinted" type="number" hint="In cedis, without the currency sign" required /><x-ui.field label="Reason" name="example.reason" type="textarea" rows="2" /></div>
+</x-ui.section>
 <div class="ui-stats"><x-ui.stat label="Period total" value="PHP 42,800.00" /><x-ui.stat label="Today" value="PHP 2,500.00" /><x-ui.stat label="Records" value="24" /></div>
 <x-ui.panel><div class="ui-panel-heading"><h2>Actions and status</h2></div><div class="ui-form"><div class="ui-actions"><x-ui.button variant="primary">Record expense</x-ui.button><x-ui.button>Export CSV</x-ui.button><x-ui.button variant="danger">Delete</x-ui.button><x-ui.button disabled>Saving…</x-ui.button><x-ui.badge>Active</x-ui.badge></div></div></x-ui.panel>
 <x-ui.panel><div class="ui-panel-heading"><h2>Form fields</h2></div><div class="ui-form ui-grid"><x-ui.field label="Description (required)" name="example.description" placeholder="Monthly clinic rent" /><x-ui.field label="Category" name="example.category" :options="['supplies' => 'Supplies', 'rent' => 'Rent']" /><x-ui.field label="Date" name="example.date" type="date" /><x-ui.field label="Amount (PHP)" name="example.amount" type="number" placeholder="0.00" /></div></x-ui.panel>
