@@ -126,7 +126,7 @@
             @endif
 
             <div class="ml-auto flex flex-wrap items-center gap-x-3 gap-y-2">
-                <div class="text-right leading-tight">
+                <div class="!text-right leading-tight">
                     <strong class="text-sm">
                         @if($browserViews)
                             {!! $both(e($pairsText($matrixViewTotals['pairs']['all']['value'], $matrixViewTotals['pairs']['all']['extra'], false)), e(number_format($matrixTotal).' lenses')) !!}
@@ -221,7 +221,7 @@
     @endphp
 
     <div class="ui-panel min-w-0 overflow-auto lg-box" data-grid-box role="region" aria-label="Lens blank power grid" tabindex="0">
-        <table class="lg-table border-collapse text-xs font-mono text-center min-w-max w-full">
+        <table class="lg-table border-collapse text-xs font-mono !text-center min-w-max w-full">
             <caption class="sr-only">Stock for {{ $matrixRange ?: 'unspecified range' }}, {{ $matrixDesign }}, index {{ $matrixIndex }}, {{ $matrixCoating }}</caption>
             <thead class="sticky top-0 z-20"><tr>
                 <th scope="col" class="sticky left-0 z-30 bg-slate-900 text-white px-3 py-2 whitespace-nowrap border border-slate-700">SPH / {{ $matrixDesign === 'Single Vision' ? 'CYL' : 'ADD (+)' }}</th>

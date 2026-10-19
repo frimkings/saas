@@ -25,7 +25,7 @@
                 </summary>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
-                        <thead class="text-xs uppercase text-slate-500"><tr><th class="p-3 text-left">Job</th><th class="p-3 text-left">Customer</th><th class="p-3 text-left">Status</th><th class="p-3 text-left">Why it is listed</th><th class="p-3 text-right">Actions</th></tr></thead>
+                        <thead class="text-xs uppercase text-slate-500"><tr><th class="p-3 text-left">Job</th><th class="p-3 text-left">Customer</th><th class="p-3 text-left">Status</th><th class="p-3 text-left">Why it is listed</th><th class="p-3 !text-right">Actions</th></tr></thead>
                         <tbody class="divide-y divide-slate-100">
                         @foreach($group['rows'] as $row)
                             @php
@@ -77,7 +77,7 @@
                 </div>
             </details>
         @empty
-            <p class="p-8 text-center ui-muted text-sm">{{ $filter === 'all' ? 'Nothing needs following up. Every open job is on time and moving.' : 'No jobs match this filter.' }}</p>
+            <p class="p-8 !text-center ui-muted text-sm">{{ $filter === 'all' ? 'Nothing needs following up. Every open job is on time and moving.' : 'No jobs match this filter.' }}</p>
         @endforelse
     </section>
 
@@ -97,7 +97,7 @@
                         @error('newLabDate')<span class="mt-1 block text-red-600">{{ $message }}</span>@enderror</label>
                 @endif
                 <label class="block text-xs font-semibold">Reason
-                    <input type="text" maxlength="500" wire:model="rescheduleReason" placeholder="e.g. Lens back-ordered at the lab" class="ui-input mt-1 w-full">
+                    <input aria-label="e.g. Lens back-ordered at the lab" type="text" maxlength="500" wire:model="rescheduleReason" placeholder="e.g. Lens back-ordered at the lab" class="ui-input mt-1 w-full">
                     @error('rescheduleReason')<span class="mt-1 block text-red-600">{{ $message }}</span>@enderror</label>
                 <p class="text-xs text-slate-500">After saving you can send the customer the new date on WhatsApp.</p>
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { rescheduleOrderId: null, abandonOrderId: null })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Save new date</button></div>
@@ -120,7 +120,7 @@
                     @endif
                 </div>
                 <label class="block text-xs font-semibold">Reason
-                    <textarea wire:model="abandonReason" rows="2" maxlength="500" placeholder="e.g. Customer unreachable since June; three calls, two WhatsApp messages" class="ui-input mt-1 w-full"></textarea>
+                    <textarea aria-label="e.g. Customer unreachable since June; three calls, two WhatsApp messages" wire:model="abandonReason" rows="2" maxlength="500" placeholder="e.g. Customer unreachable since June; three calls, two WhatsApp messages" class="ui-input mt-1 w-full"></textarea>
                     @error('abandonReason')<span class="mt-1 block text-red-600">{{ $message }}</span>@enderror</label>
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { rescheduleOrderId: null, abandonOrderId: null })" class="oo-btn">Go back</button><button type="submit" class="oo-btn" style="background:#b91c1c;border-color:#b91c1c;color:#fff">Close job</button></div>
             </form>

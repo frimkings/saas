@@ -25,7 +25,7 @@
                 @if($countScope === 'lens_range')
                     <label class="sc-field"><span>Lens range *</span><select wire:model="countRange" class="ui-input"><option value="">Choose a range</option>@foreach($lensRanges as $i => $specs)<option value="{{ $i }}">{{ $rangeTitle($specs) }}</option>@endforeach</select>@error('countRange')<small style="color:#b91c1c">{{ $message }}</small>@enderror</label>
                 @endif
-                <label class="sc-field"><span>Notes</span><input autocomplete="off" type="text" wire:model="countNotes" maxlength="1000" class="ui-input" placeholder="e.g. Month-end count, drawers A–C"></label>
+                <label class="sc-field"><span>Notes</span><input aria-label="e.g. Month-end count, drawers A–C" autocomplete="off" type="text" wire:model="countNotes" maxlength="1000" class="ui-input" placeholder="e.g. Month-end count, drawers A–C"></label>
                 <div class="oo-note amber">Count at a quiet time. Expected quantities are fixed when the count starts; sales and glazing during the count are flagged for rechecking.</div>
             </form>
             <footer class="oo-drawer-foot"><button type="button" x-on:click="dismissLocal($el, $wire, { showStartForm: false })" class="oo-btn">Cancel</button><button type="submit" form="sc-start" class="oo-btn primary">Start count</button></footer>
@@ -58,7 +58,7 @@
             </header>
             <div class="oo-drawer-body">
             @if($errors->any())<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
-            @if($count->notes)<p class="ui-muted text-sm" style="margin:0">{{ $count->notes }}</p>@endif
+            @if($count->notes)<p class="ui-muted text-sm m-0">{{ $count->notes }}</p>@endif
 
             @if($moved->isNotEmpty())
                 <p class="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900" role="alert">{{ $moved->count() }} {{ \Illuminate\Support\Str::plural('item', $moved->count()) }} moved (sold, glazed or received) since this count started, marked ⚠ below. Recount them before approving.</p>
@@ -79,9 +79,9 @@
                                         @php $line = $grid['cells'][sprintf('%.2f|%.2f', $sphere, $power)] ?? null; @endphp
                                         <td class="border p-1 align-top {{ $line && $line->variance() ? ($line->variance() < 0 ? 'bg-red-50' : 'bg-amber-50') : '' }}">
                                             @if($line)
-                                                @if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input text-center" style="width:58px" aria-label="SPH {{ $sphere }} {{ $grid['powerLabel'] }} {{ $power }} counted">@else<span class="block text-center font-semibold">{{ $line->counted_quantity ?? '—' }}</span>@endif
-                                                @if($showExpected)<span class="block text-center text-[10px] text-slate-500">exp {{ $line->expectedAtCount() }}@if($line->variance()) · <strong class="{{ $line->variance() < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ sprintf('%+d', $line->variance()) }}</strong>@endif</span>@endif
-                                                @if($moved->has($line->optical_product_id))<span class="block text-center text-[10px] text-amber-800" title="Moved {{ sprintf('%+d', $moved[$line->optical_product_id]) }} since the count started">⚠</span>@endif
+                                                @if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input !text-center" style="width:58px" aria-label="SPH {{ $sphere }} {{ $grid['powerLabel'] }} {{ $power }} counted">@else<span class="block !text-center font-semibold">{{ $line->counted_quantity ?? '—' }}</span>@endif
+                                                @if($showExpected)<span class="block !text-center text-[10px] text-slate-500">exp {{ $line->expectedAtCount() }}@if($line->variance()) · <strong class="{{ $line->variance() < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ sprintf('%+d', $line->variance()) }}</strong>@endif</span>@endif
+                                                @if($moved->has($line->optical_product_id))<span class="block !text-center text-[10px] text-amber-800" title="Moved {{ sprintf('%+d', $moved[$line->optical_product_id]) }} since the count started">⚠</span>@endif
                                             @endif
                                         </td>
                                     @endforeach
@@ -93,14 +93,14 @@
             @else
                 <div class="overflow-x-auto max-h-[32rem] rounded-lg border">
                     <table class="w-full text-xs">
-                        <thead class="sticky top-0 bg-slate-50 text-slate-500"><tr><th class="p-2 text-left">Item</th>@if($showExpected)<th class="p-2 text-right">Expected</th>@endif<th class="p-2 text-right">Counted</th>@if($showExpected)<th class="p-2 text-right">Difference</th>@endif</tr></thead>
+                        <thead class="sticky top-0 bg-slate-50 text-slate-500"><tr><th class="p-2 text-left">Item</th>@if($showExpected)<th class="p-2 !text-right">Expected</th>@endif<th class="p-2 !text-right">Counted</th>@if($showExpected)<th class="p-2 !text-right">Difference</th>@endif</tr></thead>
                         <tbody class="divide-y divide-slate-100">
                             @foreach($count->lines as $line)
                                 <tr wire:key="count-line-{{ $line->id }}" class="{{ $line->variance() ? ($line->variance() < 0 ? 'bg-red-50' : 'bg-amber-50') : '' }}">
                                     <td class="p-2">{{ $line->product?->sku }} · {{ $line->product?->name }}@if($moved->has($line->optical_product_id)) <span class="text-amber-800" title="Moved since the count started">⚠</span>@endif</td>
-                                    @if($showExpected)<td class="p-2 text-right">{{ $line->expectedAtCount() }}</td>@endif
-                                    <td class="p-2 text-right">@if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input !w-20 text-right" aria-label="Counted">@else{{ $line->counted_quantity ?? '—' }}@endif</td>
-                                    @if($showExpected)<td class="p-2 text-right font-semibold {{ ($line->variance() ?? 0) < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ $line->variance() ? sprintf('%+d', $line->variance()) : '' }}</td>@endif
+                                    @if($showExpected)<td class="p-2 !text-right">{{ $line->expectedAtCount() }}</td>@endif
+                                    <td class="p-2 !text-right">@if($editable)<input autocomplete="off" type="number" min="0" max="100000" wire:model="counts.{{ $line->id }}" class="ui-input !w-20 !text-right" aria-label="Counted">@else{{ $line->counted_quantity ?? '—' }}@endif</td>
+                                    @if($showExpected)<td class="p-2 !text-right font-semibold {{ ($line->variance() ?? 0) < 0 ? 'text-red-700' : 'text-amber-700' }}">{{ $line->variance() ? sprintf('%+d', $line->variance()) : '' }}</td>@endif
                                 </tr>
                             @endforeach
                         </tbody>
@@ -145,7 +145,7 @@
                             <td><b>{{ $item->title }}</b></td>
                             <td><span class="oo-badge {{ $statusClass[$item->status] ?? 'oo-b-grey' }}">{{ \App\Models\OpticalStockCount::STATUSES[$item->status] }}</span></td>
                             <td>{{ $item->counted_lines }} / {{ $item->lines_count }} counted<div class="sc-progress" aria-hidden="true"><i style="width:{{ $pct }}%"></i></div></td>
-                            <td style="text-align:right" onclick="event.stopPropagation()"><button type="button" wire:click="openCount({{ $item->id }})" class="oo-btn {{ in_array($item->status, ['counting', 'submitted'], true) ? 'primary' : '' }}">{{ $item->status === 'counting' ? 'Count' : ($item->status === 'submitted' ? 'Review' : 'View') }}</button></td>
+                            <td class="!text-right" onclick="event.stopPropagation()"><button type="button" wire:click="openCount({{ $item->id }})" class="oo-btn {{ in_array($item->status, ['counting', 'submitted'], true) ? 'primary' : '' }}">{{ $item->status === 'counting' ? 'Count' : ($item->status === 'submitted' ? 'Review' : 'View') }}</button></td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="ui-empty"><p class="ui-muted text-sm">No stock counts yet.</p></td></tr>

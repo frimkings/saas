@@ -28,25 +28,25 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <label class="text-xs font-semibold">Amount received ({{ currency() }}) *<input autocomplete="off" type="number" min="0.01" step="0.01" max="{{ $balance }}" wire:model.live.debounce.400ms="paymentAmount" class="ui-input mt-1 w-full font-mono"><span class="font-normal text-slate-500">Owed: {{ currency() }} {{ number_format($balance, 2) }}</span></label>
                 <label class="text-xs font-semibold">Method *<select wire:model="paymentMethod" class="ui-input mt-1 w-full">@foreach(\App\Models\OpticalPartnerPayment::METHODS as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
-                <label class="text-xs font-semibold">Reference<input autocomplete="off" type="text" wire:model="paymentReference" maxlength="100" placeholder="Bank / MoMo transaction ID" class="ui-input mt-1 w-full"></label>
+                <label class="text-xs font-semibold">Reference<input aria-label="Bank / MoMo transaction ID" autocomplete="off" type="text" wire:model="paymentReference" maxlength="100" placeholder="Bank / MoMo transaction ID" class="ui-input mt-1 w-full"></label>
             </div>
             <label class="block text-xs font-semibold">Notes<input autocomplete="off" type="text" wire:model="paymentNotes" maxlength="1000" class="ui-input mt-1 w-full"></label>
             <label class="flex items-center gap-2 text-sm"><input type="checkbox" wire:model.live="allocateManually"> Choose which jobs this pays (otherwise oldest jobs are settled first)</label>
             @if($allocateManually)
                 <table class="w-full text-xs">
-                    <thead class="text-slate-500"><tr><th class="py-1 text-left">Job</th><th class="py-1 text-left">Date</th><th class="py-1 text-right">Owed</th><th class="py-1 text-right">Apply ({{ currency() }})</th></tr></thead>
+                    <thead class="text-slate-500"><tr><th class="py-1 text-left">Job</th><th class="py-1 text-left">Date</th><th class="py-1 !text-right">Owed</th><th class="py-1 !text-right">Apply ({{ currency() }})</th></tr></thead>
                     <tbody class="divide-y divide-slate-100">
                         @foreach($openOrders as $order)
                             <tr wire:key="alloc-{{ $order->id }}">
                                 <td class="py-1">{{ $order->order_id }}@if($order->customer_name) · {{ $order->customer_name }}@endif @if($order->partnerReference()) · ref {{ $order->partnerReference() }}@endif</td>
                                 <td class="py-1">{{ $order->created_at->format('d M Y') }}</td>
-                                <td class="py-1 text-right font-mono">{{ number_format($service->balanceOf($order), 2) }}</td>
-                                <td class="py-1 text-right"><input autocomplete="off" type="number" min="0" step="0.01" max="{{ $service->balanceOf($order) }}" wire:model.live.debounce.400ms="allocations.{{ $order->id }}" class="ui-input !w-24 text-right" aria-label="Apply to {{ $order->order_id }}"></td>
+                                <td class="py-1 !text-right font-mono">{{ number_format($service->balanceOf($order), 2) }}</td>
+                                <td class="py-1 !text-right"><input autocomplete="off" type="number" min="0" step="0.01" max="{{ $service->balanceOf($order) }}" wire:model.live.debounce.400ms="allocations.{{ $order->id }}" class="ui-input !w-24 !text-right" aria-label="Apply to {{ $order->order_id }}"></td>
                             </tr>
                         @endforeach
                     </tbody>
                     @php $applied = collect($allocations)->sum(fn ($v) => (float) $v); @endphp
-                    <tfoot><tr><th colspan="3" class="py-1 text-right">Applied</th><th class="py-1 text-right font-mono {{ abs($applied - (float) $paymentAmount) > 0.001 ? 'text-red-700' : 'text-emerald-700' }}">{{ number_format($applied, 2) }} of {{ number_format((float) $paymentAmount, 2) }}</th></tr></tfoot>
+                    <tfoot><tr><th colspan="3" class="py-1 !text-right">Applied</th><th class="py-1 !text-right font-mono {{ abs($applied - (float) $paymentAmount) > 0.001 ? 'text-red-700' : 'text-emerald-700' }}">{{ number_format($applied, 2) }} of {{ number_format((float) $paymentAmount, 2) }}</th></tr></tfoot>
                 </table>
             @endif
             <div class="flex gap-2">
@@ -62,13 +62,13 @@
             <p class="ui-muted text-sm">Nothing owed. The account is settled.</p>
         @else
             <table class="w-full text-xs">
-                <thead class="text-slate-500"><tr><th class="py-1 text-left">Job</th><th class="py-1 text-left">Date</th><th class="py-1 text-left">Status</th><th class="py-1 text-right">Total</th><th class="py-1 text-right">Paid</th><th class="py-1 text-right">Owed</th></tr></thead>
+                <thead class="text-slate-500"><tr><th class="py-1 text-left">Job</th><th class="py-1 text-left">Date</th><th class="py-1 text-left">Status</th><th class="py-1 !text-right">Total</th><th class="py-1 !text-right">Paid</th><th class="py-1 !text-right">Owed</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach($openOrders as $order)
                         <tr><td class="py-1 font-mono">{{ $order->order_id }}<span class="font-sans text-slate-500">@if($order->customer_name) · {{ $order->customer_name }}@endif @if($order->partnerReference()) · ref {{ $order->partnerReference() }}@endif</span></td>
                             <td class="py-1">{{ $order->created_at->format('d M Y') }}</td><td class="py-1">{{ $order->status }}</td>
-                            <td class="py-1 text-right font-mono">{{ number_format($order->total, 2) }}</td><td class="py-1 text-right font-mono">{{ number_format((float) $order->paid_amount, 2) }}</td>
-                            <td class="py-1 text-right font-mono font-semibold text-red-700">{{ number_format($service->balanceOf($order), 2) }}</td></tr>
+                            <td class="py-1 !text-right font-mono">{{ number_format($order->total, 2) }}</td><td class="py-1 !text-right font-mono">{{ number_format((float) $order->paid_amount, 2) }}</td>
+                            <td class="py-1 !text-right font-mono font-semibold text-red-700">{{ number_format($service->balanceOf($order), 2) }}</td></tr>
                     @endforeach
                 </tbody>
             </table>
@@ -91,13 +91,13 @@
             <p class="ui-muted text-sm">No partner payments recorded yet.</p>
         @else
             <table class="w-full text-xs">
-                <thead class="text-slate-500"><tr><th class="py-1 text-left">Receipt</th><th class="py-1 text-left">Date</th><th class="py-1 text-left">Method</th><th class="py-1 text-left">Jobs settled</th><th class="py-1 text-right">Amount</th></tr></thead>
+                <thead class="text-slate-500"><tr><th class="py-1 text-left">Receipt</th><th class="py-1 text-left">Date</th><th class="py-1 text-left">Method</th><th class="py-1 text-left">Jobs settled</th><th class="py-1 !text-right">Amount</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach($payments as $payment)
                         <tr><td class="py-1 font-mono">{{ $payment->receipt_number }}</td><td class="py-1">{{ $payment->created_at->format('d M Y') }} · {{ $payment->receiver?->name }}</td>
                             <td class="py-1">{{ \App\Models\OpticalPartnerPayment::METHODS[$payment->payment_method] ?? $payment->payment_method }}@if($payment->reference) · {{ $payment->reference }}@endif</td>
                             <td class="py-1">{{ $payment->allocations->map(fn ($a) => $a->order?->order_id.' ('.number_format((float) $a->amount, 2).')')->implode(', ') }}</td>
-                            <td class="py-1 text-right font-mono">{{ number_format((float) $payment->amount, 2) }}</td></tr>
+                            <td class="py-1 !text-right font-mono">{{ number_format((float) $payment->amount, 2) }}</td></tr>
                     @endforeach
                 </tbody>
             </table>

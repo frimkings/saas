@@ -80,7 +80,7 @@
                             <th>Customer</th>
                             <th>Frame / Specs</th>
                             <th class="ui-number">Balance Due</th>
-                            <th class="text-right">Action</th>
+                            <th class="!text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -92,7 +92,7 @@
                                 <td class="ui-number font-bold {{ ($order->total - $order->paid_amount) > 0 ? 'text-red-700' : 'text-teal-700' }}">
                                     {{ currency() }} {{ number_format(max(0, $order->total - $order->paid_amount), 2) }}
                                 </td>
-                                <td class="text-right">
+                                <td class="!text-right">
                                     <a wire:navigate href="{{ route('optical.orders', ['search' => $order->order_id]) }}" class="ui-button ui-button-secondary py-1 text-xs">
                                         Collect & Pay
                                     </a>
@@ -127,7 +127,7 @@
                             <span class="font-bold text-red-600">{{ $product instanceof \App\Models\OpticalProduct ? ($product->stocks->first()?->quantity ?? 0) : app(\App\Services\Inventory\BranchInventoryService::class)->quantity($product) }} left</span>
                         </div>
                     @empty
-                        <p class="ui-muted text-center py-2">Stock levels healthy.</p>
+                        <p class="ui-muted !text-center py-2">Stock levels healthy.</p>
                     @endforelse
                 </div>
             </div>
@@ -143,7 +143,7 @@
                             <span class="text-[10px] text-slate-400">{{ $order->created_at?->diffForHumans() }}</span>
                         </div>
                     @empty
-                        <p class="ui-muted text-center py-2">No recent activity.</p>
+                        <p class="ui-muted !text-center py-2">No recent activity.</p>
                     @endforelse
                 </div>
             </div>

@@ -61,7 +61,7 @@
     @endif
 
     <div class="flex flex-wrap items-end gap-3">
-        <label class="text-xs font-semibold">Search<input autocomplete="off" type="search" x-model="search" placeholder="Order, customer, partner or phone" class="ui-input mt-1 !w-64"></label>
+        <label class="text-xs font-semibold">Search<input aria-label="Search" autocomplete="off" type="search" x-model="search" placeholder="Order, customer, partner or phone" class="ui-input mt-1 !w-64"></label>
         <label class="text-xs font-semibold">Waiting at least
             <select x-model="minDays" class="ui-input mt-1">
                 <option value="0">Any time</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option>
@@ -80,7 +80,7 @@
     <div class="ui-panel overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr><th class="p-3 text-left">Order</th><th class="p-3 text-left">Notify</th><th class="p-3 text-left">Waiting</th><th class="p-3 text-right">Balance</th><th class="p-3 text-left">Told</th><th class="p-3 text-right">Remind</th><th class="p-3 text-right">Hand over</th></tr>
+                <tr><th class="p-3 text-left">Order</th><th class="p-3 text-left">Notify</th><th class="p-3 text-left">Waiting</th><th class="p-3 !text-right">Balance</th><th class="p-3 text-left">Told</th><th class="p-3 !text-right">Remind</th><th class="p-3 !text-right">Hand over</th></tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse($orders as $ord)
@@ -100,7 +100,7 @@
                             <span class="block text-xs text-slate-500">{{ $recipient['phone'] ?? 'No phone' }}</span>
                         </td>
                         <td class="p-3"><span class="font-semibold {{ $days >= 30 ? 'text-red-700' : ($days >= 7 ? 'text-amber-700' : 'text-slate-700') }}">{{ $days }} {{ \Illuminate\Support\Str::plural('day', $days) }}</span><span class="block text-xs text-slate-500">since {{ ($ord->ready_at ?? $ord->updated_at)?->format('d M Y') }}</span></td>
-                        <td class="p-3 text-right font-mono {{ $balance > 0 ? 'text-red-700 font-semibold' : 'text-emerald-700' }}">{{ $balance > 0 ? currency().' '.number_format($balance, 2) : 'Paid' }}@if($m['clinicBill'])<span class="block font-sans text-[10px] text-slate-500">clinic bill</span>@endif</td>
+                        <td class="p-3 !text-right font-mono {{ $balance > 0 ? 'text-red-700 font-semibold' : 'text-emerald-700' }}">{{ $balance > 0 ? currency().' '.number_format($balance, 2) : 'Paid' }}@if($m['clinicBill'])<span class="block font-sans text-[10px] text-slate-500">clinic bill</span>@endif</td>
                         <td class="p-3 text-xs text-slate-600">
                             {{ $ord->ready_notified_at ? 'Ready message '.$ord->ready_notified_at->format('d M') : 'Not told yet' }}
                             @if($ord->collection_reminders_sent > 0)<span class="block">{{ $ord->collection_reminders_sent }} {{ \Illuminate\Support\Str::plural('reminder', $ord->collection_reminders_sent) }} · last {{ $ord->last_collection_reminder_at?->format('d M') }}</span>@endif
@@ -122,7 +122,7 @@
                             <div class="flex justify-end gap-1.5">
                                 @if($balance > 0 && ! $m['onAccount'])
                                     @if($m['canTakePayment'])<button type="button" x-on:click="openLocal($wire, { paymentOrderId: {{ $ord->id }}, paymentAmount: '{{ number_format(max(0, $ord->total - (float) $ord->paid_amount), 2, '.', '') }}', showPaymentModal: true }, $root.querySelector('[data-payment-form]'))" class="oo-btn warn">Take payment</button>
-                                    @else<span class="oo-btn warn" style="cursor:default" title="Paid on the patient's clinic bill at reception or the cashier.">Pay at clinic</span>@endif
+                                    @else<span class="oo-btn warn cursor-default" title="Paid on the patient's clinic bill at reception or the cashier.">Pay at clinic</span>@endif
                                 @else
                                     <button type="button" wire:click="updateStatus({{ $ord->id }}, 'Collected')" wire:confirm="Hand the glasses to the customer and close this order?" class="oo-btn primary">Mark collected</button>
                                 @endif
@@ -131,9 +131,9 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="ui-empty p-8 text-center"><p class="ui-muted text-sm">No glasses are waiting for collection.</p></td></tr>
+                    <tr><td colspan="7" class="ui-empty p-8 !text-center"><p class="ui-muted text-sm">No glasses are waiting for collection.</p></td></tr>
                 @endforelse
-                @if($orders->isNotEmpty())<tr x-show="count() === 0" x-cloak><td colspan="7" class="ui-empty p-8 text-center"><p class="ui-muted text-sm">No waiting glasses match these filters.</p></td></tr>@endif
+                @if($orders->isNotEmpty())<tr x-show="count() === 0" x-cloak><td colspan="7" class="ui-empty p-8 !text-center"><p class="ui-muted text-sm">No waiting glasses match these filters.</p></td></tr>@endif
             </tbody>
         </table>
     </div>

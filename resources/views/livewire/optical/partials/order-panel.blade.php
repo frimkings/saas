@@ -195,7 +195,7 @@
                                 <p class="ui-muted" style="margin:0 0 8px">{{ currency() }} {{ number_format((float) $o->paid_amount, 2) }} has been paid, so the order is refunded before it is cancelled.</p>
                                 <button type="button" wire:click="openRefundModal({{ $o->id }})" class="oo-btn danger">Refund &amp; cancel</button>
                             @else
-                                <p class="ui-muted" style="margin:0">This order has payments. Ask a manager to refund and cancel it.</p>
+                                <p class="ui-muted m-0">This order has payments. Ask a manager to refund and cancel it.</p>
                             @endif
                         @else
                             <button type="button" wire:click="confirmDeleteOrder({{ $o->id }})" class="oo-btn danger">Cancel {{ $o->status === 'Quotation' ? 'quotation' : 'order' }}</button>
@@ -238,12 +238,12 @@
                     <h3 class="text-base font-bold text-slate-900">Refund &amp; cancel order {{ $refundOrderNumber }}</h3>
                     <p class="text-xs text-slate-600">{{ currency() }} {{ number_format($refundPaid, 2) }} has been paid. Refund all of it, or less to keep a cancellation fee (for example once glazing has started). Reserved frames and held lenses go back to stock; lenses already cut for this job do not.</p>
                 </div>
-                <div><label class="block text-xs font-semibold mb-1">Amount to refund ({{ currency() }}) *</label><input autocomplete="off" type="number" min="0.01" max="{{ $refundPaid }}" step="0.01" wire:model="refundAmount" class="ui-input w-full font-mono">
+                <div><label for="order-panel-refundamount" class="block text-xs font-semibold mb-1">Amount to refund ({{ currency() }}) *</label><input id="order-panel-refundamount" autocomplete="off" type="number" min="0.01" max="{{ $refundPaid }}" step="0.01" wire:model="refundAmount" class="ui-input w-full font-mono">
                     {{-- Worked out in the browser as the amount is typed. --}}<p class="mt-1 text-xs text-amber-800" x-data="{ paid: {{ (float) $refundPaid }} }" x-show="isNumeric($wire.refundAmount) && num($wire.refundAmount) < paid" x-cloak x-text="'Cancellation fee kept: ' + @js(currency()) + ' ' + money(paid - num($wire.refundAmount))"></p>
                     @error('refundAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                <div><label class="block text-xs font-semibold mb-1">Reason *</label><select wire:model="refundReasonCode" class="ui-input w-full"><option value="">Choose a reason</option>@foreach(\App\Models\RefundLog::REASON_CODES as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
+                <div><label for="order-panel-refundreasoncode" class="block text-xs font-semibold mb-1">Reason *</label><select id="order-panel-refundreasoncode" wire:model="refundReasonCode" class="ui-input w-full"><option value="">Choose a reason</option>@foreach(\App\Models\RefundLog::REASON_CODES as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select>
                     @error('refundReasonCode')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                <div><label class="block text-xs font-semibold mb-1">Details *</label><textarea wire:model="refundReason" rows="2" maxlength="500" class="ui-input w-full" placeholder="What happened and what was agreed with the customer"></textarea>
+                <div><label for="order-panel-refundreason" class="block text-xs font-semibold mb-1">Details *</label><textarea id="order-panel-refundreason" wire:model="refundReason" rows="2" maxlength="500" class="ui-input w-full" placeholder="What happened and what was agreed with the customer"></textarea>
                     @error('refundReason')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showRefundModal: false })" class="oo-btn">Keep order</button><button type="submit" wire:confirm="Refund this payment and cancel the order? This cannot be undone." class="oo-btn danger">Refund &amp; cancel</button></div>
             </form>
@@ -317,8 +317,8 @@
         <div class="oo-modal-wrap" data-sheet data-keep data-payment-form x-show="$wire.showPaymentModal" x-cloak>
             <form wire:submit.prevent="recordPayment" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
                 <h3 class="text-base font-bold text-slate-900">Record order payment</h3>
-                <div><label class="block text-xs font-semibold mb-1">Amount ({{ currency() }})</label><input autocomplete="off" type="number" min="0.01" step="0.01" wire:model="paymentAmount" class="ui-input w-full">@error('paymentAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
-                <div><label class="block text-xs font-semibold mb-1">Method</label><select wire:model="paymentMethod" class="ui-input w-full">@foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL) as $methodKey => $methodLabel)<option value="{{ $methodKey }}">{{ $methodLabel }}</option>@endforeach</select></div>
+                <div><label for="order-panel-paymentamount" class="block text-xs font-semibold mb-1">Amount ({{ currency() }})</label><input id="order-panel-paymentamount" autocomplete="off" type="number" min="0.01" step="0.01" wire:model="paymentAmount" class="ui-input w-full">@error('paymentAmount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                <div><label for="order-panel-paymentmethod" class="block text-xs font-semibold mb-1">Method</label><select id="order-panel-paymentmethod" wire:model="paymentMethod" class="ui-input w-full">@foreach(\App\Support\PaymentMethods::active(\App\Support\PaymentMethods::OPTICAL) as $methodKey => $methodLabel)<option value="{{ $methodKey }}">{{ $methodLabel }}</option>@endforeach</select></div>
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showPaymentModal: false })" class="oo-btn">Cancel</button><button type="submit" class="oo-btn primary">Record payment</button></div>
             </form>
         </div>

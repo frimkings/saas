@@ -50,7 +50,31 @@
                     <i class="fas fa-exchange-alt text-slate-400" aria-hidden="true"></i>Switch business
                 </a>
             @endif
-            <form method="POST" action="{{ route('logout') }}">@csrf<button class="h-8 rounded-md px-3 text-slate-300 hover:bg-slate-800 hover:text-white">Sign out</button></form>
+            @auth
+                {{-- The same messages, notifications and account menu as the Clinic top bar. --}}
+                <div class="flex h-9 items-center gap-0.5 rounded-md bg-white px-0.5">
+                    <livewire:staff-messages-dropdown-component />
+                    <livewire:notification-bell-component />
+                </div>
+                <div x-data="{ open: false }" class="relative" x-on:click.outside="open = false" x-on:keydown.escape="open = false">
+                    <button type="button" x-on:click="open = ! open" :aria-expanded="open.toString()" aria-haspopup="menu"
+                            class="flex h-9 items-center gap-2 rounded-md px-2 text-slate-200 hover:bg-slate-800">
+                        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-800" aria-hidden="true">{{ \Illuminate\Support\Str::of(auth()->user()->name)->explode(' ')->take(2)->map(fn ($part) => mb_substr($part, 0, 1))->implode('') }}</span>
+                        <span class="hidden max-w-[10rem] truncate text-sm sm:inline">{{ auth()->user()->name }}</span>
+                        <i class="fas fa-chevron-down text-[10px] text-slate-400" aria-hidden="true"></i>
+                    </button>
+                    <div x-show="open" x-cloak x-transition.opacity.duration.100ms role="menu"
+                         class="absolute right-0 z-40 mt-1 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
+                        <a href="{{ route('user.profile') }}" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">My profile</a>
+                        <a href="{{ route('staff.messages') }}" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">Messages</a>
+                        <form method="POST" action="{{ route('logout') }}" class="border-t border-slate-100">@csrf
+                            <button type="submit" role="menuitem" class="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50">Sign out</button>
+                        </form>
+                    </div>
+                </div>
+            @else
+                <form method="POST" action="{{ route('logout') }}">@csrf<button class="h-8 rounded-md px-3 text-slate-300 hover:bg-slate-800 hover:text-white">Sign out</button></form>
+            @endauth
         </div>
     </header>
     <div class="flex flex-1 min-h-0">

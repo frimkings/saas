@@ -50,7 +50,7 @@
             <table class="oo-table wb-table w-full" style="min-width:960px">
                 <colgroup><col class="c-job"><col class="c-cust"><col class="c-work"><col class="c-due"><col class="c-status"><col class="c-act wb-noprint"></colgroup>
                 <thead>
-                    <tr><th>Job</th><th>Customer</th><th>Work</th><th>Due</th><th>Status</th><th class="wb-noprint" style="text-align:right">Actions</th></tr>
+                    <tr><th>Job</th><th>Customer</th><th>Work</th><th>Due</th><th>Status</th><th class="wb-noprint !text-right">Actions</th></tr>
                 </thead>
                 <tbody>
                     @forelse($orders as $ord)

@@ -33,12 +33,12 @@
     @if($clinicRefractions->isNotEmpty())
         <section class="ui-panel bg-white">
             <div class="flex flex-wrap items-center justify-between gap-2" style="padding:14px 16px;border-bottom:1px solid var(--clinic-line)">
-                <div><h2 class="text-sm font-bold text-slate-900" style="margin:0">From the clinic</h2><p class="ui-muted text-xs" style="margin:2px 0 0">Refractions a doctor has authorized for dispensing.</p></div>
+                <div><h2 class="text-sm font-bold text-slate-900 m-0">From the clinic</h2><p class="ui-muted text-xs" style="margin:2px 0 0">Refractions a doctor has authorized for dispensing.</p></div>
                 <button type="button" class="oo-link" wire:click="$toggle('showAllClinic')">{{ $showAllClinic ? 'Show fewer' : 'Show more' }}</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="oo-table w-full" style="min-width:760px">
-                    <thead><tr><th>Date</th><th>Patient</th><th>Right (OD)</th><th>Left (OS)</th><th>Examined by</th><th style="text-align:right">Order</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Patient</th><th>Right (OD)</th><th>Left (OS)</th><th>Examined by</th><th class="!text-right">Order</th></tr></thead>
                     <tbody>
                         @foreach($clinicRefractions as $clinicRx)
                             @php $ordered = $orderedRefractions[$clinicRx->id] ?? null; @endphp
@@ -48,7 +48,7 @@
                                 <td class="rx-eye">{{ $fmt($clinicRx->subjective_od_sphere ?? $clinicRx->refractionOD) }}</td>
                                 <td class="rx-eye">{{ $fmt($clinicRx->subjective_os_sphere ?? $clinicRx->refractionOS) }}</td>
                                 <td>{{ $clinicRx->user?->name ?? '—' }}</td>
-                                <td style="text-align:right">
+                                <td class="!text-right">
                                     @if($ordered)<span class="oo-badge oo-b-green" title="An order already uses this refraction">Ordered · {{ $ordered->order_id }}</span>
                                     @else<a class="oo-btn primary" wire:navigate href="{{ route('optical.orders.create', ['refraction_id' => $clinicRx->id]) }}">Start order</a>@endif
                                 </td>
@@ -73,7 +73,7 @@
         <div class="overflow-x-auto">
             <table class="oo-table rx-table w-full" style="min-width:980px">
                 <colgroup><col class="c-rx"><col class="c-cust"><col class="c-src"><col class="c-by"><col class="c-eye"><col class="c-eye"><col class="c-act"></colgroup>
-                <thead><tr><th>Rx</th><th>Customer</th><th>Source</th><th>Prescriber</th><th>Right (OD)</th><th>Left (OS)</th><th style="text-align:right">Actions</th></tr></thead>
+                <thead><tr><th>Rx</th><th>Customer</th><th>Source</th><th>Prescriber</th><th>Right (OD)</th><th>Left (OS)</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($prescriptions as $rx)
                         @php [$srcLabel, $srcClass] = $sourceBadge[$rx->source] ?? [ucfirst((string) $rx->source), 'oo-b-grey']; @endphp
@@ -152,7 +152,7 @@
                             <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
                         </div>
                     @empty
-                        <p class="ui-muted text-sm" style="margin:0">No orders yet.</p>
+                        <p class="ui-muted text-sm m-0">No orders yet.</p>
                     @endforelse
                 </section>
             </div>
@@ -168,7 +168,7 @@
         <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { showExternalModal: false })" aria-hidden="true"></div>
         <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="rx-new-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissLocal($el, $wire, { showExternalModal: false })">
             <header class="oo-drawer-head">
-                <div><h2 id="rx-new-title">Enter an external prescription</h2><p class="ui-muted text-xs" style="margin:0">For a prescription the customer brings from another optometrist or doctor.</p></div>
+                <div><h2 id="rx-new-title">Enter an external prescription</h2><p class="ui-muted text-xs m-0">For a prescription the customer brings from another optometrist or doctor.</p></div>
                 <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { showExternalModal: false })" aria-label="Close">&times;</button>
             </header>
             <form wire:submit="saveExternalRx" class="oo-drawer-body" id="rx-form">
@@ -194,8 +194,8 @@
                 <section class="oo-section">
                     <h3>Prescriber</h3>
                     <div class="rx-2">
-                        <label class="rx-field"><span>Name *</span><input autocomplete="off" type="text" wire:model="prescriber_name" class="ui-input" placeholder="e.g. Dr. Mensah">@error('prescriber_name')<small class="rx-err">{{ $message }}</small>@enderror</label>
-                        <label class="rx-field"><span>Clinic or practice</span><input autocomplete="off" type="text" wire:model="prescriber_clinic" class="ui-input" placeholder="e.g. Korle Bu Eye Clinic">@error('prescriber_clinic')<small class="rx-err">{{ $message }}</small>@enderror</label>
+                        <label class="rx-field"><span>Name *</span><input aria-label="e.g. Dr. Mensah" autocomplete="off" type="text" wire:model="prescriber_name" class="ui-input" placeholder="e.g. Dr. Mensah">@error('prescriber_name')<small class="rx-err">{{ $message }}</small>@enderror</label>
+                        <label class="rx-field"><span>Clinic or practice</span><input aria-label="e.g. Korle Bu Eye Clinic" autocomplete="off" type="text" wire:model="prescriber_clinic" class="ui-input" placeholder="e.g. Korle Bu Eye Clinic">@error('prescriber_clinic')<small class="rx-err">{{ $message }}</small>@enderror</label>
                         <label class="rx-field"><span>Date on the prescription *</span><input autocomplete="off" type="date" wire:model="rx_date" max="{{ now()->toDateString() }}" class="ui-input">@error('rx_date')<small class="rx-err">{{ $message }}</small>@enderror</label>
                         <label class="rx-field"><span>Binocular PD (mm)</span><input autocomplete="off" type="number" step="0.5" wire:model="pd" class="ui-input" placeholder="e.g. 62">@error('pd')<small class="rx-err">{{ $message }}</small>@enderror</label>
                     </div>
@@ -227,7 +227,7 @@
                 </section>
 
                 <section class="oo-section">
-                    <label class="rx-field"><span>Notes</span><textarea wire:model="notes" rows="2" maxlength="1000" class="ui-input" placeholder="Anything the lab or dispenser should know"></textarea></label>
+                    <label class="rx-field"><span>Notes</span><textarea aria-label="Anything the lab or dispenser should know" wire:model="notes" rows="2" maxlength="1000" class="ui-input" placeholder="Anything the lab or dispenser should know"></textarea></label>
                 </section>
             </form>
             <footer class="oo-drawer-foot">

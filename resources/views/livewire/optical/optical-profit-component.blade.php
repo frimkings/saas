@@ -207,7 +207,7 @@
         {{-- Month end: close the period once the figures are checked. --}}
         <form wire:submit="lockPeriod" class="ui-panel p-4 flex flex-wrap items-end gap-3 no-print" aria-label="Lock period">
             <div class="w-full"><h2 class="text-sm font-semibold text-slate-900">Close this period</h2><p class="text-xs text-slate-500">When the figures are checked, lock {{ $fromDate->format('d M') }} – {{ $toDate->format('d M Y') }} so its optical expenses can no longer be changed.</p></div>
-            <label class="text-xs font-semibold flex-1 min-w-48">Note (optional)<input autocomplete="off" type="text" wire:model="lockNotes" maxlength="1000" class="ui-input mt-1 w-full" placeholder="e.g. Reviewed with accountant"></label>
+            <label class="text-xs font-semibold flex-1 min-w-48">Note (optional)<input aria-label="e.g. Reviewed with accountant" autocomplete="off" type="text" wire:model="lockNotes" maxlength="1000" class="ui-input mt-1 w-full" placeholder="e.g. Reviewed with accountant"></label>
             <button type="submit" wire:confirm="Lock {{ $fromDate->format('d M') }} – {{ $toDate->format('d M Y') }}? Optical expenses in this period will no longer be editable." class="ui-button">Lock period</button>
             @error('lockNotes')<p class="w-full text-xs text-red-700">{{ $message }}</p>@enderror
         </form>

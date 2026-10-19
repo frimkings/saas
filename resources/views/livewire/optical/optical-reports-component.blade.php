@@ -224,7 +224,7 @@
         </div>
         <div class="rp-card" style="padding:0">
             <div class="ui-table-wrap"><table class="ui-table w-full">
-                <thead><tr><th>Order</th><th>Customer</th><th>Ordered</th><th>Status</th><th class="text-right">Job total</th><th class="text-right">Balance</th></tr></thead>
+                <thead><tr><th>Order</th><th>Customer</th><th>Ordered</th><th>Status</th><th class="!text-right">Job total</th><th class="!text-right">Balance</th></tr></thead>
                 <tbody>
                 @forelse($owed['rows']->take(50) as $row)
                     <tr wire:key="owed-{{ $row['id'] }}">
@@ -232,8 +232,8 @@
                         <td>{{ $row['customer'] }}@if($row['partner'])<span class="ml-1 rounded bg-sky-50 px-1.5 text-[11px] font-semibold text-sky-800">Partner</span>@endif @if($row['phone'])<span class="block text-xs text-slate-500">{{ $row['phone'] }}</span>@endif</td>
                         <td class="whitespace-nowrap">{{ $row['ordered']->format('M j, Y') }}<span class="block text-xs {{ $row['days'] > 60 ? 'font-semibold text-red-700' : 'text-slate-500' }}">{{ $row['days'] }} {{ Str::plural('day', $row['days']) }} ago</span></td>
                         <td>{{ $row['status'] }}</td>
-                        <td class="text-right whitespace-nowrap">{{ $money($row['total']) }}</td>
-                        <td class="text-right whitespace-nowrap font-bold text-red-700">{{ $money($row['balance']) }}</td>
+                        <td class="!text-right whitespace-nowrap">{{ $money($row['total']) }}</td>
+                        <td class="!text-right whitespace-nowrap font-bold text-red-700">{{ $money($row['balance']) }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="ui-empty">Nobody owes anything. Every job is paid up.</td></tr>
@@ -249,19 +249,19 @@
         <section id="turnaround" class="rp-card" style="padding:0" aria-labelledby="turnaround-title">
             <div class="p-4 pb-2">
                 <h2 id="turnaround-title">Turnaround by lab</h2>
-                <p class="rp-hint" style="margin:0">Jobs that became ready in the selected dates. Typical days is the median, so one forgotten job does not skew it. On time means ready by the date due back from the lab, or else by the pickup date promised.</p>
+                <p class="rp-hint m-0">Jobs that became ready in the selected dates. Typical days is the median, so one forgotten job does not skew it. On time means ready by the date due back from the lab, or else by the pickup date promised.</p>
             </div>
             <div class="ui-table-wrap"><table class="ui-table w-full">
-                <thead><tr><th>Lab</th><th class="text-right">Jobs</th><th class="text-right">Typical days, order → ready</th><th class="text-right">Typical days at lab</th><th class="text-right">On time</th><th class="text-right">Late</th></tr></thead>
+                <thead><tr><th>Lab</th><th class="!text-right">Jobs</th><th class="!text-right">Typical days, order → ready</th><th class="!text-right">Typical days at lab</th><th class="!text-right">On time</th><th class="!text-right">Late</th></tr></thead>
                 <tbody>
                 @forelse($labTurnaround as $row)
                     <tr>
                         <td class="font-semibold">{{ $row['lab'] }}@if($row['lab'] === 'Lab not recorded')<span class="block text-[11px] font-normal text-slate-500">Sent out without choosing the lab</span>@endif</td>
-                        <td class="text-right">{{ $row['jobs'] }}</td>
-                        <td class="text-right" title="Average {{ number_format($row['avg_days'], 1) }}">{{ number_format($row['median_days'], 1) }}</td>
-                        <td class="text-right">{{ $row['median_lab_days'] === null ? '—' : number_format($row['median_lab_days'], 1) }}</td>
-                        <td class="text-right">{{ $row['on_time'] === null ? '—' : $row['on_time'].'%' }}</td>
-                        <td class="text-right {{ $row['late'] ? 'text-red-700 font-semibold' : '' }}">{{ $row['late'] }}</td>
+                        <td class="!text-right">{{ $row['jobs'] }}</td>
+                        <td class="!text-right" title="Average {{ number_format($row['avg_days'], 1) }}">{{ number_format($row['median_days'], 1) }}</td>
+                        <td class="!text-right">{{ $row['median_lab_days'] === null ? '—' : number_format($row['median_lab_days'], 1) }}</td>
+                        <td class="!text-right">{{ $row['on_time'] === null ? '—' : $row['on_time'].'%' }}</td>
+                        <td class="!text-right {{ $row['late'] ? 'text-red-700 font-semibold' : '' }}">{{ $row['late'] }}</td>
                     </tr>
                 @empty
                     <tr><td colspan="6" class="ui-empty">No jobs became ready in these dates.</td></tr>
@@ -301,16 +301,16 @@
 
     {{-- Products --}}
     <section id="rp-panel-products" role="tabpanel" aria-labelledby="rp-tab-products" x-show="tab === 'products'" x-cloak class="rp-card" style="padding:0">
-        <div class="p-4 pb-2"><h2>Best sellers</h2><p class="rp-hint" style="margin:0">Stock items sold in these dates, by value, after returns. Includes frames and lenses from jobs and counter sales.</p></div>
+        <div class="p-4 pb-2"><h2>Best sellers</h2><p class="rp-hint m-0">Stock items sold in these dates, by value, after returns. Includes frames and lenses from jobs and counter sales.</p></div>
         @php $topMax = max(0.01, (float) ($topProducts->max('gross') ?? 0)); @endphp
         <div class="ui-table-wrap"><table class="ui-table w-full">
-            <thead><tr><th>Product</th><th class="text-right">Units</th><th class="text-right">Sales</th></tr></thead>
+            <thead><tr><th>Product</th><th class="!text-right">Units</th><th class="!text-right">Sales</th></tr></thead>
             <tbody>
             @forelse($topProducts as $line)
                 <tr>
                     <td>{{ $line->opticalProduct?->name ?? 'Archived product' }}<span class="block font-mono text-[11px] text-slate-500">{{ $line->opticalProduct?->sku ?? '—' }}</span><div class="rp-bar" style="max-width:320px"><i style="width:{{ (float) $line->gross / $topMax * 100 }}%"></i></div></td>
-                    <td class="text-right">{{ (int) $line->units }}</td>
-                    <td class="text-right whitespace-nowrap">{{ $money($line->gross) }}</td>
+                    <td class="!text-right">{{ (int) $line->units }}</td>
+                    <td class="!text-right whitespace-nowrap">{{ $money($line->gross) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="3" class="ui-empty">No stock items sold in these dates.</td></tr>

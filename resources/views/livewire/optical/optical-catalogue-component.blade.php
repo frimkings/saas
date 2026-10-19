@@ -72,7 +72,7 @@
                         <label class="ct-check"><input type="checkbox" wire:model="serviceRequiresFrame"> Needs frame details</label>
                         <label class="ct-check"><input type="checkbox" wire:model="serviceActive"> Available for new orders</label>
                     </div>
-                    <p class="ui-muted text-xs" style="margin:0">Saved orders keep the price they were charged. Editing a quotation uses the current price.</p>
+                    <p class="ui-muted text-xs m-0">Saved orders keep the price they were charged. Editing a quotation uses the current price.</p>
                 </form>
                 <footer class="oo-drawer-foot"><button type="button" class="oo-btn" x-on:click="close()">Cancel</button><button type="submit" form="svc-form" class="oo-btn primary">Save service</button></footer>
             </aside>
@@ -138,7 +138,7 @@
                                 <td class="oo-num"><b>{{ currency() }} {{ number_format((float) $product->selling_price, 2) }}</b></td>
                                 <td class="oo-num"><b style="color:{{ $qty <= 0 ? '#b91c1c' : ($qty <= $reorder ? '#92400e' : 'inherit') }}">{{ $qty }}</b><span class="oo-sub">reorder at {{ $reorder }}</span></td>
                                 <td><span class="oo-badge {{ $bc }}">{{ $bl }}</span></td>
-                                <td style="text-align:right" onclick="event.stopPropagation()"><button type="button" class="oo-btn" wire:click="openProduct({{ $product->id }})">View</button></td>
+                                <td class="!text-right" onclick="event.stopPropagation()"><button type="button" class="oo-btn" wire:click="openProduct({{ $product->id }})">View</button></td>
                             </tr>
                         @empty
                             <tr><td colspan="7" class="ui-empty"><p class="ui-muted text-sm">{{ $searchTerm || $stockFilter ? 'No items match these filters.' : 'No items in this part of the catalogue yet.' }}</p></td></tr>
@@ -193,7 +193,7 @@
                                 <span style="text-align:right;font-variant-numeric:tabular-nums"><b style="color:{{ $move->quantity_change < 0 ? '#b91c1c' : '#047857' }}">{{ $move->quantity_change > 0 ? '+' : '' }}{{ $move->quantity_change }}</b><span class="oo-sub">balance {{ $move->balance_after }}</span></span>
                             </div>
                         @empty
-                            <p class="ui-muted text-sm" style="margin:0">No stock movements recorded at this branch.</p>
+                            <p class="ui-muted text-sm m-0">No stock movements recorded at this branch.</p>
                         @endforelse
                     </section>
                 </div>

@@ -8,15 +8,15 @@
     </div>
     <div class="ui-table-wrap">
         <table class="ui-table">
-            <thead><tr><th>Branch</th><th class="text-right">Used</th><th class="text-right">Limit</th><th class="text-right">Left</th></tr></thead>
+            <thead><tr><th>Branch</th><th class="!text-right">Used</th><th class="!text-right">Limit</th><th class="!text-right">Left</th></tr></thead>
             <tbody>
                 @foreach($branches as $branch)
                     @php($left = $branch->sms_limit === null ? null : max(0, $branch->sms_limit - $branch->sms_used))
                     <tr wire:key="branch-sms-{{ $branch->id }}">
                         <td class="font-semibold">{{ $branch->name }}</td>
-                        <td class="text-right tabular-nums">{{ number_format($branch->sms_used) }}</td>
-                        <td class="text-right tabular-nums">{{ $branch->sms_limit === null ? 'No limit' : number_format($branch->sms_limit) }}</td>
-                        <td class="text-right tabular-nums">
+                        <td class="!text-right tabular-nums">{{ number_format($branch->sms_used) }}</td>
+                        <td class="!text-right tabular-nums">{{ $branch->sms_limit === null ? 'No limit' : number_format($branch->sms_limit) }}</td>
+                        <td class="!text-right tabular-nums">
                             @if($left === null) <span class="ui-muted">—</span>
                             @elseif($left === 0) <span class="ui-badge" style="background:#fef3f2;color:#b42318">Out · not sending</span>
                             @else {{ number_format($left) }} @endif

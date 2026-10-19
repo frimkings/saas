@@ -45,7 +45,7 @@
         <div class="overflow-x-auto">
             <table class="oo-table pc-table w-full" style="min-width:900px">
                 <colgroup><col class="c-name"><col class="c-contact"><col class="c-terms"><col class="c-jobs"><col class="c-owed"><col class="c-act"></colgroup>
-                <thead><tr><th>Clinic</th><th>Contact</th><th>Billing</th><th>Open jobs</th><th class="oo-num">Owed</th><th style="text-align:right">Actions</th></tr></thead>
+                <thead><tr><th>Clinic</th><th>Contact</th><th>Billing</th><th>Open jobs</th><th class="oo-num">Owed</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($partners as $partner)
                         @php
@@ -99,7 +99,7 @@
                         <div><span>Open jobs</span><b>{{ ($jobs[$viewPartner->id] ?? collect())->count() }}</b></div>
                     </div>
                     @if($owed > 0)
-                        <div class="pc-aging" style="margin-top:10px">
+                        <div class="pc-aging mt-2.5">
                             @foreach(\App\Services\OpticalPartnerAccountService::AGING as $key => $label)
                                 <div><span>{{ $label }}</span><b style="color:{{ ($viewAging[$key] ?? 0) > 0 && in_array($key, ['61_90', '90_plus'], true) ? '#b91c1c' : 'inherit' }}">{{ number_format($viewAging[$key] ?? 0, 2) }}</b></div>
                             @endforeach
@@ -125,7 +125,7 @@
                             <span class="flex items-center gap-2"><span class="oo-badge {{ $bc }}">{{ $bl }}</span><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['searchTerm' => $order->order_id]) }}">Open</a></span>
                         </div>
                     @empty
-                        <p class="ui-muted text-sm" style="margin:0">No jobs yet.</p>
+                        <p class="ui-muted text-sm m-0">No jobs yet.</p>
                     @endforelse
                     @if($viewOrders->count() >= 8)<p style="margin:8px 0 0"><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['sourceFilter' => 'partner', 'partnerFilter' => $viewPartner->id]) }}">See all jobs →</a></p>@endif
                 </section>
@@ -160,7 +160,7 @@
                     <div class="pc-2">
                         <label class="pc-field full"><span>Clinic name *</span><input autocomplete="off" type="text" wire:model="name" class="ui-input" required>@error('name')<small class="pc-err">{{ $message }}</small>@enderror</label>
                         <label class="pc-field"><span>Contact person</span><input autocomplete="off" type="text" wire:model="contactPerson" class="ui-input"></label>
-                        <label class="pc-field"><span>Phone</span><input autocomplete="off" type="tel" wire:model="phone" class="ui-input">@error('phone')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                        <label class="pc-field"><span>Phone</span><input aria-label="Phone number" autocomplete="off" type="tel" wire:model="phone" class="ui-input">@error('phone')<small class="pc-err">{{ $message }}</small>@enderror</label>
                         <label class="pc-field full"><span>Email</span><input autocomplete="off" type="email" wire:model="email" class="ui-input">@error('email')<small class="pc-err">{{ $message }}</small>@enderror</label>
                         <label class="pc-field full"><span>Address</span><textarea wire:model="address" rows="2" class="ui-input"></textarea></label>
                     </div>
@@ -175,7 +175,7 @@
                     <h3>Job messages</h3>
                     <div class="pc-2">
                         <label class="pc-field"><span>Send by</span><select wire:model="notifyVia" class="ui-input">@foreach(\App\Models\OpticalPartnerClinic::NOTIFY_VIA as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
-                        <label class="pc-field"><span>Notification phone</span><input autocomplete="off" type="tel" wire:model="notificationPhone" placeholder="Defaults to the phone above" class="ui-input"></label>
+                        <label class="pc-field"><span>Notification phone</span><input aria-label="Defaults to the phone above" autocomplete="off" type="tel" wire:model="notificationPhone" placeholder="Defaults to the phone above" class="ui-input"></label>
                     </div>
                     <p class="pc-hint" style="margin:6px 0 0">"Job ready" and pickup messages about this partner's jobs go to the partner, never to its patients.</p>
                 </section>

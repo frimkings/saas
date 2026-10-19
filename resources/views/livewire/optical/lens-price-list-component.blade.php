@@ -62,7 +62,7 @@
                     <button type="button" class="ui-button text-xs" wire:click="addRule">+ Add exception</button>
                 </fieldset>
 
-                <p class="ui-muted text-xs" style="margin:0">Saving updates all {{ $editing['powers'] }} powers in this range. Future stock receipts use this list instead of a typed selling price. Orders and quotes already created keep their prices; a quote can be repriced when it is converted.</p>
+                <p class="ui-muted text-xs m-0">Saving updates all {{ $editing['powers'] }} powers in this range. Future stock receipts use this list instead of a typed selling price. Orders and quotes already created keep their prices; a quote can be repriced when it is converted.</p>
             </form>
             <footer class="oo-drawer-foot">
                 <button type="button" class="oo-btn" x-on:click="dismissLocal($el, $wire, { editingKey: null })">Cancel</button>

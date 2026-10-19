@@ -18,7 +18,7 @@
         <!-- Products & Search -->
         <div class="lg:col-span-2 space-y-4">
             <div class="ui-panel p-3" data-tour="opt-pos-search">
-                <input autocomplete="off" type="search" wire:model.live.debounce.250ms="searchTerm" placeholder="Scan SKU or search optical products..." class="ui-input">
+                <input aria-label="Search" autocomplete="off" type="search" wire:model.live.debounce.250ms="searchTerm" placeholder="Scan SKU or search optical products..." class="ui-input">
             </div>
 
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -37,7 +37,7 @@
                         </div>
                     </div>
                 @empty
-                    <div class="ui-panel p-6 text-center text-slate-500 text-sm">No optical products found. Add products in Catalogue &amp; Stock.</div>
+                    <div class="ui-panel p-6 !text-center text-slate-500 text-sm">No optical products found. Add products in Catalogue &amp; Stock.</div>
                 @endforelse
             </div>
         </div>
@@ -67,7 +67,7 @@
 
             <div class="border-t border-slate-200 pt-3 space-y-2 text-xs">
                 <div class="grid grid-cols-2 gap-2">
-                    <label class="font-semibold text-slate-700">Customer (optional)<input autocomplete="off" type="text" wire:model="customerName" maxlength="255" placeholder="Walk-in" class="ui-input mt-1 text-xs"></label>
+                    <label class="font-semibold text-slate-700">Customer (optional)<input aria-label="Walk-in" autocomplete="off" type="text" wire:model="customerName" maxlength="255" placeholder="Walk-in" class="ui-input mt-1 text-xs"></label>
                     <label class="font-semibold text-slate-700">Phone<input autocomplete="off" type="tel" wire:model="customerPhone" maxlength="30" class="ui-input mt-1 text-xs"></label>
                 </div>
                 @error('customerName')<p class="text-red-700">{{ $message }}</p>@enderror
@@ -78,7 +78,7 @@
                 </div>
                 <label class="flex items-center justify-between gap-2 text-slate-700">
                     <span>Discount ({{ currency() }})<span class="block text-[10px] text-slate-500">Up to {{ $discountLimit }}% without a manager</span></span>
-                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="discount" class="ui-input !w-28 text-right text-xs">
+                    <input autocomplete="off" type="number" min="0" step="0.01" wire:model="discount" class="ui-input !w-28 !text-right text-xs">
                 </label>
                 <div class="flex justify-between text-slate-900 text-sm font-bold border-t border-slate-200 pt-2">
                     <span>Total Amount:</span>

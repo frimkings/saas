@@ -57,7 +57,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="oo-table w-full" style="min-width:820px">
-                    <thead><tr><th>Order</th><th>Supplier</th><th>Status</th><th>Expected</th><th class="oo-num">Received</th><th class="oo-num">Value</th><th style="text-align:right">Actions</th></tr></thead>
+                    <thead><tr><th>Order</th><th>Supplier</th><th>Status</th><th>Expected</th><th class="oo-num">Received</th><th class="oo-num">Value</th><th class="!text-right">Actions</th></tr></thead>
                     <tbody>
                         @forelse($orders as $order)
                             @php $late = $order->isOpen() && $order->expected_date && $order->expected_date->isPast(); @endphp
@@ -68,7 +68,7 @@
                                 <td>{{ $order->expected_date?->format('d M Y') ?? '—' }}@if($late)<span class="oo-sub" style="color:#b91c1c;font-weight:700">Late</span>@endif</td>
                                 <td class="oo-num">{{ $order->lines->sum('quantity_received') }} / {{ $order->lines->sum('quantity_ordered') }}</td>
                                 <td class="oo-num"><b>{{ currency() }} {{ number_format($order->totalCost(), 2) }}</b></td>
-                                <td style="text-align:right" onclick="event.stopPropagation()"><button type="button" wire:click="viewOrder({{ $order->id }})" class="oo-btn {{ $order->isOpen() && $order->status !== 'draft' ? 'primary' : '' }}">{{ $order->status === 'draft' ? 'Open draft' : ($order->isOpen() ? 'Receive' : 'View') }}</button></td>
+                                <td class="!text-right" onclick="event.stopPropagation()"><button type="button" wire:click="viewOrder({{ $order->id }})" class="oo-btn {{ $order->isOpen() && $order->status !== 'draft' ? 'primary' : '' }}">{{ $order->status === 'draft' ? 'Open draft' : ($order->isOpen() ? 'Receive' : 'View') }}</button></td>
                             </tr>
                         @empty
                             <tr><td colspan="7" class="ui-empty"><p class="ui-muted text-sm">No supplier orders here.</p></td></tr>
@@ -83,7 +83,7 @@
     {{-- ── Special-order lenses ─────────────────────────────────────── --}}
     @if($tab === 'special')
         <section class="ui-panel bg-white" aria-label="Special-order lenses to order">
-            <div style="padding:14px 16px;border-bottom:1px solid var(--clinic-line)"><p class="ui-muted text-xs" style="margin:0">Customer jobs whose lenses must be bought in and aren't on a supplier order yet. When the order is received, the lenses are marked received on the job, ready for glazing.</p></div>
+            <div style="padding:14px 16px;border-bottom:1px solid var(--clinic-line)"><p class="ui-muted text-xs m-0">Customer jobs whose lenses must be bought in and aren't on a supplier order yet. When the order is received, the lenses are marked received on the job, ready for glazing.</p></div>
             @if($backlog->isEmpty())
                 <p class="ui-empty ui-muted text-sm">Nothing to order. Every special-order lens is on a supplier order.</p>
             @else
@@ -93,7 +93,7 @@
                         <tbody>
                             @foreach($backlog as $row)
                                 @php $key = $row['order']->id.'|'.($row['eye'] ?? ''); @endphp
-                                <tr wire:key="backlog-{{ $key }}" style="cursor:default">
+                                <tr class="cursor-default" wire:key="backlog-{{ $key }}">
                                     <td><input type="checkbox" wire:model="backlogSelected" value="{{ $key }}" aria-label="Order this lens"></td>
                                     <td><b>{{ $row['description'] }}</b><span class="oo-sub">{{ $row['eye'] ? 'One lens' : 'Pair (2 lenses)' }}</span></td>
                                     <td><span class="oo-id">{{ $row['order']->order_id }}</span><span class="oo-sub">{{ $row['order']->status }} · since {{ $row['order']->created_at->format('d M') }}</span></td>
@@ -158,7 +158,7 @@
             <div class="flex justify-end" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)"><button type="button" wire:click="openSupplierForm" class="oo-btn primary">+ Add supplier</button></div>
             <div class="overflow-x-auto">
                 <table class="oo-table w-full" style="min-width:720px">
-                    <thead><tr><th>Supplier</th><th>Contact</th><th>Lead time</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+                    <thead><tr><th>Supplier</th><th>Contact</th><th>Lead time</th><th>Status</th><th class="!text-right">Actions</th></tr></thead>
                     <tbody>
                         @forelse($suppliers as $supplier)
                             <tr wire:key="supplier-{{ $supplier->id }}" wire:click="openSupplierForm({{ $supplier->id }})">
@@ -166,7 +166,7 @@
                                 <td>{{ $supplier->contact_person ?: '—' }}<span class="oo-sub">{{ trim($supplier->phone.' '.$supplier->email) ?: 'No contact details' }}</span></td>
                                 <td>{{ $supplier->lead_time_days !== null ? $supplier->lead_time_days.' days' : '—' }}</td>
                                 <td><span class="oo-badge {{ $supplier->is_active ? 'oo-b-green' : 'oo-b-grey' }}">{{ $supplier->is_active ? 'Active' : 'Inactive' }}</span></td>
-                                <td style="text-align:right" onclick="event.stopPropagation()"><button type="button" wire:click="openSupplierForm({{ $supplier->id }})" class="oo-btn">Edit</button></td>
+                                <td class="!text-right" onclick="event.stopPropagation()"><button type="button" wire:click="openSupplierForm({{ $supplier->id }})" class="oo-btn">Edit</button></td>
                             </tr>
                         @empty
                             <tr><td colspan="5" class="ui-empty"><p class="ui-muted text-sm">No suppliers yet.</p></td></tr>
@@ -272,7 +272,7 @@
                         @endif
                     </div>
                     @if($draftLines)
-                        <table class="oo-lines pu-lines" style="margin-top:10px">
+                        <table class="oo-lines pu-lines mt-2.5">
                             @php $draftLineTotal = fn ($l) => ! empty($l['lens_pairs']) ? (int) $l['pairs'] * (float) $l['pair_cost'] : (int) $l['quantity'] * (float) $l['unit_cost']; @endphp
                             <thead><tr><th>Item</th><th style="width:90px" class="oo-num">Qty</th><th style="width:120px" class="oo-num">Unit cost</th><th style="width:100px" class="oo-num">Line</th><th style="width:40px"></th></tr></thead>
                             <tbody>
@@ -288,7 +288,7 @@
                                             <td><input autocomplete="off" type="number" min="0" step="0.01" wire:model="draftLines.{{ $i }}.unit_cost" aria-label="Unit cost"></td>
                                         @endif
                                         <td class="oo-num" x-text="money(draftLineTotal($wire.draftLines[{{ $i }}]))">{{ number_format($draftLineTotal($line), 2) }}</td>
-                                        <td><button type="button" wire:click="removeDraftLine({{ $i }})" class="oo-x" style="font-size:16px" aria-label="Remove {{ $line['label'] }}">&times;</button></td>
+                                        <td><button type="button" wire:click="removeDraftLine({{ $i }})" class="oo-x text-base" aria-label="Remove {{ $line['label'] }}">&times;</button></td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -312,14 +312,14 @@
     <div data-sheet data-keep data-return-form x-show="$wire.showReturnForm" x-cloak>
         <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { showReturnForm: false })" aria-hidden="true"></div>
         <aside class="oo-drawer" style="width:min(720px,100vw)" role="dialog" aria-modal="true" aria-labelledby="ret-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.showReturnForm && dismissLocal($el, $wire, { showReturnForm: false })">
-            <header class="oo-drawer-head"><div><h2 id="ret-title">Return stock to a supplier</h2><p class="ui-muted text-xs" style="margin:0">The items leave stock now; settle the credit when the supplier confirms it.</p></div><button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { showReturnForm: false })" aria-label="Close">&times;</button></header>
+            <header class="oo-drawer-head"><div><h2 id="ret-title">Return stock to a supplier</h2><p class="ui-muted text-xs m-0">The items leave stock now; settle the credit when the supplier confirms it.</p></div><button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { showReturnForm: false })" aria-label="Close">&times;</button></header>
             <div class="oo-drawer-body">
                 @if($errors->any())<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
                 <div class="pu-2">
                     <label class="pu-field"><span>Supplier *</span><select wire:model.live="returnSupplierId" class="ui-input"><option value="">Choose a supplier</option>@foreach($suppliers as $supplier)<option value="{{ $supplier->id }}">{{ $supplier->name }}</option>@endforeach</select></label>
                     <label class="pu-field"><span>From supplier order</span><select wire:model="returnPoId" class="ui-input"><option value="">Not linked</option>@foreach($returnOrders as $order)<option value="{{ $order->id }}">{{ $order->po_number }}</option>@endforeach</select></label>
                     <label class="pu-field"><span>Reason *</span><select wire:model="returnReason" class="ui-input"><option value="">Choose a reason</option>@foreach(\App\Models\OpticalSupplierReturn::REASONS as $value => $label)<option value="{{ $value }}">{{ $label }}</option>@endforeach</select></label>
-                    <label class="pu-field"><span>Notes</span><input autocomplete="off" type="text" wire:model="returnNotes" maxlength="2000" class="ui-input" placeholder="e.g. Scratched coating on 2 lenses"></label>
+                    <label class="pu-field"><span>Notes</span><input aria-label="e.g. Scratched coating on 2 lenses" autocomplete="off" type="text" wire:model="returnNotes" maxlength="2000" class="ui-input" placeholder="e.g. Scratched coating on 2 lenses"></label>
                 </div>
                 <section class="oo-section">
                     <h3>Items</h3>
@@ -334,7 +334,7 @@
                         @endif
                     </div>
                     @if($returnLines)
-                        <table class="oo-lines pu-lines" style="margin-top:10px">
+                        <table class="oo-lines pu-lines mt-2.5">
                             <thead><tr><th>Item</th><th style="width:80px" class="oo-num">Qty</th><th style="width:110px" class="oo-num">Unit cost</th><th style="width:40px"></th></tr></thead>
                             <tbody>
                                 @foreach($returnLines as $i => $line)
@@ -342,7 +342,7 @@
                                         <td>{{ $line['label'] }}</td>
                                         <td><input autocomplete="off" type="number" min="1" wire:model="returnLines.{{ $i }}.quantity" aria-label="Quantity"></td>
                                         <td><input autocomplete="off" type="number" min="0" step="0.01" wire:model="returnLines.{{ $i }}.unit_cost" aria-label="Unit cost"></td>
-                                        <td><button type="button" wire:click="removeReturnLine({{ $i }})" class="oo-x" style="font-size:16px" aria-label="Remove {{ $line['label'] }}">&times;</button></td>
+                                        <td><button type="button" wire:click="removeReturnLine({{ $i }})" class="oo-x text-base" aria-label="Remove {{ $line['label'] }}">&times;</button></td>
                                     </tr>
                                 @endforeach
                             </tbody>

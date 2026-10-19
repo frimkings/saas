@@ -44,7 +44,7 @@
                             @unless($standard)<button type="button" wire:click="toggle({{ $option->id }})" class="ui-button ui-button-secondary !py-1 text-xs">{{ $option->is_active ? 'Hide' : 'Show' }}</button>@endunless
                             @if($kind !== 'design' && ! $standard)
                                 @if($inUse[$option->id] ?? true)
-                                    <span class="w-16 text-center text-[11px] text-slate-400" title="{{ $kind === 'frame_brand' ? 'On a frame' : 'On lens stock or a price list' }}">In use</span>
+                                    <span class="w-16 !text-center text-[11px] text-slate-400" title="{{ $kind === 'frame_brand' ? 'On a frame' : 'On lens stock or a price list' }}">In use</span>
                                 @else
                                     <button type="button" wire:click="delete({{ $option->id }})" wire:confirm="Delete “{{ $option->name }}”?" class="ui-button ui-button-secondary !py-1 text-xs text-red-700">Delete</button>
                                 @endif

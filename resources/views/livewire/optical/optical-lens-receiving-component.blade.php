@@ -34,7 +34,7 @@
             </div>
         @endif
 
-        <div class="ui-panel p-5"><label class="block text-xs font-semibold mb-1">Notes</label><textarea wire:model="notes" rows="2" maxlength="2000" class="ui-input w-full"></textarea>@error('notes')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
+        <div class="ui-panel p-5"><label for="optical-lens-notes" class="block text-xs font-semibold mb-1">Notes</label><textarea id="optical-lens-notes" wire:model="notes" rows="2" maxlength="2000" class="ui-input w-full"></textarea>@error('notes')<p class="text-xs text-red-600">{{ $message }}</p>@enderror</div>
 
         @php $totals = $this->receiptTotals(); @endphp
         {{-- Worked out in the browser while typing (lensReceipt); the server recalculates on save. --}}

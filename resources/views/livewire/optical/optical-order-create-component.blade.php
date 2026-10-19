@@ -25,7 +25,7 @@
     @endif
 
     <!-- 7-Step Navigation Indicator Bar -->
-    <div data-tour="opt-steps" class="grid grid-cols-4 md:grid-cols-7 gap-2 text-center text-xs font-medium">
+    <div data-tour="opt-steps" class="grid grid-cols-4 md:grid-cols-7 gap-2 !text-center text-xs font-medium">
         @php
             $steps = [
                 1 => '1. Source & Job',
@@ -255,7 +255,7 @@
                     </div>
                 @endif
                 <div class="overflow-x-auto">
-                    <table class="w-full text-center border-collapse text-xs">
+                    <table class="w-full !text-center border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-900 text-white font-semibold uppercase text-[10px] tracking-wider">
                                 <th class="p-2 border border-slate-800">Eye</th>
@@ -268,17 +268,17 @@
                         <tbody>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Right (OD)</td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-sph" aria-label="Right eye (OD) sphere" type="text" value="{{ $rx_od_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_sph') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-cyl" aria-label="Right eye (OD) cylinder" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-axis" aria-label="Right eye (OD) axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-add" aria-label="Right eye (OD) addition" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-sph" aria-label="Right eye (OD) sphere" type="text" value="{{ $rx_od_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded @error('rx_od_sph') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-cyl" aria-label="Right eye (OD) cylinder" type="text" value="{{ $rx_od_cyl }}" x-model="odCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded @error('rx_od_cyl') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-axis" aria-label="Right eye (OD) axis" type="number" min="0" max="180" step="1" value="{{ $rx_od_axis }}" x-model="odAxis" x-bind:required="String(odCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(odCyl, odAxis) ? 'true' : 'false'" x-bind:class="axisMessage(odCyl, odAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-od-add" aria-label="Right eye (OD) addition" type="text" value="{{ $rx_od_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded @error('rx_od_add') border-red-500 @enderror"></td>
                             </tr>
                             <tr class="bg-slate-50">
                                 <td class="p-2 border border-slate-200 font-bold text-teal-800">Left (OS)</td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-sph" aria-label="Left eye (OS) sphere" type="text" value="{{ $rx_os_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_sph') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-cyl" aria-label="Left eye (OS) cylinder" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-axis" aria-label="Left eye (OS) axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded"></td>
-                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-add" aria-label="Left eye (OS) addition" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-sph" aria-label="Left eye (OS) sphere" type="text" value="{{ $rx_os_sph }}" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded @error('rx_os_sph') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-cyl" aria-label="Left eye (OS) cylinder" type="text" value="{{ $rx_os_cyl }}" x-model="osCyl" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded @error('rx_os_cyl') border-red-500 @enderror"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-axis" aria-label="Left eye (OS) axis" type="number" min="0" max="180" step="1" value="{{ $rx_os_axis }}" x-model="osAxis" x-bind:required="String(osCyl).trim() !== ''" x-bind:aria-invalid="axisMessage(osCyl, osAxis) ? 'true' : 'false'" x-bind:class="axisMessage(osCyl, osAxis) ? 'border-red-500' : ''" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded"></td>
+                                <td class="p-1 border border-slate-200"><input autocomplete="off" id="rx-os-add" aria-label="Left eye (OS) addition" type="text" value="{{ $rx_os_add }}" @readonly($optical_prescription_id || $refraction_id) class="w-full !text-center font-mono py-1 text-xs border rounded @error('rx_os_add') border-red-500 @enderror"></td>
                             </tr>
                         </tbody>
                     </table>
@@ -373,7 +373,7 @@
                                                     <label class="ml-auto flex items-center gap-1.5">
                                                         <span class="font-semibold">Price {{ currency() }}</span>
                                                         <input type="number" min="0" step="0.01" wire:model.blur="specialPrices.{{ $eye }}" placeholder="Required" aria-label="{{ strtoupper($eye) }} special-order lens price"
-                                                            class="ui-input !w-28 !py-1 text-right font-mono text-xs @error('specialPrices.'.$eye) border-red-500 @enderror">
+                                                            class="ui-input !w-28 !py-1 !text-right font-mono text-xs @error('specialPrices.'.$eye) border-red-500 @enderror">
                                                     </label>
                                                 @else
                                                     <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">From stock · held</span>
@@ -471,7 +471,7 @@
             <div class="space-y-6">
                 {{-- Measured with the chosen frame. Saved prescriptions keep their powers; these come from fitting. --}}
                 <div class="max-w-2xl overflow-x-auto">
-                    <table class="w-full border-collapse text-center text-xs">
+                    <table class="w-full border-collapse !text-center text-xs">
                         <thead>
                             <tr class="bg-slate-900 text-[10px] font-semibold uppercase tracking-wider text-white">
                                 <th class="border border-slate-800 p-2">Eye</th>
@@ -483,8 +483,8 @@
                             @foreach(['od' => 'Right (OD)', 'os' => 'Left (OS)'] as $eye => $label)
                                 <tr class="bg-slate-50">
                                     <th scope="row" class="border border-slate-200 p-2 font-bold text-teal-800">{{ $label }}</th>
-                                    <td class="border border-slate-200 p-1"><input autocomplete="off" id="fit-{{ $eye }}-pd" type="text" inputmode="decimal" wire:model="rx_{{ $eye }}_pd" placeholder="{{ $eye === 'od' ? '31.5' : '31.0' }}" aria-label="{{ $label }} monocular PD" class="w-full rounded border py-1 text-center font-mono text-xs @error('rx_'.$eye.'_pd') border-red-500 @enderror"></td>
-                                    <td class="border border-slate-200 p-1"><input autocomplete="off" id="fit-{{ $eye }}-hgt" type="text" inputmode="decimal" wire:model="rx_{{ $eye }}_hgt" placeholder="19.0" aria-label="{{ $label }} fitting height" class="w-full rounded border py-1 text-center font-mono text-xs @error('rx_'.$eye.'_hgt') border-red-500 @enderror"></td>
+                                    <td class="border border-slate-200 p-1"><input autocomplete="off" id="fit-{{ $eye }}-pd" type="text" inputmode="decimal" wire:model="rx_{{ $eye }}_pd" placeholder="{{ $eye === 'od' ? '31.5' : '31.0' }}" aria-label="{{ $label }} monocular PD" class="w-full rounded border py-1 !text-center font-mono text-xs @error('rx_'.$eye.'_pd') border-red-500 @enderror"></td>
+                                    <td class="border border-slate-200 p-1"><input autocomplete="off" id="fit-{{ $eye }}-hgt" type="text" inputmode="decimal" wire:model="rx_{{ $eye }}_hgt" placeholder="19.0" aria-label="{{ $label }} fitting height" class="w-full rounded border py-1 !text-center font-mono text-xs @error('rx_'.$eye.'_hgt') border-red-500 @enderror"></td>
                                 </tr>
                             @endforeach
                         </tbody>

@@ -39,7 +39,7 @@
 
     <section class="ui-panel bg-white">
         <div class="oo-filters" style="border-bottom:1px solid var(--clinic-line)">
-            <label class="oo-f" style="width:auto;flex:1;min-width:220px"><span>Search</span><input autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Receipt number, customer or patient…" class="ui-input text-sm"></label>
+            <label class="oo-f" style="width:auto;flex:1;min-width:220px"><span>Search</span><input aria-label="Search" autocomplete="off" type="search" wire:model.live.debounce.300ms="searchTerm" placeholder="Receipt number, customer or patient…" class="ui-input text-sm"></label>
             <div class="oo-f" style="width:auto"><span>Dates</span><x-date-range from="fromDate" to="toDate" presets="finance" /></div>
             <label class="oo-f"><span>Status</span><select wire:model.live="filterRefunded" class="ui-input text-sm"><option value="">All</option><option value="0">Not refunded</option><option value="1">Refunded</option></select></label>
             <div class="oo-presets"><span class="ui-muted" wire:loading.delay wire:target="searchTerm,fromDate,toDate,filterRefunded,resetFilters">Updating…</span></div>
@@ -47,7 +47,7 @@
         <div class="overflow-x-auto">
             <table class="oo-table sr-table w-full" style="min-width:1000px">
                 <colgroup><col class="c-date"><col class="c-rcpt"><col class="c-cust"><col class="c-items"><col class="c-amt"><col class="c-status"><col class="c-act"></colgroup>
-                <thead><tr><th>Date</th><th>Receipt</th><th>Customer</th><th>Items</th><th class="oo-num">Amount</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+                <thead><tr><th>Date</th><th>Receipt</th><th>Customer</th><th>Items</th><th class="oo-num">Amount</th><th>Status</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($sales as $sale)
                         @php [$sl, $sc] = $statusOf($sale); $count = $sale->items->count(); @endphp
@@ -131,7 +131,7 @@
                             <b style="font-variant-numeric:tabular-nums">{{ $money($payment->amount) }}</b>
                         </div>
                     @empty
-                        <p class="ui-muted text-sm" style="margin:0">No separate payment records; paid at checkout.</p>
+                        <p class="ui-muted text-sm m-0">No separate payment records; paid at checkout.</p>
                     @endforelse
                 </section>
                 @if($panelOrders->isNotEmpty())
@@ -173,7 +173,7 @@
         <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissCall($el.nextElementSibling, $wire, 'dismissRefundInitiation')" aria-hidden="true"></div>
         <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="sr-refund-title" tabindex="-1" x-data x-init="$el.focus()" x-on:keydown.escape.window="dismissCall($el, $wire, 'dismissRefundInitiation')">
             <header class="oo-drawer-head">
-                <div><h2 id="sr-refund-title">Request a refund</h2><p class="ui-muted text-xs" style="margin:0">{{ $initiatingRefundSale->transaction_id }} · a manager approves it before money is returned.</p></div>
+                <div><h2 id="sr-refund-title">Request a refund</h2><p class="ui-muted text-xs m-0">{{ $initiatingRefundSale->transaction_id }} · a manager approves it before money is returned.</p></div>
                 <button type="button" class="oo-x" x-on:click="dismissCall($el, $wire, 'dismissRefundInitiation')" aria-label="Close">&times;</button>
             </header>
             <div class="oo-drawer-body">
@@ -188,7 +188,7 @@
                 <section class="oo-section" style="display:grid;gap:12px">
                     <label class="sr-field"><span>Request type</span><select wire:model="initiateRefundType" class="ui-input"><option value="refund">Refund: return money for these items</option><option value="void">Void: today's sale was a mistake</option></select>@error('initiateRefundType')<span class="ui-error" role="alert">{{ $message }}</span>@enderror<small class="text-xs text-slate-500">A void is for today's sales, before the day is closed. The owner approves it.</small></label>
                     <label class="sr-field"><span>Reason *</span><select wire:model="initiateRefundReasonCode" class="ui-input"><option value="">Choose a reason</option>@foreach(\App\Models\RefundLog::REASON_CODES as $code => $label)<option value="{{ $code }}">{{ $label }}</option>@endforeach</select></label>
-                    <label class="sr-field"><span>Details *</span><textarea wire:model="initiateRefundReason" rows="3" class="ui-input" placeholder="What happened and what was agreed with the customer (at least 10 characters)"></textarea></label>
+                    <label class="sr-field"><span>Details *</span><textarea aria-label="What happened and what was agreed with the customer (at least 10 characters)" wire:model="initiateRefundReason" rows="3" class="ui-input" placeholder="What happened and what was agreed with the customer (at least 10 characters)"></textarea></label>
                 </section>
             </div>
             <footer class="oo-drawer-foot">
