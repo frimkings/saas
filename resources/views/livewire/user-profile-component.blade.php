@@ -45,7 +45,7 @@
 @endphp
 
 {{-- ── Profile Cover ───────────────────────────────────────────────────── --}}
-<div class="profile-cover" style="background:linear-gradient(135deg,{{ $roleColor['bg'] }} 0%,{{ $roleColor['bg'] }}cc 100%);min-height:160px;position:relative">
+<div class="profile-cover" style="background:linear-gradient(135deg,#087e83 0%,#0f5f63 100%);min-height:160px;position:relative">
     <div class="w-full px-6 py-6">
         <div class="flex items-end" style="gap:1.25rem;padding-bottom:.5rem">
             {{-- Avatar --}}

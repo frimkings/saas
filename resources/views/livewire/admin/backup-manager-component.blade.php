@@ -46,42 +46,18 @@
     </div>
 
     {{-- Stats row --}}
-    <div class="flex flex-wrap -mx-2 mb-6">
-        <div class="w-full md:w-3/12 px-2 mb-4">
-            <div class="small-box bg-teal-700 text-white mb-0">
-                <div class="inner">
-                    <h3>{{ $backups->count() }}</h3>
-                    <p>Total Backups</p>
-                </div>
-                <div class="icon"><i class="fas fa-archive"></i></div>
-            </div>
+    <div class="ui-tiles ui-tiles--auto mb-6">
+        <div>
+            <div class="ui-tile ui-tile--accent"><span class="ui-tile__label"><i class="fas fa-archive" aria-hidden="true"></i>Total Backups</span><span class="ui-tile__value">{{ $backups->count() }}</span></div>
         </div>
-        <div class="w-full md:w-3/12 px-2 mb-4">
-            <div class="small-box bg-sky-600 text-white mb-0">
-                <div class="inner">
-                    <h3>{{ $totalSize }}</h3>
-                    <p>Storage Used</p>
-                </div>
-                <div class="icon"><i class="fas fa-hdd"></i></div>
-            </div>
+        <div>
+            <div class="ui-tile ui-tile--neutral"><span class="ui-tile__label"><i class="fas fa-hdd" aria-hidden="true"></i>Storage Used</span><span class="ui-tile__value">{{ $totalSize }}</span></div>
         </div>
-        <div class="w-full md:w-3/12 px-2 mb-4">
-            <div class="small-box bg-green-600 text-white mb-0">
-                <div class="inner">
-                    <h3>{{ $backups->isNotEmpty() ? \Carbon\Carbon::createFromTimestamp($backups->first()['last_modified'])->diffForHumans() : 'Never' }}</h3>
-                    <p>Latest Backup</p>
-                </div>
-                <div class="icon"><i class="fas fa-clock"></i></div>
-            </div>
+        <div>
+            <div class="ui-tile ui-tile--good"><span class="ui-tile__label"><i class="fas fa-clock" aria-hidden="true"></i>Latest Backup</span><span class="ui-tile__value">{{ $backups->isNotEmpty() ? \Carbon\Carbon::createFromTimestamp($backups->first()['last_modified'])->diffForHumans() : 'Never' }}</span></div>
         </div>
-        <div class="w-full md:w-3/12 px-2 mb-4">
-            <div class="small-box bg-amber-400 mb-0">
-                <div class="inner">
-                    <h3>5 min <small style="font-size:.75rem">/ Daily</small></h3>
-                    <p>DB / Full Schedule</p>
-                </div>
-                <div class="icon"><i class="fas fa-calendar-check"></i></div>
-            </div>
+        <div>
+            <div class="ui-tile ui-tile--warning"><span class="ui-tile__label"><i class="fas fa-calendar-check" aria-hidden="true"></i>DB / Full Schedule</span><span class="ui-tile__value">5 min <small style="font-size:.75rem">/ Daily</small></span></div>
         </div>
     </div>
 

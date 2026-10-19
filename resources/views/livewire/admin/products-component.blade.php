@@ -103,33 +103,15 @@
                     </div>
                     <div class="p-5">
                         @if($importResults)
-                            <div class="flex flex-wrap -mx-2">
-                                <div class="w-full md:w-4/12 px-2">
-                                    <div class="small-box bg-green-600 text-white">
-                                        <div class="inner">
-                                            <h3>{{ $importResults['imported'] }}</h3>
-                                            <p>Imported</p>
-                                        </div>
-                                        <div class="icon"><i class="fas fa-check-circle"></i></div>
-                                    </div>
+                            <div class="ui-tiles ui-tiles--auto">
+                                <div>
+                                    <div class="ui-tile ui-tile--good"><span class="ui-tile__label"><i class="fas fa-check-circle" aria-hidden="true"></i>Imported</span><span class="ui-tile__value">{{ $importResults['imported'] }}</span></div>
                                 </div>
-                                <div class="w-full md:w-4/12 px-2">
-                                    <div class="small-box bg-slate-500 text-white">
-                                        <div class="inner">
-                                            <h3>{{ $importResults['skipped'] }}</h3>
-                                            <p>Skipped</p>
-                                        </div>
-                                        <div class="icon"><i class="fas fa-forward"></i></div>
-                                    </div>
+                                <div>
+                                    <div class="ui-tile ui-tile--neutral"><span class="ui-tile__label"><i class="fas fa-forward" aria-hidden="true"></i>Skipped</span><span class="ui-tile__value">{{ $importResults['skipped'] }}</span></div>
                                 </div>
-                                <div class="w-full md:w-4/12 px-2">
-                                    <div class="small-box bg-red-600 text-white">
-                                        <div class="inner">
-                                            <h3>{{ count($importResults['errors']) }}</h3>
-                                            <p>Errors</p>
-                                        </div>
-                                        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-                                    </div>
+                                <div>
+                                    <div class="ui-tile ui-tile--danger"><span class="ui-tile__label"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i>Errors</span><span class="ui-tile__value">{{ count($importResults['errors']) }}</span></div>
                                 </div>
                             </div>
                             @if(count($importResults['errors']) > 0)

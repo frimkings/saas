@@ -10,34 +10,10 @@
             </a>
         </div>
 
-        <div class="flex flex-wrap -mx-2">
-            <div class="w-full lg:w-4/12 px-2">
-                <div class="small-box bg-sky-600 text-white">
-                    <div class="inner">
-                        <h3>{{ number_format($receiptsToday) }}</h3>
-                        <p>Receipts Today</p>
-                    </div>
-                    <div class="icon"><i class="fas fa-clipboard-check"></i></div>
-                </div>
-            </div>
-            <div class="w-full lg:w-4/12 px-2">
-                <div class="small-box bg-green-600 text-white">
-                    <div class="inner">
-                        <h3>{{ number_format($totalReceivedToday) }}</h3>
-                        <p>Units Received Today</p>
-                    </div>
-                    <div class="icon"><i class="fas fa-dolly"></i></div>
-                </div>
-            </div>
-            <div class="w-full lg:w-4/12 px-2">
-                <div class="small-box bg-slate-500 text-white">
-                    <div class="inner">
-                        <h3 style="font-size: 1.45rem;">{{ $lastMovement->reference_no ?? 'None' }}</h3>
-                        <p>Last GRN Reference</p>
-                    </div>
-                    <div class="icon"><i class="fas fa-receipt"></i></div>
-                </div>
-            </div>
+        <div class="ui-tiles ui-tiles--3 mb-5">
+            <x-ui.stat-tile label="Receipts today" :value="number_format($receiptsToday)" icon="fa-clipboard-check" hint="Deliveries recorded" />
+            <x-ui.stat-tile label="Units received today" :value="number_format($totalReceivedToday)" icon="fa-dolly" hint="Across all products" />
+            <x-ui.stat-tile label="Last GRN reference" :value="$lastMovement->reference_no ?? 'None'" icon="fa-receipt" hint="Most recent receipt" />
         </div>
 
         <div class="flex flex-wrap -mx-2">

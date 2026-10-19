@@ -1,4 +1,4 @@
-<div class="clinic-ui ui-page">
+<div class="clinic-ui space-y-5 p-5">
     <div class="ui-heading">
         <div>
             <h2 class="text-base font-semibold text-slate-900">Clinic profile &amp; branding</h2>
