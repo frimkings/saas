@@ -1222,7 +1222,7 @@ window.printReceiptFromDom = function(event) {
     white-space: nowrap;
 }
 .pos-cat:hover { background: #f1f5f9; }
-.pos-cat--active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.pos-cat--active { background: #0f766e; border-color: #0f766e; color: #fff; }
 
 /* ---- Product grid ---- */
 .pos-grid {
@@ -1258,17 +1258,17 @@ window.printReceiptFromDom = function(event) {
     transition: border-color .13s, box-shadow .13s, transform .13s;
 }
 .pos-product:hover:not(.pos-product--oos) {
-    border-color: #3b82f6;
-    box-shadow: 0 4px 16px rgba(59,130,246,.15);
+    border-color: #14b8a6;
+    box-shadow: 0 4px 16px rgba(20,184,166,.15);
     transform: translateY(-2px);
 }
 .pos-product--oos { cursor: not-allowed; opacity: .5; }
 
 .pos-product__icon {
     align-items: center;
-    background: #eff6ff;
+    background: #f0fdfa;
     border-radius: 8px;
-    color: #2563eb;
+    color: #0d9488;
     display: flex;
     font-size: .95rem;
     height: 34px;
@@ -1286,7 +1286,7 @@ window.printReceiptFromDom = function(event) {
 }
 
 .pos-product__price {
-    color: #1d4ed8;
+    color: #0f766e;
     font-size: .85rem;
     font-weight: 800;
 }
@@ -1369,9 +1369,9 @@ window.printReceiptFromDom = function(event) {
 }
 .pos-mode-btn:hover { background: rgba(255,255,255,.06); color: #e2e8f0; }
 .pos-mode-btn--active {
-    background: rgba(59,130,246,.18);
-    border-color: rgba(59,130,246,.45);
-    color: #93c5fd;
+    background: rgba(20,184,166,.18);
+    border-color: rgba(20,184,166,.45);
+    color: #5eead4;
 }
 .pos-mode-btn--direct {
     background: rgba(34,197,94,.14);
@@ -1408,7 +1408,7 @@ window.printReceiptFromDom = function(event) {
     width: 100%;
 }
 .pos-co-input::placeholder { color: #64748b; }
-.pos-co-input:focus { border-color: #3b82f6; }
+.pos-co-input:focus { border-color: #14b8a6; }
 
 .pos-patient-drop {
     background: #1e293b;
@@ -1699,7 +1699,7 @@ window.printReceiptFromDom = function(event) {
     padding: 0 .35rem;
     transition: border-color .12s;
 }
-.pos-select:focus { border-color: #3b82f6; }
+.pos-select:focus { border-color: #14b8a6; }
 .pos-select option { background: #1e293b; }
 
 /* ---- Icon buttons ---- */
@@ -1900,7 +1900,7 @@ window.printReceiptFromDom = function(event) {
     transition: background .12s, border-color .12s, color .12s;
 }
 .pos-pay-method:hover { background: rgba(255,255,255,.1); color: #f1f5f9; }
-.pos-pay-method--active { background: #1d4ed8; border-color: #2563eb; color: #fff; }
+.pos-pay-method--active { background: #0f766e; border-color: #0d9488; color: #fff; }
 
 .pos-pay-amount-row { display: flex; gap: .4rem; }
 .pos-pay-input { flex: 1; }
@@ -1937,9 +1937,9 @@ window.printReceiptFromDom = function(event) {
 .pos-pay-entry:last-child { border-bottom: none; }
 
 .pos-pay-entry__method {
-    background: rgba(59,130,246,.15);
+    background: rgba(20,184,166,.15);
     border-radius: 5px;
-    color: #93c5fd;
+    color: #5eead4;
     font-size: .72rem;
     font-weight: 800;
     letter-spacing: .04em;
@@ -2259,7 +2259,7 @@ window.printReceiptFromDom = function(event) {
 
 .pos-shell--light .pos-mode-btn { color: #64748b; }
 .pos-shell--light .pos-mode-btn:hover { background: #e2e8f0; color: #0f172a; }
-.pos-shell--light .pos-mode-btn--active { background: #dbeafe; color: #1d4ed8; }
+.pos-shell--light .pos-mode-btn--active { background: #ccfbf1; color: #0f766e; }
 .pos-shell--light .pos-mode-btn--direct { background: #dcfce7; color: #15803d; }
 .pos-shell--light .pos-direct-panel { background: #f0fdf4; border-color: #bbf7d0; }
 .pos-shell--light .pos-direct-panel__status { color: #15803d; }
@@ -2316,8 +2316,8 @@ window.printReceiptFromDom = function(event) {
 /* The chosen method stays white-on-blue in the light theme too. */
 .pos-shell--light .pos-pay-method--active,
 .pos-shell--light .pos-pay-method--active:hover {
-    background: #1d4ed8;
-    border-color: #2563eb;
+    background: #0f766e;
+    border-color: #0d9488;
     color: #fff;
 }
 
@@ -2382,13 +2382,13 @@ window.printReceiptFromDom = function(event) {
 }
 
 .pos-shell--dark .pos-product:hover:not(.pos-product--oos) {
-    border-color: #60a5fa;
-    box-shadow: 0 4px 18px rgba(59,130,246,.25);
+    border-color: #2dd4bf;
+    box-shadow: 0 4px 18px rgba(20,184,166,.25);
 }
 
 .pos-shell--dark .pos-product__icon {
-    background: rgba(37,99,235,.18);
-    color: #93c5fd;
+    background: rgba(13,148,136,.18);
+    color: #5eead4;
 }
 
 /* ---- Responsive ---- */
