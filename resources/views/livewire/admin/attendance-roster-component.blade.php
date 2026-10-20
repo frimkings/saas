@@ -51,12 +51,22 @@
             </div>
             <div class="attendance-roster space-y-3 p-4">
                 @if($codes)
+                    {{-- The colour key, and a filter: click shifts to show only the people on them in these days. --}}
+                    <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Show people on these shifts">
+                        @foreach($codes as $id => $code)
+                            @php $on = in_array($id, $rosterShifts, true); @endphp
+                            <button type="button" wire:click="toggleRosterShift({{ $id }})" wire:key="roster-key-{{ $id }}" aria-pressed="{{ $on ? 'true' : 'false' }}" title="{{ $on ? 'Show everyone again' : 'Show only people on '.$code['name'] }}"
+                                    @class(['inline-flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 text-xs font-medium', 'bg-slate-800 text-white' => $on, 'bg-white text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50' => ! $on, 'opacity-60' => $rosterShifts && ! $on])>
+                                <span class="rounded-full px-1.5 py-0.5 font-bold" style="{{ $code['style'] }}">{{ $code['code'] }}</span>{{ $code['name'] }}
+                            </button>
+                        @endforeach
+                        @if($rosterShifts)<button type="button" class="text-xs text-teal-700 underline" wire:click="$set('rosterShifts', [])">Show everyone</button>@endif
+                    </div>
                     <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
-                        @foreach($codes as $code)<span class="rounded px-1.5 py-0.5 font-semibold {{ $code['class'] }}">{{ $code['code'] }}</span><span class="mr-2">{{ $code['name'] }}</span>@endforeach
                         <span class="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-500">Off</span><span class="mr-2">Day off</span>
                         <span class="rounded bg-white px-1.5 py-0.5 text-slate-500 ring-1 ring-inset ring-slate-300">Hrs</span><span class="mr-2">Usual hours</span>
                         <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-800">Lv</span><span class="mr-2">On leave</span>
-                        <span class="text-slate-500">A ringed box is set on the roster for that day. Click a box to change it.</span>
+                        <span class="text-slate-500">A box with a dark ring is set on the roster for that day. Click a box to change it.</span>
                     </div>
                 @endif
                 @if($showRosterUpload)
@@ -120,7 +130,7 @@
                         </div>
                         <div class="mt-2 flex flex-wrap items-center gap-1 text-xs" aria-label="The cycle">
                             @forelse($patternDays as $i => $choice)
-                                <span @class(['rounded px-1.5 py-0.5', 'bg-slate-200 text-slate-600' => $choice === '0', 'bg-white text-teal-900 ring-1 ring-inset ring-teal-300' => $choice !== '0']) wire:key="pattern-day-{{ $i }}">{{ $i + 1 }}. {{ $choice === '0' ? 'Off' : ($shiftNames[(int) $choice] ?? '?') }}</span>
+                                <span @class(['rounded px-1.5 py-0.5', 'bg-slate-200 text-slate-600' => $choice === '0']) @if($choice !== '0') style="{{ $codes[(int) $choice]['style'] ?? '' }}" @endif wire:key="pattern-day-{{ $i }}">{{ $i + 1 }}. {{ $choice === '0' ? 'Off' : ($shiftNames[(int) $choice] ?? '?') }}</span>
                             @empty
                                 <span class="text-slate-500">Nothing in the cycle yet. For example: Morning for 2 days, Afternoon for 2, Night for 2, days off for 2.</span>
                             @endforelse
@@ -220,16 +230,18 @@
                                                 [$label, $tone] = match (true) {
                                                     (bool) $cell['leave_type'] => ['Lv', 'bg-indigo-100 text-indigo-800'],
                                                     ! $due => ['Off', 'bg-slate-100 text-slate-500'],
-                                                    (bool) $shift => [$shift['code'], $shift['class']],
+                                                    (bool) $shift => [$shift['code'], ''],
                                                     default => ['Hrs', 'bg-white text-slate-500 ring-1 ring-inset ring-slate-300'],
                                                 };
+                                                $paint = $shift && ! $cell['leave_type'] ? $shift['style'] : '';
                                                 $title = $row['staff']->name.', '.$day->format('D j M').': '.($cell['leave_type'] ? ($cell['note'] ?? 'On leave') : ($due ? ($due['shift'] ?? 'Usual hours').' '.\App\Services\Attendance\AttendanceAnalyzer::time($due['start']).' to '.\App\Services\Attendance\AttendanceAnalyzer::time($due['end']) : 'Day off'))
                                                     .($swapped ? '. '.$swapped : '').($warnings ? '. '.implode('. ', $warnings) : '');
                                             @endphp
                                             <td @class(['px-0.5 py-1 text-center', 'bg-slate-50' => $day->isWeekend()])>
                                                 <button type="button" title="{{ $title }}" aria-label="{{ $title }}"
                                                         x-on:click="menu = { staff: {{ $row['staff']->id }}, date: '{{ $key }}', name: @js($row['staff']->name.' · '.$day->format('D j M')), x: $event.clientX, y: $event.clientY }"
-                                                        @class(['relative inline-block rounded px-1 py-0.5 text-xs font-semibold tabular-nums', $tone, $month ? 'min-w-[1.9rem]' : 'min-w-[3rem]', 'outline outline-2 outline-teal-600' => $chosen !== ''])>
+                                                        @if($paint) style="{{ $paint }}" @endif
+                                                        @class(['relative inline-block rounded px-1 py-0.5 text-xs font-semibold tabular-nums', $tone, $month ? 'min-w-[1.9rem]' : 'min-w-[3rem]', 'outline outline-2 outline-offset-1 outline-slate-800' => $chosen !== ''])>
                                                     {{ $label }}
                                                     @if($warnings)<span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500"></span>@elseif($swapped)<span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500"></span>@endif
                                                 </button>
@@ -237,6 +249,9 @@
                                         @endforeach
                                     </tr>
                                 @endforeach
+                                @if(! $rosterGrid['shown'] && $rosterShifts)
+                                    <tr><td colspan="{{ count($rosterDays) + 1 }}" class="px-2 py-3 text-center text-sm text-slate-500">Nobody is on {{ implode(' or ', $rosterGrid['picked']) }} in these days.</td></tr>
+                                @endif
                             </tbody>
                         </table>
                     </div>
@@ -247,7 +262,7 @@
                         <button type="button" class="block w-full px-3 py-1.5 text-left hover:bg-slate-50" x-on:click="$wire.setRoster(menu.staff, menu.date, ''); menu = null">As usual</button>
                         @foreach($shifts->where('is_active', true) as $shiftOption)
                             <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50" x-on:click="$wire.setRoster(menu.staff, menu.date, '{{ $shiftOption->id }}'); menu = null">
-                                <span class="rounded px-1.5 py-0.5 text-xs font-semibold {{ $codes[$shiftOption->id]['class'] ?? '' }}">{{ $codes[$shiftOption->id]['code'] ?? '' }}</span>{{ $shiftOption->name }}
+                                <span class="rounded px-1.5 py-0.5 text-xs font-semibold" style="{{ $codes[$shiftOption->id]['style'] ?? '' }}">{{ $codes[$shiftOption->id]['code'] ?? '' }}</span>{{ $shiftOption->name }}
                             </button>
                         @endforeach
                         <button type="button" class="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50" x-on:click="$wire.setRoster(menu.staff, menu.date, '0'); menu = null"><span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-500">Off</span>Day off</button>

@@ -503,23 +503,38 @@
     @if($showShifts)
         <x-ui.modal title="Shifts" state="showShifts">
             <div class="space-y-4 p-4">
-                <p class="!mb-0 text-sm text-slate-600">Name the shifts people work at this branch. An end time earlier than the start is the next morning, for night shifts. Give people a shift per weekday on their own page, or set single days on the roster.</p>
+                <p class="!mb-0 text-sm text-slate-600">Name the shifts people work at this branch. An end time earlier than the start is the next morning, for night shifts. Each shift has a short code and a colour for the roster; click a code to change it. Give people a shift per weekday on their own page, or set single days on the roster.</p>
                 <div class="ui-table-wrap">
                     <table class="table ui-table ui-table-sm mb-0">
-                        <thead><tr><th>Shift</th><th>Hours</th><th>Break allowed</th><th class="text-right">Action</th></tr></thead>
+                        <thead><tr><th>Code</th><th>Shift</th><th>Hours</th><th>Break allowed</th><th class="text-right">Action</th></tr></thead>
                         <tbody>
                             @forelse($shifts as $shift)
                                 <tr wire:key="shift-{{ $shift->id }}" @class(['text-slate-400' => ! $shift->is_active])>
+                                    <td><button type="button" wire:click="editShift({{ $shift->id }})" class="inline-flex min-w-[2.25rem] justify-center rounded px-1.5 py-0.5 text-xs font-bold" style="{{ $shiftCodes[$shift->name]['style'] ?? '' }}" title="Change the code or colour" aria-label="{{ $shift->name }}: code {{ $shiftCodes[$shift->name]['code'] ?? '' }}. Change the code or colour">{{ $shiftCodes[$shift->name]['code'] ?? '' }}</button></td>
                                     <td class="font-medium">{{ $shift->name }}@unless($shift->is_active) <span class="text-xs font-normal">(not offered)</span>@endunless</td>
                                     <td class="whitespace-nowrap">{{ AttendanceAnalyzer::time($shift->starts_at) }} to {{ AttendanceAnalyzer::time($shift->ends_at) }}@if($shift->overnight()) <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-800">next morning</span>@endif</td>
                                     <td>{{ $shift->break_minutes !== null ? AttendanceAnalyzer::duration($shift->break_minutes) : 'Branch allowance' }}</td>
                                     <td class="whitespace-nowrap text-right">
+                                        <button type="button" wire:click="editShift({{ $shift->id }})" class="mr-2 text-xs text-teal-700 underline">Code and colour</button>
                                         <button type="button" wire:click="toggleShift({{ $shift->id }})" class="text-xs text-teal-700 underline">{{ $shift->is_active ? 'Stop offering' : 'Offer again' }}</button>
                                         <button type="button" wire:click="removeShift({{ $shift->id }})" wire:confirm="Delete the {{ $shift->name }} shift?" class="ml-2 text-xs text-red-700 underline">Delete</button>
                                     </td>
                                 </tr>
+                                @if($editShiftId === $shift->id)
+                                    <tr wire:key="shift-look-{{ $shift->id }}">
+                                        <td colspan="5" class="bg-slate-50">
+                                            <form wire:submit="saveShiftLook" class="flex flex-wrap items-end gap-3 py-1">
+                                                <div><label for="edit-shift-code" class="mb-1 block text-xs font-semibold text-slate-600">Code</label><input id="edit-shift-code" type="text" maxlength="4" wire:model.live.debounce.300ms="editShiftCode" class="ui-input !w-24 uppercase"></div>
+                                                @include('livewire.admin.partials.attendance-colour-pick', ['model' => 'editShiftColour', 'value' => $editShiftColour, 'auto' => false])
+                                                <div><span class="mb-1 block text-xs font-semibold text-slate-600">Looks like</span><span class="inline-flex h-8 min-w-[2.75rem] items-center justify-center rounded px-2 text-sm font-bold" style="{{ preg_match('/^#[0-9a-fA-F]{6}$/', $editShiftColour) ? 'background-color:'.$editShiftColour.';color:'.\App\Support\ShiftCodes::textOn($editShiftColour) : '' }}">{{ strtoupper($editShiftCode) ?: '?' }}</span></div>
+                                                <div class="flex gap-2"><x-ui.button type="submit" variant="primary">Save</x-ui.button><x-ui.button type="button" wire:click="$set('editShiftId', null)">Cancel</x-ui.button></div>
+                                                @foreach(['editShiftCode', 'editShiftColour'] as $field)@error($field)<p class="!mb-0 w-full text-xs text-red-600" role="alert">{{ $message }}</p>@enderror @endforeach
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @endif
                             @empty
-                                <tr><td colspan="4" class="text-center text-sm text-slate-500">No shifts yet. Everyone follows the branch's working hours.</td></tr>
+                                <tr><td colspan="5" class="text-center text-sm text-slate-500">No shifts yet. Everyone follows the branch's working hours.</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -529,8 +544,10 @@
                     <div><label for="shift-start" class="mb-1 block text-xs font-semibold text-slate-600">Starts</label><input id="shift-start" type="time" wire:model="shiftStart" class="ui-input !w-32"></div>
                     <div><label for="shift-end" class="mb-1 block text-xs font-semibold text-slate-600">Ends</label><input id="shift-end" type="time" wire:model="shiftEnd" class="ui-input !w-32"></div>
                     <div><label for="shift-break" class="mb-1 block text-xs font-semibold text-slate-600">Break (minutes)</label><input id="shift-break" type="number" min="0" max="600" wire:model="shiftBreak" placeholder="Branch" class="ui-input !w-28"></div>
+                    <div><label for="shift-code" class="mb-1 block text-xs font-semibold text-slate-600">Code</label><input id="shift-code" type="text" maxlength="4" wire:model="shiftCode" placeholder="From name" class="ui-input !w-28 uppercase"></div>
+                    <div class="w-full">@include('livewire.admin.partials.attendance-colour-pick', ['model' => 'shiftColour', 'value' => $shiftColour, 'auto' => true])</div>
                     <x-ui.button type="submit" variant="primary">Add shift</x-ui.button>
-                    @foreach(['shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak'] as $field)@error($field)<p class="!mb-0 w-full text-xs text-red-600">{{ $message }}</p>@enderror @endforeach
+                    @foreach(['shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak', 'shiftCode', 'shiftColour'] as $field)@error($field)<p class="!mb-0 w-full text-xs text-red-600">{{ $message }}</p>@enderror @endforeach
                 </form>
             </div>
         </x-ui.modal>
@@ -834,7 +851,7 @@
                             @foreach($dayList['people'] as $person)
                                 @php $day = $person['day']; @endphp
                                 <tr wire:key="day-{{ $person['staff']->id }}">
-                                    <td class="font-medium text-slate-800">{{ $person['staff']->name }}
+                                    <td class="font-medium text-slate-800">{{ $person['staff']->name }}@if(($day['hours']['shift'] ?? null) && ($look = $shiftCodes[$day['hours']['shift']] ?? null))<span class="ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold" style="{{ $look['style'] }}" title="{{ $look['name'] }}">{{ $look['code'] }}</span>@endif
                                         <button type="button" wire:click="openPunches({{ $person['staff']->id }}, '{{ $dayList['date']->format('Y-m-d') }}')" class="ml-1 text-xs font-normal text-teal-700 underline" aria-label="Correct {{ $person['staff']->name }}'s punches">Correct</button></td>
                                     <td class="text-center">
                                         @foreach($day['punches'] as $punch)
@@ -1009,7 +1026,7 @@
                                 @foreach($detail['days'] as $key => $day)
                                     @continue($day['status'] === 'none' || $day['status'] === 'off')
                                     <tr wire:key="detail-{{ $key }}">
-                                        <td class="whitespace-nowrap">{{ $report['days'][$key]->format('D j M') }}
+                                        <td class="whitespace-nowrap">{{ $report['days'][$key]->format('D j M') }}@if(($day['hours']['shift'] ?? null) && ($look = $shiftCodes[$day['hours']['shift']] ?? null))<span class="ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold" style="{{ $look['style'] }}" title="{{ $look['name'] }}">{{ $look['code'] }}</span>@endif
                                             <button type="button" wire:click="openPunches({{ $detail['staff']->id }}, '{{ $key }}')" class="ml-1 text-xs text-teal-700 underline" aria-label="Correct punches on {{ $report['days'][$key]->format('j F') }}">Correct</button></td>
                                         <td>
                                             @foreach($day['punches'] as $punch)

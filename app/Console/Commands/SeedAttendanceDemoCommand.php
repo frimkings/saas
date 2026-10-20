@@ -46,7 +46,8 @@ class SeedAttendanceDemoCommand extends Command
         'Records' => [30, false], 'Administration' => [30, false],
     ];
 
-    private const SHIFTS = ['Morning' => ['07:00', '14:00'], 'Afternoon' => ['14:00', '21:00'], 'Night' => ['21:00', '07:00']];
+    /** Name => [start, end, code, colour]. */
+    private const SHIFTS = ['Morning' => ['07:00', '14:00', 'M', '#0d9488'], 'Afternoon' => ['14:00', '21:00', 'A', '#f59e0b'], 'Night' => ['21:00', '07:00', 'N', '#1e3a8a']];
 
     /** The demo's sign-in accounts end in this. */
     private const EMAIL = '@attendance-demo.test';
@@ -137,8 +138,9 @@ class SeedAttendanceDemoCommand extends Command
         $tenant = ['clinic_id' => $clinicId, 'branch_id' => $branchId];
 
         $shifts = [];
-        foreach (self::SHIFTS as $name => [$start, $end]) {
+        foreach (self::SHIFTS as $name => [$start, $end, $code, $colour]) {
             $shifts[$name] = AttendanceShift::query()->firstOrCreate(['name' => $name], ['starts_at' => $start, 'ends_at' => $end]);
+            $shifts[$name]->update(['code' => $code, 'colour' => $colour]);
         }
         $cycle = [$shifts['Morning'], $shifts['Morning'], $shifts['Afternoon'], $shifts['Afternoon'], $shifts['Night'], $shifts['Night'], null, null];
         // What came later uses its own sequence, so the people, their habits and punches stay as before.

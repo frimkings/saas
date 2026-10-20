@@ -15,8 +15,8 @@ namespace App\Support\Guides;
 final class TourCatalog
 {
     public const VERSIONS = [
-        'attendance.manager' => 1,
-        'attendance.head' => 1,
+        'attendance.manager' => 2,
+        'attendance.head' => 2,
         'attendance.staff' => 1,
         'optical.dashboard' => 1,
         'optical.orders' => 1,
@@ -81,7 +81,7 @@ final class TourCatalog
             ['target' => 'att-people', 'title' => 'One person, day by day', 'body' => 'Click a name to see their days, punches and leave. Someone forgot to punch out? Use Correct on that day and give a reason; every correction is kept in the audit trail.'],
             ['target' => 'att-exports', 'title' => 'Take it away', 'body' => 'Download the days on show as a spreadsheet (CSV) or a PDF to print or send.'],
             ['target' => 'att-tab-requests', 'title' => 'Requests', 'body' => 'Leave that staff ask for'.(($extras['overtime'] ?? false) ? ', and overtime waiting for approval,' : '').' comes here, with a count on the tab. You get an email too.'],
-            ['target' => 'att-setup', 'title' => 'Set up', 'body' => 'Things you set once: working hours and grace minutes, holidays, terminals'.(($extras['shifts'] ?? false) ? ', shifts' : '').(($extras['leave'] ?? false) ? ', leave types' : '').(($extras['phone'] ?? false) ? ', phone clock-in' : '').'. Buttons for the features you start using, such as a roster, then appear up here too.'],
+            ['target' => 'att-setup', 'title' => 'Set up', 'body' => 'Things you set once: working hours and grace minutes, holidays, terminals'.(($extras['shifts'] ?? false) ? ', shifts (each with its own code and colour for the roster)' : '').(($extras['leave'] ?? false) ? ', leave types' : '').(($extras['phone'] ?? false) ? ', phone clock-in' : '').'. Buttons for the features you start using, such as a roster, then appear up here too.'],
             ['target' => 'att-upload', 'title' => 'No live connection?', 'body' => 'If the terminal is not sending punches over the internet, export its Attendance Record report to a USB drive and upload the .xls file here.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
@@ -96,7 +96,7 @@ final class TourCatalog
             ['target' => 'att-department', 'title' => 'One department at a time', 'body' => 'Head more than one department? Pick one here, or see them all together.'],
             ['target' => 'att-people', 'title' => 'Your people', 'body' => 'Click a name to see their days and punches. Use Correct on a day when someone forgot to punch, and give a reason.'],
             ['target' => 'att-tab-requests', 'title' => 'Requests', 'body' => 'Leave and overtime your people ask for comes here for your answer, with a count on the tab.'],
-            ['target' => 'att-roster', 'title' => 'Roster', 'body' => 'Plan who works which shift, and swap shifts between people when someone asks.'],
+            ['target' => 'att-roster', 'title' => 'Roster', 'body' => 'Plan who works which shift, and swap shifts between people when someone asks. Each shift has its own code and colour; click one in the key to see only the people on it.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

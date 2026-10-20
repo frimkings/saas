@@ -29,7 +29,7 @@
                     <div @class(['w-[4.6rem] rounded-lg border px-1.5 py-1 text-center', 'border-teal-600 ring-1 ring-teal-600' => $loop->first, 'border-slate-200' => ! $loop->first]) title="{{ $day['note'] ?? '' }}">
                         <p class="mb-0 text-[11px] text-slate-500">{{ $loop->first ? 'Today' : $day['date']->format('D j') }}</p>
                         @if(! $day['hours'])<p class="mb-0 text-sm font-semibold text-slate-400">Off</p>
-                        @elseif($day['code'])<p class="mb-0 text-sm"><span class="rounded px-1.5 py-0.5 font-semibold {{ $day['code']['class'] }}">{{ $day['code']['code'] }}</span></p>
+                        @elseif($day['code'])<p class="mb-0 text-sm"><span class="rounded px-1.5 py-0.5 font-semibold" style="{{ $day['code']['style'] }}">{{ $day['code']['code'] }}</span></p>
                         @else<p class="mb-0 text-sm font-semibold text-slate-700">Hrs</p>
                         @endif
                         @if($day['hours'])<p class="mb-0 text-[10px] leading-tight text-slate-500">{{ \App\Services\Attendance\AttendanceAnalyzer::time($day['hours']['start']) }}</p>@endif

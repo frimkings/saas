@@ -935,7 +935,7 @@ class AttendanceTest extends TestCase
         $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.manager'));
         $this->postJson(route('guides.record', 'attendance.manager'), ['status' => 'skipped'])->assertNoContent();
         $this->assertTrue(\App\Support\Guides\Guides::seen('attendance.manager'));
-        $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.manager', 2), 'A newer version of the tour starts again.');
+        $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.manager', \App\Support\Guides\TourCatalog::version('attendance.manager') + 1), 'A newer version of the tour starts again.');
         $this->postJson(route('guides.record', 'attendance.unknown'), ['status' => 'done'])->assertNotFound();
         $this->postJson(route('guides.record', 'attendance.head'), ['status' => 'maybe'])->assertUnprocessable();
         $this->assertFalse(\App\Support\Guides\Guides::seen('attendance.head'));

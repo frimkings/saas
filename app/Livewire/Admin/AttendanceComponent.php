@@ -139,6 +139,13 @@ class AttendanceComponent extends Component
     public string $shiftStart = '';
     public string $shiftEnd = '';
     public string $shiftBreak = '';
+    /** A shift's own short code and colour; empty = worked out (see ShiftCodes). */
+    public string $shiftCode = '';
+    public string $shiftColour = '';
+    /** The shift whose code and colour are being changed in the Shifts window. */
+    public ?int $editShiftId = null;
+    public string $editShiftCode = '';
+    public string $editShiftColour = '';
     /** ISO weekday => '' (usual hours), '0' (day off) or a shift id. */
     public array $staffShiftWeek = [];
 
@@ -257,11 +264,59 @@ class AttendanceComponent extends Component
             'shiftName' => ['required', 'string', 'max:60', \Illuminate\Validation\Rule::unique('attendance_shifts', 'name')->where('branch_id', app(\App\Support\Tenancy\TenantContext::class)->branchId())],
             'shiftStart' => 'required|date_format:H:i', 'shiftEnd' => 'required|date_format:H:i|different:shiftStart',
             'shiftBreak' => 'nullable|integer|min:0|max:600',
+            'shiftCode' => $this->shiftCodeRules(null),
+            'shiftColour' => $this->shiftColourRules(),
         ], ['shiftEnd.different' => 'A shift cannot start and end at the same time.', 'shiftName.unique' => 'There is already a shift with that name.'],
-            ['shiftName' => 'name', 'shiftStart' => 'start', 'shiftEnd' => 'end', 'shiftBreak' => 'break']);
+            ['shiftName' => 'name', 'shiftStart' => 'start', 'shiftEnd' => 'end', 'shiftBreak' => 'break', 'shiftCode' => 'code', 'shiftColour' => 'colour']);
         \App\Models\AttendanceShift::create(['name' => $this->shiftName, 'starts_at' => $this->shiftStart, 'ends_at' => $this->shiftEnd,
+            'code' => strtoupper(trim($this->shiftCode)) ?: null, 'colour' => strtolower($this->shiftColour) ?: null,
             'break_minutes' => $this->shiftBreak === '' ? null : (int) $this->shiftBreak, 'is_active' => true]);
-        $this->reset('shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak');
+        $this->reset('shiftName', 'shiftStart', 'shiftEnd', 'shiftBreak', 'shiftCode', 'shiftColour');
+    }
+
+    /** Open a shift's code and colour for changing, showing what it has now. */
+    public function editShift(int $id): void
+    {
+        $this->authorizePart('shifts');
+        $this->authorizeAccess();
+        $shift = \App\Models\AttendanceShift::query()->findOrFail($id);
+        $now = \App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->get())[$shift->id];
+        [$this->editShiftId, $this->editShiftCode, $this->editShiftColour] = [$shift->id, $now['code'], $now['background']];
+        $this->resetValidation();
+    }
+
+    public function saveShiftLook(): void
+    {
+        $this->authorizePart('shifts');
+        $this->authorizeAccess();
+        $shift = \App\Models\AttendanceShift::query()->findOrFail((int) $this->editShiftId);
+        $this->editShiftCode = trim($this->editShiftCode);
+        $this->validate(['editShiftCode' => array_merge(['required'], $this->shiftCodeRules($shift->id)), 'editShiftColour' => array_merge(['required'], $this->shiftColourRules())],
+            ['editShiftCode.required' => 'Give the shift a code.', 'editShiftColour.required' => 'Choose a colour.'], ['editShiftCode' => 'code', 'editShiftColour' => 'colour']);
+        $shift->update(['code' => strtoupper($this->editShiftCode), 'colour' => strtolower($this->editShiftColour)]);
+        $this->reset('editShiftId', 'editShiftCode', 'editShiftColour');
+    }
+
+    /** Up to four letters or digits, not a word the roster uses for itself, not another shift's code. */
+    private function shiftCodeRules(?int $except): array
+    {
+        return ['nullable', 'string', 'max:4', 'regex:/^[A-Za-z0-9]+$/', function ($attribute, $value, $fail) use ($except) {
+            $code = strtoupper(trim((string) $value));
+            if (in_array($code, \App\Support\ShiftCodes::RESERVED, true)) {
+                $fail("{$code} is kept for days off, usual hours and leave. Choose another code.");
+
+                return;
+            }
+            $others = \App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->when($except, fn ($query) => $query->whereKeyNot($except))->get());
+            if ($clash = collect($others)->firstWhere('code', $code)) {
+                $fail("{$clash['name']} already uses {$code}.");
+            }
+        }];
+    }
+
+    private function shiftColourRules(): array
+    {
+        return ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'];
     }
 
     /** A shift no longer offered stays on the days and people already given it. */
@@ -1212,7 +1267,9 @@ class AttendanceComponent extends Component
             'calendar' => $this->view === 'grid' ? $this->calendar($report, $first, $last, CarbonImmutable::now($timezone)) : null,
             'dayList' => $this->showDay ? $this->dayList($report) : null,
             'punchDay' => $this->showPunches ? $this->punchDay($analyzer, $report) : null,
-            'shifts' => \App\Models\AttendanceShift::query()->orderBy('starts_at')->orderBy('name')->get(),
+            'shifts' => $shiftList = \App\Models\AttendanceShift::query()->orderBy('starts_at')->orderBy('name')->get(),
+            // Shift name => its code and colour, for the Shifts window, the Today board and the day lists.
+            'shiftCodes' => collect(\App\Support\ShiftCodes::for($shiftList))->keyBy('name')->all(),
             'report' => $report,
             'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
             // Payroll gets its own button once anyone has been given a salary or an hourly rate.

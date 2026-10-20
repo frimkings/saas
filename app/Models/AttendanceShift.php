@@ -11,7 +11,7 @@ class AttendanceShift extends Model
 {
     use AuditsAttendance, BelongsToBranch;
 
-    protected $fillable = ['name', 'starts_at', 'ends_at', 'break_minutes', 'is_active'];
+    protected $fillable = ['name', 'code', 'colour', 'starts_at', 'ends_at', 'break_minutes', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean', 'break_minutes' => 'integer'];
 

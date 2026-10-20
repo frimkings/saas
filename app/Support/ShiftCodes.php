@@ -5,47 +5,82 @@ namespace App\Support;
 use Illuminate\Support\Collection;
 
 /**
- * Short codes and colours for a branch's shifts, for the roster grid, its Excel file and its
- * printout: "Morning" is M, "Night Shift" NS; two shifts that would share a code take more
- * letters. A day off is OFF.
+ * Short codes and colours for a branch's shifts, for the roster grid, its Excel file, its printout
+ * and wherever a shift is shown. A shift can be given its own code and colour; otherwise "Morning"
+ * is M, "Night Shift" NS (two shifts that would share a code take more letters) and the colour
+ * comes from the list below, one not already taken. A day off is OFF.
  */
 final class ShiftCodes
 {
     public const OFF = 'OFF';
 
-    /** Background and text colour pairs, for the screen and for print. */
-    private const TONES = [
-        ['bg-emerald-100 text-emerald-900', '#d1fae5', '#064e3b'],
-        ['bg-sky-100 text-sky-900', '#e0f2fe', '#0c4a6e'],
-        ['bg-violet-100 text-violet-900', '#ede9fe', '#4c1d95'],
-        ['bg-amber-100 text-amber-900', '#fef3c7', '#78350f'],
-        ['bg-rose-100 text-rose-900', '#ffe4e6', '#881337'],
-        ['bg-teal-100 text-teal-900', '#ccfbf1', '#134e4a'],
-        ['bg-lime-100 text-lime-900', '#ecfccb', '#365314'],
-        ['bg-fuchsia-100 text-fuchsia-900', '#fae8ff', '#701a75'],
+    /** What a code can't be: these mean a day off, usual hours or leave in the grid and the file. */
+    public const RESERVED = [self::OFF, 'O', 'X', 'USUAL', 'LV', 'HRS'];
+
+    /** The colours offered for a shift, strong enough to tell apart on a printed roster. */
+    public const COLOURS = [
+        '#0d9488' => 'Teal', '#2563eb' => 'Blue', '#4f46e5' => 'Indigo', '#9333ea' => 'Purple',
+        '#db2777' => 'Pink', '#dc2626' => 'Red', '#ea580c' => 'Orange', '#f59e0b' => 'Amber',
+        '#facc15' => 'Yellow', '#84cc16' => 'Lime', '#16a34a' => 'Green', '#06b6d4' => 'Cyan',
+        '#92400e' => 'Brown', '#475569' => 'Slate', '#1e3a8a' => 'Navy', '#9f1239' => 'Maroon',
     ];
 
-    /** Shift id => ['code', 'name', 'class', 'background', 'colour'], in starting-time order. */
+    /** Shift id => ['code', 'name', 'background', 'colour', 'style'], in starting-time order. */
     public static function for(Collection $shifts): array
     {
+        $sorted = $shifts->sortBy(fn ($shift) => [$shift->starts_at, $shift->name])->values();
+        // A shift's own code and colour first, so the worked-out ones keep clear of them.
+        $taken = array_fill_keys(self::RESERVED, true);
+        foreach ($sorted as $shift) {
+            if ($shift->code) {
+                $taken[strtoupper($shift->code)] = true;
+            }
+        }
+        $free = array_values(array_diff(array_keys(self::COLOURS), $sorted->pluck('colour')->filter()->map(fn ($hex) => strtolower($hex))->all()));
+        $palette = $free ?: array_keys(self::COLOURS);
+
         $codes = [];
-        $taken = [self::OFF => true];
-        foreach ($shifts->sortBy(fn ($shift) => [$shift->starts_at, $shift->name])->values() as $i => $shift) {
-            $words = preg_split('/[^A-Za-z0-9]+/', trim($shift->name), -1, PREG_SPLIT_NO_EMPTY) ?: ['S'];
-            $code = strtoupper(implode('', array_map(fn ($word) => $word[0], $words)));
-            $letters = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $shift->name)) ?: 'S';
-            for ($n = 2; isset($taken[$code]) && $n <= strlen($letters); $n++) {
-                $code = substr($letters, 0, $n);
-            }
-            for ($n = 2; isset($taken[$code]); $n++) {
-                $code = substr($letters, 0, 2).$n;
-            }
+        $auto = 0;
+        foreach ($sorted as $shift) {
+            $code = $shift->code ? strtoupper($shift->code) : self::workedOut($shift->name, $taken);
             $taken[$code] = true;
-            [$class, $background, $colour] = self::TONES[$i % count(self::TONES)];
-            $codes[$shift->id] = ['code' => $code, 'name' => $shift->name, 'class' => $class, 'background' => $background, 'colour' => $colour];
+            $background = $shift->colour ? strtolower($shift->colour) : $palette[$auto++ % count($palette)];
+            $colour = self::textOn($background);
+            $codes[$shift->id] = ['code' => $code, 'name' => $shift->name, 'background' => $background, 'colour' => $colour,
+                'style' => "background-color:{$background};color:{$colour}"];
         }
 
         return $codes;
+    }
+
+    /** "Morning" is M, "Night Shift" NS; more letters, then a number, when that is taken. */
+    private static function workedOut(string $name, array $taken): string
+    {
+        $words = preg_split('/[^A-Za-z0-9]+/', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: ['S'];
+        $code = substr(strtoupper(implode('', array_map(fn ($word) => $word[0], $words))), 0, 4);
+        $letters = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name)) ?: 'S';
+        for ($n = 2; isset($taken[$code]) && $n <= min(4, strlen($letters)); $n++) {
+            $code = substr($letters, 0, $n);
+        }
+        for ($n = 2; isset($taken[$code]); $n++) {
+            $code = substr($letters, 0, 2).$n;
+        }
+
+        return $code;
+    }
+
+    /** White or near-black text, whichever reads better on the colour. */
+    public static function textOn(string $hex): string
+    {
+        $channel = function (string $pair) {
+            $value = hexdec($pair) / 255;
+
+            return $value <= 0.03928 ? $value / 12.92 : (($value + 0.055) / 1.055) ** 2.4;
+        };
+        $hex = ltrim($hex, '#');
+        $light = 0.2126 * $channel(substr($hex, 0, 2)) + 0.7152 * $channel(substr($hex, 2, 2)) + 0.0722 * $channel(substr($hex, 4, 2));
+
+        return 1.05 / ($light + 0.05) >= ($light + 0.05) / 0.0589 ? '#ffffff' : '#0f172a';
     }
 
     /**

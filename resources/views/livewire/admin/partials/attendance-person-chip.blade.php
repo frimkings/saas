@@ -1,6 +1,9 @@
 {{-- One person on the Today board: their name and where they are. $person from AttendanceAnalyzer::today(). --}}
 <button type="button" class="block w-full rounded-lg border border-slate-100 bg-white px-2 py-1 text-left text-sm hover:bg-slate-50" wire:click="openStaff({{ $person['staff']->id }})" wire:key="board-{{ $person['staff']->id }}">
-    <span class="font-medium text-slate-800">{{ $person['staff']->name }}</span>
+    <span class="flex items-center justify-between gap-2">
+        <span class="truncate font-medium text-slate-800">{{ $person['staff']->name }}</span>
+        @if(($person['shift'] ?? null) && ($look = $shiftCodes[$person['shift']] ?? null))<span class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold" style="{{ $look['style'] }}" title="{{ $person['shift'] }}">{{ $look['code'] }}</span>@endif
+    </span>
     <span class="block text-xs text-slate-500">
         @switch($person['state'])
             @case('in')

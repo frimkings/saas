@@ -94,6 +94,44 @@ class AttendanceRosterTest extends TestCase
         $this->assertSame($this->night->id, ShiftCodes::read('night', $codes));
     }
 
+    public function test_a_shift_gets_its_own_code_and_colour(): void
+    {
+        // Worked out: two colours from the list, not the same, with text that reads on them.
+        $codes = ShiftCodes::for(AttendanceShift::query()->get());
+        $this->assertNotSame($codes[$this->morning->id]['background'], $codes[$this->night->id]['background']);
+        $this->assertSame('#ffffff', ShiftCodes::textOn('#1e3a8a'));
+        $this->assertSame('#0f172a', ShiftCodes::textOn('#facc15'));
+
+        $page = Livewire::test(AttendanceComponent::class)->set('showShifts', true)
+            // A new shift with its own code and colour; the codes the roster uses for itself and another shift's are refused.
+            ->set('shiftName', 'Morning Public Health')->set('shiftStart', '08:00')->set('shiftEnd', '16:00')->set('shiftCode', 'off')->call('addShift')->assertHasErrors('shiftCode')
+            ->set('shiftCode', 'n')->call('addShift')->assertHasErrors('shiftCode')
+            ->set('shiftCode', 'mph')->set('shiftColour', '#7DD3FC')->call('addShift')->assertHasNoErrors();
+        $health = AttendanceShift::query()->where('name', 'Morning Public Health')->firstOrFail();
+        $this->assertSame(['MPH', '#7dd3fc'], [$health->code, $health->colour]);
+
+        // Changing an existing shift: it opens with what it shows now.
+        $page->call('editShift', $this->night->id)->assertSet('editShiftCode', 'N')
+            ->set('editShiftCode', 'MPH')->set('editShiftColour', '#1e3a8a')->call('saveShiftLook')->assertHasErrors('editShiftCode')
+            ->set('editShiftCode', 'ns')->call('saveShiftLook')->assertHasNoErrors()->assertSet('editShiftId', null);
+        $codes = ShiftCodes::for(AttendanceShift::query()->get());
+        $this->assertSame(['NS', '#1e3a8a', '#ffffff'], [$codes[$this->night->id]['code'], $codes[$this->night->id]['background'], $codes[$this->night->id]['colour']]);
+        // The worked-out colours keep clear of the ones chosen.
+        $this->assertNotContains($codes[$this->morning->id]['background'], ['#1e3a8a', '#7dd3fc']);
+        $this->assertSame($this->night->id, ShiftCodes::read('ns', $codes));
+    }
+
+    public function test_the_roster_shows_only_the_shifts_picked(): void
+    {
+        AttendanceRoster::create(['attendance_staff_id' => $this->kofi->id, 'date' => '2026-10-20', 'attendance_shift_id' => $this->night->id]);
+        Livewire::withQueryParams(['date' => '2026-10-19'])->test(\App\Livewire\Admin\AttendanceRosterComponent::class)->set('rosterUnit', (string) $this->nursing->id)
+            ->assertSee('Ama Owusu')->assertSee('Kofi Boateng')
+            ->call('toggleRosterShift', $this->night->id)->assertSee('Kofi Boateng')->assertDontSee('Ama Owusu')
+            ->call('toggleRosterShift', $this->morning->id)->assertSee('Ama Owusu')
+            ->call('toggleRosterShift', $this->night->id)->assertDontSee('Kofi Boateng')
+            ->set('rosterShifts', [])->assertSee('Kofi Boateng');
+    }
+
     public function test_the_roster_is_one_department_at_a_time_in_codes_by_week_or_month(): void
     {
         // The page opens in a new tab from Attendance's Roster button.

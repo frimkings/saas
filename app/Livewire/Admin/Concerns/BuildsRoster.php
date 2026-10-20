@@ -23,6 +23,8 @@ trait BuildsRoster
     /** The department on the roster: an id, 'none', or '' where the branch has no departments. */
     #[\Livewire\Attributes\Url(as: 'department')]
     public string $rosterUnit = '';
+    /** Shift ids picked above the grid: only people on one of them in the days shown. Empty = everyone. */
+    public array $rosterShifts = [];
     // A roster brought in from Excel: the file, then what it would change, before it is applied.
     public bool $showRosterUpload = false;
     public $rosterFile = null;
@@ -51,6 +53,13 @@ trait BuildsRoster
     {
         $anchor = CarbonImmutable::parse($this->rosterWeek ?: 'today');
         $this->rosterWeek = ($this->rosterSpan === 'month' ? $anchor->startOfMonth()->addMonthsNoOverflow($by < 0 ? -1 : 1) : $anchor->addWeeks($by < 0 ? -1 : 1))->format('Y-m-d');
+    }
+
+    public function toggleRosterShift(int $id): void
+    {
+        $this->rosterShifts = in_array($id, $this->rosterShifts, true)
+            ? array_values(array_diff($this->rosterShifts, [$id])) : [...$this->rosterShifts, $id];
+        $this->rosterPage = 1;
     }
 
     public function updatedRosterUnit(): void
@@ -386,14 +395,18 @@ trait BuildsRoster
         $rows = array_values(array_filter($report['rows'], fn ($row) => $row['staff']->is_tracked));
         [$cover, $gaps] = $this->rosterCover($rows, $report['days'], ctype_digit($this->rosterUnit) ? [(int) $this->rosterUnit] : ($this->rosterUnit === 'none' ? [] : null));
 
+        $codes = \App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->get());
+        $picked = array_column(array_intersect_key($codes, array_flip($this->rosterShifts)), 'name');
+        $onPicked = fn ($row) => ! $picked || collect($row['days'])->contains(fn ($cell) => ! $cell['leave_type'] && in_array($cell['hours']['shift'] ?? null, $picked, true));
+
         // Cover counts everyone; the grid shows a page of them, and only those are checked for rest.
-        [$shown, $pager] = $this->paged(array_values(array_filter($rows, fn ($row) => $this->matches($row['staff']))), $this->rosterPage, 25);
+        [$shown, $pager] = $this->paged(array_values(array_filter($rows, fn ($row) => $this->matches($row['staff']) && $onPicked($row))), $this->rosterPage, 25);
 
         return ['days' => $report['days'], 'set' => $set, 'notes' => $notes, 'holidays' => $report['holidays'], 'rows' => $rows, 'shown' => $shown, 'pager' => $pager,
             'cover' => $cover, 'gaps' => $gaps,
             'warnings' => $this->restWarnings($analyzer, $shown, $first, $last, $report['settings']),
             'first' => $first, 'last' => $last, 'units' => $this->rosterUnits(),
-            'codes' => \App\Support\ShiftCodes::for(\App\Models\AttendanceShift::query()->get()),
+            'codes' => $codes, 'picked' => $picked,
             'patterns' => $this->showPattern ? \App\Models\AttendancePattern::query()->orderBy('name')->get() : collect()];
     }
 }

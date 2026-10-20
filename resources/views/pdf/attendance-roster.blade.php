@@ -49,7 +49,7 @@
         </tbody>
     </table>
     <p class="legend muted">
-        @foreach($codes as $code)<span><b>{{ $code['code'] }}</b> {{ $code['name'] }}</span>@endforeach
+        @foreach($codes as $code)<span><b style="padding:0 3px;{{ $code['style'] }}">{{ $code['code'] }}</b> {{ $code['name'] }}</span>@endforeach
         <span><b>Off</b> day off</span><span><b>Hrs</b> usual hours</span><span><b>Lv</b> on leave</span>
     </p>
 </body>
