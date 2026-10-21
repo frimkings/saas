@@ -71,8 +71,8 @@
                 <h3 class="text-sm font-semibold">Import Excel order sheet</h3>
                 <button type="button" wire:click="downloadLensTemplate" class="ui-button text-xs font-normal flex items-center gap-1">📥 Download Lens Order Template</button>
             </div>
-            <p class="text-xs text-slate-600">Upload .xlsx (up to 5 MB). Import one worksheet per lens range. Positive and negative sections are read together. Use SPH rows and {{ $lensDesign === 'Single Vision' ? 'CYL' : 'ADD' }} columns. Blank quantities are ignored; totals are excluded. Enter prices below after importing.</p>
-            <input type="file" wire:model="excelFile" accept=".xlsx" class="text-xs w-full" aria-label="Excel workbook">
+            <p class="text-xs text-slate-600">Upload .xlsx (up to {{ \App\Support\UploadLimits::label() }}). Import one worksheet per lens range. Positive and negative sections are read together. Use SPH rows and {{ $lensDesign === 'Single Vision' ? 'CYL' : 'ADD' }} columns. Blank quantities are ignored; totals are excluded. Enter prices below after importing.</p>
+            <input type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" wire:model="excelFile" accept=".xlsx" class="text-xs w-full" aria-label="Excel workbook">
             <span wire:loading wire:target="excelFile,previewExcel,applyExcel" class="text-xs">Reading workbook...</span>
             @if($excelSheets)
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">

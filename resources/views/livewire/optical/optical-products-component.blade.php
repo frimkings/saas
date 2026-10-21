@@ -72,7 +72,7 @@
                         <label class="block text-xs font-semibold">CSV file <span class="text-red-600">*</span></label>
                         <button type="button" wire:click="downloadTemplate" class="text-xs text-teal-700 hover:underline flex items-center gap-1 font-medium">📥 Download CSV Template</button>
                     </div>
-                    <div><input type="file" wire:model="importFile" accept=".csv,text/csv" class="ui-input w-full">@error('importFile')<p class="text-xs text-red-600 mt-1" role="alert">{{ $message }}</p>@enderror</div>
+                    <div><input type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" wire:model="importFile" accept=".csv,text/csv" class="ui-input w-full">@error('importFile')<p class="text-xs text-red-600 mt-1" role="alert">{{ $message }}</p>@enderror</div>
                     <div wire:loading wire:target="importFile,importCsv" class="text-xs text-teal-700">Processing file…</div>
                     <div class="flex justify-end gap-2 border-t border-slate-200 pt-4"><button type="button" x-on:click="dismissLocal($el, $wire, { showImport: false })" class="ui-button">Cancel</button><button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="importFile,importCsv">Import CSV</button></div>
                 </form>

@@ -67,9 +67,11 @@ return [
         // Always the server disk: on Laravel Cloud the first bucket attached becomes the default
         // disk, and uploads must not start going through the private patient-documents bucket.
         'disk' => env('LIVEWIRE_TEMPORARY_UPLOAD_DISK', 'local'),
-        'rules' => ['required', 'file', 'max:204800'], // Allow the importer's 200 MB dumps; components enforce their own limits.
+        // Clinic users: App\Support\UploadLimits::CLINIC_KB. LimitTemporaryUploadSize raises it
+        // for platform admins only (the legacy import's SQL dumps).
+        'rules' => ['required', 'file', 'max:3072'],
         'directory' => null,   // Example: 'tmp'                      | Default: 'livewire-tmp'
-        'middleware' => null,  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
+        'middleware' => ['throttle:60,1', \App\Http\Middleware\LimitTemporaryUploadSize::class],
         'preview_mimes' => [   // Supported file types for temporary pre-signed file URLs...
             'png', 'gif', 'bmp', 'svg', 'wav', 'mp4',
             'mov', 'avi', 'wmv', 'mp3', 'm4a',

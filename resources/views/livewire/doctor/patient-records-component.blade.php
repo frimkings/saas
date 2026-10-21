@@ -1351,13 +1351,13 @@
 
                                         <div class="mb-4">
                                             <label for="patient-reco-documentfiles" class="font-semibold text-sm">File</label>
-                                            <input id="patient-reco-documentfiles" type="file"
+                                            <input id="patient-reco-documentfiles" type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}"
                                                 wire:model.live="documentFiles"
                                                 wire:key="patient-document-upload-{{ $documentUploadKey }}"
                                                 class="ui-input ui-input-sm"
                                                 accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
                                                 multiple>
-                                            <small class="text-slate-500">Select one or more JPG, PNG, PDF, DOC, DOCX files. Max 10MB each, 10 files per upload.</small>
+                                            <small class="text-slate-500">Select one or more JPG, PNG, PDF, DOC, DOCX files. Max {{ \App\Support\UploadLimits::label() }} each, 10 files per upload.</small>
                                             @error('documentFiles') <div><small class="text-red-700">{{ $message }}</small></div> @enderror
                                             @error('documentFiles.*') <div><small class="text-red-700">{{ $message }}</small></div> @enderror
                                         </div>

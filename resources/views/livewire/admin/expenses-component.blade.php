@@ -289,7 +289,7 @@
                     <button type="button" class="ui-button ui-button-danger" x-on:click="removeReceipt($el)" data-confirm-title="Remove this receipt?" data-confirm-button="Remove" data-confirm-danger="true">Remove receipt</button>
                 </div>
                 {{-- The one other call: the photo uploads when chosen. --}}
-                <x-ui.field label="Receipt / photo (JPG, PNG, PDF · maximum 5 MB)" name="receiptFile" type="file" wire:model="receiptFile" x-ref="file" x-on:change="hasFile = $event.target.files.length > 0" accept=".jpg,.jpeg,.png,.pdf" />
+                <x-ui.field label="Receipt / photo (JPG, PNG, PDF · maximum {{ \App\Support\UploadLimits::label() }})" name="receiptFile" type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" wire:model="receiptFile" x-ref="file" x-on:change="hasFile = $event.target.files.length > 0" accept=".jpg,.jpeg,.png,.pdf" />
                 <p class="ui-muted" wire:loading wire:target="receiptFile" role="status">Uploading receipt…</p>
                 <x-ui.field label="Notes" name="state.notes" x-model="form.notes" maxlength="1000" />
                 <div class="rounded-lg border border-slate-200 p-4" x-show="! id && ! recurringId">

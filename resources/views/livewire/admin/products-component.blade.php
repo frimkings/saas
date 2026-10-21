@@ -142,7 +142,7 @@
                                 </div>
                                 <div class="w-full md:w-5/12 px-2">
                                     <div class="block">
-                                        <input type="file"
+                                        <input type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}"
                                                class="block w-full text-sm @error('importFile') is-invalid @enderror"
                                                id="productImportFile"
                                                accept=".csv,text/csv,text/plain"

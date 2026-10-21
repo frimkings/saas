@@ -752,7 +752,7 @@
                     @if(empty($importResults))
                         <div class="mb-4">
                             <label for="user-role-ma-importfile" class="font-semibold">Select CSV File <span class="text-red-700">*</span></label>
-                            <input id="user-role-ma-importfile" type="file"
+                            <input id="user-role-ma-importfile" type="file" data-max-kb="2048"
                                    wire:model.live="importFile"
                                    accept=".csv,.txt"
                                    class="form-control-file @error('importFile') is-invalid @enderror">

@@ -242,7 +242,7 @@
                                             </span>
                                         </label>
                                         <input id="importFilePicker"
-                                               type="file"
+                                               type="file" data-max-kb="2048"
                                                accept=".csv,text/csv,text/plain"
                                                wire:model.live="importFile"
                                                class="dx-file-input">

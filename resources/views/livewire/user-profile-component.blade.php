@@ -198,7 +198,7 @@
                             <div class="mb-2">
                                 <label class="ui-button ui-button-secondary ui-button-sm mb-0" style="cursor:pointer">
                                     <i class="fas fa-upload mr-1"></i> Choose Photo
-                                    <input type="file" wire:model.live="avatar" accept="image/*" style="display:none">
+                                    <input type="file" data-max-kb="2048" wire:model.live="avatar" accept="image/*" style="display:none">
                                 </label>
                                 @if($user->avatar)
                                 <button type="button" wire:click="removeAvatar" class="ui-button ui-button-danger ui-button-sm ml-1"

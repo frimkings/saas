@@ -381,7 +381,7 @@ public $isEditingAppointment = false;
     {
         $this->validate([
             'documentFiles' => 'required|array|min:1|max:10',
-            'documentFiles.*' => 'file|max:10240|mimes:jpg,jpeg,png,pdf,doc,docx',
+            'documentFiles.*' => 'file|'.\App\Support\UploadLimits::rule().'|mimes:jpg,jpeg,png,pdf,doc,docx',
             'documentType' => 'required|in:fundus_photo,oct,visual_field,referral_letter,other',
             'documentTitle' => 'nullable|string|max:150',
             'documentNotes' => 'nullable|string|max:1000',
