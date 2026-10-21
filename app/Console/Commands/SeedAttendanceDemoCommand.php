@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Fills one clinic's default branch with a made-up hospital for trying attendance at size:
  * departments with heads, three shifts, a rotating roster with saved patterns and a few swaps,
- * minimum cover, a month of punches (some from phones, some corrected by hand), public holidays,
+ * minimum cover, a month of punches (or any run of days up to a year with --from; some from phones,
+ * some corrected by hand), public holidays,
  * leave of each kind (some waiting, some turned down, part days), overtime and pay. Everyone it
  * adds has an Employee ID starting "DM", and the sign-in accounts it makes for heads and some
  * staff end in @attendance-demo.test (password "password"), so --clear removes them again.
@@ -35,7 +36,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SeedAttendanceDemoCommand extends Command
 {
-    protected $signature = 'attendance:demo {clinic : The clinic\'s id or part of its name} {--staff=600 : How many people to make} {--days=30 : How many days of punches, back from today} {--clear : Remove the made-up people instead}';
+    protected $signature = 'attendance:demo {clinic : The clinic\'s id or part of its name} {--staff=600 : How many people to make} {--days=30 : How many days of punches, back from today} {--from= : The first day of punches (YYYY-MM-DD), up to a year back, instead of --days} {--clear : Remove the made-up people instead}';
 
     protected $description = 'Fill a clinic with a made-up hospital (departments, shifts, roster, punches) to try attendance at size';
 
@@ -89,6 +90,12 @@ class SeedAttendanceDemoCommand extends Command
 
             return self::FAILURE;
         }
+        $from = (string) $this->option('from');
+        if ($from !== '' && ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+            $this->error('--from is a date like 2026-01-01.');
+
+            return self::FAILURE;
+        }
 
         $ran = ActAsClinic::run($clinic, null, function () use ($clinic) {
             $branch = app(TenantContext::class)->branch();
@@ -133,7 +140,10 @@ class SeedAttendanceDemoCommand extends Command
     {
         mt_srand(600);
         $count = max(12, (int) $this->option('staff'));
-        $days = max(1, min(120, (int) $this->option('days')));
+        $days = $this->option('from')
+            ? (int) CarbonImmutable::parse($this->option('from'), $now->timezone)->startOfDay()->diffInDays($now->startOfDay())
+            : (int) $this->option('days');
+        $days = max(1, min($this->option('from') ? 366 : 120, $days));
         $first = $now->startOfDay()->subDays($days);
         $tenant = ['clinic_id' => $clinicId, 'branch_id' => $branchId];
 
@@ -156,6 +166,23 @@ class SeedAttendanceDemoCommand extends Command
         $people = [];
         $works = [];
         $phoneUsers = [];
+        // Written as it goes, so months of punches for hundreds of people never sit in memory at once.
+        $made = ['punches' => 0, 'phone' => 0, 'roster' => 0];
+        $flush = function (bool $all = false) use (&$punches, &$roster, &$made) {
+            if (! $all && count($punches) + count($roster) < 5000) {
+                return;
+            }
+            foreach (array_chunk($roster, 1000) as $chunk) {
+                DB::table('attendance_roster')->insertOrIgnore($chunk);
+            }
+            foreach (array_chunk($punches, 1000) as $chunk) {
+                DB::table('attendance_punches')->insertOrIgnore($chunk);
+            }
+            $made['punches'] += count($punches);
+            $made['phone'] += count(array_filter($punches, fn ($punch) => $punch['source'] === 'phone'));
+            $made['roster'] += count($roster);
+            [$punches, $roster] = [[], []];
+        };
         foreach (self::DEPARTMENTS as $name => [$size, $onShifts]) {
             $department = AttendanceDepartment::query()->firstOrCreate(['name' => $name]);
             $members = max(1, (int) round($count * $size / $share));
@@ -224,26 +251,27 @@ class SeedAttendanceDemoCommand extends Command
                         $punches[] = $punch;
                     }
                 }
+                $flush();
             }
         }
-
-        foreach (array_chunk($roster, 1000) as $chunk) {
-            DB::table('attendance_roster')->insertOrIgnore($chunk);
-        }
-        foreach (array_chunk($punches, 1000) as $chunk) {
-            DB::table('attendance_punches')->insertOrIgnore($chunk);
-        }
+        $flush(true);
 
         $owner = (int) DB::table('clinic_user')->where('clinic_id', $clinicId)->where('clinic_role', 'Super Admin')->where('status', 'active')->value('user_id') ?: null;
         $accounts = $this->accounts($clinicId, $branchId, $people, $phoneUsers, $more);
 
-        // Leave: some taken, some coming, a few still waiting for an answer.
-        foreach (array_rand($people, min(count($people), max(3, intdiv($count, 20)))) as $n => $index) {
-            $from = $now->startOfDay()->addDays(mt_rand(-$days + 1, 12));
-            $user = $people[$index]->user_id;
-            AttendanceLeave::create(['attendance_staff_id' => $people[$index]->id, 'starts_on' => $from->format('Y-m-d'), 'ends_on' => $from->addDays(mt_rand(0, 4))->format('Y-m-d'),
-                'type' => ['annual', 'annual', 'sick', 'permission'][mt_rand(0, 3)], 'status' => $n % 6 === 0 ? AttendanceLeave::PENDING : AttendanceLeave::APPROVED, 'note' => 'Demo',
-                'requested_by' => $user, 'created_by' => $user ?: $owner, 'reviewed_by' => $n % 6 === 0 ? null : $owner, 'reviewed_at' => $n % 6 === 0 ? null : now()]);
+        // Leave: some taken, some coming, a few still waiting for an answer. As much again for each
+        // further 30 days the demo covers, spread through them; only the latest is still waiting.
+        $windows = max(1, intdiv($days, 30));
+        for ($w = 0; $w < $windows; $w++) {
+            $latest = $w === $windows - 1;
+            foreach (array_rand($people, min(count($people), max(3, intdiv($count, 20)))) as $n => $index) {
+                $from = $latest ? $now->startOfDay()->addDays(mt_rand(-($windows === 1 ? $days : 30) + 1, 12)) : $first->addDays($w * 30 + mt_rand(0, 29));
+                $pending = $latest && $n % 6 === 0;
+                $user = $people[$index]->user_id;
+                AttendanceLeave::create(['attendance_staff_id' => $people[$index]->id, 'starts_on' => $from->format('Y-m-d'), 'ends_on' => $from->addDays(mt_rand(0, 4))->format('Y-m-d'),
+                    'type' => ['annual', 'annual', 'sick', 'permission'][mt_rand(0, 3)], 'status' => $pending ? AttendanceLeave::PENDING : AttendanceLeave::APPROVED, 'note' => 'Demo',
+                    'requested_by' => $user, 'created_by' => $user ?: $owner, 'reviewed_by' => $pending ? null : $owner, 'reviewed_at' => $pending ? null : now()]);
+            }
         }
         $this->moreLeave($people, $owner, $now, $more);
         $corrected = $this->corrections($people, $works, $owner, $now, $more);
@@ -259,8 +287,8 @@ class SeedAttendanceDemoCommand extends Command
             }
         }
 
-        $this->info("Made {$number} people in ".count(self::DEPARTMENTS).' departments, '.number_format(count($punches)).' punches from '.$first->format('j M').' to now ('
-            .number_format(count(array_filter($punches, fn ($punch) => $punch['source'] === 'phone'))).' from phones), '.number_format(count($roster))." roster days, {$swapped} swaps, "
+        $this->info("Made {$number} people in ".count(self::DEPARTMENTS).' departments, '.number_format($made['punches']).' punches from '.$first->format('j M Y').' to now ('
+            .number_format($made['phone']).' from phones), '.number_format($made['roster'])." roster days, {$swapped} swaps, "
             ."{$corrected} corrected punches and {$answered} overtime answers.");
         $this->info("{$accounts} sign-in accounts (department heads and some staff), all with the password \"password\", e.g. dm0001".self::EMAIL.' (head of Nursing). Remove it all with --clear.');
     }

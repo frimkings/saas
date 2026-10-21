@@ -1,7 +1,8 @@
 @php
     use App\Services\Attendance\AttendanceAnalyzer;
 
-    $shade = ['on_time' => '#e8f7ef', 'late' => '#fde9b5', 'absent' => '#f9cfcf', 'off' => '#eeeeee', 'holiday' => '#e4dcf7', 'leave' => '#d9e6fb', 'worked_off' => '#dff1fa', 'none' => '#ffffff'];
+    // The same colours as on screen; a day with nothing received stays white.
+    $shade = ['none' => '#ffffff'] + array_map(fn ($tone) => $tone[0], \App\Support\AttendanceTones::STATUS);
     $code = ['absent' => 'A', 'off' => '', 'holiday' => 'H', 'leave' => 'LV', 'none' => ''];
 @endphp
 <!DOCTYPE html>

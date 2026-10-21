@@ -1,16 +1,8 @@
 @php
     use App\Services\Attendance\AttendanceAnalyzer;
+    use App\Support\AttendanceTones;
 
-    $tone = [
-        'on_time' => 'bg-emerald-50 text-emerald-800',
-        'late' => 'bg-amber-100 text-amber-900',
-        'absent' => 'bg-red-100 text-red-800',
-        'off' => 'bg-slate-100 text-slate-400',
-        'holiday' => 'bg-violet-100 text-violet-800',
-        'leave' => 'bg-indigo-100 text-indigo-800',
-        'worked_off' => 'bg-sky-50 text-sky-800',
-        'none' => 'text-slate-300',
-    ];
+    $tone = fn (string $status) => AttendanceTones::status($status);
     $totals = $report['totals'];
     $coveredUntil = $report['covered_until'] ? \Carbon\CarbonImmutable::parse($report['covered_until']) : null;
     $settings = $report['settings'];
@@ -228,17 +220,17 @@
                                         <span @class(['block text-xs font-semibold', 'text-slate-800' => $cell['shown'], 'text-slate-300' => ! $cell['shown']])>{{ $cell['date']->day }}</span>
                                         @if($cell['shown'])
                                             @if($cell['holiday'])
-                                                <span class="mt-1 block truncate rounded px-1 py-0.5 text-xs {{ $tone['holiday'] }}" title="{{ $cell['holiday'] }}">{{ $cell['holiday'] }}</span>
+                                                <span class="mt-1 block truncate rounded px-1 py-0.5 text-xs" style="{{ $tone('holiday') }}" title="{{ $cell['holiday'] }}">{{ $cell['holiday'] }}</span>
                                             @elseif($cell['state'] === 'none')
                                                 <span class="mt-1 block text-xs text-slate-300">No data</span>
                                             @elseif($cell['state'] === 'off' && ! $c['in'])
                                                 <span class="mt-1 block text-xs text-slate-400">Day off</span>
                                             @endif
                                             <span class="mt-1 flex flex-wrap gap-1 text-xs font-medium">
-                                                @if($c['in'])<span class="rounded px-1 py-0.5 {{ $tone['on_time'] }}">{{ $c['in'] }} in</span>@endif
-                                                @if($c['late'])<span class="rounded px-1 py-0.5 {{ $tone['late'] }}">{{ $c['late'] }} late</span>@endif
-                                                @if($c['absent'])<span class="rounded px-1 py-0.5 {{ $tone['absent'] }}">{{ $c['absent'] }} absent</span>@endif
-                                                @if($c['leave'])<span class="rounded px-1 py-0.5 {{ $tone['leave'] }}">{{ $c['leave'] }} on leave</span>@endif
+                                                @if($c['in'])<span class="rounded px-1 py-0.5" style="{{ $tone('on_time') }}">{{ $c['in'] }} in</span>@endif
+                                                @if($c['late'])<span class="rounded px-1 py-0.5" style="{{ $tone('late') }}">{{ $c['late'] }} late</span>@endif
+                                                @if($c['absent'])<span class="rounded px-1 py-0.5" style="{{ $tone('absent') }}">{{ $c['absent'] }} absent</span>@endif
+                                                @if($c['leave'])<span class="rounded px-1 py-0.5" style="{{ $tone('leave') }}">{{ $c['leave'] }} on leave</span>@endif
                                                 @if($c['flags'])<span class="rounded px-1 py-0.5 text-slate-600 ring-1 ring-inset ring-slate-400">{{ $c['flags'] }} to check</span>@endif
                                             </span>
                                         @endif
@@ -249,6 +241,9 @@
                     @endforeach
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 px-3 py-2 text-xs text-slate-600">
                         <span>Click a day to see everyone's punches. "In" counts everyone who came, late or not.</span>
+                        @foreach(['on_time' => 'In', 'late' => 'Late', 'absent' => 'Absent', 'leave' => 'On leave', 'holiday' => 'Holiday'] as $status => $label)
+                            <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-black/10" style="{{ $tone($status) }}"></span>{{ $label }}</span>
+                        @endforeach
                         <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded ring-1 ring-inset ring-slate-400"></span>To check: left early, a long break or a missing punch</span>
                     </div>
                 </div>
@@ -561,9 +556,9 @@
                 @if($punchDay['day'])
                     @php $counted = $punchDay['day']; @endphp
                     <p class="!mb-0 text-sm text-slate-700">Now counted as
-                        <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $counted['status'] === 'none' ? 'bg-slate-100 text-slate-600' : $tone[$counted['status']] }}">{{ AttendanceAnalyzer::STATUSES[$counted['status']] }}</span>
+                        <span class="rounded px-1.5 py-0.5 text-xs font-medium" style="{{ $tone($counted['status']) }}">{{ AttendanceAnalyzer::STATUSES[$counted['status']] }}</span>
                         @if($counted['minutes_worked'] !== null) · {{ AttendanceAnalyzer::duration($counted['minutes_worked']) }} on site @endif
-                        @if($counted['no_clock_out']) · <span class="text-amber-800">a punch is missing</span>@endif
+                        @if($counted['no_clock_out']) <span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag('no_clock_out') }}">A punch is missing</span>@endif
                     </p>
                 @endif
 
@@ -860,14 +855,14 @@
                                         @if(! $day['punches'])–@endif
                                     </td>
                                     <td class="text-center ui-number">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
-                                    <td class="text-center ui-number">@if($day['break_minutes'])<span @class(['rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900' => $day['long_break']])>{{ AttendanceAnalyzer::duration($day['break_minutes']) }}</span>@else – @endif</td>
+                                    <td class="text-center ui-number">@if($day['break_minutes'])<span @class(['rounded px-1.5 py-0.5 font-semibold' => $day['long_break']]) @if($day['long_break']) style="{{ AttendanceTones::flag('long_break') }}" @endif>{{ AttendanceAnalyzer::duration($day['break_minutes']) }}</span>@else – @endif</td>
                                     <td class="text-center">
-                                        <span class="inline-block rounded px-1.5 py-0.5 text-xs font-medium {{ $day['status'] === 'none' ? 'bg-slate-100 text-slate-600' : $tone[$day['status']] }}">{{ $day['status'] === 'none' ? 'Not in yet' : AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
+                                        <span class="inline-block rounded px-1.5 py-0.5 text-xs font-medium" style="{{ $tone($day['status']) }}">{{ $day['status'] === 'none' ? 'Not in yet' : AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
                                         @if($day['note'] && $day['status'] !== 'holiday')<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
-                                        @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
-                                        @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
+                                        @if($day['left_early'])<span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag('left_early') }}">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
+                                        @if($day['no_clock_out'])<span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag('no_clock_out') }}">A punch is missing</span>@endif
                                         @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
-                                        @if($day['overtime_minutes'] && $extras['overtime'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
+                                        @if($day['overtime_minutes'] && $extras['overtime'])<span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag(AttendanceTones::overtime($day['overtime_status'])) }}">Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                     </td>
                                 </tr>
                             @endforeach
@@ -1035,14 +1030,14 @@
                                             @if(! $day['punches'])–@endif
                                         </td>
                                         <td class="text-right ui-number">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
-                                        <td class="text-right ui-number">@if($day['break_minutes'])<span @class(['rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900' => $day['long_break']])>{{ AttendanceAnalyzer::duration($day['break_minutes']) }}</span>@else – @endif</td>
+                                        <td class="text-right ui-number">@if($day['break_minutes'])<span @class(['rounded px-1.5 py-0.5 font-semibold' => $day['long_break']]) @if($day['long_break']) style="{{ AttendanceTones::flag('long_break') }}" @endif>{{ AttendanceAnalyzer::duration($day['break_minutes']) }}</span>@else – @endif</td>
                                         <td>
-                                            <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['status']] }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
+                                            <span class="rounded px-1.5 py-0.5 text-xs font-medium" style="{{ $tone($day['status']) }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}@if($day['late_minutes']) · {{ AttendanceAnalyzer::duration($day['late_minutes']) }}@endif</span>
                                             @if($day['note'])<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
-                                            @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
-                                            @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif
+                                            @if($day['left_early'])<span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag('left_early') }}">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
+                                            @if($day['no_clock_out'])<span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag('no_clock_out') }}">A punch is missing</span>@endif
                                             @if($day['long_break'])<span class="ml-1 text-xs text-slate-600">Long break</span>@endif
-                                            @if($day['overtime_minutes'] && $extras['overtime'])<span @class(['ml-1 rounded px-1.5 py-0.5 text-xs', 'bg-teal-50 text-teal-800' => $day['overtime_status'] === 'approved', 'bg-amber-50 text-amber-900' => $day['overtime_status'] === 'pending', 'bg-slate-100 text-slate-500' => $day['overtime_status'] === 'declined'])>Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
+                                            @if($day['overtime_minutes'] && $extras['overtime'])<span class="ml-1 rounded px-1.5 py-0.5 text-xs" style="{{ AttendanceTones::flag(AttendanceTones::overtime($day['overtime_status'])) }}">Overtime {{ AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']) }}{{ ['pending' => ', waiting', 'declined' => ', not approved'][$day['overtime_status']] ?? '' }}</span>@endif
                                             @if($day['in_progress'])<span class="ml-1 text-xs text-slate-400">Day in progress</span>@endif
                                         </td>
                                     </tr>

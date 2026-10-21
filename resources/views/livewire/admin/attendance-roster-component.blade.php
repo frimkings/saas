@@ -7,6 +7,11 @@
             $month = $rosterSpan === 'month';
             $codes = $rosterGrid['codes'];
             $codeOf = collect($codes)->keyBy('name');
+            // Usual hours with the same times as a shift look like that shift.
+            $byTimes = collect($codes)->keyBy('times');
+            $todayKey = \Carbon\CarbonImmutable::now(app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone'))->format('Y-m-d');
+            // Today in teal, holidays in violet, weekends a shade darker: the same for the heading and the boxes.
+            $column = fn ($day) => match (true) { $day->format('Y-m-d') === $todayKey => 'bg-teal-50', isset($rosterGrid['holidays'][$day->format('Y-m-d')]) => 'bg-violet-50', $day->isWeekend() => 'bg-slate-100', default => '' };
             $fileQuery = ['department' => $rosterUnit, 'from' => $rosterGrid['first']->format('Y-m-d'), 'to' => $rosterGrid['last']->format('Y-m-d')];
         @endphp
         {{-- Title on the left, what can be done with the roster on the right, on one line. --}}
@@ -63,9 +68,10 @@
                         @if($rosterShifts)<button type="button" class="text-xs text-teal-700 underline" wire:click="$set('rosterShifts', [])">Show everyone</button>@endif
                     </div>
                     <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
-                        <span class="rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-500">Off</span><span class="mr-2">Day off</span>
-                        <span class="rounded bg-white px-1.5 py-0.5 text-slate-500 ring-1 ring-inset ring-slate-300">Hrs</span><span class="mr-2">Usual hours</span>
-                        <span class="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-800">Lv</span><span class="mr-2">On leave</span>
+                        <span class="rounded px-1.5 py-0.5 font-semibold" style="{{ \App\Support\ShiftCodes::DAY_OFF }}">Off</span><span class="mr-2">Day off</span>
+                        <span class="rounded px-1.5 py-0.5 font-semibold" style="{{ \App\Support\ShiftCodes::USUAL }}">8–5</span><span class="mr-2">Usual hours (the colour of a shift when the times match)</span>
+                        <span class="rounded px-1.5 py-0.5 font-semibold" style="{{ \App\Support\AttendanceTones::status('leave') }}">Lv</span><span class="mr-2">On leave</span>
+                        <span class="rounded bg-teal-50 px-1.5 py-0.5 font-semibold text-teal-800 ring-1 ring-inset ring-teal-200">Today</span>
                         <span class="text-slate-500">A box with a dark ring is set on the roster for that day. Click a box to change it.</span>
                     </div>
                 @endif
@@ -206,7 +212,7 @@
                                 <tr class="border-b border-slate-200 text-xs text-slate-500">
                                     <th class="sticky left-0 z-10 bg-white px-2 py-1.5 text-left font-semibold">Staff</th>
                                     @foreach($rosterDays as $day)
-                                        <th @class(['px-0.5 py-1.5 text-center font-semibold', 'bg-slate-50' => $day->isWeekend()])>
+                                        <th @class(['px-0.5 py-1.5 text-center font-semibold', $column($day), 'border-b-2 border-teal-600 text-teal-800' => $day->format('Y-m-d') === $todayKey])>
                                             @if($month){{ $day->format('j') }}<span class="block text-[10px] font-normal">{{ substr($day->format('D'), 0, 2) }}</span>
                                             @else{{ $day->format('D j') }}@endif
                                             @if(isset($rosterGrid['holidays'][$day->format('Y-m-d')]))<span class="block text-[10px] font-normal text-violet-700" title="{{ $rosterGrid['holidays'][$day->format('Y-m-d')] }}">Hol</span>@endif
@@ -216,8 +222,8 @@
                             </thead>
                             <tbody>
                                 @foreach($rosterGrid['shown'] as $row)
-                                    <tr wire:key="roster-{{ $row['staff']->id }}" class="border-b border-slate-100">
-                                        <td class="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-1 font-medium text-slate-800">{{ $row['staff']->name }}</td>
+                                    <tr wire:key="roster-{{ $row['staff']->id }}" class="group border-b border-slate-100 hover:bg-slate-50">
+                                        <td class="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-1 font-medium text-slate-800 group-hover:bg-slate-50">{{ $row['staff']->name }}</td>
                                         @foreach($rosterDays as $day)
                                             @php
                                                 $key = $day->format('Y-m-d');
@@ -226,22 +232,22 @@
                                                 $chosen = $rosterGrid['set'][$row['staff']->id][$key] ?? '';
                                                 $swapped = $rosterGrid['notes'][$row['staff']->id][$key] ?? null;
                                                 $warnings = $rosterGrid['warnings'][$row['staff']->id][$key] ?? [];
-                                                $shift = $due ? ($codeOf[$due['shift'] ?? ''] ?? null) : null;
-                                                [$label, $tone] = match (true) {
-                                                    (bool) $cell['leave_type'] => ['Lv', 'bg-indigo-100 text-indigo-800'],
-                                                    ! $due => ['Off', 'bg-slate-100 text-slate-500'],
-                                                    (bool) $shift => [$shift['code'], ''],
-                                                    default => ['Hrs', 'bg-white text-slate-500 ring-1 ring-inset ring-slate-300'],
+                                                $shift = $due ? ($codeOf[$due['shift'] ?? ''] ?? (empty($due['shift']) ? ($byTimes[\App\Support\ShiftCodes::times($due['start'], $due['end'])] ?? null) : null)) : null;
+                                                $usual = $due ? \App\Support\ShiftCodes::short($due['start'], $due['end']) : '';
+                                                [$label, $paint] = match (true) {
+                                                    (bool) $cell['leave_type'] => ['Lv', \App\Support\AttendanceTones::status('leave')],
+                                                    ! $due => ['Off', \App\Support\ShiftCodes::DAY_OFF],
+                                                    (bool) $shift => [$shift['code'], $shift['style']],
+                                                    default => [$month && mb_strlen($usual) > 4 ? 'Hrs' : $usual, \App\Support\ShiftCodes::USUAL],
                                                 };
-                                                $paint = $shift && ! $cell['leave_type'] ? $shift['style'] : '';
                                                 $title = $row['staff']->name.', '.$day->format('D j M').': '.($cell['leave_type'] ? ($cell['note'] ?? 'On leave') : ($due ? ($due['shift'] ?? 'Usual hours').' '.\App\Services\Attendance\AttendanceAnalyzer::time($due['start']).' to '.\App\Services\Attendance\AttendanceAnalyzer::time($due['end']) : 'Day off'))
                                                     .($swapped ? '. '.$swapped : '').($warnings ? '. '.implode('. ', $warnings) : '');
                                             @endphp
-                                            <td @class(['px-0.5 py-1 text-center', 'bg-slate-50' => $day->isWeekend()])>
+                                            <td @class(['px-0.5 py-1 text-center', $column($day)])>
                                                 <button type="button" title="{{ $title }}" aria-label="{{ $title }}"
                                                         x-on:click="menu = { staff: {{ $row['staff']->id }}, date: '{{ $key }}', name: @js($row['staff']->name.' · '.$day->format('D j M')), x: $event.clientX, y: $event.clientY }"
-                                                        @if($paint) style="{{ $paint }}" @endif
-                                                        @class(['relative inline-block rounded px-1 py-0.5 text-xs font-semibold tabular-nums', $tone, $month ? 'min-w-[1.9rem]' : 'min-w-[3rem]', 'outline outline-2 outline-offset-1 outline-slate-800' => $chosen !== ''])>
+                                                        style="{{ $paint }}"
+                                                        @class(['relative inline-block rounded px-1 py-0.5 text-xs font-semibold tabular-nums', $month ? 'min-w-[1.9rem]' : 'min-w-[3rem]', 'outline outline-2 outline-offset-1 outline-slate-800' => $chosen !== ''])>
                                                     {{ $label }}
                                                     @if($warnings)<span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500"></span>@elseif($swapped)<span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500"></span>@endif
                                                 </button>
