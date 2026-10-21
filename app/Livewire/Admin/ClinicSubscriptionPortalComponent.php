@@ -46,9 +46,11 @@ class ClinicSubscriptionPortalComponent extends Component
                 'branches'=>$clinic->branches()->where('is_active',true)->count(),
                 'users'=>$clinic->users()->wherePivot('status','active')->count(),
                 'storage_mb'=>round($storageBytes/1048576,2),
+                'storage_limit_mb'=>app(\App\Services\SubscriptionQuotaService::class)->storageLimitMb($clinic),
                 'attendance_staff'=>['used'=>\App\Support\AttendancePlan::followed($clinic),'limit'=>\App\Support\AttendancePlan::staffLimit($clinic)],
             ],
             'smsCredits'=>app(\App\Services\Messaging\SmsCreditService::class)->balance($clinic->id),
+            'attendanceSize'=>app(\App\Services\AttendanceSizing::class)->current($clinic->id),
         ])->layout('layouts.admin.admin-layout');
     }
 }

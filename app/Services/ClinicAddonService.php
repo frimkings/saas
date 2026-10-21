@@ -31,11 +31,17 @@ class ClinicAddonService
     /** Clinic id => active add-on features, for this request. */
     private array $active = [];
 
-    /** @return list<string> */
+    /** Features from the clinic's add-ons and its attendance package (when attendance is priced by staff size). @return list<string> */
     public function activeFeatures(int $clinicId): array
     {
-        return $this->active[$clinicId] ??= ClinicAddon::where('clinic_id', $clinicId)->activeAt()->pluck('feature')->unique()->values()->all();
+        return $this->active[$clinicId] ??= array_values(array_unique([
+            ...ClinicAddon::where('clinic_id', $clinicId)->activeAt()->pluck('feature')->all(),
+            ...app(AttendanceSizing::class)->features($clinicId),
+        ]));
     }
+
+    /** Sold another way now: attendance itself goes by staff size (AttendanceSizing), which also replaces packs of extra staff. */
+    public const NOT_SOLD = [\App\Support\Feature::ATTENDANCE, \App\Support\Feature::ATTENDANCE_STAFF_PACK];
 
     /** Extras this clinic's product can have, with the platform's price and whether clinics may ask for it. */
     public function catalogue(Clinic $clinic): Collection
@@ -43,13 +49,17 @@ class ClinicAddonService
         $product = PlanProduct::productOf($this->subscription($clinic)?->feature_snapshot);
         $prices = PlatformAddon::all()->keyBy('feature');
 
+        // Parts of attendance cost what the attendance price list says, and are offered unless the platform switched one off.
+        $modules = \App\Support\Pricing\AttendanceSuitePrices::modules();
+
         return collect(PlanProduct::extrasFor($product))
             ->map(fn ($name, $feature) => [
                 'feature' => $feature, 'name' => $name,
-                'price' => (float) ($prices[$feature]->monthly_price ?? 0),
+                'price' => (float) ($modules[$feature] ?? $prices[$feature]->monthly_price ?? 0),
                 'currency' => $prices[$feature]->currency ?? $this->currency($clinic),
-                'offered' => (bool) ($prices[$feature]->is_offered ?? false),
-                'pack_size' => in_array($feature, PlanProduct::ADDON_ONLY, true) ? (int) ($prices[$feature]->pack_size ?? PlanProduct::STAFF_PACK_SIZE) : null,
+                'offered' => ! in_array($feature, self::NOT_SOLD, true)
+                    && (bool) ($prices[$feature]->is_offered ?? isset($modules[$feature])),
+                'pack_size' => in_array($feature, PlanProduct::ADDON_ONLY, true) ? (int) ($prices[$feature]->pack_size ?? PlanProduct::defaultPackSize($feature)) : null,
             ]);
     }
 
@@ -88,7 +98,10 @@ class ClinicAddonService
         $subscription = $this->subscription($clinic);
         if (! $subscription) throw ValidationException::withMessages(['addon' => 'This clinic has no subscription yet.']);
         if (! $this->catalogue($clinic)->has($feature)) throw ValidationException::withMessages(['addon' => "That add-on isn't available for this clinic's product."]);
+        if (in_array($feature, self::NOT_SOLD, true)) throw ValidationException::withMessages(['addon' => $feature === \App\Support\Feature::ATTENDANCE
+            ? 'Attendance is priced by staff size now: set it under "Attendance by staff size".' : 'Packs of extra staff are no longer sold: move the clinic up a staff size instead.']);
         if ($this->planIncludes($clinic, $feature)) throw ValidationException::withMessages(['addon' => 'The clinic\'s plan already includes this.']);
+        if (in_array($feature, app(AttendanceSizing::class)->features($clinic->id), true)) throw ValidationException::withMessages(['addon' => 'The clinic\'s attendance package already includes this.']);
         if (in_array($feature, $this->activeFeatures($clinic->id), true)) throw ValidationException::withMessages(['addon' => 'The clinic already has this add-on.']);
         if ($monthlyPrice < 0) throw ValidationException::withMessages(['addon' => 'The price can\'t be negative.']);
 
@@ -175,12 +188,20 @@ class ClinicAddonService
         return (int) ClinicAddon::where('clinic_id', $clinicId)->where('feature', \App\Support\Feature::ATTENDANCE_STAFF_PACK)->activeAt()->sum('units');
     }
 
+    /** MB of scans & attachments the clinic's storage packs add to its plan. */
+    public function extraStorageMb(int $clinicId): int
+    {
+        return 1024 * (int) ClinicAddon::where('clinic_id', $clinicId)->where('feature', \App\Support\Feature::SCAN_STORAGE_PACK)->activeAt()->sum('units');
+    }
+
     /** Invoice lines for the add-ons in a renewal period: [description, amount, addon id]. */
     public function renewalLines(ClinicSubscription $subscription, CarbonInterface $start, CarbonInterface $end): array
     {
         return ClinicAddon::where('clinic_id', $subscription->clinic_id)->where('starts_at', '<=', $end)
             ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', $start))->where('monthly_price', '>', 0)->get()
-            ->reject(fn (ClinicAddon $addon) => PlanProduct::allows($subscription->feature_snapshot, $addon->feature))
+            // Nothing for what the plan or the attendance package already gives.
+            ->reject(fn (ClinicAddon $addon) => PlanProduct::allows($subscription->feature_snapshot, $addon->feature)
+                || in_array($addon->feature, app(AttendanceSizing::class)->features($subscription->clinic_id), true))
             ->map(fn (ClinicAddon $addon) => [$addon->name() . ' add-on', $this->periodPrice($subscription, (float) $addon->monthly_price), $addon->id])
             ->values()->all();
     }
@@ -226,6 +247,44 @@ class ClinicAddonService
     }
 
     // ── Invoices ─────────────────────────────────────────────────────────────
+
+    /** Charge the rest of the current period for something new at this monthly price (nothing on a trial or with no time left). */
+    public function chargeRestOfPeriod(Clinic $clinic, float $monthlyPrice, string $label, string $notes): ?PlatformInvoice
+    {
+        $subscription = $this->subscription($clinic);
+        if (! $subscription || ! ($charge = $this->prorata($clinic, $monthlyPrice))) return null;
+        [$amount, $days] = $charge;
+
+        return $this->invoice($clinic, $subscription, now()->startOfDay(), $subscription->current_period_ends_at,
+            [[$label . " ({$days} " . Str::plural('day', $days) . ' to ' . $subscription->current_period_ends_at->format('j M Y') . ')', $amount, null]], $notes);
+    }
+
+    /**
+     * Put a line in the next renewal invoice if it's already out, replacing any line that starts
+     * with $prefix (null = just remove it). Once that invoice is (part) paid it stays as it is; a
+     * new charge ($separately) then gets an invoice of its own.
+     *
+     * @param array{0: string, 1: float}|null $line the monthly amount; the period's amount is worked out here
+     */
+    public function syncUpcomingLine(ClinicSubscription $subscription, string $prefix, ?array $line, bool $separately = false): void
+    {
+        $invoice = $this->upcomingRenewal($subscription);
+        if (! $invoice) return;
+        $row = $line ? [$line[0], $this->periodPrice($subscription, (float) $line[1]), null] : null;
+        if ((float) $invoice->amount_paid > 0 || $invoice->status !== 'unpaid') {
+            if ($row && $separately) $this->invoice($subscription->clinic, $subscription, $invoice->period_start, $invoice->period_end, [$row], $line[0]);
+            return;
+        }
+        $removed = $invoice->lines()->where('description', 'like', addcslashes($prefix, '%_') . '%')->delete();
+        if ($row) $this->addLines($invoice, [$row]);
+        elseif ($removed) $this->recalculate($invoice, $subscription);
+    }
+
+    /** A month (or a year, for yearly clinics) of this monthly price. */
+    public function forPeriod(ClinicSubscription $subscription, float $monthlyPrice): float
+    {
+        return $this->periodPrice($subscription, $monthlyPrice);
+    }
 
     private function addToUpcomingRenewal(ClinicSubscription $subscription, ClinicAddon $addon): void
     {
@@ -318,7 +377,8 @@ class ClinicAddonService
         return app(SubscriptionService::class)->current($clinic);
     }
 
-    private function forget(int $clinicId): void
+    /** Read the clinic's features afresh (after an add-on or its attendance size changes). */
+    public function forget(int $clinicId): void
     {
         unset($this->active[$clinicId]);
     }

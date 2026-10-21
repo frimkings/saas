@@ -28,6 +28,26 @@ class SubscriptionBillingAutomationTest extends TestCase
         $this->assertDatabaseCount('platform_invoices',1);
     }
 
+    public function test_an_extra_branch_costs_its_monthly_price_on_a_monthly_renewal(): void
+    {
+        [$clinic,,$subscription]=$this->subscription();
+        $clinic->branches()->create(['code'=>'B2','name'=>'Second','is_default'=>false,'is_active'=>true]);
+        $invoice=app(SubscriptionBillingService::class)->invoiceFor($subscription);
+        $this->assertSame(25.0,(float)$invoice->lines->firstWhere('description','1 extra branch')->amount);
+    }
+
+    public function test_an_extra_branch_costs_a_year_at_the_plans_yearly_rate_on_a_yearly_renewal(): void
+    {
+        [$clinic,,$subscription]=$this->subscription();
+        $subscription->update(['billing_interval'=>'yearly']);
+        $clinic->branches()->create(['code'=>'B2','name'=>'Second','is_default'=>false,'is_active'=>true]);
+
+        // 25 a month at the plan's yearly rate (1000 a year for 100 a month) = 250, not 25; plus 10% tax.
+        $invoice=app(SubscriptionBillingService::class)->invoiceFor($subscription->fresh());
+        $this->assertSame(250.0,(float)$invoice->lines->firstWhere('description','1 extra branch')->amount);
+        $this->assertSame('1375.00',$invoice->total);
+    }
+
     public function test_full_payment_is_allocated_and_renews_subscription(): void
     {
         [,,$subscription]=$this->subscription();$service=app(SubscriptionBillingService::class);$invoice=$service->invoiceFor($subscription);

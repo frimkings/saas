@@ -27,7 +27,19 @@ class SubscriptionBillingService
         $extras = $limit === null ? 0 : max(0, $branches - $limit);
         // Each charge is its own invoice line: the plan, extra branches, then the clinic's add-ons.
         $lines = [[($subscription->plan?->name ?? 'Subscription') . ' plan (' . $subscription->billing_interval . ')', round($base, 2), null]];
-        if ($extras > 0) $lines[] = [$extras . ' extra ' . Str::plural('branch', $extras), round($extras * (float)($pricing['additional_branch_price'] ?? 0), 2), null];
+        // The branch price is monthly. A year of a branch is discounted like the plan's own year
+        // (annual ÷ monthly price, e.g. 10 months for "2 months free"), or 12 months without a monthly price.
+        $branchPrice = (float) ($pricing['additional_branch_price'] ?? 0);
+        if ($subscription->billing_interval === 'yearly') {
+            $monthly = (float) ($pricing['base_price'] ?? 0);
+            $branchPrice *= $monthly > 0 ? (float) ($pricing['annual_price'] ?? 0) / $monthly : 12;
+        }
+        if ($extras > 0) $lines[] = [$extras . ' extra ' . Str::plural('branch', $extras), round($extras * $branchPrice, 2), null];
+        // Attendance priced by staff size has a line of its own; a plan priced at nothing then needs no line.
+        if ($attendance = app(AttendanceSizing::class)->renewalLine($subscription, $start, $end)) {
+            if ((float) $lines[0][1] === 0.0) array_shift($lines);
+            $lines[] = $attendance;
+        }
         array_push($lines, ...app(ClinicAddonService::class)->renewalLines($subscription, $start, $end));
         $subtotal = round(array_sum(array_column($lines, 1)), 2);
         $tax = round($subtotal * ((float)($pricing['tax_rate'] ?? 0) / 100), 2);

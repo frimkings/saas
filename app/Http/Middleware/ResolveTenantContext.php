@@ -26,7 +26,8 @@ class ResolveTenantContext
             return $next($request);
         }
 
-        if ($request->routeIs('password.force.*')) {
+        // The public pricing page is the same for everyone, signed in or not.
+        if ($request->routeIs('password.force.*', 'pricing', 'pricing.request')) {
             return $next($request);
         }
 

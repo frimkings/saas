@@ -70,6 +70,10 @@
                     You can add {{ $staffPack['size'] }} more staff for {{ $staffPack['currency'] }} {{ number_format($staffPack['price'], 2) }} a month.
                     @if($staffPack['asked'])<span class="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">Asked for; waiting</span>
                     @elseif(auth()->user()->hasRole('Super Admin'))<button type="button" class="ui-button ui-button-primary ml-1 !py-1 !text-xs" wire:click="requestPart('{{ \App\Support\Feature::ATTENDANCE_STAFF_PACK }}')">Ask for more staff</button>@endif
+                @elseif($nextSize && $nextSize['special'])
+                    To follow more, ask us for a quote: larger teams have special pricing.
+                @elseif($nextSize)
+                    The next size, up to {{ number_format($nextSize['size']) }} staff on {{ $nextSize['package'] }}, is {{ $nextSize['currency'] }} {{ number_format($nextSize['price'], 2) }} a month. Ask us to move you up.
                 @else
                     Ask us to move you to a larger plan to follow more.
                 @endif

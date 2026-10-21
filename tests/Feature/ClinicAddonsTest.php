@@ -203,4 +203,34 @@ class ClinicAddonsTest extends TestCase
 
         Livewire::actingAs($owner)->test(PlatformSide::class, ['clinicId' => $clinic->id])->assertForbidden();
     }
+
+    public function test_storage_packs_switch_scans_on_for_a_plan_without_storage_and_add_to_one_with_it(): void
+    {
+        Mail::fake();
+        [$clinic, $subscription] = $this->clinic();
+        $subscription->update(['plan_snapshot' => ['storage_limit_mb' => 0] + $subscription->plan_snapshot]);
+        PlatformAddon::create(['feature' => Feature::SCAN_STORAGE_PACK, 'monthly_price' => 20, 'is_offered' => true, 'pack_size' => 1]);
+        $quota = app(\App\Services\SubscriptionQuotaService::class);
+
+        // No scan storage on the plan: the upload is refused with how to get it.
+        try {
+            $quota->assertStorageAvailable($clinic, 1024);
+            $this->fail('An upload with no scan storage should be refused.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertStringContainsString('Standard plan and above, or with a scan storage pack', $e->errors()['subscription'][0]);
+        }
+
+        // Two 1 GB packs at GHS 20 each: 2,048 MB, GHS 40 a month.
+        $addon = app(ClinicAddonService::class)->add($clinic, Feature::SCAN_STORAGE_PACK, 20, null, $this->platformAdmin(), null, 2);
+        $this->assertSame([2, 2, '40.00'], [$addon->quantity, $addon->units, $addon->monthly_price]);
+        $this->assertSame('Scans & attachments: extra storage (2 packs, 2 GB)', $addon->name());
+        $this->assertSame(2048, $quota->storageLimitMb($clinic));
+        $quota->assertStorageAvailable($clinic, 10 * 1048576);
+
+        // On a plan with 2 GB of its own, the packs add to it; an unlimited plan stays unlimited.
+        $subscription->update(['plan_snapshot' => ['storage_limit_mb' => 2048] + $subscription->plan_snapshot]);
+        $this->assertSame(4096, $quota->storageLimitMb($clinic->fresh()));
+        $subscription->update(['plan_snapshot' => ['storage_limit_mb' => null] + $subscription->plan_snapshot]);
+        $this->assertNull($quota->storageLimitMb($clinic->fresh()));
+    }
 }

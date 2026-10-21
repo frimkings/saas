@@ -150,6 +150,7 @@
 
     /* ── Right form panel ── */
     .form-panel {
+        position: relative;
         flex: 1;
         display: flex;
         flex-direction: column;
@@ -428,6 +429,27 @@
         font-size: 0.8rem;
         color: #9ca3af;
     }
+    /* Hosted only: plans and prices for clinics that aren't signed up yet. */
+    .pricing-link {
+        position: absolute;
+        top: 1.1rem;
+        right: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .45rem .9rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #fff;
+        color: #0f3460;
+        font-size: .85rem;
+        font-weight: 800;
+        text-decoration: none;
+    }
+    .pricing-link:hover { border-color: #0d7377; color: #0d7377; }
+    .pricing-link:focus-visible { outline: 3px solid #14d9c4; outline-offset: 2px; }
+    .brand-pricing { display: inline-block; margin-top: 1rem; color: #14d9c4; font-weight: 700; font-size: .9rem; text-decoration: none; }
+    .brand-pricing:hover { text-decoration: underline; }
 </style>
 
 <div class="login-wrapper">
@@ -478,6 +500,10 @@
             </div>
         </div>
 
+        @if($branding['platform'])
+            <a class="brand-pricing" href="{{ route('pricing') }}">See plans &amp; pricing →</a>
+        @endif
+
         @if($branding['phone'] || $branding['email'])
             <div class="brand-contact">
                 <span class="brand-contact-title">Developer contact</span>
@@ -489,6 +515,9 @@
 
     {{-- ── Right form panel ── --}}
     <div class="form-panel">
+        @if($branding['platform'])
+            <a class="pricing-link" href="{{ route('pricing') }}">Pricing <span aria-hidden="true">→</span></a>
+        @endif
         <div class="form-card">
 
             {{-- Mobile-only logo --}}

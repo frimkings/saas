@@ -49,10 +49,25 @@ class PlanProduct
     ];
 
     /** Sold only as add-ons, never ticked on a plan. */
-    public const ADDON_ONLY = [Feature::ATTENDANCE_STAFF_PACK];
+    public const ADDON_ONLY = [Feature::ATTENDANCE_STAFF_PACK, Feature::SCAN_STORAGE_PACK];
 
     /** How many staff a pack holds until the platform says otherwise. */
     public const STAFF_PACK_SIZE = 50;
+
+    /** How many GB of scans & attachments a storage pack holds until the platform says otherwise. */
+    public const STORAGE_PACK_GB = 1;
+
+    /** A pack's size until the platform sets one. */
+    public static function defaultPackSize(string $feature): int
+    {
+        return $feature === Feature::SCAN_STORAGE_PACK ? self::STORAGE_PACK_GB : self::STAFF_PACK_SIZE;
+    }
+
+    /** What a pack's units are: "staff" or "GB". */
+    public static function packUnit(string $feature): string
+    {
+        return $feature === Feature::SCAN_STORAGE_PACK ? 'GB' : 'staff';
+    }
 
     /** Parts of attendance sold on their own; each needs attendance itself. */
     public const ATTENDANCE_PARTS = [
@@ -82,6 +97,7 @@ class PlanProduct
         Feature::ATTENDANCE_TRENDS => ['Attendance: trends', null],
         Feature::ATTENDANCE_HOSPITAL => ['Attendance: hospital tools (departments, cover, rotation, swaps)', null],
         Feature::ATTENDANCE_STAFF_PACK => ['Attendance: extra staff (packs)', null],
+        Feature::SCAN_STORAGE_PACK => ['Scans & attachments: storage (packs)', self::CLINIC],
         Feature::SMS_CAMPAIGNS => ['SMS reminders & campaigns', null],
         Feature::APPROVALS => ['Approval workflows', null],
         Feature::AUDIT_TRAIL => ['Audit trail & login history', null],
@@ -164,7 +180,8 @@ class PlanProduct
     {
         if (in_array($feature, self::ADDON_ONLY, true)) {
             // Bought in quantity as an add-on; no plan, not even "everything", includes it.
-            return is_array($features) && in_array($feature, $features, true) && self::allows($features, Feature::ATTENDANCE);
+            return is_array($features) && in_array($feature, $features, true)
+                && ($feature !== Feature::ATTENDANCE_STAFF_PACK || self::allows($features, Feature::ATTENDANCE));
         }
         if (empty($features)) return true;
         if (in_array($feature, self::ATTENDANCE_PARTS, true)) {
