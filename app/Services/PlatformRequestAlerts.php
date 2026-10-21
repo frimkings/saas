@@ -96,6 +96,32 @@ class PlatformRequestAlerts
             'Review request', route('platform.dashboard', ['tab' => 'clinics']));
     }
 
+    /** Someone asked for a plan on the public pricing page; not a clinic yet, so the reply goes to them. */
+    public function pricingRequested(\App\Models\PricingRequest $request): void
+    {
+        $money = fn ($amount) => $request->currency . ' ' . number_format((float) $amount, 2);
+        $selection = $request->selection ?? [];
+        $this->mailer->sendToPlatform(null, self::inbox(), 'platform_pricing_request', 'pricing_request:' . $request->id,
+            "{$request->clinic_name} asked for {$request->plan_name}",
+            fn () => (new OwnerNoticeMail(config('mail.from.name') . ' · Platform', "{$request->clinic_name} asked for {$request->plan_name}",
+                "{$request->contact_name} asked for a plan on the pricing page. Call or email them, then set the clinic up under Clinic Onboarding.",
+                array_filter([
+                    'Clinic' => $request->clinic_name . ($request->town ? " ({$request->town})" : ''),
+                    'Contact' => $request->contact_name,
+                    'Phone' => $request->phone,
+                    'Email' => $request->email,
+                    'Plan' => $request->plan_name,
+                    'Price' => ! empty($selection['special']) ? 'Special pricing: agree a quote with them'
+                        : ($request->billing_interval === 'yearly' ? $money($request->quoted_total) . ' a year' : $money($request->monthly_total) . ' a month'),
+                    'Add-ons' => collect($selection['lines'] ?? [])->map(fn ($line) => $line[0])->implode(', ') ?: null,
+                    'Staff on attendance' => isset($selection['staff']) ? number_format($selection['staff']) : null,
+                    'Users' => $selection['users'] ?? null,
+                    'Patients a day' => $selection['visits'] ?? null,
+                    'Message' => $request->message,
+                ]), 'Open pricing requests', route('platform.pricing'), null, $this->footer()))
+                ->when($request->email, fn ($mail) => $mail->replyTo($request->email)));
+    }
+
     /** One morning email listing every request still waiting after a day. Nothing is sent if none are. */
     public function remindWaiting(): ?string
     {
@@ -127,6 +153,7 @@ class PlatformRequestAlerts
         $senders = Setting::withoutGlobalScopes()->where('sms_sender_id_status', 'pending')->where('sms_sender_id_requested_at', '<', $cutoff)
             ->get(['clinic_id', 'sms_sender_id_requested', 'sms_sender_id_requested_at']);
         $addons = \App\Models\ClinicAddonRequest::where('status', 'pending')->where('created_at', '<', $cutoff)->get(['clinic_id', 'feature', 'created_at']);
+        $pricing = \App\Models\PricingRequest::where('status', 'new')->where('created_at', '<', $cutoff)->get(['clinic_name', 'plan_name', 'created_at']);
         $names = $clinics($plans->pluck('clinic_id')->merge($bundles->pluck('clinic_id'))->merge($senders->pluck('clinic_id'))->merge($addons->pluck('clinic_id'))->unique());
 
         return collect()
@@ -135,6 +162,7 @@ class PlatformRequestAlerts
             ->merge($senders->map(fn ($r) => ['what' => "Sender ID {$r->sms_sender_id_requested}", 'clinic' => $names[$r->clinic_id] ?? 'Clinic',
                 'since' => \Illuminate\Support\Carbon::parse($r->sms_sender_id_requested_at)]))
             ->merge($addons->map(fn ($r) => ['what' => 'Add-on: ' . $r->name(), 'clinic' => $names[$r->clinic_id] ?? 'Clinic', 'since' => $r->created_at]))
+            ->merge($pricing->map(fn ($r) => ['what' => 'Pricing page: ' . $r->plan_name, 'clinic' => $r->clinic_name, 'since' => $r->created_at]))
             ->sortBy('since')->values();
     }
 

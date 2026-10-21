@@ -1165,6 +1165,20 @@ class AttendanceComponent extends Component
             'asked' => \App\Models\ClinicAddonRequest::query()->where('clinic_id', $clinic->id)->where('feature', \App\Support\Feature::ATTENDANCE_STAFF_PACK)->where('status', 'pending')->exists()] : null;
     }
 
+    /** For attendance priced by staff size: the next size up and its price for the clinic's package, or ['special' => true] past the list. */
+    private function nextSizeOffer(): ?array
+    {
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        $size = $clinic && app(\App\Services\ClinicAccessService::class)->hosted($clinic) ? app(\App\Services\AttendanceSizing::class)->current($clinic->id) : null;
+        if (! $size) {
+            return null;
+        }
+        $next = \App\Support\Pricing\AttendanceSuitePrices::quote($size->staff_limit + 1, [], $size->package);
+
+        return $next['special'] ? ['special' => true] : ['special' => false, 'size' => $next['size'], 'price' => $next['monthly'], 'currency' => $size->currency,
+            'package' => $size->packageName()];
+    }
+
     /** Ask the platform for a part of attendance as an add-on (the owner only). */
     public function requestPart(string $feature, \App\Services\ClinicAddonService $addons): void
     {
@@ -1258,6 +1272,7 @@ class AttendanceComponent extends Component
             'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
             'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,
             'staffPack' => $manager ? $this->staffPackOffer() : null,
+            'nextSize' => $manager ? $this->nextSizeOffer() : null,
             'departments' => $visible,
             'departmentSummary' => $manager && $departments->isNotEmpty() && $this->department === '' && $this->view === 'summary' ? $this->departmentSummary($report, $departments) : [],
             'trends' => $trends,

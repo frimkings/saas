@@ -24,7 +24,7 @@ class AddonCatalogueComponent extends Component
             $this->rows[$feature] = [
                 'price' => number_format((float) ($saved[$feature]->monthly_price ?? 0), 2, '.', ''),
                 'offered' => (bool) ($saved[$feature]->is_offered ?? false),
-                'pack' => (string) ($saved[$feature]->pack_size ?? PlanProduct::STAFF_PACK_SIZE),
+                'pack' => (string) ($saved[$feature]->pack_size ?? PlanProduct::defaultPackSize($feature)),
             ];
         }
     }
@@ -36,7 +36,7 @@ class AddonCatalogueComponent extends Component
         $packs = in_array($feature, PlanProduct::ADDON_ONLY, true);
         $this->validate(["rows.$feature.price" => 'required|numeric|min:0|max:100000', "rows.$feature.offered" => 'boolean']
             + ($packs ? ["rows.$feature.pack" => 'required|integer|min:1|max:10000'] : []),
-            ["rows.$feature.price.*" => 'Enter a price of 0 or more.', "rows.$feature.pack.*" => 'Enter how many staff a pack holds.']);
+            ["rows.$feature.price.*" => 'Enter a price of 0 or more.', "rows.$feature.pack.*" => 'Enter how many ' . PlanProduct::packUnit($feature) . ' a pack holds.']);
 
         $addon = PlatformAddon::firstOrNew(['feature' => $feature]);
         $old = $addon->exists ? $addon->only(['monthly_price', 'is_offered']) : [];

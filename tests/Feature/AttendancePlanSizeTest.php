@@ -95,7 +95,9 @@ class AttendancePlanSizeTest extends TestCase
 
     public function test_only_the_parts_ticked_on_the_plan_are_there_and_the_rest_can_be_asked_for(): void
     {
+        // Parts cost what the attendance price list says (payroll 60); one the platform switched off is "contact us".
         PlatformAddon::create(['feature' => Feature::ATTENDANCE_PAYROLL, 'monthly_price' => 50, 'currency' => 'GHS', 'is_offered' => true]);
+        PlatformAddon::create(['feature' => Feature::ATTENDANCE_HOSPITAL, 'monthly_price' => 0, 'currency' => 'GHS', 'is_offered' => false]);
         $this->onPlan(null, [Feature::ATTENDANCE_SHIFTS]);
         $this->assertSame(['shifts' => true, 'overtime' => false, 'leave' => false, 'payroll' => false, 'phone' => false, 'trends' => false, 'hospital' => false], AttendancePlan::parts());
         AttendanceShift::create(['name' => 'Morning', 'starts_at' => '08:00', 'ends_at' => '14:00']);
@@ -105,7 +107,7 @@ class AttendancePlanSizeTest extends TestCase
             ->assertDontSee('/admin/attendance/departments')->assertDontSeeHtml('wire:click="openLeaveTypes"')->assertDontSeeHtml('wire:click="openPhone"')
             ->assertDontSeeHtml('wire:click="openPayroll"')
             // What is not in the plan is listed with what it does and, where offered, its price.
-            ->set('showMore', true)->assertSee('More attendance features')->assertSee('Payroll')->assertSee('GHS 50.00 a month')->assertSee('Hospital tools')
+            ->set('showMore', true)->assertSee('More attendance features')->assertSee('Payroll')->assertSee('GHS 60.00 a month')->assertSee('Hospital tools')
             ->assertSee('Contact us to add it')
             ->call('requestPart', Feature::ATTENDANCE_PAYROLL)->assertSee('Asked for; waiting');
         $this->assertSame(1, ClinicAddonRequest::where('feature', Feature::ATTENDANCE_PAYROLL)->where('status', 'pending')->count());
@@ -126,7 +128,7 @@ class AttendancePlanSizeTest extends TestCase
         Livewire::test(AttendanceComponent::class)->call('openPayroll')->assertSet('showPayroll', true);
     }
 
-    public function test_a_clinic_buys_packs_of_extra_staff(): void
+    public function test_packs_of_extra_staff_bought_earlier_still_count_but_new_ones_are_not_sold(): void
     {
         PlatformAddon::create(['feature' => Feature::ATTENDANCE_STAFF_PACK, 'monthly_price' => 20, 'currency' => 'GHS', 'is_offered' => true, 'pack_size' => 50]);
         $this->onPlan(3);
@@ -137,12 +139,14 @@ class AttendancePlanSizeTest extends TestCase
         $this->assertArrayNotHasKey(Feature::ATTENDANCE_STAFF_PACK, PlanProduct::planExtrasFor(PlanProduct::ATTENDANCE));
         $this->assertFalse(PlanProduct::allows(PlanProduct::features(PlanProduct::ATTENDANCE, [], true), Feature::ATTENDANCE_STAFF_PACK));
 
-        // The plan is full: the owner is offered a pack, and asks for it.
-        Livewire::test(AttendanceComponent::class)->assertSee('You can add 50 more staff for GHS 20.00 a month')
-            ->call('requestPart', Feature::ATTENDANCE_STAFF_PACK)->assertSee('Asked for; waiting');
+        // The plan is full. Packs are no longer sold (a bigger staff size replaces them), so none is offered.
+        Livewire::test(AttendanceComponent::class)->assertDontSee('You can add 50 more staff')->assertSee('Ask us to move you to a larger plan');
         $addons = app(\App\Services\ClinicAddonService::class);
-        $addon = $addons->approve(ClinicAddonRequest::where('feature', Feature::ATTENDANCE_STAFF_PACK)->sole(), null, null);
-        $this->assertSame([1, 50, '20.00'], [$addon->quantity, $addon->units, $addon->monthly_price]);
+        $this->assertFalse($addons->catalogue(app(\App\Support\Tenancy\TenantContext::class)->clinic())[Feature::ATTENDANCE_STAFF_PACK]['offered']);
+
+        // A pack bought before still adds its staff, and can still be changed.
+        $addon = \App\Models\ClinicAddon::create(['clinic_id' => app(\App\Support\Tenancy\TenantContext::class)->clinic()->id, 'feature' => Feature::ATTENDANCE_STAFF_PACK, 'monthly_price' => 20,
+            'quantity' => 1, 'units' => 50, 'currency' => 'GHS', 'starts_at' => now()->subMonth()]);
         $this->assertSame(53, AttendancePlan::staffLimit());
         $this->assertTrue(AttendanceStaff::create(['employee_no' => '004', 'name' => 'Person 004'])->fresh()->is_tracked);
 

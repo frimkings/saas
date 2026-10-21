@@ -80,12 +80,17 @@ Route::get('/dashboard', function () {
 
 require __DIR__.'/auth.php';
 
+// Public pricing page (hosted only): plans, a "build your own" calculator and "Request this plan".
+Route::get('/pricing', [\App\Http\Controllers\PricingController::class, 'show'])->name('pricing');
+Route::post('/pricing/request', [\App\Http\Controllers\PricingController::class, 'request'])->middleware('throttle:5,60')->name('pricing.request');
+
 Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform', \App\Livewire\Platform\PlatformDashboardComponent::class)->name('platform.dashboard');
     Route::get('/platform/imports', \App\Livewire\Platform\LegacyImportManagerComponent::class)->name('platform.imports');
     Route::get('/platform/deployment-readiness', \App\Livewire\Platform\DeploymentReadinessComponent::class)->name('platform.deployment-readiness');
     Route::get('/platform/sms', \App\Livewire\Platform\SmsMessagingComponent::class)->name('platform.sms');
     Route::get('/platform/support', \App\Livewire\Platform\SupportSettingsComponent::class)->name('platform.support');
+    Route::get('/platform/pricing', \App\Livewire\Platform\PricingRequestsComponent::class)->name('platform.pricing');
     Route::get('/platform/announcements', \App\Livewire\Platform\AnnouncementsComponent::class)->name('platform.announcements');
     Route::get('/platform/usage', \App\Livewire\Platform\ClinicUsageComponent::class)->name('platform.usage');
     Route::get('/platform/subscription-analytics',\App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');

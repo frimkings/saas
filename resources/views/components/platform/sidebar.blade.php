@@ -2,11 +2,12 @@
 @php
     $pendingSms = \App\Models\Setting::withoutGlobalScopes()->where('sms_sender_id_status', 'pending')->count()
         + \App\Models\PlatformInvoice::where('source', 'sms_bundle')->whereIn('status', ['unpaid', 'partial'])->count();
+    $newPricing = \App\Models\PricingRequest::where('status', 'new')->count();
     $smsLow = (bool) (app(\App\Services\Messaging\PlatformSmsBalance::class)->last()['low'] ?? false);
     $tabs = ['dashboard' => '▥ Dashboard', 'clinics' => '✚ Clinics Directory', 'plans' => '◆ Subscription Plans', 'billing' => '▤ Invoices & Billing',
         'onboarding' => '＋ Clinic Onboarding', 'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
     $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'usage' => ['platform.usage', '◷ Clinic Usage'],'imports' => ['platform.imports', '⇧ Legacy Imports'],
-        'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'support' => ['platform.support', '☏ Support Contact']];
+        'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'pricing' => ['platform.pricing', '＄ Pricing Page'], 'support' => ['platform.support', '☏ Support Contact']];
 @endphp
 @once
 <style>
@@ -28,7 +29,7 @@
             <a href="{{ route('platform.dashboard', $key === 'dashboard' ? [] : ['tab' => $key]) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'clinics' && $overlimit)<span class="ps-badge">{{ $overlimit }}</span>@endif</a>
         @endforeach
         @foreach($pages as $key => [$route, $label])
-            <a href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>
+            <a href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'pricing' && $newPricing)<span class="ps-badge">{{ $newPricing }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>
         @endforeach
     </nav>
     <div class="ps-foot">

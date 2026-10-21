@@ -9,9 +9,9 @@ use App\Services\SubscriptionService;
 use App\Support\Tenancy\TenantContext;
 
 /**
- * How many staff a clinic's plan lets it follow on attendance, set by the platform on each plan
- * ("Staff on attendance"; empty = unlimited), and which parts of attendance it has. Installs
- * that are not hosted have no limit.
+ * How many staff a clinic may follow on attendance: the staff size it pays for when attendance is
+ * priced by size (AttendanceSizing), otherwise the number set on its plan ("Staff on attendance";
+ * empty = unlimited). Also which parts of attendance it has. Installs that are not hosted have no limit.
  */
 final class AttendancePlan
 {
@@ -21,6 +21,10 @@ final class AttendancePlan
         $clinic ??= app(TenantContext::class)->clinic();
         if (! $clinic || ! app(ClinicAccessService::class)->hosted($clinic)) {
             return null;
+        }
+        // Attendance priced by staff size follows the size paid for (plus packs bought before sizes).
+        if ($size = app(\App\Services\AttendanceSizing::class)->current($clinic->id)) {
+            return $size->staff_limit + app(\App\Services\ClinicAddonService::class)->extraStaff($clinic->id);
         }
         $subscription = app(SubscriptionService::class)->current($clinic);
         if (! $subscription) {

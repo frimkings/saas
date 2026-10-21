@@ -13,7 +13,7 @@
                             <input class="pa-addon-input" type="number" step="0.01" min="0" style="width:110px" wire:model="rows.{{ $feature }}.price" aria-label="Monthly price for {{ $name }}">
                             @if(in_array($feature, \App\Support\PlanProduct::ADDON_ONLY, true))
                                 <span class="pa-muted">per pack of</span>
-                                <input class="pa-addon-input" type="number" min="1" style="width:80px" wire:model="rows.{{ $feature }}.pack" aria-label="Staff in a pack"> <span class="pa-muted">staff</span>
+                                <input class="pa-addon-input" type="number" min="1" style="width:80px" wire:model="rows.{{ $feature }}.pack" aria-label="{{ ucfirst(\App\Support\PlanProduct::packUnit($feature)) }} in a pack"> <span class="pa-muted">{{ \App\Support\PlanProduct::packUnit($feature) }}</span>
                                 @error("rows.$feature.pack")<small class="pa-err">{{ $message }}</small>@enderror
                             @endif
                             @error("rows.$feature.price")<small class="pa-err">{{ $message }}</small>@enderror
