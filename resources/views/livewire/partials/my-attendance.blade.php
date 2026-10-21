@@ -2,8 +2,6 @@
 @php
     use App\Services\Attendance\AttendanceAnalyzer;
 
-    $tone = ['on_time' => 'bg-emerald-50 text-emerald-800', 'late' => 'bg-amber-100 text-amber-900', 'absent' => 'bg-red-100 text-red-800',
-        'holiday' => 'bg-violet-100 text-violet-800', 'leave' => 'bg-indigo-100 text-indigo-800', 'worked_off' => 'bg-sky-50 text-sky-800'];
     $t = $mine['row']['totals'];
     $shown = collect($mine['row']['days'])->reject(fn ($day) => in_array($day['status'], ['none', 'off'], true));
 @endphp
@@ -148,7 +146,7 @@
                             <td class="py-1.5 pr-3 tabular-nums">{{ implode(' · ', array_map(fn ($punch) => ($punch['kind'] === 'in' ? 'In ' : 'Out ').AttendanceAnalyzer::time($punch['time']), $day['punches'])) ?: '–' }}</td>
                             <td class="py-1.5 pr-3 tabular-nums">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '–' }}</td>
                             <td class="py-1.5">
-                                <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['status']] ?? '' }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}{{ $day['late_minutes'] ? ' · '.AttendanceAnalyzer::duration($day['late_minutes']) : '' }}</span>
+                                <span class="rounded px-1.5 py-0.5 text-xs font-medium " style="{{ \App\Support\AttendanceTones::status($day['status']) }}">{{ AttendanceAnalyzer::STATUSES[$day['status']] }}{{ $day['late_minutes'] ? ' · '.AttendanceAnalyzer::duration($day['late_minutes']) : '' }}</span>
                                 @if($day['note'])<span class="ml-1 text-xs text-slate-600">{{ $day['note'] }}</span>@endif
                                 @if($day['left_early'])<span class="ml-1 text-xs text-slate-600">Left {{ AttendanceAnalyzer::duration($day['early_minutes']) }} early</span>@endif
                                 @if($day['no_clock_out'])<span class="ml-1 text-xs text-slate-600">A punch is missing</span>@endif

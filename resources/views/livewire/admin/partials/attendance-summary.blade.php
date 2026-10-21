@@ -5,6 +5,7 @@
 --}}
 @php
     use App\Services\Attendance\AttendanceAnalyzer;
+    use App\Support\AttendanceTones;
 
     $dayKey = $oneDay ? $first->format('Y-m-d') : null;
     // A column heading that sorts the list by it, worst first.
@@ -16,26 +17,24 @@
     };
     $flags = function (array $t, ?array $day = null) use ($extras) {
         $out = [];
-        $add = function ($text, $tone = 'bg-amber-50 text-amber-900 ring-amber-200') use (&$out) { $out[] = '<span class="mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs ring-1 ring-inset '.$tone.'">'.e($text).'</span>'; };
+        $add = function ($text, $style) use (&$out) { $out[] = '<span class="mr-1 inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs" style="'.$style.'">'.e($text).'</span>'; };
         if ($day) {
-            if ($day['left_early']) $add('Left '.AttendanceAnalyzer::duration($day['early_minutes']).' early');
-            if ($day['long_break']) $add('Long break '.AttendanceAnalyzer::duration($day['break_minutes']));
-            if ($day['no_clock_out']) $add('Missing punch', 'bg-slate-50 text-slate-700 ring-slate-300');
-            if ($extras['overtime'] && $day['overtime_minutes']) $add('Overtime '.AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']).($day['overtime_status'] === 'pending' ? ', waiting' : ''), 'bg-teal-50 text-teal-800 ring-teal-200');
-            if ($day['note'] && in_array($day['status'], ['leave', 'holiday'], true)) $add($day['note'], 'bg-indigo-50 text-indigo-800 ring-indigo-200');
+            if ($day['left_early']) $add('Left '.AttendanceAnalyzer::duration($day['early_minutes']).' early', AttendanceTones::flag('left_early'));
+            if ($day['long_break']) $add('Long break '.AttendanceAnalyzer::duration($day['break_minutes']), AttendanceTones::flag('long_break'));
+            if ($day['no_clock_out']) $add('Missing punch', AttendanceTones::flag('no_clock_out'));
+            if ($extras['overtime'] && $day['overtime_minutes']) $add('Overtime '.AttendanceAnalyzer::duration($day['overtime_status'] === 'approved' ? $day['overtime_approved'] : $day['overtime_minutes']).($day['overtime_status'] === 'pending' ? ', waiting' : ''), AttendanceTones::flag(AttendanceTones::overtime($day['overtime_status'])));
+            if ($day['note'] && in_array($day['status'], ['leave', 'holiday'], true)) $add($day['note'], AttendanceTones::flag('note'));
         } else {
-            if ($t['left_early']) $add('Left early '.$t['left_early'].'×');
-            if ($t['long_breaks']) $add('Long breaks '.$t['long_breaks'].'×');
-            if ($t['no_clock_out']) $add('Missing punch '.$t['no_clock_out'].'×', 'bg-slate-50 text-slate-700 ring-slate-300');
-            if ($extras['overtime'] && $t['overtime_minutes']) $add('Overtime '.AttendanceAnalyzer::duration($t['overtime_minutes']), 'bg-teal-50 text-teal-800 ring-teal-200');
-            if ($extras['overtime'] && $t['overtime_pending']) $add(AttendanceAnalyzer::duration($t['overtime_pending']).' overtime waiting', 'bg-teal-50 text-teal-800 ring-teal-200');
-            if ($t['leave']) $add($t['leave'].' on leave', 'bg-indigo-50 text-indigo-800 ring-indigo-200');
+            if ($t['left_early']) $add('Left early '.$t['left_early'].'×', AttendanceTones::flag('left_early'));
+            if ($t['long_breaks']) $add('Long breaks '.$t['long_breaks'].'×', AttendanceTones::flag('long_break'));
+            if ($t['no_clock_out']) $add('Missing punch '.$t['no_clock_out'].'×', AttendanceTones::flag('no_clock_out'));
+            if ($extras['overtime'] && $t['overtime_minutes']) $add('Overtime '.AttendanceAnalyzer::duration($t['overtime_minutes']), AttendanceTones::flag('overtime'));
+            if ($extras['overtime'] && $t['overtime_pending']) $add(AttendanceAnalyzer::duration($t['overtime_pending']).' overtime waiting', AttendanceTones::flag('overtime_pending'));
+            if ($t['leave']) $add($t['leave'].' on leave', AttendanceTones::status('leave'));
         }
 
         return implode('', $out);
     };
-    $tone = ['on_time' => 'bg-emerald-50 text-emerald-800', 'late' => 'bg-amber-100 text-amber-900', 'absent' => 'bg-red-100 text-red-800', 'off' => 'bg-slate-100 text-slate-500',
-        'holiday' => 'bg-violet-100 text-violet-800', 'leave' => 'bg-indigo-100 text-indigo-800', 'worked_off' => 'bg-sky-50 text-sky-800', 'none' => 'bg-slate-100 text-slate-500'];
 @endphp
 <div data-tour="att-people" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
     <div class="ui-table-wrap">
@@ -74,7 +73,7 @@
                             <td class="text-right ui-number">{{ AttendanceAnalyzer::time($day['out']) }}</td>
                             <td class="text-right ui-number">{{ $day['minutes_worked'] !== null ? AttendanceAnalyzer::duration($day['minutes_worked']) : '' }}</td>
                             <td>
-                                <span class="mr-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['status']] ?? '' }}">{{ $day['status'] === 'none' ? 'No data' : AttendanceAnalyzer::STATUSES[$day['status']] }}{{ $day['late_minutes'] ? ' '.AttendanceAnalyzer::duration($day['late_minutes']) : '' }}</span>{!! $flags($t, $day) !!}
+                                <span class="mr-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium " style="{{ AttendanceTones::status($day['status']) }}">{{ $day['status'] === 'none' ? 'No data' : AttendanceAnalyzer::STATUSES[$day['status']] }}{{ $day['late_minutes'] ? ' '.AttendanceAnalyzer::duration($day['late_minutes']) : '' }}</span>{!! $flags($t, $day) !!}
                             </td>
                         @else
                             <td class="text-right ui-number">{{ $t['present'] }}<span class="text-slate-400"> / {{ $t['expected'] }}</span></td>

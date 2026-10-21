@@ -2,7 +2,6 @@
 {{-- Overtime in the days on show, one row a day: waiting first, each approved (in full or part) or turned down. --}}
 @php
     $waiting = collect($overtime)->where('day.overtime_status', 'pending');
-    $tone = ['approved' => 'bg-teal-50 text-teal-800', 'pending' => 'bg-amber-100 text-amber-900', 'declined' => 'bg-slate-100 text-slate-600'];
 @endphp
 <div class="attendance-overtime space-y-2 p-3">
     <div class="flex flex-wrap items-start justify-between gap-2">
@@ -35,7 +34,7 @@
                                 @endif
                             </td>
                             <td class="whitespace-nowrap">
-                                <span class="rounded px-1.5 py-0.5 text-xs font-medium {{ $tone[$day['overtime_status']] ?? '' }}">{{ ['pending' => 'Waiting', 'approved' => 'Approved '.AttendanceAnalyzer::duration($day['overtime_approved']), 'declined' => 'Not approved'][$day['overtime_status']] ?? '' }}</span>
+                                <span class="rounded px-1.5 py-0.5 text-xs font-medium " style="{{ \App\Support\AttendanceTones::flag(\App\Support\AttendanceTones::overtime($day['overtime_status'])) }}">{{ ['pending' => 'Waiting', 'approved' => 'Approved '.AttendanceAnalyzer::duration($day['overtime_approved']), 'declined' => 'Not approved'][$day['overtime_status']] ?? '' }}</span>
                                 @if($decision)<span class="block text-[11px] text-slate-400">{{ $decision->decider->name ?? 'A manager' }}, {{ $decision->updated_at->diffForHumans() }}</span>@endif
                             </td>
                             @if($decision)

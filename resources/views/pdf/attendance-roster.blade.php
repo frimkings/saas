@@ -39,10 +39,12 @@
                     @foreach($days as $day)
                         @php
                             $cell = $row['days'][$day->format('Y-m-d')];
-                            $shift = $cell['hours'] ? ($byName[$cell['hours']['shift'] ?? ''] ?? null) : null;
-                            $text = $cell['leave_type'] ? 'Lv' : (! $cell['hours'] ? 'Off' : ($shift['code'] ?? 'Hrs'));
+                            $due = $cell['hours'];
+                            // Usual hours with the same times as a shift print as that shift, the rest as their times.
+                            $shift = $due ? ($byName[$due['shift'] ?? ''] ?? (empty($due['shift']) ? collect($codes)->firstWhere('times', \App\Support\ShiftCodes::times($due['start'], $due['end'])) : null)) : null;
+                            $text = $cell['leave_type'] ? 'Lv' : (! $due ? 'Off' : ($shift['code'] ?? \App\Support\ShiftCodes::short($due['start'], $due['end'])));
                         @endphp
-                        <td class="code {{ $day->isWeekend() ? 'weekend' : '' }}" style="{{ $shift && ! $cell['leave_type'] ? 'background:'.$shift['background'].';color:'.$shift['colour'] : ($text === 'Off' ? 'color:#94a3b8' : '') }}">{{ $text }}</td>
+                        <td class="code {{ $day->isWeekend() ? 'weekend' : '' }}" style="{{ $cell['leave_type'] ? \App\Support\AttendanceTones::status('leave') : ($shift ? 'background:'.$shift['background'].';color:'.$shift['colour'] : ($text === 'Off' ? 'color:#94a3b8' : 'background:#e0f2fe;color:#075985')) }}">{{ $text }}</td>
                     @endforeach
                 </tr>
             @endforeach
@@ -50,7 +52,7 @@
     </table>
     <p class="legend muted">
         @foreach($codes as $code)<span><b style="padding:0 3px;{{ $code['style'] }}">{{ $code['code'] }}</b> {{ $code['name'] }}</span>@endforeach
-        <span><b>Off</b> day off</span><span><b>Hrs</b> usual hours</span><span><b>Lv</b> on leave</span>
+        <span><b>Off</b> day off</span><span><b style="padding:0 3px;background:#e0f2fe;color:#075985">8–5</b> usual hours</span><span><b style="padding:0 3px;{{ \App\Support\AttendanceTones::status('leave') }}">Lv</b> on leave</span>
     </p>
 </body>
 </html>

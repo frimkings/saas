@@ -69,4 +69,27 @@ class AttendanceDemoTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $owner->id]);
         \Illuminate\Support\Carbon::setTestNow();
     }
+
+    public function test_the_demo_can_cover_the_year_from_a_given_day(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-10-20 13:00:00');
+        config()->set('tenancy.enabled', true);
+        $clinic = $this->activeClinic(['name' => 'Demo Hospital', 'slug' => 'demo-hospital']);
+        $branch = $clinic->branches()->create(['code' => 'MAIN', 'name' => 'Main', 'is_default' => true]);
+        $owner = User::factory()->create();
+        $clinic->users()->attach($owner, ['status' => 'active', 'clinic_role' => 'Super Admin', 'is_default' => true]);
+        DB::table('branch_user')->insert(['branch_id' => $branch->id, 'user_id' => $owner->id, 'status' => 'active', 'is_default' => true]);
+
+        $this->artisan('attendance:demo', ['clinic' => (string) $clinic->id, '--staff' => 24, '--from' => 'January'])->assertFailed();
+        $this->artisan('attendance:demo', ['clinic' => (string) $clinic->id, '--staff' => 24, '--from' => '2026-01-01'])->assertSuccessful();
+
+        app(TenantContext::class)->set($owner, $clinic, $branch, [$branch->id]);
+        $this->assertSame('2026-01-01', substr((string) AttendancePunch::query()->min('punched_at'), 0, 10));
+        $this->assertSame('2026-01-01', AttendanceStaff::query()->where('employee_no', 'like', 'DM%')->value('starts_on')->format('Y-m-d'));
+        // Leave through the year, and only recent leave still waiting for an answer.
+        $months = AttendanceLeave::query()->where('note', 'Demo')->pluck('starts_on')->map(fn ($day) => $day->format('Y-m'))->unique();
+        $this->assertGreaterThanOrEqual(8, $months->count());
+        $this->assertFalse(AttendanceLeave::query()->where('status', AttendanceLeave::PENDING)->where('starts_on', '<', '2026-09-01')->exists());
+        \Illuminate\Support\Carbon::setTestNow();
+    }
 }

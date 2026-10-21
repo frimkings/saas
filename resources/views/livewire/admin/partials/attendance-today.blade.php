@@ -3,12 +3,15 @@
     each; clicking a row slides its people open right under it. Clicking a count lists those people.
 --}}
 @php
+    use App\Support\AttendanceTones;
+
+    // Each count in the colour of the day it is heading for: in is on time, not in yet is absent.
     $states = [
-        'in' => ['In now', 'bg-emerald-50 text-emerald-800', ['in']],
-        'missing' => ['Not in yet', 'bg-red-100 text-red-800', ['missing']],
-        'due' => ['Due later', 'bg-slate-100 text-slate-700', ['due']],
-        'out' => ['Out', 'bg-slate-100 text-slate-700', ['out']],
-        'away' => ['On leave or off', 'bg-indigo-50 text-indigo-800', ['leave', 'holiday', 'off']],
+        'in' => ['In now', 'on_time', ['in']],
+        'missing' => ['Not in yet', 'absent', ['missing']],
+        'due' => ['Due later', 'off', ['due']],
+        'out' => ['Out', 'off', ['out']],
+        'away' => ['On leave or off', 'leave', ['leave', 'holiday', 'off']],
     ];
     $count = fn ($people, array $kinds) => $people->whereIn('state', $kinds)->count();
     $everyone = collect($board);
@@ -30,7 +33,7 @@
         @foreach($states as $key => [$label, $tone, $kinds])
             <button type="button" style="flex:1 1 0;min-width:7.5rem" wire:click="$set('boardShow', '{{ $boardShow === $key ? '' : $key }}')" @class(['rounded-lg border px-3 py-2 text-left', 'border-teal-600 ring-1 ring-teal-600' => $boardShow === $key, 'border-slate-200 hover:bg-slate-50' => $boardShow !== $key]) aria-pressed="{{ $boardShow === $key ? 'true' : 'false' }}">
                 <span class="block text-xs text-slate-500">{{ $label }}</span>
-                <span class="mt-0.5 inline-block rounded px-1.5 text-lg font-semibold tabular-nums {{ $tone }}">{{ $count($everyone, $kinds) }}</span>
+                <span class="mt-0.5 inline-block rounded px-1.5 text-lg font-semibold tabular-nums" style="{{ AttendanceTones::status($tone) }}">{{ $count($everyone, $kinds) }}</span>
             </button>
         @endforeach
     </div>
@@ -55,7 +58,7 @@
                             <td class="font-medium text-slate-800">{{ $unit['name'] }}<i class="fas fa-chevron-right ml-1.5 text-xs text-slate-400" aria-hidden="true"></i></td>
                             @foreach($states as $key => [$label, $tone, $kinds])
                                 @php $n = $count($people, $kinds); @endphp
-                                <td class="text-right ui-number">@if($n)<span @class(['rounded px-1.5 py-0.5', $tone => $key === 'missing'])>{{ $n }}</span>@else <span class="text-slate-300">0</span> @endif</td>
+                                <td class="text-right ui-number">@if($n)<span class="rounded px-1.5 py-0.5" @if($key === 'missing') style="{{ AttendanceTones::status($tone) }}" @endif>{{ $n }}</span>@else <span class="text-slate-300">0</span> @endif</td>
                             @endforeach
                             <td class="text-sm">@forelse($unit['short'] as $gap)<span class="mr-1 inline-block rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">{{ $gap['shift'] }}: {{ $gap['in'] }} of {{ $gap['need'] }}</span>@empty<span class="text-slate-300">–</span>@endforelse</td>
                         </tr>
@@ -107,14 +110,14 @@
                         @foreach($states as $key => [$label, $tone, $kinds])
                             <div class="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1.5">
                                 <span class="block text-[11px] leading-tight text-slate-500">{{ $label }}</span>
-                                <span class="inline-block rounded px-1 text-base font-semibold tabular-nums {{ $tone }}">{{ $count($people, $kinds) }}</span>
+                                <span class="inline-block rounded px-1 text-base font-semibold tabular-nums" style="{{ AttendanceTones::status($tone) }}">{{ $count($people, $kinds) }}</span>
                             </div>
                         @endforeach
                     </div>
                     @foreach($groups as $key => [$label, $tone, $names])
                         @continue($names->isEmpty())
                         <section>
-                            <h3 class="att-section-title">{{ $label }} <span class="rounded px-1.5 py-0.5 normal-case {{ $tone }}">{{ $names->count() }}</span></h3>
+                            <h3 class="att-section-title">{{ $label }} <span class="rounded px-1.5 py-0.5 normal-case" style="{{ AttendanceTones::status($tone) }}">{{ $names->count() }}</span></h3>
                             <div class="grid gap-1.5 sm:grid-cols-2">
                                 @foreach($names as $person)
                                     @include('livewire.admin.partials.attendance-person-chip')

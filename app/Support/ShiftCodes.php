@@ -25,7 +25,13 @@ final class ShiftCodes
         '#92400e' => 'Brown', '#475569' => 'Slate', '#1e3a8a' => 'Navy', '#9f1239' => 'Maroon',
     ];
 
-    /** Shift id => ['code', 'name', 'background', 'colour', 'style'], in starting-time order. */
+    /** Usual hours that match no shift: a soft blue, so a grid of them is not a wall of white. */
+    public const USUAL = 'background-color:#e0f2fe;color:#075985;box-shadow:inset 0 0 0 1px #7dd3fc';
+
+    /** A day off: grey stripes, so working days stand out at a glance. */
+    public const DAY_OFF = 'background:repeating-linear-gradient(135deg,#f1f5f9 0 4px,#e2e8f0 4px 8px);color:#64748b';
+
+    /** Shift id => ['code', 'name', 'background', 'colour', 'style', 'times' ('07:00-14:00')], in starting-time order. */
     public static function for(Collection $shifts): array
     {
         $sorted = $shifts->sortBy(fn ($shift) => [$shift->starts_at, $shift->name])->values();
@@ -47,10 +53,31 @@ final class ShiftCodes
             $background = $shift->colour ? strtolower($shift->colour) : $palette[$auto++ % count($palette)];
             $colour = self::textOn($background);
             $codes[$shift->id] = ['code' => $code, 'name' => $shift->name, 'background' => $background, 'colour' => $colour,
-                'style' => "background-color:{$background};color:{$colour}"];
+                'style' => "background-color:{$background};color:{$colour}", 'times' => self::times((string) $shift->starts_at, (string) $shift->ends_at)];
         }
 
         return $codes;
+    }
+
+    /** '07:00-14:00' for any start and end, an end past midnight ('30:00') written as the clock shows it. */
+    public static function times(string $start, string $end): string
+    {
+        $clock = fn (string $time) => sprintf('%02d:%s', ((int) substr($time, 0, 2)) % 24, substr($time, 3, 2) ?: '00');
+
+        return $clock($start).'-'.$clock($end);
+    }
+
+    /** "8–5", "7:30–4:30": usual hours short enough for a roster box, on a twelve-hour clock. */
+    public static function short(string $start, string $end): string
+    {
+        $hour = function (string $time) {
+            [$h, $m] = [((int) substr($time, 0, 2)) % 24, substr($time, 3, 2) ?: '00'];
+            $h = $h % 12 ?: 12;
+
+            return $m === '00' ? (string) $h : "{$h}:{$m}";
+        };
+
+        return $hour($start).'–'.$hour($end);
     }
 
     /** "Morning" is M, "Night Shift" NS; more letters, then a number, when that is taken. */
