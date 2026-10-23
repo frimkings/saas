@@ -73,6 +73,12 @@
                     <div class="w-full md:w-4/12 px-2">
                         <strong>{{ $patient->name }}</strong>
                         <small class="text-slate-500 ml-2">{{ $patient->pxnumber }}</small>
+                        @if($legacyPayments)
+                            <small class="block text-slate-600 mt-1">
+                                Also paid {{ currency() }} {{ number_format($legacyPayments['total'], 2) }} in the previous software ({{ $legacyPayments['count'] }} {{ Str::plural('payment', $legacyPayments['count']) }}), kept apart from this account.
+                                @if(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']))<a href="{{ route('admin.sales-records.previous', ['search' => $patient->pxnumber]) }}" class="text-teal-700 underline">View</a>@endif
+                            </small>
+                        @endif
                     </div>
                     <div class="w-full md:w-4/12 px-2 text-slate-500 text-sm">
                         {{ $patient->contact ?? '' }}

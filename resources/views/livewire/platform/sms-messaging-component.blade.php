@@ -7,25 +7,25 @@
     <x-ui.flash :map="['sms_message' => str_starts_with(session('sms_message') ?? '', 'Balance check failed') ? 'warning' : 'success']" />
 
     {{-- Provider balance vs what clinics have paid for --}}
-    <section class="pp-card">
-        <div class="pp-card-head">
+    <section class="ui-card" data-tour="sms-gateway">
+        <div class="ui-card-head">
             <div>
                 <h2>Platform gateway</h2>
                 @if($gatewayReady)
-                    <p><span class="pp-badge">Configured</span> &nbsp;Default sender <b>{{ $defaultSender ?: 'account default' }}</b></p>
+                    <p><span class="ui-badge">Configured</span> &nbsp;Default sender <b>{{ $defaultSender ?: 'account default' }}</b></p>
                 @else
                     <p class="fail">Not configured. Set EAZISMS_API_URL and EAZISMS_API_KEY in the server environment; hosted clinics cannot send SMS until then.</p>
                 @endif
             </div>
-            <button type="button" class="pp-btn" wire:click="checkBalance" wire:loading.attr="disabled" wire:target="checkBalance">
+            <button type="button" class="ui-button ui-button-primary" wire:click="checkBalance" wire:loading.attr="disabled" wire:target="checkBalance">
                 <span wire:loading.remove wire:target="checkBalance">↻ Check balance now</span><span wire:loading wire:target="checkBalance">Checking…</span>
             </button>
         </div>
-        <div class="pp-stats">
-            <div class="pp-stat">
-                <span>EazismsPro balance</span>
+        <div class="ui-tiles ui-tiles--auto">
+            <div class="ui-tile">
+                <span class="ui-tile__label">EazismsPro balance</span>
                 <b class="{{ ($providerStatus['low'] ?? false) ? 'fail' : 'pass' }}">{{ isset($providerStatus['balance']) ? number_format($providerStatus['balance']) : '—' }}</b>
-                <small>
+                <small class="ui-tile__hint">
                     @if($providerStatus)
                         Checked {{ \Carbon\Carbon::parse($providerStatus['checked_at'])->diffForHumans() }}
                         @if($providerStatus['error'])<br><span class="fail">{{ $providerStatus['error'] }}</span>@endif
@@ -34,30 +34,30 @@
                     @endif
                 </small>
             </div>
-            <div class="pp-stat">
-                <span>Clinic prepaid credits (unused)</span>
-                <b>{{ number_format($outstanding) }}</b>
-                <small>Already paid for by clinics and still to be sent</small>
+            <div class="ui-tile">
+                <span class="ui-tile__label">Clinic prepaid credits (unused)</span>
+                <b class="ui-tile__value">{{ number_format($outstanding) }}</b>
+                <small class="ui-tile__hint">Already paid for by clinics and still to be sent</small>
             </div>
-            <div class="pp-stat">
-                <span>Coverage</span>
+            <div class="ui-tile">
+                <span class="ui-tile__label">Coverage</span>
                 <b class="{{ $spare === null ? '' : ($spare < 0 ? 'fail' : (($providerStatus['low'] ?? false) ? 'warn' : 'pass')) }}">{{ $spare === null ? '—' : ($spare < 0 ? 'Short by ' . number_format(-$spare) : number_format($spare) . ' spare') }}</b>
-                <small>Alert when the balance falls below {{ number_format(max((int) config('services.eazisms.low_balance', 1000), $outstanding)) }}</small>
+                <small class="ui-tile__hint">Alert when the balance falls below {{ number_format(max((int) config('services.eazisms.low_balance', 1000), $outstanding)) }}</small>
             </div>
         </div>
     </section>
 
-    <nav class="pp-tabs" role="tablist" aria-label="SMS sections">
+    <nav class="ui-tabs" role="tablist" aria-label="SMS sections" data-tour="sms-sections">
         @foreach(['payments' => 'Awaiting payment', 'credits' => 'Clinic credits', 'bundles' => 'Bundles', 'senders' => 'Sender IDs'] as $key => $label)
-            <button type="button" role="tab" aria-selected="{{ $section === $key ? 'true' : 'false' }}" class="{{ $section === $key ? 'active' : '' }}" wire:click="setSection('{{ $key }}')">{{ $label }}@if($counts[$key])<span class="pp-badge {{ $key === 'senders' ? 'red' : 'amber' }}">{{ $counts[$key] }}</span>@endif</button>
+            <button type="button" role="tab" aria-selected="{{ $section === $key ? 'true' : 'false' }}" class="{{ $section === $key ? 'active' : '' }}" wire:click="setSection('{{ $key }}')">{{ $label }}@if($counts[$key])<span class="ui-badge {{ $key === 'senders' ? 'ui-badge--danger' : 'ui-badge--warning' }}">{{ $counts[$key] }}</span>@endif</button>
         @endforeach
     </nav>
 
     @if($section === 'payments')
         {{-- Bundle payments awaiting confirmation --}}
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>SMS credit purchases awaiting payment</h2><p>Record the clinic's full payment to add the credits immediately. Partial payments are recorded in Invoices &amp; Billing; credits are added once the invoice is fully paid.</p></div></div>
-            <div class="pp-table-wrap"><table class="pp-table">
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>SMS credit purchases awaiting payment</h2><p>Record the clinic's full payment to add the credits immediately. Partial payments are recorded in Invoices &amp; Billing; credits are added once the invoice is fully paid.</p></div></div>
+            <div class="ui-table-wrap ui-table-wrap--framed"><table class="ui-table">
                 <thead><tr><th>Clinic</th><th>Invoice</th><th>Credits</th><th>Due</th><th style="min-width:380px">Record payment</th></tr></thead>
                 <tbody>
                 @forelse($bundleInvoices as $invoice)
@@ -65,25 +65,25 @@
                         <td><b>{{ $invoice->clinic?->name }}</b></td>
                         <td>{{ $invoice->number }}<small>{{ $invoice->currency }} {{ number_format($invoice->balance(), 2) }} outstanding</small></td>
                         <td>{{ number_format($invoice->sms_credits) }}</td>
-                        <td>{{ $invoice->due_date->format('d M Y') }}@if($invoice->due_date->isPast())<small><span class="pp-badge red">OVERDUE</span></small>@endif</td>
+                        <td>{{ $invoice->due_date->format('d M Y') }}@if($invoice->due_date->isPast())<small><span class="ui-badge ui-badge--danger">OVERDUE</span></small>@endif</td>
                         <td>
-                            <div class="pp-actions" style="flex-wrap:nowrap">
-                                <select wire:model="paymentMethods.{{ $invoice->id }}" aria-label="Payment method" style="width:150px">
+                            <div class="ui-actions" style="flex-wrap:nowrap">
+                                <select class="ui-input" wire:model="paymentMethods.{{ $invoice->id }}" aria-label="Payment method" style="width:150px">
                                     <option value="">Method…</option>
                                     <option value="mobile_money">Mobile money</option>
                                     <option value="bank_transfer">Bank transfer</option>
                                     <option value="cash">Cash</option>
                                     <option value="card">Card</option>
                                 </select>
-                                <input type="text" wire:model="paymentReferences.{{ $invoice->id }}" placeholder="Reference (optional)" aria-label="Payment reference">
-                                <button type="button" class="pp-btn sm" wire:click="markBundlePaid({{ $invoice->id }})" wire:loading.attr="disabled"
+                                <input class="ui-input" type="text" wire:model="paymentReferences.{{ $invoice->id }}" placeholder="Reference (optional)" aria-label="Payment reference">
+                                <button type="button" class="ui-button ui-button-primary ui-button-sm" wire:click="markBundlePaid({{ $invoice->id }})" wire:loading.attr="disabled"
                                         wire:confirm="Record full payment and add {{ number_format($invoice->sms_credits) }} credits to {{ $invoice->clinic?->name }}?">Mark paid</button>
                             </div>
-                            @error('paymentMethods.'.$invoice->id)<small class="pp-err">{{ $message }}</small>@enderror
+                            @error('paymentMethods.'.$invoice->id)<small class="ui-error">{{ $message }}</small>@enderror
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="pp-empty">No SMS purchases are waiting for payment.</td></tr>
+                    <tr><td colspan="5" class="ui-empty">No SMS purchases are waiting for payment.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -91,29 +91,29 @@
 
     @elseif($section === 'credits')
         {{-- Clinic balances and manual adjustments --}}
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>Adjust credits</h2><p>Grant free credits (positive number) or correct a balance (negative number). Every change is recorded in the audit log.</p></div></div>
-            <form wire:submit="adjustCredits" class="pp-form">
-                <div class="pp-row" style="grid-template-columns:minmax(180px,1.2fr) minmax(120px,.6fr) minmax(220px,2fr) auto;align-items:end">
-                    <label class="pp-field"><span>Clinic</span>
-                        <select wire:model="creditClinicId">
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>Adjust credits</h2><p>Grant free credits (positive number) or correct a balance (negative number). Every change is recorded in the audit log.</p></div></div>
+            <form wire:submit="adjustCredits" class="grid gap-3">
+                <div class="ui-row" style="grid-template-columns:minmax(180px,1.2fr) minmax(120px,.6fr) minmax(220px,2fr) auto;align-items:end">
+                    <label class="ui-field"><span>Clinic</span>
+                        <select class="ui-input" wire:model="creditClinicId">
                             <option value="">Choose a clinic…</option>
                             @foreach($clinics as $clinic)<option value="{{ $clinic->id }}">{{ $clinic->name }}</option>@endforeach
                         </select>
                     </label>
-                    <label class="pp-field"><span>Credits</span><input type="number" wire:model="creditAmount" placeholder="+500 or -50"></label>
-                    <label class="pp-field"><span>Reason</span><input type="text" wire:model="creditNote" placeholder="e.g. goodwill, correction"></label>
-                    <button type="submit" class="pp-btn" wire:loading.attr="disabled" wire:target="adjustCredits">Apply</button>
+                    <label class="ui-field"><span>Credits</span><input class="ui-input" type="number" wire:model="creditAmount" placeholder="+500 or -50"></label>
+                    <label class="ui-field"><span>Reason</span><input class="ui-input" type="text" wire:model="creditNote" placeholder="e.g. goodwill, correction"></label>
+                    <button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="adjustCredits">Apply</button>
                 </div>
                 @foreach(['creditClinicId', 'creditAmount', 'creditNote', 'credits'] as $field)
-                    @error($field)<small class="pp-err">{{ $message }}</small>@enderror
+                    @error($field)<small class="ui-error">{{ $message }}</small>@enderror
                 @endforeach
             </form>
         </section>
 
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>Clinic SMS credits</h2><p>Hosted clinics only. Offline clinics send SMS through their own gateway.</p></div></div>
-            <div class="pp-table-wrap"><table class="pp-table">
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>Clinic SMS credits</h2><p>Hosted clinics only. Offline clinics send SMS through their own gateway.</p></div></div>
+            <div class="ui-table-wrap ui-table-wrap--framed"><table class="ui-table">
                 <thead><tr><th>Clinic</th><th>Credits left</th><th>Sender ID</th><th>SMS</th><th></th></tr></thead>
                 <tbody>
                 @forelse($clinics as $clinic)
@@ -122,11 +122,11 @@
                         <td><b>{{ $clinic->name }}</b></td>
                         <td class="{{ !$wallet || $wallet->balance <= 0 ? 'fail' : ($wallet->balance < $wallet->lowBalanceThreshold() ? 'warn' : 'pass') }}"><b>{{ number_format($wallet?->balance ?? 0) }}</b></td>
                         <td>{{ $setting?->sms_sender_id ?: ($defaultSender ?: '—') }}@if(!$setting?->sms_sender_id)<small>Platform default</small>@endif</td>
-                        <td><span class="pp-badge {{ $setting?->sms_enabled ? '' : 'amber' }}">{{ $setting?->sms_enabled ? 'Enabled' : 'Paused' }}</span></td>
-                        <td style="text-align:right"><button type="button" class="pp-btn alt sm" wire:click="adjustFor({{ $clinic->id }})" onclick="window.scrollTo({top:0,behavior:'smooth'})">Adjust</button></td>
+                        <td><span class="ui-badge {{ $setting?->sms_enabled ? '' : 'ui-badge--warning' }}">{{ $setting?->sms_enabled ? 'Enabled' : 'Paused' }}</span></td>
+                        <td style="text-align:right"><button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="adjustFor({{ $clinic->id }})" onclick="window.scrollTo({top:0,behavior:'smooth'})">Adjust</button></td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="pp-empty">No hosted clinics.</td></tr>
+                    <tr><td colspan="5" class="ui-empty">No hosted clinics.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -134,31 +134,31 @@
 
     @elseif($section === 'bundles')
         {{-- Allowed price per SMS: bundles are checked against it when saved --}}
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>Price range per SMS</h2><p>Every bundle's price per credit must fall inside this range. Small bundles usually sit at the top of it and large ones at the bottom.</p></div></div>
-            <form wire:submit="savePriceRange" class="pp-form">
-                <div class="pp-row" style="grid-template-columns:repeat(2,minmax(120px,200px)) auto;align-items:end">
-                    <label class="pp-field"><span>Lowest per SMS</span><input type="number" step="0.001" min="0" wire:model="minPerCredit" placeholder="0.040"></label>
-                    <label class="pp-field"><span>Highest per SMS</span><input type="number" step="0.001" min="0" wire:model="maxPerCredit" placeholder="0.080"></label>
-                    <div class="pp-actions"><button type="submit" class="pp-btn" wire:loading.attr="disabled" wire:target="savePriceRange">Save range</button></div>
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>Price range per SMS</h2><p>Every bundle's price per credit must fall inside this range. Small bundles usually sit at the top of it and large ones at the bottom.</p></div></div>
+            <form wire:submit="savePriceRange" class="grid gap-3">
+                <div class="ui-row" style="grid-template-columns:repeat(2,minmax(120px,200px)) auto;align-items:end">
+                    <label class="ui-field"><span>Lowest per SMS</span><input class="ui-input" type="number" step="0.001" min="0" wire:model="minPerCredit" placeholder="0.040"></label>
+                    <label class="ui-field"><span>Highest per SMS</span><input class="ui-input" type="number" step="0.001" min="0" wire:model="maxPerCredit" placeholder="0.080"></label>
+                    <div class="ui-actions"><button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="savePriceRange">Save range</button></div>
                 </div>
-                @error('minPerCredit')<small class="pp-err">{{ $message }}</small>@enderror
-                @error('maxPerCredit')<small class="pp-err">{{ $message }}</small>@enderror
+                @error('minPerCredit')<small class="ui-error">{{ $message }}</small>@enderror
+                @error('maxPerCredit')<small class="ui-error">{{ $message }}</small>@enderror
             </form>
         </section>
 
         {{-- Bundle catalogue --}}
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Communications → SMS Credits & Sending, or type their own amount (GHS {{ number_format(\App\Models\SmsBundle::MIN_TOP_UP) }}–{{ number_format(\App\Models\SmsBundle::MAX_TOP_UP) }}) and get the best bundle rate that amount reaches. Credits never expire. Price changes apply to new purchases only.</p></div></div>
-            <form wire:submit="saveBundle" class="pp-form">
-                <div class="pp-row" style="grid-template-columns:minmax(160px,1.5fr) repeat(3,minmax(90px,.7fr)) auto;align-items:end">
-                    <label class="pp-field"><span>Name</span><input type="text" wire:model="bundleName" placeholder="e.g. Starter"></label>
-                    <label class="pp-field"><span>Credits</span><input type="number" wire:model.live.debounce.400ms="bundleCredits" placeholder="1000"></label>
-                    <label class="pp-field"><span>Price</span><input type="number" step="0.01" wire:model.live.debounce.400ms="bundlePrice" placeholder="70.00"></label>
-                    <label class="pp-field"><span>Currency</span><input type="text" wire:model="bundleCurrency" maxlength="3" style="text-transform:uppercase"></label>
-                    <div class="pp-actions">
-                        <button type="submit" class="pp-btn" wire:loading.attr="disabled" wire:target="saveBundle">{{ $editingBundleId ? 'Update bundle' : 'Add bundle' }}</button>
-                        @if($editingBundleId)<button type="button" class="pp-btn alt" wire:click="cancelBundleEdit">Cancel</button>@endif
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>{{ $editingBundleId ? 'Edit bundle' : 'Add a bundle' }}</h2><p>Clinics pick a bundle in Communications → SMS Credits & Sending, or type their own amount (GHS {{ number_format(\App\Models\SmsBundle::MIN_TOP_UP) }}–{{ number_format(\App\Models\SmsBundle::MAX_TOP_UP) }}) and get the best bundle rate that amount reaches. Credits never expire. Price changes apply to new purchases only.</p></div></div>
+            <form wire:submit="saveBundle" class="grid gap-3">
+                <div class="ui-row" style="grid-template-columns:minmax(160px,1.5fr) repeat(3,minmax(90px,.7fr)) auto;align-items:end">
+                    <label class="ui-field"><span>Name</span><input class="ui-input" type="text" wire:model="bundleName" placeholder="e.g. Starter"></label>
+                    <label class="ui-field"><span>Credits</span><input class="ui-input" type="number" wire:model.live.debounce.400ms="bundleCredits" placeholder="1000"></label>
+                    <label class="ui-field"><span>Price</span><input class="ui-input" type="number" step="0.01" wire:model.live.debounce.400ms="bundlePrice" placeholder="70.00"></label>
+                    <label class="ui-field"><span>Currency</span><input class="ui-input" type="text" wire:model="bundleCurrency" maxlength="3" style="text-transform:uppercase"></label>
+                    <div class="ui-actions">
+                        <button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="saveBundle">{{ $editingBundleId ? 'Update bundle' : 'Add bundle' }}</button>
+                        @if($editingBundleId)<button type="button" class="ui-button ui-button-secondary" wire:click="cancelBundleEdit">Cancel</button>@endif
                     </div>
                 </div>
                 @if((int) $bundleCredits > 0 && is_numeric($bundlePrice))
@@ -169,13 +169,13 @@
                     </small>
                 @endif
                 @foreach(['bundleName', 'bundleCredits', 'bundlePrice', 'bundleCurrency'] as $field)
-                    @error($field)<small class="pp-err">{{ $message }}</small>@enderror
+                    @error($field)<small class="ui-error">{{ $message }}</small>@enderror
                 @endforeach
             </form>
         </section>
 
-        <section class="pp-card">
-            <div class="pp-table-wrap"><table class="pp-table">
+        <section class="ui-card">
+            <div class="ui-table-wrap ui-table-wrap--framed"><table class="ui-table">
                 <thead><tr><th>Bundle</th><th>Credits</th><th>Price</th><th>Per SMS</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @forelse($bundles as $bundle)
@@ -184,15 +184,15 @@
                         <td>{{ number_format($bundle->credits) }}</td>
                         <td>{{ $bundle->currency }} {{ number_format($bundle->price, 2) }}</td>
                         <td>{{ $bundle->currency }} {{ number_format($bundle->perCredit(), 3) }}
-                            @unless($bundle->withinRange())<span class="pp-badge grey" style="background:#7f1d1d;color:#fecaca" title="Outside the price range above">Outside range</span>@endunless</td>
-                        <td><span class="pp-badge {{ $bundle->is_active ? '' : 'grey' }}">{{ $bundle->is_active ? 'On sale' : 'Hidden' }}</span></td>
-                        <td><div class="pp-actions" style="justify-content:flex-end">
-                            <button type="button" class="pp-btn alt sm" wire:click="editBundle({{ $bundle->id }})">Edit</button>
-                            <button type="button" class="pp-btn alt sm" wire:click="toggleBundle({{ $bundle->id }})">{{ $bundle->is_active ? 'Hide' : 'Put on sale' }}</button>
+                            @unless($bundle->withinRange())<span class="ui-badge ui-badge--neutral" style="background:#7f1d1d;color:#fecaca" title="Outside the price range above">Outside range</span>@endunless</td>
+                        <td><span class="ui-badge {{ $bundle->is_active ? '' : 'ui-badge--neutral' }}">{{ $bundle->is_active ? 'On sale' : 'Hidden' }}</span></td>
+                        <td><div class="ui-actions" style="justify-content:flex-end">
+                            <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="editBundle({{ $bundle->id }})">Edit</button>
+                            <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="toggleBundle({{ $bundle->id }})">{{ $bundle->is_active ? 'Hide' : 'Put on sale' }}</button>
                         </div></td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="pp-empty">No bundles yet. Clinics cannot buy SMS credits until you add one.</td></tr>
+                    <tr><td colspan="6" class="ui-empty">No bundles yet. Clinics cannot buy SMS credits until you add one.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
@@ -200,40 +200,40 @@
 
     @else
         {{-- Sender ID approvals --}}
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>Pending sender ID requests</h2><p>Register the sender ID in the EazismsPro dashboard first, then approve it here. Until approval the clinic sends as the default sender.</p></div></div>
-            <div class="pp-table-wrap"><table class="pp-table">
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>Pending sender ID requests</h2><p>Register the sender ID in the EazismsPro dashboard first, then approve it here. Until approval the clinic sends as the default sender.</p></div></div>
+            <div class="ui-table-wrap ui-table-wrap--framed"><table class="ui-table">
                 <thead><tr><th>Clinic</th><th>Requested</th><th>Current sender</th><th>Requested at</th><th style="min-width:360px">Decision</th></tr></thead>
                 <tbody>
                 @forelse($pending as $row)
                     @php $s = $row['setting']; @endphp
                     <tr wire:key="pending-{{ $s->id }}">
                         <td><b>{{ $row['clinic']?->name ?? 'Clinic #'.$s->clinic_id }}</b></td>
-                        <td><span class="pp-badge amber">{{ $s->sms_sender_id_requested }}</span></td>
+                        <td><span class="ui-badge ui-badge--warning">{{ $s->sms_sender_id_requested }}</span></td>
                         <td>{{ $s->sms_sender_id ?: '—' }}</td>
                         <td>{{ $s->sms_sender_id_requested_at?->format('d M Y H:i') ?? '—' }}</td>
                         <td>
-                            <div class="pp-actions" style="flex-wrap:nowrap">
-                                <input type="text" wire:model="approveAs.{{ $s->id }}" maxlength="11" placeholder="Approve as (exact spelling)" title="Only if the network registered it with different capitals or spelling" aria-label="Approve as, exact spelling registered with the network">
-                                <button type="button" class="pp-btn sm" wire:click="approve({{ $s->id }})" wire:loading.attr="disabled" wire:confirm="Approve sender ID {{ $s->sms_sender_id_requested }}? Make sure it is registered in EazismsPro first.">Approve</button>
-                                <input type="text" wire:model="rejectNotes.{{ $s->id }}" placeholder="Reason for rejection" aria-label="Reason for rejection">
-                                <button type="button" class="pp-btn danger sm" wire:click="reject({{ $s->id }})" wire:loading.attr="disabled">Reject</button>
+                            <div class="ui-actions" style="flex-wrap:nowrap">
+                                <input class="ui-input" type="text" wire:model="approveAs.{{ $s->id }}" maxlength="11" placeholder="Approve as (exact spelling)" title="Only if the network registered it with different capitals or spelling" aria-label="Approve as, exact spelling registered with the network">
+                                <button type="button" class="ui-button ui-button-primary ui-button-sm" wire:click="approve({{ $s->id }})" wire:loading.attr="disabled" wire:confirm="Approve sender ID {{ $s->sms_sender_id_requested }}? Make sure it is registered in EazismsPro first.">Approve</button>
+                                <input class="ui-input" type="text" wire:model="rejectNotes.{{ $s->id }}" placeholder="Reason for rejection" aria-label="Reason for rejection">
+                                <button type="button" class="ui-button ui-button-danger ui-button-sm" wire:click="reject({{ $s->id }})" wire:loading.attr="disabled">Reject</button>
                             </div>
-                            @error('rejectNotes.'.$s->id)<small class="pp-err">{{ $message }}</small>@enderror
-                            @error('approveAs.'.$s->id)<small class="pp-err">{{ $message }}</small>@enderror
+                            @error('rejectNotes.'.$s->id)<small class="ui-error">{{ $message }}</small>@enderror
+                            @error('approveAs.'.$s->id)<small class="ui-error">{{ $message }}</small>@enderror
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="pp-empty">No pending requests.</td></tr>
+                    <tr><td colspan="5" class="ui-empty">No pending requests.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>
         </section>
 
         {{-- Platform override: set or reset any hosted clinic's sender ID directly --}}
-        <section class="pp-card">
-            <div class="pp-card-head"><div><h2>Clinic sender IDs</h2><p>Set a clinic's sender ID directly, or put it back on the platform default. Register it in EazismsPro first. A change replaces any pending request.</p></div></div>
-            <div class="pp-table-wrap"><table class="pp-table">
+        <section class="ui-card">
+            <div class="ui-card-head"><div><h2>Clinic sender IDs</h2><p>Set a clinic's sender ID directly, or put it back on the platform default. Register it in EazismsPro first. A change replaces any pending request.</p></div></div>
+            <div class="ui-table-wrap ui-table-wrap--framed"><table class="ui-table">
                 <thead><tr><th>Clinic</th><th>Sender in use</th><th>Status</th><th style="min-width:320px"></th></tr></thead>
                 <tbody>
                 @forelse($clinics as $clinic)
@@ -242,34 +242,34 @@
                         <td><b>{{ $clinic->name }}</b></td>
                         <td>{{ $setting?->sms_sender_id ?: ($defaultSender ?: '—') }}@if(!$setting?->sms_sender_id)<small>Platform default</small>@endif</td>
                         <td>
-                            @if(!$setting)<span class="pp-badge grey">Not set up yet</span>
-                            @elseif($setting->sms_sender_id_status === 'pending')<span class="pp-badge amber">Requested {{ $setting->sms_sender_id_requested }}</span>
-                            @elseif($setting->sms_sender_id_status === 'rejected')<span class="pp-badge grey">Last request rejected</span>
-                            @elseif($setting->sms_sender_id)<span class="pp-badge">Approved</span>
-                            @else<span class="pp-badge grey">Default</span>@endif
+                            @if(!$setting)<span class="ui-badge ui-badge--neutral">Not set up yet</span>
+                            @elseif($setting->sms_sender_id_status === 'pending')<span class="ui-badge ui-badge--warning">Requested {{ $setting->sms_sender_id_requested }}</span>
+                            @elseif($setting->sms_sender_id_status === 'rejected')<span class="ui-badge ui-badge--neutral">Last request rejected</span>
+                            @elseif($setting->sms_sender_id)<span class="ui-badge">Approved</span>
+                            @else<span class="ui-badge ui-badge--neutral">Default</span>@endif
                         </td>
                         <td>
                             @if(!$setting)
                                 <small>The clinic has not opened its settings yet.</small>
                             @elseif($editingSenderClinicId === $clinic->id)
-                                <form wire:submit="saveSender" class="pp-actions" style="flex-wrap:nowrap;justify-content:flex-end">
-                                    <input type="text" wire:model="senderOverride" maxlength="11" placeholder="Exact spelling" aria-label="Sender ID for {{ $clinic->name }}" autofocus>
-                                    <button type="submit" class="pp-btn sm" wire:loading.attr="disabled" wire:target="saveSender">Save</button>
-                                    <button type="button" class="pp-btn alt sm" wire:click="cancelSenderEdit">Cancel</button>
+                                <form wire:submit="saveSender" class="ui-actions" style="flex-wrap:nowrap;justify-content:flex-end">
+                                    <input class="ui-input" type="text" wire:model="senderOverride" maxlength="11" placeholder="Exact spelling" aria-label="Sender ID for {{ $clinic->name }}" autofocus>
+                                    <button type="submit" class="ui-button ui-button-primary ui-button-sm" wire:loading.attr="disabled" wire:target="saveSender">Save</button>
+                                    <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="cancelSenderEdit">Cancel</button>
                                 </form>
-                                @error('senderOverride')<small class="pp-err">{{ $message }}</small>@enderror
+                                @error('senderOverride')<small class="ui-error">{{ $message }}</small>@enderror
                             @else
-                                <div class="pp-actions" style="justify-content:flex-end">
-                                    <button type="button" class="pp-btn alt sm" wire:click="editSender({{ $clinic->id }})">Edit</button>
+                                <div class="ui-actions" style="justify-content:flex-end">
+                                    <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="editSender({{ $clinic->id }})">Edit</button>
                                     @if($setting->sms_sender_id)
-                                        <button type="button" class="pp-btn danger sm" wire:click="resetSender({{ $clinic->id }})" wire:loading.attr="disabled" wire:confirm="Put {{ $clinic->name }} back on the platform default sender?">Reset to default</button>
+                                        <button type="button" class="ui-button ui-button-danger ui-button-sm" wire:click="resetSender({{ $clinic->id }})" wire:loading.attr="disabled" wire:confirm="Put {{ $clinic->name }} back on the platform default sender?">Reset to default</button>
                                     @endif
                                 </div>
                             @endif
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="pp-empty">No hosted clinics.</td></tr>
+                    <tr><td colspan="4" class="ui-empty">No hosted clinics.</td></tr>
                 @endforelse
                 </tbody>
             </table></div>

@@ -29,9 +29,21 @@ final class TourCatalog
         'clinic.clearance' => 1,
         'clinic.pos' => 1,
         'clinic.queue' => 1,
-        'clinic.sales' => 1,
+        'clinic.sales' => 2,
         'clinic.day-close' => 2,
         'clinic.cash-book' => 1,
+        'platform.dashboard' => 1,
+        'platform.clinics' => 1,
+        'platform.plans' => 1,
+        'platform.billing' => 1,
+        'platform.pricing' => 1,
+        'platform.quotes' => 1,
+        'platform.sms' => 1,
+        'platform.announcements' => 1,
+        'platform.usage' => 1,
+        'platform.imports-other' => 1,
+        'platform.analytics' => 1,
+        'platform.support' => 1,
     ];
 
     public static function version(string $key): ?int
@@ -56,10 +68,10 @@ final class TourCatalog
             'clinic.clearance' => self::clinicClearance(),
             'clinic.pos' => self::clinicPos(),
             'clinic.queue' => self::clinicQueue(),
-            'clinic.sales' => self::clinicSales(),
+            'clinic.sales' => self::clinicSales($context),
             'clinic.day-close' => self::clinicDayClose($context),
             'clinic.cash-book' => self::clinicCashBook($context),
-            default => null,
+            default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
         if (! $tour) return null;
         $tour['steps'] = array_values(array_filter($tour['steps']));
@@ -243,13 +255,14 @@ final class TourCatalog
         ]];
     }
 
-    private static function clinicSales(): array
+    private static function clinicSales(array $c = []): array
     {
         return ['key' => 'clinic.sales', 'title' => 'Sales Records', 'steps' => [
             ['title' => 'Every sale', 'body' => 'All sales for the days you pick, with the amount after any discount and who made it.'],
             ['target' => 'sales-totals', 'title' => 'The totals', 'body' => 'What was sold, and how much was given in discounts.'],
             ['target' => 'sales-filters', 'title' => 'Find a sale', 'body' => 'Search by name or transaction number, pick the days, show only refunded or paid sales, or download them as CSV.'],
             ['target' => 'sales-list', 'title' => 'Look closer or put it right', 'body' => 'The eye shows the items, discount and receipt. The red arrow asks for a refund, or a void for a sale entered by mistake today; the owner approves voids.'],
+            ($c['previous'] ?? false) ? ['target' => 'sales-previous', 'title' => 'Before you moved here', 'body' => 'What patients paid in your previous software, for reference. Those payments are not sales here and stay out of these totals and your reports.'] : null,
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }
@@ -291,5 +304,85 @@ final class TourCatalog
             ['target' => 'att-my-leave', 'title' => 'Ask for time off', 'body' => 'Pick the days and the kind of leave and send it. You see here when it is approved or turned down.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
+    }
+
+    /**
+     * The platform console, one tour per page (and per tab of the main dashboard). Platform administrators
+     * only; their progress is kept outside any clinic.
+     */
+    private static function platform(string $page): ?array
+    {
+        $end = ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from the Tour button.'];
+        $steps = match ($page) {
+            'platform.dashboard' => ['Platform Administration', [
+                ['title' => 'Welcome to the platform console', 'body' => 'This is where you run the business behind the software: the clinics on it, their plans and invoices, and the people who might sign up next. Here is a quick look round.'],
+                ['target' => 'pf-metrics', 'title' => 'The numbers at a glance', 'body' => 'How many clinics there are, how many pay, how many are on a trial and how many are behind with payment.'],
+                ['target' => 'pf-find', 'title' => 'Find a clinic', 'body' => 'Search by clinic name, domain or administrator, or narrow the list by product, plan, status, branch usage or where it runs.'],
+                ['target' => 'pf-directory', 'title' => 'Every clinic', 'body' => 'Open a clinic to edit its details, change or renew its plan, record a payment, or suspend it.'],
+                ['target' => 'pf-onboard', 'title' => 'Add a clinic', 'body' => 'Sets up a new business in three steps: the business, its first branch, and its Super Admin with a plan or trial. A clinic can start with common diagnoses and item categories already filled in.'],
+                ['target' => 'pf-nav', 'title' => 'Everything else', 'body' => 'Plans, invoices, the pricing page, quotes, SMS, announcements and usage each have their own page here, and each has its own tour.'],
+                ['target' => 'nav-quotes', 'title' => 'Quotes for new businesses', 'body' => 'Send a quotation or pro-forma invoice to a business before it is on the platform, then set it up as a clinic when it accepts.'],
+                ['target' => 'pf-modes', 'title' => 'Clinic mode', 'body' => 'Switch to Clinic mode to use the software as a clinic does, or sign out.'],
+            ]],
+            'platform.clinics' => ['Clinics Directory', [
+                ['target' => 'pf-find', 'title' => 'Find a clinic', 'body' => 'Type part of a name, domain or administrator, or use the filters. Each filter shows as a chip you can remove.'],
+                ['target' => 'pf-directory', 'title' => 'Open a clinic', 'body' => 'Press a clinic to see its overview, plan and renewal, billing, people and branches. Suspending or erasing a clinic is under Danger zone, with a reason kept in the audit log.'],
+                ['target' => 'pf-onboard', 'title' => 'Add a clinic', 'body' => 'Onboard a new business here, or from Quotes once a business accepts your quote.'],
+            ]],
+            'platform.plans' => ['Subscription Plans', [
+                ['target' => 'pf-plans', 'title' => 'Your plans', 'body' => 'Each plan has its prices, the number of branches, users and storage it allows, and what it includes. Open one to edit it or to see the clinics on it.'],
+                ['target' => 'pf-plan-products', 'title' => 'By product', 'body' => 'Show the plans for Clinic, Optical, Clinic + Optical or Attendance only.'],
+                ['target' => 'pf-new-plan', 'title' => 'A new plan', 'body' => 'Add a plan. Changing a plan that clinics are on makes a new version, so the clinics already on it keep what they agreed to.'],
+            ]],
+            'platform.billing' => ['Invoices & Billing', [
+                ['target' => 'pf-billing-sections', 'title' => 'Five parts', 'body' => 'Invoices, Collections for overdue accounts, Approvals for credits, refunds and voids, Operations for the billing runs, and Offboarding for clinics that leave.'],
+                ['target' => 'pf-billing-summary', 'title' => 'Money at a glance', 'body' => 'What is owed, what is overdue and what has been collected this month.'],
+                ['target' => 'pf-invoice-filters', 'title' => 'Find an invoice', 'body' => 'Search by invoice number or clinic, and filter by status, type or dates.'],
+                ['target' => 'pf-invoice-actions', 'title' => 'Reports and new invoices', 'body' => 'Download the billing report as CSV or PDF, or raise an invoice by hand. Open an invoice to record a payment or download it.'],
+            ]],
+            'platform.pricing' => ['Pricing Page', [
+                ['title' => 'The public pricing page', 'body' => 'Anyone can compare your plans and ask for one at /pricing. This page is where their requests land and where you choose what the page shows.'],
+                ['target' => 'pr-tabs', 'title' => 'Three tabs', 'body' => 'Requests from the page, which clinic plans the page shows, and the attendance prices by number of staff.'],
+                ['target' => 'pr-status', 'title' => 'What to follow up', 'body' => 'New and contacted requests are shown first. Switch to see the ones that became clinics or are not going ahead.'],
+                ['target' => 'pr-list', 'title' => 'A request', 'body' => 'Press Details to see what they chose, add notes, mark how it went, or press "Make a quote" to send them a quotation or pro-forma invoice.'],
+            ]],
+            'platform.quotes' => ['Quotes', [
+                ['title' => 'Quotes for businesses not on the platform yet', 'body' => 'Write a quotation or a pro-forma invoice for Clinic, Optical, Attendance or a mix, and send it by email or SMS. A quote is not an invoice: billing starts once the business is set up.'],
+                ['target' => 'pq-new', 'title' => 'Start a quote', 'body' => 'Start from scratch here, or from a request on the Pricing Page with "Make a quote", which fills in the lines for you.'],
+                ['target' => 'pq-status', 'title' => 'Open quotes first', 'body' => 'Drafts and sent quotes are shown first. A quote past its date shows as expired.'],
+                ['target' => 'pq-list', 'title' => 'Send, download, set up', 'body' => 'Open a quote to change it or send it by email (with the PDF attached) or SMS (with a link). When they accept, press "Set up as clinic": onboarding opens filled in, and the quote is marked accepted.'],
+            ]],
+            'platform.sms' => ['SMS Messaging', [
+                ['target' => 'sms-gateway', 'title' => 'The platform SMS account', 'body' => 'Hosted clinics send through this one account. Keep its balance above the credits clinics have already paid for.'],
+                ['target' => 'sms-sections', 'title' => 'Credits, bundles and sender IDs', 'body' => 'Record payment for credits clinics have bought, adjust a clinic\'s credits, set the bundles and prices, and approve sender IDs.'],
+            ]],
+            'platform.announcements' => ['Announcements', [
+                ['target' => 'an-list', 'title' => 'What you have sent', 'body' => 'Each announcement emails clinic owners and Super Admins, and can show a banner in the app until they dismiss it.'],
+                ['target' => 'an-new', 'title' => 'A new announcement', 'body' => 'Write the message, choose how it goes out and which clinics get it, and preview the email before sending.'],
+            ]],
+            'platform.usage' => ['Clinic Usage', [
+                ['target' => 'cu-period', 'title' => 'Pick a period', 'body' => 'Every figure is a total for the days you pick: this month so far, last month, the last 30 or 7 days, any earlier month ("A month…"), or your own dates ("From – to…"). Nothing is deleted, so past months stay here. Enter your hosting bill to see what each clinic costs to host.'],
+                ['target' => 'cu-totals', 'title' => 'All clinics together', 'body' => 'Requests, data sent, server time and rows stored across the platform.'],
+                ['target' => 'cu-clinics', 'title' => 'Clinic by clinic', 'body' => 'Sort by any column to see who uses the most, and press a clinic for its day-by-day use.'],
+            ]],
+            'platform.imports-other' => ['Import from other software', [
+                ['target' => 'xi-tabs', 'title' => 'Two kinds of import', 'body' => 'An SQL dump from our own older system creates a new clinic. Files exported from other software, such as Cloudify, go into a clinic you have already set up through Clinic Onboarding.'],
+                ['target' => 'xi-upload', 'title' => 'Check the files first', 'body' => 'Choose the clinic and upload all the exported .xlsx files (or one .zip). Checking writes nothing to the clinic.'],
+                ['target' => 'xi-list', 'title' => 'Every import', 'body' => 'Open one to see its report, import it, follow its progress, or undo it. Uploaded files are deleted once an import finishes.'],
+            ]],
+            'platform.analytics' => ['Subscription Analytics', [
+                ['target' => 'sa-filters', 'title' => 'Choose what to look at', 'body' => 'Pick the dates, and a clinic, plan or status if you want. Every figure on the page follows.'],
+                ['target' => 'sa-export', 'title' => 'Take it away', 'body' => 'Download the figures as a CSV file for a spreadsheet.'],
+            ]],
+            'platform.support' => ['Support Contact', [
+                ['target' => 'sp-form', 'title' => 'How clinics reach you', 'body' => 'Your name, phone, WhatsApp and email. The email also receives pricing requests and is the reply-to on quotes.'],
+                ['target' => 'sp-preview', 'title' => 'What they see', 'body' => 'Clinics see this box when they are locked for non-payment and on their renewal page.'],
+            ]],
+            default => null,
+        };
+        if (! $steps) return null;
+        [$title, $list] = $steps;
+
+        return ['key' => $page, 'title' => $title, 'steps' => array_merge($list, [$end])];
     }
 }

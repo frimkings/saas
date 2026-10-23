@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\CashierPatientClearance;
 use App\Models\Product;
+use App\Models\PatientLegacyMedication;
 use App\Models\Refractions;
 use App\Enums\ProductFrequency;
 use Illuminate\Validation\Rules\Enum;
@@ -42,6 +43,7 @@ class PatientRecordsComponent extends Component
     public $activeTab = 'history';
     public int $consultationCount = 0;
     public int $patientDocumentCount = 0;
+    public int $legacyPaymentCount = 0;
     public int $auditLimit = 5;
 
     // Search
@@ -177,6 +179,7 @@ public $isEditingAppointment = false;
         $this->patient = $clearance->patient;
         $this->consultationCount = Consultations::where('patient_id', $this->patient->id)->count();
         $this->patientDocumentCount = PatientDocument::where('patient_id', $this->patient->id)->count();
+        $this->legacyPaymentCount = \App\Models\PatientLegacyPayment::where('patient_id', $this->patient->id)->count();
         $settings = Setting::getSettings();
         $this->vaNotation = $settings->va_notation ?? '6m';
         $this->smsReminderAvailable = (bool) $settings->sms_enabled;
@@ -811,6 +814,75 @@ public function deleteAppointment($appointmentId)
 
         $this->productSearch = '';
         $this->searchResults = [];
+    }
+
+    /**
+     * What the patient was prescribed before, newest first: earlier prescriptions here (cart items of other
+     * consultations) and drugs from the clinic's previous software, matched to a product by name when one exists.
+     */
+    public function getPreviousMedicationsProperty(): \Illuminate\Support\Collection
+    {
+        if (!$this->patient) return collect();
+
+        // Every branch of the clinic: the patient belongs to the clinic, not to the branch they were seen at.
+        $branchId = app(\App\Support\Tenancy\TenantContext::class)->branchId();
+        $own = $this->patientCarts()->whereNotNull('consultation_id')
+            ->when($this->consultationID, fn ($q) => $q->where('consultation_id', '!=', $this->consultationID))
+            ->with(['product:id,name', 'branch:id,name'])->latest()->limit(100)->get()
+            ->map(fn ($cart) => [
+                'key' => 'cart-' . $cart->id, 'source' => 'cart', 'id' => $cart->id, 'date' => $cart->created_at,
+                'item' => $cart->product?->name ?? 'Product no longer listed', 'quantity' => $cart->quantity,
+                'directions' => implode(' · ', array_filter([$cart->eye, $cart->frequency, $this->durationLabel($cart->duration_value, $cart->duration_unit)])),
+                'product_id' => $cart->product?->id, 'previous_software' => false,
+                'branch' => $branchId && $cart->branch_id && (int) $cart->branch_id !== (int) $branchId ? $cart->branch?->name : null,
+            ]);
+
+        $legacy = PatientLegacyMedication::where('patient_id', $this->patient->id)->orderByDesc('prescribed_on')->orderByDesc('id')->limit(100)->get();
+        $products = \App\Support\LegacyMedicationProducts::forNames($legacy->pluck('item'));
+        $previous = $legacy->map(fn ($med) => [
+            'key' => 'legacy-' . $med->id, 'source' => 'legacy', 'id' => $med->id, 'date' => $med->prescribed_on,
+            'item' => $med->item, 'quantity' => $med->quantity, 'directions' => (string) $med->note,
+            'product_id' => $products[\App\Support\LegacyMedicationProducts::key($med->item)] ?? null, 'previous_software' => true, 'branch' => null,
+        ]);
+
+        return $own->concat($previous)->sortByDesc(fn ($m) => $m['date']?->timestamp ?? 0)->values();
+    }
+
+    /** This patient's cart items in every branch of the clinic. */
+    private function patientCarts()
+    {
+        return Cart::withoutGlobalScope('branch')->where('patient_id', $this->patient->id);
+    }
+
+    private function durationLabel($value, ?string $unit): ?string
+    {
+        if ($unit === 'until_finished') return 'until finished';
+
+        return $value ? $value . ' ' . ($unit ?: 'days') : null;
+    }
+
+    /** "Add again": puts an earlier medication back on this prescription, with its eye, frequency and duration when it was prescribed here. */
+    public function repeatMedication(string $source, int $id): void
+    {
+        $entry = $this->previousMedications->firstWhere('key', ($source === 'cart' ? 'cart-' : 'legacy-') . $id);
+        if (!$entry || !$entry['product_id']) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'That medication is not in your product list. Search for an alternative.']);
+            return;
+        }
+
+        $count = count($this->productsList);
+        $this->selectProduct($entry['product_id']);
+        if ($source !== 'cart' || count($this->productsList) === $count) return;
+
+        $cart = $this->patientCarts()->find($id);
+        $index = array_key_last($this->productsList);
+        if ($cart && ($this->productsList[$index]['is_drug'] ?? false)) {
+            $this->productsList[$index]['eye'] = $cart->eye ?: 'Both Eyes';
+            $this->productsList[$index]['frequency'] = $cart->frequency;
+            $this->productsList[$index]['duration_value'] = $cart->duration_value;
+            $this->productsList[$index]['duration_unit'] = $cart->duration_unit ?: 'days';
+        }
+        $this->dispatch('notify', ...['type' => 'success', 'message' => $entry['item'] . ' added. Check the details before saving.']);
     }
 
     public function clearProductSelection()
@@ -2481,6 +2553,10 @@ public function deleteAppointment($appointmentId)
         $historyDocuments = $this->activeTab === 'history'
             ? PatientDocument::with('uploadedBy:id,name')->where('patient_id', $this->patient->id)->latest()->limit(12)->get()
             : collect();
+        $previousMedications = $this->activeTab === 'prescription' ? $this->previousMedications : collect();
+        $legacyPayments = $this->activeTab === 'history' && $this->legacyPaymentCount
+            ? \App\Models\PatientLegacyPayment::where('patient_id', $this->patient->id)->orderByDesc('paid_at')->get()
+            : collect();
         $latestHistoryVisit = $this->activeTab === 'history'
             ? Consultations::where('patient_id', $this->patient->id)->latest()->first()
             : null;
@@ -2539,7 +2615,7 @@ public function deleteAppointment($appointmentId)
             DB::disableQueryLog();
         }
 
-        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit'))
+        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications'))
             ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Expense;
 use App\Services\LicenseService;
 use App\Support\Feature;
 use App\Models\ExpenseCategory;
+use App\Models\LegacyExpense;
 use App\Models\RecurringExpense;
 use App\Services\ClinicAccessService;
 use App\Services\Finance\PeriodLockService;
@@ -616,11 +617,13 @@ class ExpensesComponent extends Component
                 ? ['label' => 'Income statement', 'url' => route('admin.income-statement', ['fromDate' => $this->fromDate, 'toDate' => $this->toDate])]
                 : null);
         $isOptical = $this->isOptical();
+        // Expenses brought over from the clinic's previous software live on a page of their own (owners only).
+        $hasLegacyExpenses = ! $isOptical && auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) && LegacyExpense::query()->exists();
 
         return view('livewire.admin.expenses-component', compact(
             'expenses', 'categories', 'allCategories', 'sectionLabels',
             'totalInRange', 'previousTotal', 'previousLabel', 'missingReceipts', 'categoryTotals',
-            'recurring', 'due', 'payees', 'statementLink', 'isOptical'
+            'recurring', 'due', 'payees', 'statementLink', 'isOptical', 'hasLegacyExpenses'
         ))->layout($isOptical ? 'layouts.optical' : 'layouts.admin.admin-layout');
     }
 }

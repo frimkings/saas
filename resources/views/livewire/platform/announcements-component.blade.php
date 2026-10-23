@@ -6,33 +6,33 @@
         .an-clinics label{display:flex;align-items:center;gap:7px;color:#dbe6f5;font-size:12px}
         .an-count{background:#0b1526;border:1px solid var(--line);border-radius:10px;padding:12px 14px;line-height:1.6}
         .an-count b{color:#fff;font-size:15px}
-        .pp-field textarea{box-sizing:border-box;width:100%;background:#050d1c;border:1px solid #273750;color:#edf5ff;border-radius:8px;padding:9px 11px;font:inherit;min-height:170px;resize:vertical}
+        .ui-field textarea{min-height:170px;resize:vertical}
         .an-preview{width:100%;height:560px;border:1px solid var(--line);border-radius:10px;background:#f4f6f9}
         .an-toggle{display:flex;align-items:center;gap:8px;color:#dbe6f5}
         /* The shared field style stretches inputs to full width; checkboxes keep their own size. */
-        .pp-field .an-checks input[type=checkbox],.pp-field .an-clinics input[type=checkbox],.an-toggle input[type=checkbox]{width:auto;padding:0;flex:none}
+        .ui-field .an-checks input[type=checkbox],.ui-field .an-clinics input[type=checkbox],.an-toggle input[type=checkbox]{width:auto;padding:0;flex:none}
         @media(max-width:1100px){.an-grid{grid-template-columns:1fr}}
     </style>
 
     @if($screen === 'list')
-        <div class="pp-card">
-            <div class="pp-card-head">
+        <div class="ui-card" data-tour="an-list">
+            <div class="ui-card-head">
                 <div><h2>Sent and draft announcements</h2><p>Emails go out in small batches (a few right away, the rest every half hour during the day).</p></div>
-                <button type="button" class="pp-btn" wire:click="create">＋ New announcement</button>
+                <button type="button" class="ui-button ui-button-primary" wire:click="create" data-tour="an-new">＋ New announcement</button>
             </div>
-            <div class="pp-table-wrap">
-                <table class="pp-table">
+            <div class="ui-table-wrap ui-table-wrap--framed">
+                <table class="ui-table">
                     <thead><tr><th>Subject</th><th>Status</th><th>Clinics</th><th>Emails</th><th>Banner</th><th>Sent</th><th></th></tr></thead>
                     <tbody>
                         @forelse($announcements as $a)
                             <tr wire:key="an-{{ $a->id }}">
                                 <td><b>{{ $a->subject }}</b><small>{{ \Illuminate\Support\Str::limit($a->heading, 70) }}</small></td>
                                 <td>
-                                    <span class="pp-badge {{ $a->status === 'draft' ? 'grey' : ($a->status === 'sending' ? 'amber' : '') }}">{{ strtoupper($a->status) }}</span>
+                                    <span class="ui-badge {{ $a->status === 'draft' ? 'ui-badge--neutral' : ($a->status === 'sending' ? 'ui-badge--warning' : '') }}">{{ strtoupper($a->status) }}</span>
                                 </td>
                                 <td>{{ $a->status === 'draft' ? '—' : $a->clinic_count }}</td>
                                 <td>
-                                    @if(!$a->send_email)<span class="pp-hint">Off</span>
+                                    @if(!$a->send_email)<span class="ui-hint">Off</span>
                                     @elseif($a->status === 'draft')—
                                     @else
                                         {{ $a->sent_count }} sent
@@ -41,15 +41,15 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if(!$a->show_banner)<span class="pp-hint">Off</span>
-                                    @elseif($a->banner_until && $a->banner_until->lt(today()))<span class="pp-hint">Ended</span>
+                                    @if(!$a->show_banner)<span class="ui-hint">Off</span>
+                                    @elseif($a->banner_until && $a->banner_until->lt(today()))<span class="ui-hint">Ended</span>
                                     @else On{{ $a->banner_until ? ' until '.$a->banner_until->format('d M') : '' }}@endif
                                 </td>
                                 <td>{{ $a->sent_at?->format('d M Y H:i') ?? '—' }}</td>
-                                <td><button type="button" class="pp-btn alt sm" wire:click="open({{ $a->id }})">{{ $a->status === 'draft' ? 'Edit' : 'View' }}</button></td>
+                                <td><button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="open({{ $a->id }})">{{ $a->status === 'draft' ? 'Edit' : 'View' }}</button></td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="pp-empty">No announcements yet.</td></tr>
+                            <tr><td colspan="7" class="ui-empty">No announcements yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -58,82 +58,82 @@
         </div>
 
     @elseif($screen === 'edit')
-        <div style="margin-bottom:12px"><button type="button" class="pp-btn alt sm" wire:click="backToList">← All announcements</button></div>
+        <div style="margin-bottom:12px"><button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="backToList">← All announcements</button></div>
 
         <div class="an-grid">
             <div>
-                <div class="pp-card pp-form">
-                    <div class="pp-card-head" style="margin:0"><div><h2>Message</h2><p>Write **bold**, start lines with "- " for a list, and use [CLINIC] for the clinic's name.</p></div></div>
+                <div class="ui-card grid gap-3">
+                    <div class="ui-card-head" style="margin:0"><div><h2>Message</h2><p>Write **bold**, start lines with "- " for a list, and use [CLINIC] for the clinic's name.</p></div></div>
 
-                    <label class="pp-field"><span>Email subject</span>
-                        <input type="text" wire:model.live.debounce.400ms="form.subject" maxlength="150" placeholder="e.g. Action needed: choose which SMS your patients receive">
-                        @error('form.subject')<small class="pp-err">{{ $message }}</small>@enderror
+                    <label class="ui-field"><span>Email subject</span>
+                        <input class="ui-input" type="text" wire:model.live.debounce.400ms="form.subject" maxlength="150" placeholder="e.g. Action needed: choose which SMS your patients receive">
+                        @error('form.subject')<small class="ui-error">{{ $message }}</small>@enderror
                     </label>
-                    <label class="pp-field"><span>Heading (also the banner's title)</span>
-                        <input type="text" wire:model.live.debounce.400ms="form.heading" maxlength="150">
-                        @error('form.heading')<small class="pp-err">{{ $message }}</small>@enderror
+                    <label class="ui-field"><span>Heading (also the banner's title)</span>
+                        <input class="ui-input" type="text" wire:model.live.debounce.400ms="form.heading" maxlength="150">
+                        @error('form.heading')<small class="ui-error">{{ $message }}</small>@enderror
                     </label>
-                    <label class="pp-field"><span>Message</span>
-                        <textarea wire:model.live.debounce.600ms="form.body" maxlength="10000"></textarea>
-                        @error('form.body')<small class="pp-err">{{ $message }}</small>@enderror
+                    <label class="ui-field"><span>Message</span>
+                        <textarea class="ui-input" wire:model.live.debounce.600ms="form.body" maxlength="10000"></textarea>
+                        @error('form.body')<small class="ui-error">{{ $message }}</small>@enderror
                     </label>
-                    <div class="pp-row">
-                        <label class="pp-field"><span>Button text (optional)</span>
-                            <input type="text" wire:model.live.debounce.400ms="form.button_label" maxlength="60">
-                            @error('form.button_label')<small class="pp-err">{{ $message }}</small>@enderror
+                    <div class="ui-row">
+                        <label class="ui-field"><span>Button text (optional)</span>
+                            <input class="ui-input" type="text" wire:model.live.debounce.400ms="form.button_label" maxlength="60">
+                            @error('form.button_label')<small class="ui-error">{{ $message }}</small>@enderror
                         </label>
-                        <label class="pp-field"><span>Button link</span>
-                            <input type="url" wire:model.live.debounce.400ms="form.button_url" maxlength="500">
-                            @error('form.button_url')<small class="pp-err">{{ $message }}</small>@enderror
+                        <label class="ui-field"><span>Button link</span>
+                            <input class="ui-input" type="url" wire:model.live.debounce.400ms="form.button_url" maxlength="500">
+                            @error('form.button_url')<small class="ui-error">{{ $message }}</small>@enderror
                         </label>
                     </div>
                 </div>
 
-                <div class="pp-card pp-form">
-                    <div class="pp-card-head" style="margin:0"><div><h2>How it goes out</h2></div></div>
+                <div class="ui-card grid gap-3">
+                    <div class="ui-card-head" style="margin:0"><div><h2>How it goes out</h2></div></div>
                     <label class="an-toggle"><input type="checkbox" wire:model.live="form.send_email"> Email each clinic's owner and active Super Admins</label>
                     <label class="an-toggle"><input type="checkbox" wire:model.live="form.show_banner"> Show a banner to the clinic's Super Admins in the app until they dismiss it</label>
-                    @error('form.send_email')<small class="pp-err">{{ $message }}</small>@enderror
+                    @error('form.send_email')<small class="ui-error">{{ $message }}</small>@enderror
                     @if($form['show_banner'])
-                        <label class="pp-field" style="max-width:240px"><span>Take the banner down after (optional)</span>
-                            <input type="date" wire:model="form.banner_until" min="{{ today()->toDateString() }}">
-                            @error('form.banner_until')<small class="pp-err">{{ $message }}</small>@enderror
+                        <label class="ui-field" style="max-width:240px"><span>Take the banner down after (optional)</span>
+                            <input class="ui-input" type="date" wire:model="form.banner_until" min="{{ today()->toDateString() }}">
+                            @error('form.banner_until')<small class="ui-error">{{ $message }}</small>@enderror
                         </label>
                     @endif
                 </div>
 
-                <div class="pp-card pp-form">
-                    <div class="pp-card-head" style="margin:0"><div><h2>Clinics</h2><p>Leave everything empty to reach every active clinic. Picking clinics by name ignores the filters.</p></div></div>
-                    @error('audience')<div class="pp-warn">{{ $message }}</div>@enderror
+                <div class="ui-card grid gap-3">
+                    <div class="ui-card-head" style="margin:0"><div><h2>Clinics</h2><p>Leave everything empty to reach every active clinic. Picking clinics by name ignores the filters.</p></div></div>
+                    @error('audience')<div class="ui-alert ui-alert--warning">{{ $message }}</div>@enderror
 
-                    <div class="pp-field"><span>Subscription status</span>
+                    <div class="ui-field"><span>Subscription status</span>
                         <div class="an-checks">
                             @foreach(\App\Services\Platform\Announcements::SUBSCRIPTION_STATUSES as $key => $label)
                                 <label><input type="checkbox" value="{{ $key }}" wire:model.live="audience.statuses"> {{ $label }}</label>
                             @endforeach
                         </div>
                     </div>
-                    <div class="pp-field"><span>Plan</span>
+                    <div class="ui-field"><span>Plan</span>
                         <div class="an-checks">
                             @forelse($plans as $id => $name)
                                 <label><input type="checkbox" value="{{ $id }}" wire:model.live="audience.plan_ids"> {{ $name }}</label>
-                            @empty <span class="pp-hint">No plans yet.</span> @endforelse
+                            @empty <span class="ui-hint">No plans yet.</span> @endforelse
                         </div>
                     </div>
-                    <div class="pp-field"><span>Installation</span>
+                    <div class="ui-field"><span>Installation</span>
                         <div class="an-checks">
                             <label><input type="checkbox" value="hosted" wire:model.live="audience.modes"> Hosted</label>
                             <label><input type="checkbox" value="offline" wire:model.live="audience.modes"> Offline</label>
                         </div>
                     </div>
-                    <div class="pp-field"><span>Or pick clinics</span>
-                        <input type="search" wire:model.live.debounce.300ms="clinicSearch" placeholder="Search clinics…">
+                    <div class="ui-field"><span>Or pick clinics</span>
+                        <input class="ui-input" type="search" wire:model.live.debounce.300ms="clinicSearch" placeholder="Search clinics…">
                         <div class="an-clinics">
                             @forelse($clinics as $clinic)
-                                <label wire:key="an-c-{{ $clinic->id }}"><input type="checkbox" value="{{ $clinic->id }}" wire:model.live="audience.clinic_ids"> {{ $clinic->name }} <span class="pp-hint">{{ $clinic->deployment_mode }}</span></label>
-                            @empty <span class="pp-hint">No clinic found.</span> @endforelse
+                                <label wire:key="an-c-{{ $clinic->id }}"><input type="checkbox" value="{{ $clinic->id }}" wire:model.live="audience.clinic_ids"> {{ $clinic->name }} <span class="ui-hint">{{ $clinic->deployment_mode }}</span></label>
+                            @empty <span class="ui-hint">No clinic found.</span> @endforelse
                         </div>
-                        @if(count($audience['clinic_ids']))<small class="pp-hint">{{ count($audience['clinic_ids']) }} picked — filters above are ignored.</small>@endif
+                        @if(count($audience['clinic_ids']))<small class="ui-hint">{{ count($audience['clinic_ids']) }} picked — filters above are ignored.</small>@endif
                     </div>
 
                     <div class="an-count">
@@ -145,22 +145,22 @@
                     </div>
                 </div>
 
-                <div class="pp-card">
-                    <div class="pp-row" style="align-items:end">
-                        <label class="pp-field"><span>Send a test to</span>
-                            <input type="email" wire:model="testEmail">
-                            @error('testEmail')<small class="pp-err">{{ $message }}</small>@enderror
+                <div class="ui-card">
+                    <div class="ui-row" style="align-items:end">
+                        <label class="ui-field"><span>Send a test to</span>
+                            <input class="ui-input" type="email" wire:model="testEmail">
+                            @error('testEmail')<small class="ui-error">{{ $message }}</small>@enderror
                         </label>
-                        <div class="pp-actions">
-                            <button type="button" class="pp-btn alt" wire:click="sendTest" wire:loading.attr="disabled">Send test</button>
+                        <div class="ui-actions">
+                            <button type="button" class="ui-button ui-button-secondary" wire:click="sendTest" wire:loading.attr="disabled">Send test</button>
                         </div>
                     </div>
-                    <div class="pp-foot" style="margin-top:14px">
+                    <div class="flex flex-wrap items-center justify-end gap-2" style="margin-top:14px">
                         @if($announcementId)
-                            <button type="button" class="pp-btn danger sm" wire:click="deleteDraft" wire:confirm="Delete this draft?">Delete draft</button>
+                            <button type="button" class="ui-button ui-button-danger ui-button-sm" wire:click="deleteDraft" wire:confirm="Delete this draft?">Delete draft</button>
                         @endif
-                        <button type="button" class="pp-btn alt" wire:click="saveDraft">Save draft</button>
-                        <button type="button" class="pp-btn" wire:click="send" wire:loading.attr="disabled"
+                        <button type="button" class="ui-button ui-button-secondary" wire:click="saveDraft">Save draft</button>
+                        <button type="button" class="ui-button ui-button-primary" wire:click="send" wire:loading.attr="disabled"
                                 wire:confirm="Send this announcement to {{ $preview['clinics'] }} {{ \Illuminate\Support\Str::plural('clinic', $preview['clinics']) }}? It cannot be unsent.">
                             Send to {{ $preview['clinics'] }} {{ \Illuminate\Support\Str::plural('clinic', $preview['clinics']) }}
                         </button>
@@ -168,42 +168,42 @@
                 </div>
             </div>
 
-            <div class="pp-card" style="position:sticky;top:16px">
-                <div class="pp-card-head"><div><h2>Email preview</h2><p>As {{ $preview['names'][0] ?? 'a clinic' }} will see it.</p></div></div>
+            <div class="ui-card" style="position:sticky;top:16px">
+                <div class="ui-card-head"><div><h2>Email preview</h2><p>As {{ $preview['names'][0] ?? 'a clinic' }} will see it.</p></div></div>
                 @if($emailHtml)
                     <iframe class="an-preview" srcdoc="{{ $emailHtml }}" title="Email preview" sandbox></iframe>
                 @else
-                    <p class="pp-hint">Write a heading and message to see the email.</p>
+                    <p class="ui-hint">Write a heading and message to see the email.</p>
                 @endif
             </div>
         </div>
 
     @else
-        <div style="margin-bottom:12px"><button type="button" class="pp-btn alt sm" wire:click="backToList">← All announcements</button></div>
+        <div style="margin-bottom:12px"><button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="backToList">← All announcements</button></div>
 
-        <div class="pp-card" @if($announcement->status === 'sending') wire:poll.10s @endif>
-            <div class="pp-card-head">
+        <div class="ui-card" @if($announcement->status === 'sending') wire:poll.10s @endif>
+            <div class="ui-card-head">
                 <div>
                     <h2>{{ $announcement->subject }}</h2>
                     <p>{{ $announcement->heading }} · sent {{ $announcement->sent_at?->format('d M Y H:i') }} by {{ $announcement->author?->name ?? 'platform' }}</p>
                 </div>
-                <div class="pp-actions">
+                <div class="ui-actions">
                     @if(($counts['failed'] ?? 0) > 0)
-                        <button type="button" class="pp-btn alt sm" wire:click="retryFailed">Retry {{ $counts['failed'] }} failed</button>
+                        <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="retryFailed">Retry {{ $counts['failed'] }} failed</button>
                     @endif
                     @if($announcement->show_banner && (!$announcement->banner_until || $announcement->banner_until->gte(today())))
-                        <button type="button" class="pp-btn danger sm" wire:click="stopBanner" wire:confirm="Take the banner down for every clinic?">Take banner down</button>
+                        <button type="button" class="ui-button ui-button-danger ui-button-sm" wire:click="stopBanner" wire:confirm="Take the banner down for every clinic?">Take banner down</button>
                     @endif
                 </div>
             </div>
-            <div class="pp-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
-                <div class="pp-stat"><span>Clinics</span><b>{{ $recipients->pluck('clinic_id')->unique()->count() }}</b></div>
-                <div class="pp-stat"><span>Emails sent</span><b class="pass">{{ $counts['sent'] ?? 0 }}</b>@if($counts['queued'] ?? 0)<small>{{ $counts['queued'] }} waiting</small>@endif</div>
-                <div class="pp-stat"><span>Failed</span><b class="{{ ($counts['failed'] ?? 0) ? 'fail' : '' }}">{{ $counts['failed'] ?? 0 }}</b></div>
-                <div class="pp-stat"><span>Banner</span><b style="font-size:16px">{{ !$announcement->show_banner ? 'Off' : (($announcement->banner_until && $announcement->banner_until->lt(today())) ? 'Ended' : 'On') }}</b></div>
+            <div class="ui-tiles ui-tiles--auto" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+                <div class="ui-tile"><span class="ui-tile__label">Clinics</span><b class="ui-tile__value">{{ $recipients->pluck('clinic_id')->unique()->count() }}</b></div>
+                <div class="ui-tile"><span class="ui-tile__label">Emails sent</span><b class="pass">{{ $counts['sent'] ?? 0 }}</b>@if($counts['queued'] ?? 0)<small class="ui-tile__hint">{{ $counts['queued'] }} waiting</small>@endif</div>
+                <div class="ui-tile"><span class="ui-tile__label">Failed</span><b class="{{ ($counts['failed'] ?? 0) ? 'fail' : '' }}">{{ $counts['failed'] ?? 0 }}</b></div>
+                <div class="ui-tile"><span class="ui-tile__label">Banner</span><b style="font-size:16px">{{ !$announcement->show_banner ? 'Off' : (($announcement->banner_until && $announcement->banner_until->lt(today())) ? 'Ended' : 'On') }}</b></div>
             </div>
-            <div class="pp-table-wrap">
-                <table class="pp-table">
+            <div class="ui-table-wrap ui-table-wrap--framed">
+                <table class="ui-table">
                     <thead><tr><th>Clinic</th><th>Who</th><th>Email</th><th>Status</th><th>When / why</th></tr></thead>
                     <tbody>
                         @foreach($recipients as $r)
@@ -211,7 +211,7 @@
                                 <td>{{ $r->clinic?->name ?? 'Deleted clinic' }}</td>
                                 <td>{{ ['owner' => 'Owner', 'super_admin' => 'Super Admin', 'none' => '—'][$r->role] ?? $r->role }}</td>
                                 <td>{{ $r->email ?? '—' }}</td>
-                                <td><span class="pp-badge {{ ['sent' => '', 'queued' => 'amber', 'failed' => 'red', 'skipped' => 'grey'][$r->status] ?? 'grey' }}">{{ strtoupper($r->status) }}</span></td>
+                                <td><span class="ui-badge {{ ['sent' => '', 'queued' => 'ui-badge--warning', 'failed' => 'ui-badge--danger', 'skipped' => 'ui-badge--neutral'][$r->status] ?? 'ui-badge--neutral' }}">{{ strtoupper($r->status) }}</span></td>
                                 <td><small style="margin:0">{{ $r->sent_at?->format('d M H:i') ?? $r->error ?? '' }}</small></td>
                             </tr>
                         @endforeach

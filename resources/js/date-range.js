@@ -53,6 +53,7 @@ function dateRange(config) {
         from: null,                        // applied range (Date)
         to: null,
         anchor: null,                      // first click of a new range
+        custom: false,                     // "Custom date" chosen: waiting for two days on the calendar
         hover: null,
         view: null,                        // first day of the month on screen
         focus: null,                       // keyboard focus day
@@ -109,6 +110,7 @@ function dateRange(config) {
         close(returnFocus = true) {
             this.open = false;
             this.anchor = null;
+            this.custom = false;
             if (returnFocus) this.$refs.trigger?.focus();
         },
 
@@ -138,6 +140,20 @@ function dateRange(config) {
             if (this.min && d < this.min) return this.min;
             if (this.max && d > this.max) return this.max;
             return d;
+        },
+
+        // "Custom date" starts a fresh pick on the calendar; it reads as chosen while picking
+        // and whenever the applied range isn't one of the quick ranges.
+        startCustom() {
+            this.custom = true;
+            this.anchor = null;
+            this.hover = null;
+            this.focus = this.from || this.today;
+            this.$nextTick(() => this.$refs.grid?.querySelector('[tabindex="0"]')?.focus());
+        },
+
+        isCustom() {
+            return this.custom || !!this.anchor || (!!this.from && !!this.to && !this.activePreset());
         },
 
         activePreset() {

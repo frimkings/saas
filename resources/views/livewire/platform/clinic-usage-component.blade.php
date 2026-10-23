@@ -6,43 +6,50 @@
 @endphp
 <x-platform.page active="usage" title="Clinic Usage" subtitle="How much each clinic uses the online system: page views and actions, data sent, server and database time, and rows stored. Use it to see which clinics cost the most to host before setting usage-based prices.">
     <style>
-        .cu-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:16px}.cu-bar .pp-field{width:auto;min-width:170px}
+        .cu-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:16px}.cu-bar .ui-field{width:auto;min-width:170px}
         .cu-sort{background:none;border:0;padding:0;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer}.cu-sort.on{color:var(--blue)}
         .cu-num{text-align:right!important;white-space:nowrap}.cu-share{display:flex;align-items:center;gap:8px;justify-content:flex-end}
         .cu-meter{width:70px;height:6px;border-radius:3px;background:#1b2940;overflow:hidden}.cu-meter i{display:block;height:100%;background:var(--blue)}
         .cu-name{background:none;border:0;padding:0;color:#e8eef8;font:inherit;font-weight:700;cursor:pointer;text-align:left}.cu-name:hover{color:var(--blue)}
         .cu-open td{background:#0b1526}
         .cu-day{display:block;height:8px;border-radius:3px;background:var(--blue);min-width:2px}
-        .pp-stats.cu-4{grid-template-columns:repeat(4,1fr)}@media(max-width:900px){.pp-stats.cu-4{grid-template-columns:1fr 1fr}}
+        .ui-tiles.cu-4{grid-template-columns:repeat(4,1fr)}@media(max-width:900px){.ui-tiles.cu-4{grid-template-columns:1fr 1fr}}
     </style>
 
     @unless($metering)
-        <div class="pp-warn">Usage metering is off on this installation (it is on by default only when tenancy is enabled). Set <code>USAGE_METERING=true</code> to start counting.</div>
+        <div class="ui-alert ui-alert--warning">Usage metering is off on this installation (it is on by default only when tenancy is enabled). Set <code>USAGE_METERING=true</code> to start counting.</div>
     @endunless
 
-    <div class="cu-bar">
-        <label class="pp-field"><span>Period</span>
-            <select wire:model.live="period">
+    <div class="cu-bar" data-tour="cu-period">
+        <label class="ui-field"><span>Period</span>
+            <select class="ui-input" wire:model.live="period">
                 @foreach(U::PERIODS as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
             </select>
         </label>
-        <label class="pp-field"><span>Hosting bill for this period (optional)</span>
-            <input type="number" min="0" step="0.01" wire:model.live.debounce.400ms="hostingCost" placeholder="e.g. 40.00">
+        @if($period === 'month')
+            <label class="ui-field" data-tour="cu-month"><span>Month</span>
+                <select class="ui-input" wire:model.live="month">@foreach($months as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>
+            </label>
+        @elseif($period === 'custom')
+            <div class="ui-field" data-tour="cu-month"><span>Dates</span><x-date-range from="rangeFrom" to="rangeTo" presets="finance" theme="dark" /></div>
+        @endif
+        <label class="ui-field"><span>Hosting bill for this period (optional)</span>
+            <input class="ui-input" type="number" min="0" step="0.01" wire:model.live.debounce.400ms="hostingCost" placeholder="e.g. 40.00">
         </label>
-        <span class="pp-hint">{{ $from->format('j M Y') }} – {{ $to->format('j M Y') }}. The bill is split by each clinic's share of server time; it isn't saved.</span>
+        <span class="ui-hint">{{ $from->format('j M Y') }} – {{ $to->format('j M Y') }}. The bill is split by each clinic's share of server time; it isn't saved.</span>
     </div>
 
-    <div class="pp-stats cu-4" style="margin-bottom:16px">
-        <div class="pp-stat"><span>Requests</span><b>{{ number_format($totals['requests']) }}</b><small>Page views and actions</small></div>
-        <div class="pp-stat"><span>Data sent</span><b>{{ U::bytes($totals['bytes_out']) }}</b><small>Before compression</small></div>
-        <div class="pp-stat"><span>Server time</span><b>{{ U::duration($totals['server_ms'] + $totals['job_ms']) }}</b><small>{{ U::duration($totals['server_ms']) }} pages · {{ U::duration($totals['job_ms']) }} scheduled work</small></div>
-        <div class="pp-stat"><span>Active clinics</span><b>{{ $totals['active'] }}</b><small>{{ number_format($totals['staff']) }} staff used the system</small></div>
+    <div class="ui-tiles ui-tiles--auto cu-4" style="margin-bottom:16px" data-tour="cu-totals">
+        <div class="ui-tile"><span class="ui-tile__label">Requests</span><b class="ui-tile__value">{{ number_format($totals['requests']) }}</b><small class="ui-tile__hint">Page views and actions</small></div>
+        <div class="ui-tile"><span class="ui-tile__label">Data sent</span><b class="ui-tile__value">{{ U::bytes($totals['bytes_out']) }}</b><small class="ui-tile__hint">Before compression</small></div>
+        <div class="ui-tile"><span class="ui-tile__label">Server time</span><b class="ui-tile__value">{{ U::duration($totals['server_ms'] + $totals['job_ms']) }}</b><small class="ui-tile__hint">{{ U::duration($totals['server_ms']) }} pages · {{ U::duration($totals['job_ms']) }} scheduled work</small></div>
+        <div class="ui-tile"><span class="ui-tile__label">Active clinics</span><b class="ui-tile__value">{{ $totals['active'] }}</b><small class="ui-tile__hint">{{ number_format($totals['staff']) }} staff used the system</small></div>
     </div>
 
-    <div class="pp-card">
-        <div class="pp-card-head"><div><h2>By clinic</h2><p>Click a clinic for its day-by-day usage. Click a column heading to sort.</p></div></div>
-        <div class="pp-table-wrap">
-            <table class="pp-table">
+    <div class="ui-card" data-tour="cu-clinics">
+        <div class="ui-card-head"><div><h2>By clinic</h2><p>Click a clinic for its day-by-day usage. Click a column heading to sort.</p></div></div>
+        <div class="ui-table-wrap ui-table-wrap--framed">
+            <table class="ui-table">
                 <thead><tr>
                     <th>{!! $sortHead('name', 'Clinic') !!}</th>
                     <th class="cu-num">{!! $sortHead('requests', 'Requests') !!}</th>
@@ -59,7 +66,7 @@
                 @forelse($clinics as $c)
                     <tr wire:key="cu-{{ $c['id'] }}" class="{{ $clinicId === $c['id'] ? 'cu-open' : '' }}">
                         <td><button type="button" class="cu-name" wire:click="showClinic({{ $c['id'] }})" aria-expanded="{{ $clinicId === $c['id'] ? 'true' : 'false' }}">{{ $c['name'] }}</button>
-                            @if($c['status'] !== 'active')<span class="pp-badge grey">{{ ucfirst($c['status']) }}</span>@endif</td>
+                            @if($c['status'] !== 'active')<span class="ui-badge ui-badge--neutral">{{ ucfirst($c['status']) }}</span>@endif</td>
                         <td class="cu-num">{{ number_format($c['requests']) }}<small>{{ number_format($c['page_views']) }} pages · {{ number_format($c['actions']) }} actions</small></td>
                         <td class="cu-num">{{ U::bytes($c['bytes_out']) }}</td>
                         <td class="cu-num">{{ U::duration($c['compute_ms']) }}<small>{{ U::duration($c['server_ms']) }} pages · {{ U::duration($c['job_ms']) }} scheduled</small></td>
@@ -71,7 +78,7 @@
                         <td class="cu-num">{{ $c['active_days'] }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="10" class="pp-empty">No clinics yet.</td></tr>
+                    <tr><td colspan="10" class="ui-empty">No clinics yet.</td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -79,11 +86,11 @@
     </div>
 
     @if($openClinic)
-        <div class="pp-card">
-            <div class="pp-card-head"><div><h2>{{ $openClinic['name'] }}: day by day</h2><p>Days with no use are left out.</p></div>
-                <button type="button" class="pp-btn alt sm" wire:click="showClinic(null)">Close</button></div>
-            <div class="pp-table-wrap">
-                <table class="pp-table">
+        <div class="ui-card">
+            <div class="ui-card-head"><div><h2>{{ $openClinic['name'] }}: day by day</h2><p>Days with no use are left out.</p></div>
+                <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="showClinic(null)">Close</button></div>
+            <div class="ui-table-wrap ui-table-wrap--framed">
+                <table class="ui-table">
                     <thead><tr><th>Date</th><th style="width:30%">Requests</th><th class="cu-num">Data sent</th><th class="cu-num">Server time</th><th class="cu-num">Database time</th><th class="cu-num">Staff</th><th class="cu-num">Stored</th></tr></thead>
                     <tbody>
                     @forelse($days as $d)
@@ -97,7 +104,7 @@
                             <td class="cu-num">{{ $d->stored_rows === null ? '—' : number_format($d->stored_rows) }}<small>{{ $d->file_bytes === null ? '' : U::bytes($d->file_bytes).' files' }}</small></td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="pp-empty">No usage recorded in this period.</td></tr>
+                        <tr><td colspan="7" class="ui-empty">No usage recorded in this period.</td></tr>
                     @endforelse
                     </tbody>
                 </table>

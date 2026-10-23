@@ -1,0 +1,64 @@
+/*
+ * Dark ui-* theme: the same shared components as the clinic app (clinic-ui.css), recoloured for the platform
+ * console. Put "clinic-ui ui-dark" on the page's root; markup and behaviour are exactly the clinic app's.
+ */
+.clinic-ui.ui-dark {
+    --clinic-accent: #38bdf8; --clinic-accent-strong: #1688c4; --clinic-surface: #07101f; --clinic-panel: #101b2e;
+    --clinic-raised: #0b1526; --clinic-field: #050d1c; --clinic-ink: #e8eef8; --clinic-muted: #8fa1bb; --clinic-label: #9fc2ef;
+    --clinic-line: #22314a; --clinic-field-line: #273750;
+    color: var(--clinic-ink); background: var(--clinic-surface); color-scheme: dark;
+}
+.clinic-ui.ui-dark.ui-page { background: var(--clinic-surface); }
+.clinic-ui.ui-dark a:not([class]) { color: var(--clinic-accent); }
+
+/* Panels, cards, headings */
+.clinic-ui.ui-dark :is(.ui-panel, .ui-card, .ui-tile, .ui-dialog, .ui-menu) { background: var(--clinic-panel); border-color: var(--clinic-line); color: var(--clinic-ink); }
+.clinic-ui.ui-dark :is(.ui-panel-heading, .ui-section-heading) { border-color: var(--clinic-line); }
+.clinic-ui.ui-dark :is(.ui-section-heading h2, .ui-section-heading :is(h3, h4, h5, h6), .ui-tile__value) { color: var(--clinic-ink); }
+.clinic-ui.ui-dark :is(.ui-muted, .ui-hint, .ui-section-empty, .ui-tile__hint, .ui-empty) { color: var(--clinic-muted); }
+.clinic-ui.ui-dark .ui-tile__label { color: var(--clinic-label); }
+.clinic-ui.ui-dark .ui-tile--good { background: #0d2e26; border-color: #1f6b57; } .clinic-ui.ui-dark .ui-tile--good .ui-tile__value { color: #34d399; }
+.clinic-ui.ui-dark .ui-tile--warning { background: #2e240b; border-color: #7c5a11; } .clinic-ui.ui-dark .ui-tile--warning .ui-tile__value { color: #fbbf24; }
+.clinic-ui.ui-dark .ui-tile--danger { background: #35141f; border-color: #7b2740; } .clinic-ui.ui-dark .ui-tile--danger .ui-tile__value { color: #fb7185; }
+.clinic-ui.ui-dark .ui-panel.ui-panel--danger { background: #35141f; border-color: #7b2740; }
+.clinic-ui.ui-dark .ui-panel.ui-panel--warning { background: #2e240b; border-color: #7c5a11; }
+.clinic-ui.ui-dark .ui-panel.ui-panel--good { background: #0d2e26; border-color: #1f6b57; }
+
+/* Buttons */
+.clinic-ui.ui-dark .ui-button-primary { background: var(--clinic-accent-strong); border-color: var(--clinic-accent-strong); color: #fff; }
+.clinic-ui.ui-dark .ui-button-primary:hover { background: #1a9bdc; border-color: #1a9bdc; }
+.clinic-ui.ui-dark .ui-button-secondary { background: #26354b; border-color: #314560; color: #e8eef8; }
+.clinic-ui.ui-dark .ui-button-secondary:hover { background: #314560; }
+.clinic-ui.ui-dark .ui-button-danger { background: #9f1239; border-color: #9f1239; color: #fff; }
+.clinic-ui.ui-dark .ui-button-danger:hover { background: #be123c; }
+.clinic-ui.ui-dark .ui-button-link { color: var(--clinic-accent); }
+.clinic-ui.ui-dark :is(.ui-button, .ui-tabs > *):focus-visible { outline-color: var(--clinic-accent); }
+
+/* Fields */
+.clinic-ui.ui-dark .ui-input { background-color: var(--clinic-field); border-color: var(--clinic-field-line); color: #edf5ff; }
+.clinic-ui.ui-dark .ui-input::placeholder { color: #61728c; }
+.clinic-ui.ui-dark .ui-input:focus { border-color: var(--clinic-accent); box-shadow: 0 0 0 3px rgb(56 189 248 / 22%); }
+.clinic-ui.ui-dark .ui-input:disabled { opacity: .6; }
+.clinic-ui.ui-dark .ui-field > span, .clinic-ui.ui-dark .ui-field label { color: var(--clinic-label); }
+.clinic-ui.ui-dark .ui-error { color: #fb7185; }
+
+/* Tables */
+.clinic-ui.ui-dark .ui-table th { background: var(--clinic-raised); color: var(--clinic-label); font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+.clinic-ui.ui-dark .ui-table :is(th, td) { border-color: var(--clinic-line); vertical-align: middle; }
+.clinic-ui.ui-dark .ui-table tbody tr:hover { background: rgb(22 48 74 / 45%); }
+.clinic-ui.ui-dark .ui-table td small { display: block; color: var(--clinic-muted); margin-top: 2px; }
+
+/* Badges, alerts, tabs, menus */
+.clinic-ui.ui-dark .ui-badge { background: #0d3535; color: #34d399; border: 1px solid #175e5a; font-weight: 700; font-size: 10px; }
+.clinic-ui.ui-dark .ui-badge--neutral { background: #1b2940; color: #aebbd0; border-color: #334560; }
+.clinic-ui.ui-dark .ui-badge--good { background: #0d3535; color: #34d399; border-color: #175e5a; }
+.clinic-ui.ui-dark .ui-badge--warning { background: #3a2d0c; color: #fbbf24; border-color: #7c5a11; }
+.clinic-ui.ui-dark .ui-badge--danger { background: #471c2c; color: #fb7185; border-color: #7b2740; }
+.clinic-ui.ui-dark .ui-alert--good { background: #10382f; border-color: #1f6b57; color: #86efca; }
+.clinic-ui.ui-dark .ui-alert--warning { background: #3a2d0c; border-color: #7c5a11; color: #fde68a; }
+.clinic-ui.ui-dark .ui-alert--danger { background: #471c2c; border-color: #7b2740; color: #fecdd3; }
+.clinic-ui.ui-dark .ui-tabs > :is(button, a) { color: #aebbd0; }
+.clinic-ui.ui-dark .ui-tabs > :is(button, a):hover { color: var(--clinic-ink); }
+.clinic-ui.ui-dark .ui-tabs > :is([aria-selected="true"], [aria-current="page"], .active) { color: var(--clinic-accent); border-bottom-color: var(--clinic-accent); }
+.clinic-ui.ui-dark .ui-menu-item { color: #dbe6f5; } .clinic-ui.ui-dark .ui-menu-item:hover { background: #16304a; }
+.clinic-ui.ui-dark .ui-check { color: #dbe6f5; }

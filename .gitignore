@@ -21,3 +21,7 @@ yarn-error.log
 
 .env.restored
 /backups
+
+# Local screenshot pages and the throwaway tests that write them
+/public/_*.html
+/tests/Feature/tmp/

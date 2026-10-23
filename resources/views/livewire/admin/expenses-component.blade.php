@@ -57,6 +57,7 @@
         @endif
         <div class="ui-actions">
             @if($statementLink)<x-ui.button :href="$statementLink['url']">{{ $statementLink['label'] }}</x-ui.button>@endif
+            @if($hasLegacyExpenses)<x-ui.button :href="route('admin.expenses.previous')">Previous software</x-ui.button>@endif
             @if($isManager)<x-ui.button x-on:click="cats = true">Categories</x-ui.button>@endif
             <x-ui.button wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv">Export CSV</x-ui.button>
             <x-ui.button variant="primary" x-on:click="create()">Record expense</x-ui.button>

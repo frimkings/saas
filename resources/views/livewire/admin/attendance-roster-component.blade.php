@@ -88,7 +88,7 @@
                         </p>
                         @unless($rosterPreview)
                             <form wire:submit="readRosterFile" class="flex flex-wrap items-center gap-2">
-                                <input type="file" accept=".xlsx,.csv,text/csv" wire:model="rosterFile" class="text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200" aria-label="Roster file">
+                                <input type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" accept=".xlsx,.csv,text/csv" wire:model="rosterFile" class="text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200" aria-label="Roster file">
                                 <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="readRosterFile,rosterFile">Read the file</x-ui.button>
                                 @error('rosterFile')<p class="ui-error w-full" role="alert">{{ $message }}</p>@enderror
                             </form>

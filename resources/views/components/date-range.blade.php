@@ -1,7 +1,7 @@
 @props([
     'from',                    // Livewire property for the start date (YYYY-MM-DD)
     'to',                      // Livewire property for the end date
-    'presets' => 'activity',   // activity | finance | upcoming
+    'presets' => 'activity',   // activity | finance (same list) | upcoming
     'max' => null,             // 'today' or YYYY-MM-DD; activity filters default to today
     'min' => null,
     'clearable' => false,      // offer "Any date" (both properties set to '')
@@ -14,9 +14,12 @@
     // "Today" is the clinic's day, not the server's or the browser's.
     $tz = app(\App\Support\Tenancy\TenantContext::class)->clinic()?->default_timezone ?: config('app.timezone');
     $today = now($tz)->toDateString();
+    // Every backward-looking filter offers the same quick ranges (each ends today at the latest); "Custom date" follows them.
+    $past = ['today' => 'Today', 'yesterday' => 'Yesterday', 'this_week' => 'This week', 'this_month' => 'This month',
+        'this_quarter' => 'This quarter', 'ytd' => 'Year to date', 'last_year' => 'Last year'];
     $sets = [
-        'activity' => ['today' => 'Today', 'yesterday' => 'Yesterday', 'last3' => 'Last 3 days', 'last7' => 'Last 7 days', 'last15' => 'Last 15 days', 'last30' => 'Last 30 days'],
-        'finance' => ['today' => 'Today', 'this_week' => 'This week', 'this_month' => 'This month', 'last_month' => 'Last month', 'this_quarter' => 'This quarter', 'ytd' => 'Year to date', 'last_year' => 'Last year'],
+        'activity' => $past,
+        'finance' => $past,
         'upcoming' => ['today' => 'Today', 'tomorrow' => 'Tomorrow', 'next7' => 'Next 7 days', 'next30' => 'Next 30 days', 'this_month_full' => 'This month'],
     ];
     $presetList = collect($sets[$presets] ?? $sets['activity'])->map(fn ($l, $k) => [$k, $l])->values()->all();
@@ -41,17 +44,18 @@
 .drp-trigger svg{flex:none;opacity:.7;transition:transform .15s}.drp-trigger[aria-expanded="true"] svg{transform:rotate(180deg)}
 .drp-trigger .is-placeholder{color:var(--drp-muted)}
 .drp.w-full .drp-trigger{width:100%}
-.drp-panel{position:fixed;top:0;left:0;z-index:1100;display:flex;background:var(--drp-bg);color:var(--drp-text);border:1px solid var(--drp-line);border-radius:14px;box-shadow:var(--drp-shadow);padding:12px;gap:8px}
-.drp-presets{display:flex;flex-direction:column;gap:2px;min-width:132px;padding-right:8px;border-right:1px solid var(--drp-line)}
-.drp-presets button{background:none;border:0;color:var(--drp-text);text-align:left;padding:8px 10px;border-radius:8px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.drp-panel{position:fixed;top:0;left:0;z-index:1100;display:flex;background:var(--drp-bg);color:var(--drp-text);border:1px solid var(--drp-line);border-radius:14px;box-shadow:var(--drp-shadow);padding:8px;gap:6px}
+.drp-presets{display:flex;flex-direction:column;gap:0;min-width:118px;padding-right:6px;border-right:1px solid var(--drp-line)}
+.drp-presets button{background:none;border:0;color:var(--drp-text);text-align:left;padding:5px 9px;border-radius:7px;font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
 .drp-presets button:hover,.drp-presets button:focus-visible{background:var(--drp-hover);outline:none}.drp-presets button.is-active{background:var(--drp-band);color:var(--drp-band-text);font-weight:700}
+.drp-presets .drp-custom{margin-top:3px;border-top:1px solid var(--drp-line);border-radius:0 0 7px 7px;padding-top:7px}
 .drp-presets .drp-clear{margin-top:auto;color:var(--drp-muted)}
-.drp-cal{width:252px}
-.drp-head{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}.drp-head b{font-size:13.5px}
-.drp-nav{background:none;border:0;color:var(--drp-muted);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1}.drp-nav:hover{background:var(--drp-hover);color:var(--drp-text)}
-.drp-grid{display:grid;grid-template-columns:repeat(7,36px);row-gap:4px}
-.drp-dow{font-size:11px;font-weight:700;color:var(--drp-muted);text-align:center;padding:4px 0}
-.drp-day{position:relative;height:34px;border:0;background:none;color:var(--drp-text);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}
+.drp-cal{width:224px}
+.drp-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 4px}.drp-head b{font-size:13px}
+.drp-nav{background:none;border:0;color:var(--drp-muted);width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:17px;line-height:1}.drp-nav:hover{background:var(--drp-hover);color:var(--drp-text)}
+.drp-grid{display:grid;grid-template-columns:repeat(7,32px);row-gap:2px}
+.drp-dow{font-size:10.5px;font-weight:700;color:var(--drp-muted);text-align:center;padding:2px 0}
+.drp-day{position:relative;height:28px;border:0;background:none;color:var(--drp-text);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}
 .drp-day:focus-visible{outline:2px solid var(--drp-edge);outline-offset:-2px;border-radius:8px;z-index:2}
 .drp-day:hover:not(.is-disabled):not(.is-start):not(.is-end){background:var(--drp-hover);border-radius:8px}
 .drp-day.is-muted{color:var(--drp-muted);opacity:.55}
@@ -60,12 +64,12 @@
 .drp-day.row-start{border-top-left-radius:9px;border-bottom-left-radius:9px}.drp-day.row-end{border-top-right-radius:9px;border-bottom-right-radius:9px}
 .drp-day.is-start,.drp-day.is-end{background:var(--drp-edge);color:var(--drp-edge-text);z-index:1}
 .drp-day.is-start{border-radius:9px 0 0 9px}.drp-day.is-end{border-radius:0 9px 9px 0}.drp-day.is-single,.drp-day.is-start.is-end{border-radius:9px}
-.drp-day.is-today::after{content:'';position:absolute;left:50%;bottom:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:.7}
-.drp-hint{margin:8px 0 0;font-size:11px;color:var(--drp-muted);min-height:14px}
+.drp-day.is-today::after{content:'';position:absolute;left:50%;bottom:2px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:.7}
+.drp-hint{margin:4px 0 0;font-size:10.5px;color:var(--drp-muted);min-height:14px}
 @media(max-width:600px){
   .drp-panel{position:fixed;left:0!important;right:0!important;top:auto!important;bottom:0;flex-direction:column;border-radius:16px 16px 0 0;padding:14px 16px 18px}
   .drp-presets{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--drp-line);padding:0 0 8px}
-  .drp-presets .drp-clear{margin-top:0}
+  .drp-presets .drp-clear,.drp-presets .drp-custom{margin-top:0}.drp-presets .drp-custom{border-top:0;border-radius:8px;padding-top:7px}
   .drp-cal{width:auto}.drp-grid{grid-template-columns:repeat(7,1fr)}
 }
 @media(prefers-reduced-motion:reduce){.drp-trigger svg{transition:none}}
@@ -84,8 +88,9 @@
     <div class="drp-panel" x-ref="panel" :style="panelStyle" x-show="open" x-cloak x-transition.opacity.duration.100ms role="dialog" aria-label="Choose a date range">
         <div class="drp-presets" role="group" aria-label="Quick ranges">
             <template x-for="[key, text] in presets" :key="key">
-                <button type="button" x-on:click="choosePreset(key)" :class="{ 'is-active': activePreset() === key }" x-text="text"></button>
+                <button type="button" x-on:click="choosePreset(key)" :class="{ 'is-active': !custom && !anchor && activePreset() === key }" x-text="text"></button>
             </template>
+            <button type="button" class="drp-custom" x-on:click="startCustom()" :class="{ 'is-active': isCustom() }">Custom date</button>
             <template x-if="clearable">
                 <button type="button" class="drp-clear" x-on:click="clear()">Any date</button>
             </template>
@@ -106,7 +111,7 @@
                     </template>
                 </template>
             </div>
-            <p class="drp-hint" x-text="anchor ? 'Now pick the end date' : 'Pick a start date, or a quick range'"></p>
+            <p class="drp-hint" x-text="anchor ? 'Now pick the end date' : (custom ? 'Pick the start date' : 'Pick a start date, or a quick range')"></p>
         </div>
     </div>
 </div>

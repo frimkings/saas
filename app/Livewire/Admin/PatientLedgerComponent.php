@@ -29,6 +29,13 @@ class PatientLedgerComponent extends Component
     public string $fromDate = '';
     public string $toDate   = '';
 
+    /** ?patient=ID opens the ledger on that patient (links from other pages). */
+    public function mount(): void
+    {
+        $id = request()->query('patient');
+        if (is_numeric($id)) $this->selectPatient((int) $id);
+    }
+
     public function updatedPatientSearch(): void
     {
         $term = trim($this->patientSearch);
@@ -208,10 +215,15 @@ class PatientLedgerComponent extends Component
     public function render()
     {
         $entries = $this->buildLedger();
+        $patient = $this->patient();
+        // Payments from the previous software are not on this account; say they exist and where to see them.
+        $legacy = $patient ? \App\Models\PatientLegacyPayment::where('patient_id', $patient->id)->selectRaw('COUNT(*) as n, SUM(amount) as total')->first() : null;
+
         return view('livewire.admin.patient-ledger-component', [
-            'patient' => $this->patient(),
+            'patient' => $patient,
             'entries' => $entries,
             'summary' => $this->summarise($entries),
+            'legacyPayments' => $legacy && $legacy->n ? ['count' => (int) $legacy->n, 'total' => (float) $legacy->total] : null,
         ])->layout('layouts.admin.admin-layout');
     }
 }

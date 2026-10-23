@@ -523,6 +523,8 @@
 .clinical-original-note__body { color: #0f172a; font-size: 13px; margin-top: 4px; white-space: pre-line; }
 .clinical-addenda-list { display: grid; gap: 8px; max-height: 220px; overflow-y: auto; }
 .clinical-addendum-item { background: #fff; border-left: 3px solid #16a34a; border-radius: 6px; box-shadow: 0 1px 2px rgba(15, 23, 42, .06); padding: 9px 11px; }
+.clinical-addendum-item--original { background: #f8fafc; border-left-color: #94a3b8; }
+.clinical-addendum-item--original .clinical-addendum-item__note { max-height: 260px; overflow-y: auto; }
 .clinical-addendum-item__meta { color: #64748b; display: flex; flex-wrap: wrap; font-size: 11px; font-weight: 600; gap: 8px; justify-content: space-between; margin-bottom: 5px; }
 .clinical-addendum-item__note { color: #0f172a; font-size: 13px; white-space: pre-line; }
 .clinical-addendum-group { display: grid; gap: 7px; }

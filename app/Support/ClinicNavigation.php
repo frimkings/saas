@@ -140,7 +140,7 @@ class ClinicNavigation
                 ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
                 ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0],
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
-                ['label' => 'Sales Records', 'route' => 'cashier.sales-records', 'active' => ['cashier.sales-records', 'admin.sales-records']],
+                ['label' => 'Sales Records', 'route' => 'cashier.sales-records', 'active' => ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*'],
             ]];
             $doctorPages = (bool) $user?->hasAnyRole(['Doctor', 'Super Admin']);
@@ -151,7 +151,7 @@ class ClinicNavigation
             ]];
             $menu[] = ['label' => 'Clinical Inventory', 'icon' => 'fa-boxes', 'items' => [
                 ['label' => 'Categories', 'route' => 'admin.category'],
-                ['label' => 'Products', 'route' => 'admin.product'],
+                ['label' => 'Products', 'route' => 'admin.product', 'active' => ['admin.product', 'admin.legacy-medication-names']],
                 ['label' => 'Stock Receiving', 'route' => 'admin.stock-movements'],
                 ['label' => 'Stock Transfers', 'route' => 'admin.stock-transfers'],
                 ['label' => 'Inventory Alerts', 'route' => 'admin.inventory-alerts'],
@@ -165,7 +165,7 @@ class ClinicNavigation
             $opticalOnly = OpticalMode::opticalOnly();
             $menu[] = ['label' => 'Finances', 'icon' => 'fa-chart-line', 'items' => [
                 ['label' => FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports', 'route' => $opticalOnly ? 'optical.reports' : 'admin.reports'],
-                ['label' => 'Sales Records', 'route' => $opticalOnly ? 'optical.sales' : 'cashier.sales-records', 'active' => $opticalOnly ? 'optical.sales' : ['cashier.sales-records', 'admin.sales-records']],
+                ['label' => 'Sales Records', 'route' => $opticalOnly ? 'optical.sales' : 'cashier.sales-records', 'active' => $opticalOnly ? 'optical.sales' : ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
                 ['label' => $opticalOnly ? 'Profit & Loss' : 'Income Statement', 'route' => $opticalOnly ? 'optical.profit' : 'admin.income-statement', 'activePath' => $opticalOnly ? null : 'admin/income-statement*'],
                 ['label' => 'Combined Statement', 'route' => 'admin.combined-statement', 'show' => FinanceStatements::canViewCombined($user), 'activePath' => 'admin/combined-statement*'],
                 ['label' => 'Expenses', 'route' => $opticalOnly ? 'optical.expenses' : 'admin.expenses', 'activePath' => $opticalOnly ? null : 'admin/expenses*'],

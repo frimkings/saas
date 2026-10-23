@@ -581,6 +581,9 @@ class SalesRecordsComponent extends Component
             'totalDiscounts' => (float) $totalDiscounts,
             'refundCount' => $refundCount,
             'refundTotal' => $refundTotal,
+            // Payments brought over from the clinic's previous software have a page of their own (owners only).
+            'hasLegacyPayments' => $this->businessLine === 'clinic' && auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])
+                && \App\Models\PatientLegacyPayment::query()->exists(),
         ])->layout($layout, ['menu' => 'reception']);
     }
 

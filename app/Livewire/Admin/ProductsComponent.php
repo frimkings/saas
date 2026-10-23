@@ -745,7 +745,10 @@ class ProductsComponent extends Component
             'expired'   => (int) $allProducts->expired,
         ];
 
-        return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions'))
+        // Drug names from the clinic's previous software are matched to products on a page of their own (owners only).
+        $hasLegacyMedications = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) && \App\Models\PatientLegacyMedication::query()->exists();
+
+        return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions', 'hasLegacyMedications'))
             ->layout('layouts.admin.admin-layout');
     }
 }

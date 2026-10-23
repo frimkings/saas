@@ -1,6 +1,7 @@
 <div class="clinic-ui ui-page">
 <div>
     <x-ui.page-header title="Products" description="Drugs, drops and everything else you charge for, with prices, batches and stock.">
+        @if($hasLegacyMedications)<x-ui.button :href="route('admin.legacy-medication-names')"><i class="fas fa-link" aria-hidden="true"></i>Previous software names</x-ui.button>@endif
         <x-ui.button wire:click="toggleLensCatalog" aria-pressed="{{ $showLensCatalog ? 'true' : 'false' }}"><i class="fas fa-glasses" aria-hidden="true"></i>Lens catalog</x-ui.button>
         <x-ui.menu label="Import / export">
             <button type="button" wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv" class="ui-menu-item" role="menuitem"><i class="fas fa-download" aria-hidden="true"></i>Export CSV</button>

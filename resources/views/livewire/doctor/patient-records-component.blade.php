@@ -157,6 +157,7 @@
                         <button type="button" :class="{'is-active':historyView==='overview'}" :aria-pressed="historyView==='overview'" @click="historyView='overview'; $nextTick(()=>window.dispatchEvent(new Event('resize')))"><i class="fas fa-chart-line"></i> Charts & Refraction History</button>
                         <button type="button" :class="{'is-active':historyView==='scans'}" :aria-pressed="historyView==='scans'" @click="historyView='scans'"><i class="fas fa-images"></i> Diagnostic Scans <span>{{ $patientDocumentCount }}</span></button>
                         <button type="button" :class="{'is-active':historyView==='records'}" :aria-pressed="historyView==='records'" @click="historyView='records'"><i class="fas fa-history"></i> Past Encounters & Records <span>{{ $consultationCount }}</span></button>
+                        @if($legacyPaymentCount)<button type="button" :class="{'is-active':historyView==='legacy-payments'}" :aria-pressed="historyView==='legacy-payments'" @click="historyView='legacy-payments'"><i class="fas fa-receipt"></i> Previous Software Payments <span>{{ $legacyPaymentCount }}</span></button>@endif
                     </nav>
 <div x-show="historyView==='overview'">
 <div class="history-charts-grid">
@@ -248,6 +249,11 @@
 
 
 </div>
+@if($legacyPaymentCount)
+<div x-show="historyView==='legacy-payments'" x-cloak>
+@include('livewire.doctor.partials.history-legacy-payments')
+</div>
+@endif
 <div x-show="historyView==='scans'" x-cloak>
 @include('livewire.doctor.partials.history-scans')
 </div>
@@ -675,6 +681,15 @@
                         @endif
                     </label>
                     @if($consultationFieldsLocked)
+                        @if($consultation && filled($consultation->notes))
+                            <div class="clinical-addendum-item clinical-addendum-item--original mb-2">
+                                <div class="clinical-addendum-item__meta">
+                                    <span><i class="fas fa-file-medical"></i> Original note</span>
+                                    <span>{{ $consultation->created_at?->format('d M Y h:i A') }}</span>
+                                </div>
+                                <div class="clinical-addendum-item__note">{{ $consultation->notes }}</div>
+                            </div>
+                        @endif
                         @if($consultation && $consultation->addenda->count() > 0)
                             <div class="clinical-addenda-list mb-4">
                                 @foreach($this->groupedClinicalAddenda as $addendumGroup)
@@ -1233,6 +1248,7 @@
                 @endif
             </div>
         </div>
+        @include('livewire.doctor.partials.previous-medications')
     </div>
 @endif
 

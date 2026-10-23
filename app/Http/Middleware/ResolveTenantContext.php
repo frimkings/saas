@@ -35,6 +35,11 @@ class ResolveTenantContext
             return $next($request);
         }
 
+        // Platform tours are kept outside any clinic (App\Support\Guides stores them under clinic 0).
+        if ($user->is_platform_admin && $request->routeIs('guides.record') && str_starts_with((string) $request->route('guide'), 'platform.')) {
+            return $next($request);
+        }
+
         if ($user->is_platform_admin && $request->session()->get('workspace_mode') === 'platform') {
             // Livewire actions use their own update route. Redirecting that POST
             // returns HTML where Livewire requires JSON and breaks every action.

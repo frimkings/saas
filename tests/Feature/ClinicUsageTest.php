@@ -193,4 +193,27 @@ class ClinicUsageTest extends TestCase
             ->call('showClinic', $busy->id)->assertSee('Busy Clinic: day by day')->assertDontSee('999 (')
             ->set('period', 'last_month')->assertSee('999 (999 pages');
     }
+
+    public function test_any_earlier_month_or_range_of_days_can_be_looked_at(): void
+    {
+        $this->travelTo(\Carbon\Carbon::parse('2026-12-15 10:00'));
+        $row = fn (string $date, int $requests) => DB::table('clinic_usage_daily')->insert([
+            'clinic_id' => $this->clinic->id, 'date' => $date, 'requests' => $requests, 'page_views' => $requests,
+            'server_ms' => 1000, 'created_at' => now(), 'updated_at' => now()]);
+        $row('2026-10-05', 111);
+        $row('2026-10-20', 222);
+        $row('2026-11-10', 444);
+        $admin = User::factory()->create();
+        $admin->forceFill(['is_platform_admin' => true])->save();
+
+        $page = Livewire::actingAs($admin)->test(ClinicUsageComponent::class)->set('period', 'month')
+            ->assertSet('month', '2026-11')->assertSee('December 2026')->assertSee('October 2026')->assertSee('444');
+        $this->assertSame(['2026-12', '2026-11', '2026-10'], array_keys($page->instance()->months()), 'from the first month with usage, newest first');
+
+        $page->set('month', '2026-10')->assertSee('1 Oct 2026 – 31 Oct 2026')->assertSee('333')->assertDontSee('444')
+            ->set('period', 'custom')->set('rangeFrom', '2026-10-15')->set('rangeTo', '2026-11-30')
+            ->assertSee('15 Oct 2026 – 30 Nov 2026')->assertSee('666')
+            // Dates the wrong way round are swapped, and nothing runs past today.
+            ->set('rangeFrom', '2027-01-31')->set('rangeTo', '2026-11-01')->assertSee('1 Nov 2026 – 15 Dec 2026');
+    }
 }

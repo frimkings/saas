@@ -15,11 +15,20 @@ use Livewire\Component;
  */
 class ClinicUsageComponent extends Component
 {
-    public const PERIODS = ['this_month' => 'This month', 'last_month' => 'Last month', 'last_30' => 'Last 30 days', 'last_7' => 'Last 7 days'];
+    public const PERIODS = ['this_month' => 'This month', 'last_month' => 'Last month', 'last_30' => 'Last 30 days', 'last_7' => 'Last 7 days',
+        'month' => 'A month…', 'custom' => 'From – to…'];
     public const SORTS = ['compute_ms', 'requests', 'bytes_out', 'db_ms', 'job_ms', 'staff', 'stored_rows', 'name'];
 
     #[Url]
     public string $period = 'this_month';
+    /** The month picked under "A month…", as 2026-10. */
+    #[Url]
+    public string $month = '';
+    /** The days picked under "From – to…", as 2026-10-01. */
+    #[Url(as: 'from')]
+    public string $rangeFrom = '';
+    #[Url(as: 'to')]
+    public string $rangeTo = '';
     #[Url]
     public string $sort = 'compute_ms';
     /** The hosting bill for the period, to split by server time. Not saved. */
@@ -31,11 +40,42 @@ class ClinicUsageComponent extends Component
     {
         if (! array_key_exists($this->period, self::PERIODS)) $this->period = 'this_month';
         if (! in_array($this->sort, self::SORTS, true)) $this->sort = 'compute_ms';
+        $this->updatedPeriod();
     }
 
+    /** A month or a range starts out on last month, so the picker opens on something useful. */
     public function updatedPeriod(): void
     {
         if (! array_key_exists($this->period, self::PERIODS)) $this->period = 'this_month';
+        $lastMonth = CarbonImmutable::today()->subMonthNoOverflow();
+        if ($this->period === 'month' && ! array_key_exists($this->month, $this->months())) $this->month = $lastMonth->format('Y-m');
+        if ($this->period === 'custom' && (! self::date($this->rangeFrom) || ! self::date($this->rangeTo))) {
+            $this->rangeFrom = $lastMonth->startOfMonth()->toDateString();
+            $this->rangeTo = $lastMonth->endOfMonth()->toDateString();
+        }
+    }
+
+    private static function date(string $value): ?CarbonImmutable
+    {
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return null;
+        try {
+            return CarbonImmutable::createFromFormat('!Y-m-d', $value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** Every month from the first one with usage up to this one, newest first: ['2026-10' => 'October 2026']. */
+    public function months(): array
+    {
+        $first = DB::table('clinic_usage_daily')->min('date');
+        $month = CarbonImmutable::today()->startOfMonth();
+        $stop = $first ? CarbonImmutable::parse($first)->startOfMonth() : $month->subMonthNoOverflow();
+        if ($stop->greaterThan($month->subMonthNoOverflow())) $stop = $month->subMonthNoOverflow();
+        $months = [];
+        for (; $month->greaterThanOrEqualTo($stop); $month = $month->subMonthNoOverflow()) $months[$month->format('Y-m')] = $month->format('F Y');
+
+        return $months;
     }
 
     public function sortBy(string $column): void
@@ -57,8 +97,26 @@ class ClinicUsageComponent extends Component
             'last_month' => [$today->subMonthNoOverflow()->startOfMonth(), $today->subMonthNoOverflow()->endOfMonth()->startOfDay()],
             'last_30' => [$today->subDays(29), $today],
             'last_7' => [$today->subDays(6), $today],
+            'month' => self::monthRange($this->month, $today),
+            'custom' => self::customRange($this->rangeFrom, $this->rangeTo, $today),
             default => [$today->startOfMonth(), $today],
         };
+    }
+
+    private static function monthRange(string $month, CarbonImmutable $today): array
+    {
+        $start = preg_match('/^\d{4}-\d{2}$/', $month) ? CarbonImmutable::createFromFormat('!Y-m', $month)->startOfMonth() : $today->startOfMonth();
+
+        return [$start, $start->endOfMonth()->startOfDay()->min($today)];
+    }
+
+    /** The days picked, in order, never after today. */
+    private static function customRange(string $from, string $to, CarbonImmutable $today): array
+    {
+        $a = (self::date($from) ?? $today->startOfMonth())->min($today);
+        $b = (self::date($to) ?? $today)->min($today);
+
+        return $a->greaterThan($b) ? [$b, $a] : [$a, $b];
     }
 
     private function clinics(array $range): Collection
@@ -141,6 +199,7 @@ class ClinicUsageComponent extends Component
 
         return view('livewire.platform.clinic-usage-component', [
             'range' => $range,
+            'months' => $this->period === 'month' ? $this->months() : [],
             'clinics' => $clinics,
             'totals' => [
                 'requests' => $clinics->sum('requests'), 'bytes_out' => $clinics->sum('bytes_out'),

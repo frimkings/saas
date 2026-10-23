@@ -10,7 +10,10 @@
         <div>
             <h1>{{ ucfirst($businessLine) }} sales records</h1>
             <p class="ui-muted">Viewing records for period: {{ $fromDate }} to {{ $toDate }}</p>
-            <x-guide-tour page="clinic.sales" class="mt-2" />
+            <div class="mt-2 flex flex-wrap gap-2">
+                <x-guide-tour page="clinic.sales" :context="['previous' => $hasLegacyPayments]" />
+                @if($hasLegacyPayments)<x-ui.button :href="route('admin.sales-records.previous')" data-tour="sales-previous">Previous software payments</x-ui.button>@endif
+            </div>
         </div>
         <div class="flex flex-wrap gap-2" data-tour="sales-totals">
             @if($totalDiscounts > 0)

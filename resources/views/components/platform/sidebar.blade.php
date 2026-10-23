@@ -7,7 +7,7 @@
     $tabs = ['dashboard' => '▥ Dashboard', 'clinics' => '✚ Clinics Directory', 'plans' => '◆ Subscription Plans', 'billing' => '▤ Invoices & Billing',
         'onboarding' => '＋ Clinic Onboarding', 'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
     $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'usage' => ['platform.usage', '◷ Clinic Usage'],'imports' => ['platform.imports', '⇧ Legacy Imports'],
-        'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'pricing' => ['platform.pricing', '＄ Pricing Page'], 'support' => ['platform.support', '☏ Support Contact']];
+        'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'pricing' => ['platform.pricing', '＄ Pricing Page'], 'quotes' => ['platform.quotes', '❏ Quotes'],'support' => ['platform.support', '☏ Support Contact']];
 @endphp
 @once
 <style>
@@ -24,15 +24,15 @@
 @endonce
 <aside class="ps-side" aria-label="Platform navigation">
     <div class="ps-brand">◉ Platform Admin<small>EyeClinic SaaS Control</small></div>
-    <nav class="ps-nav">
+    <nav class="ps-nav" data-tour="pf-nav">
         @foreach($tabs as $key => $label)
-            <a href="{{ route('platform.dashboard', $key === 'dashboard' ? [] : ['tab' => $key]) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'clinics' && $overlimit)<span class="ps-badge">{{ $overlimit }}</span>@endif</a>
+            <a data-tour="nav-{{ $key }}" href="{{ route('platform.dashboard', $key === 'dashboard' ? [] : ['tab' => $key]) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'clinics' && $overlimit)<span class="ps-badge">{{ $overlimit }}</span>@endif</a>
         @endforeach
         @foreach($pages as $key => [$route, $label])
-            <a href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'pricing' && $newPricing)<span class="ps-badge">{{ $newPricing }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>
+            <a data-tour="nav-{{ $key }}" href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'pricing' && $newPricing)<span class="ps-badge">{{ $newPricing }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>
         @endforeach
     </nav>
-    <div class="ps-foot">
+    <div class="ps-foot" data-tour="pf-modes">
         <form method="POST" action="{{ route('tenant.mode.switch') }}">@csrf<input type="hidden" name="mode" value="clinic"><button type="submit">✚ Clinic mode</button></form>
         <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">Sign out</button></form>
     </div>

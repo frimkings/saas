@@ -173,4 +173,10 @@ public function auditTrails()
     return $this->hasMany(AuditTrail::class);
 }
 
+/** Payments recorded in the clinic's previous software, for reference only (never sales). */
+public function legacyPayments()
+{
+    return $this->hasMany(PatientLegacyPayment::class);
+}
+
 }

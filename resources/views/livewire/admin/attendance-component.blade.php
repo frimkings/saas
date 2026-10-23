@@ -355,7 +355,7 @@
                 <p class="!mb-0 text-sm text-slate-600">On the terminal, export the <strong>Attendance Record</strong> report for the month to a USB drive, and choose that .xls file here. You can upload the same month again as it fills up; only new punches are added.</p>
                 <div>
                     <label for="attendance-file" class="mb-1 block text-sm font-medium text-slate-700">Report file (.xls)</label>
-                    <input id="attendance-file" type="file" accept=".xls,application/vnd.ms-excel" wire:model="file" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
+                    <input id="attendance-file" type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" accept=".xls,application/vnd.ms-excel" wire:model="file" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
                     <p wire:loading wire:target="file" class="!mb-0 mt-1 text-sm text-slate-500" role="status">Reading the file…</p>
                     @error('file')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                 </div>
@@ -781,7 +781,7 @@
                 <p class="!mb-0 text-sm"><a class="text-teal-700 underline" download="staff-list-template.csv" href="data:text/csv;charset=utf-8,{{ rawurlencode(\App\Services\Attendance\AttendanceStaffImport::TEMPLATE) }}">Download a template</a> <span class="text-slate-500">with two example rows; up to {{ number_format(\App\Services\Attendance\AttendanceStaffImport::MAX_ROWS) }} people per file.</span></p>
                 <div>
                     <label for="staff-file" class="mb-1 block text-sm font-medium text-slate-700">Staff list (.xlsx or .csv)</label>
-                    <input id="staff-file" type="file" accept=".xlsx,.csv,text/csv" wire:model="staffFile" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
+                    <input id="staff-file" type="file" data-max-kb="{{ \App\Support\UploadLimits::CLINIC_KB }}" accept=".xlsx,.csv,text/csv" wire:model="staffFile" class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
                     <p wire:loading wire:target="staffFile" class="!mb-0 mt-1 text-sm text-slate-500" role="status">Reading the file…</p>
                     @error('staffFile')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                 </div>

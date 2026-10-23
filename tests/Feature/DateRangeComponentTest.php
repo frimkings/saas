@@ -27,7 +27,7 @@ class DateRangeComponentTest extends TestCase
     {
         $config = $this->config(Blade::render('<x-date-range from="fromDate" to="toDate" clearable />'));
 
-        $this->assertSame(['today', 'yesterday', 'last3', 'last7', 'last15', 'last30'], array_column($config['presets'], 0));
+        $this->assertSame(['today', 'yesterday', 'this_week', 'this_month', 'this_quarter', 'ytd', 'last_year'], array_column($config['presets'], 0), 'no overlapping ranges; Custom date is a button of its own');
         $this->assertSame($config['today'], $config['max']);
         $this->assertTrue($config['clearable']);
         $this->assertSame(['fromDate', 'toDate'], [$config['from'], $config['to']]);
@@ -36,7 +36,7 @@ class DateRangeComponentTest extends TestCase
     public function test_finance_and_upcoming_presets_have_no_upper_limit_unless_asked(): void
     {
         $finance = $this->config(Blade::render('<x-date-range from="from" to="to" presets="finance" />'));
-        $this->assertContains('last_month', array_column($finance['presets'], 0));
+        $this->assertSame(array_column($this->config(Blade::render('<x-date-range from="a" to="b" />'))['presets'], 0), array_column($finance['presets'], 0), 'every backward-looking filter offers the same ranges');
         $this->assertNull($finance['max']);
 
         $upcoming = $this->config(Blade::render('<x-date-range from="a" to="b" presets="upcoming" />'));

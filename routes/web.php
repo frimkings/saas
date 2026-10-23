@@ -83,14 +83,19 @@ require __DIR__.'/auth.php';
 // Public pricing page (hosted only): plans, a "build your own" calculator and "Request this plan".
 Route::get('/pricing', [\App\Http\Controllers\PricingController::class, 'show'])->name('pricing');
 Route::post('/pricing/request', [\App\Http\Controllers\PricingController::class, 'request'])->middleware('throttle:5,60')->name('pricing.request');
+// A quotation or pro-forma sent to a prospect, opened from the link in their SMS or email (no sign-in).
+Route::get('/quote/{token}', [\App\Http\Controllers\ProspectQuoteDocumentController::class, 'public'])->middleware('throttle:30,1')->where('token', '[A-Za-z0-9]{48}')->name('quote.public');
 
 Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform', \App\Livewire\Platform\PlatformDashboardComponent::class)->name('platform.dashboard');
     Route::get('/platform/imports', \App\Livewire\Platform\LegacyImportManagerComponent::class)->name('platform.imports');
+    Route::get('/platform/imports/other-software', \App\Livewire\Platform\ExternalImportComponent::class)->name('platform.imports.other');
     Route::get('/platform/deployment-readiness', \App\Livewire\Platform\DeploymentReadinessComponent::class)->name('platform.deployment-readiness');
     Route::get('/platform/sms', \App\Livewire\Platform\SmsMessagingComponent::class)->name('platform.sms');
     Route::get('/platform/support', \App\Livewire\Platform\SupportSettingsComponent::class)->name('platform.support');
     Route::get('/platform/pricing', \App\Livewire\Platform\PricingRequestsComponent::class)->name('platform.pricing');
+    Route::get('/platform/quotes', \App\Livewire\Platform\ProspectQuotesComponent::class)->name('platform.quotes');
+    Route::get('/platform/quotes/{quote}.pdf', [\App\Http\Controllers\ProspectQuoteDocumentController::class, 'platform'])->name('platform.quote.pdf');
     Route::get('/platform/announcements', \App\Livewire\Platform\AnnouncementsComponent::class)->name('platform.announcements');
     Route::get('/platform/usage', \App\Livewire\Platform\ClinicUsageComponent::class)->name('platform.usage');
     Route::get('/platform/subscription-analytics',\App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');
@@ -301,6 +306,7 @@ Route::get('/admin/subscription', \App\Livewire\Admin\ClinicSubscriptionPortalCo
 Route::get('/admin/subscription/invoices/{invoice}', [\App\Http\Controllers\ClinicBillingDocumentController::class,'invoice'])->middleware('role:Super Admin')->name('admin.subscription.invoice');
 Route::get('/admin/subscription/receipts/{invoice}', [\App\Http\Controllers\ClinicBillingDocumentController::class,'receipt'])->middleware('role:Super Admin')->name('admin.subscription.receipt');
 Route::get('/admin/sales-records', SalesRecordsComponent::class)->name('admin.sales-records');
+Route::get('/admin/sales-records/previous-software', \App\Livewire\Admin\LegacyPaymentsComponent::class)->name('admin.sales-records.previous');
 Route::get('/admin/reports/export/pdf', [\App\Http\Controllers\ReportExportController::class, 'exportPdf'])->name('reports.export.pdf')->middleware('optical-only');
 Route::get('/admin/income-statement', \App\Livewire\Admin\IncomeStatementComponent::class)->name('admin.income-statement')->middleware(['optical-only', 'feature:advanced_reports']);
 Route::get('/admin/combined-statement', \App\Livewire\Admin\CombinedStatementComponent::class)->name('admin.combined-statement')->middleware(['feature:advanced_reports', 'feature:optical']);
@@ -333,6 +339,7 @@ Route::get('/admin/audit-trail', AuditTrailViewerComponent::class)->name('admin.
 Route::get('/admin/license', LicenseComponent::class)->name('admin.license')->middleware(['auth', 'role:Super Admin']);
 Route::get('/admin/sms-logs', SmsLogsComponent::class)->name('admin.sms-logs');
 Route::get('/admin/expenses', \App\Livewire\Admin\ExpensesComponent::class)->name('admin.expenses')->middleware(['optical-only', 'feature:expense_tracking']);
+Route::get('/admin/expenses/previous-software', \App\Livewire\Admin\LegacyExpensesComponent::class)->name('admin.expenses.previous')->middleware(['optical-only', 'feature:expense_tracking']);
 Route::get('/admin/expenses/receipt/{expense}', function (\App\Models\Expense $expense) {
     abort_unless($expense->receipt_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($expense->receipt_path), 404);
     return \Illuminate\Support\Facades\Storage::disk('public')->download($expense->receipt_path, basename($expense->receipt_path), ['Content-Disposition' => 'inline']);
@@ -341,6 +348,7 @@ Route::get('admin/dashboard', AdminDashboardController::class)->name('admin.dash
 Route::get('admin/clinical-task-center', ClinicalTaskCenterComponent::class)->name('admin.clinical-task-center');
 Route::get('admin/category', CategoryComponent::class)->name('admin.category');
 Route::get('admin/product', ProductsComponent::class)->name('admin.product');
+Route::get('admin/product/previous-software-names', \App\Livewire\Admin\LegacyMedicationNamesComponent::class)->name('admin.legacy-medication-names');
 Route::get('admin/suppliers', \App\Livewire\Admin\SupplierComponent::class)->name('admin.suppliers')->middleware('feature:inventory');
 Route::get('admin/quotations', \App\Livewire\Admin\QuotationComponent::class)->name('admin.quotations');
 Route::get('admin/quotations/{id}/pdf', function (int $id) {

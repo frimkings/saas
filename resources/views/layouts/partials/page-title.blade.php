@@ -12,6 +12,8 @@
         'admin.users'                   => 'User Management',
         'admin.reports'                 => 'Reports',
         'admin.sales-records'           => 'Sales Records',
+        'admin.sales-records.previous'  => 'Previous Software Payments',
+        'admin.expenses.previous'       => 'Previous Software Expenses',
         'admin.income-statement'        => 'Income Statement',
         'admin.diagnoses'               => 'Diagnoses',
         'admin.inventory-alerts'        => 'Inventory Alerts',
