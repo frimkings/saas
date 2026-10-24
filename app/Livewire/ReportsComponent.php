@@ -593,6 +593,7 @@ class ReportsComponent extends Component
         $this->insuranceFilter = '';
         $this->perPage       = 25;
         $this->setDateRangeForTab($this->activeTab);
+        $this->keepToThisMonth();
         $this->resetPage();
 
         $this->dispatchChart();
@@ -699,6 +700,11 @@ class ReportsComponent extends Component
         } else {
             $start = Carbon::parse($this->fromDate)->startOfDay();
             $end   = Carbon::parse($this->toDate)->endOfDay();
+        }
+        // Month-only plans: the chart's wider views (this year, five years) stop at this month too.
+        if ($this->monthOnly) {
+            $start = $start->max(Carbon::now()->startOfMonth());
+            $end   = $end->min(Carbon::now()->endOfDay())->max($start);
         }
 
         // Auto-downgrade daily chart for wide ranges — prevents thousands of loop iterations
@@ -866,16 +872,34 @@ class ReportsComponent extends Component
             return;
         }
 
-        \DB::transaction(function () use ($sale, $refundable) {
-            RefundLog::create([
-                'sale_id'      => $sale->id,
-                'sale_item_ids'=> $refundable->pluck('id')->values()->all(),
-                'status'       => RefundLog::STATUS_PENDING,
-                'initiated_by' => auth()->id(),
-                'reason'       => $this->refundReason,
-                'initiated_at' => now(),
-            ]);
-        });
+        $refund = \DB::transaction(fn () => RefundLog::create([
+            'sale_id'      => $sale->id,
+            'sale_item_ids'=> $refundable->pluck('id')->values()->all(),
+            'status'       => RefundLog::STATUS_PENDING,
+            'initiated_by' => auth()->id(),
+            'reason'       => $this->refundReason,
+            'initiated_at' => now(),
+        ]));
+
+        // Plans without approvals: the refund is carried out at once, as on Sales Records.
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS)) {
+            $processor = app(\App\Services\Finance\RefundProcessor::class);
+            try {
+                $processor->approve($refund);
+                $done = $processor->process($refund->fresh('sale'));
+                $message = ['type' => 'success', 'message' => "Refund {$done->refund_number} done for #{$sale->transaction_id}. Eligible stock was restored."];
+            } catch (\RuntimeException $e) {
+                $refund->update(['status' => RefundLog::STATUS_PENDING, 'approved_by' => null, 'approved_at' => null]);
+                $message = ['type' => 'error', 'message' => $e->getMessage().' The request is waiting under Approvals.'];
+            }
+            $this->refundingSale = null;
+            $this->refundReason  = '';
+            $this->resetErrorBag();
+            $this->dispatch('hide-refundModal-modal');
+            $this->dispatch('notify', ...$message);
+            $this->resetPage();
+            return;
+        }
 
         NotificationService::sendToRoles(
             ['Manager', 'Super Admin'],

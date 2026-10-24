@@ -227,7 +227,8 @@ class PlanProduct
         if (in_array($feature, self::PRODUCT_KEYS, true)) return in_array($feature, $features, true);
         if (self::productOf($features) === self::ATTENDANCE) {
             // Attendance and its own short list of extras; nothing from the clinic or the shop.
-            if ($feature === Feature::ATTENDANCE) return true;
+            // The staff inbox has always come with attendance-only plans.
+            if ($feature === Feature::ATTENDANCE || $feature === Feature::STAFF_MESSAGES) return true;
             if (! in_array($feature, self::ATTENDANCE_EXTRAS, true)) return false;
         }
         return $beforeTiers || in_array('*', $features, true) || in_array($feature, $features, true);

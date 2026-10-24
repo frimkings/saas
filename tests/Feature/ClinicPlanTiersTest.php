@@ -170,6 +170,35 @@ class ClinicPlanTiersTest extends TestCase
         $this->assertFalse($sale->fresh()->is_refunded);
     }
 
+    public function test_without_approvals_a_refund_from_sales_reports_is_done_too(): void
+    {
+        $this->ownerOn('clinic-plus');
+        $sale = $this->paidSale();
+        Livewire::test(ReportsComponent::class)->call('showRefundModal', $sale->id)
+            ->set('refundReason', 'Customer brought the drops back unopened.')->call('processRefund');
+
+        $this->assertSame(RefundLog::STATUS_PROCESSED, RefundLog::where('sale_id', $sale->id)->sole()->status);
+        $this->assertTrue($sale->fresh()->is_refunded);
+        // Links in notices about requests left pending lead to the Approvals page, not a 403.
+        $this->get(route('admin.refund-approvals'))->assertRedirect();
+    }
+
+    public function test_month_only_reports_stay_in_this_month_after_a_reset(): void
+    {
+        $this->ownerOn('clinic-standard');
+        $reports = Livewire::test(ReportsComponent::class)->call('switchTab', 'history')->call('resetFilters');
+        $this->assertSame(now()->startOfMonth()->toDateString(), $reports->get('fromDate'));
+    }
+
+    public function test_attendance_only_plans_keep_staff_messages_but_no_clinic_tier_features(): void
+    {
+        $attendance = PlanProduct::features(PlanProduct::ATTENDANCE, []);
+        $this->assertTrue(PlanProduct::allows($attendance, Feature::STAFF_MESSAGES));
+        foreach ([Feature::CUSTOM_ROLES, Feature::NEEDS_ATTENTION, Feature::DISCOUNTS, Feature::INSURANCE] as $feature) {
+            $this->assertFalse(PlanProduct::allows($attendance, $feature), $feature);
+        }
+    }
+
     public function test_an_add_on_gives_a_smaller_plan_the_feature(): void
     {
         $owner = $this->ownerOn('clinic-plus');

@@ -439,7 +439,8 @@ Route::middleware(['auth', 'role:Super Admin'])->group(function () {
 });
 
 Route::get('admin/approvals', AllApprovalsComponent::class)->middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billing|approve clearance revoke'])->name('admin.approvals');
-Route::middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billing|approve clearance revoke', 'feature:approvals'])->group(function () {
+// No feature:approvals here: below Pro these still lead to requests left pending, and the Approvals page checks the plan.
+Route::middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billing|approve clearance revoke'])->group(function () {
     Route::get('admin/discount-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'discount']))->name('admin.discount-approvals');
     Route::get('admin/refund-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'refund']))->name('admin.refund-approvals');
     Route::get('admin/clearance-revoke-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'revoke']))->name('admin.clearance-revoke-approvals');
