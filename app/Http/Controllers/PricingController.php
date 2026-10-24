@@ -42,7 +42,7 @@ class PricingController extends Controller
             'town' => 'nullable|string|max:100', 'message' => 'nullable|string|max:1000',
             'plan' => 'required|string|max:60', 'interval' => 'required|in:monthly,yearly',
             'features' => 'array', 'features.*' => 'string|max:60',
-            'users' => 'nullable|integer|min:1|max:1000', 'storage_gb' => 'nullable|integer|min:0|max:1000',
+            'users' => 'nullable|integer|min:1|max:1000', 'storage_mb' => 'nullable|integer|min:0|max:1024000', 'storage_gb' => 'nullable|integer|min:0|max:1000',
             'visits' => 'nullable|integer|min:0|max:10000', 'branches' => 'nullable|integer|min:1|max:100',
             'staff' => 'nullable|integer|min:1|max:100000',
             'website' => 'nullable|max:0', // left empty by people; bots fill it in

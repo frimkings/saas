@@ -24,6 +24,9 @@ class ReportsComponent extends Component
     /* Filters */
     public $fromDate;
     public $toDate;
+    /** Plans with Feature::SALES_REPORTS_MONTH but not Feature::SALES_REPORTS see this month only. */
+    #[\Livewire\Attributes\Locked]
+    public bool $monthOnly = false;
     public $searchQuery = '';
     public $perPage = 25;
     public $showRefunded = false;
@@ -63,6 +66,9 @@ class ReportsComponent extends Component
     {
         $user = auth()->user();
         abort_if(!$user?->hasRole('Super Admin') && !$user?->can('manage billing'), 403);
+        $full = \App\Services\LicenseService::has(\App\Support\Feature::SALES_REPORTS);
+        abort_unless($full || \App\Services\LicenseService::has(\App\Support\Feature::SALES_REPORTS_MONTH), 403);
+        $this->monthOnly = !$full;
         AuditTrail::record('report.accessed', 'Accessed sales reports page');
         $this->setDateRangeForTab('today');
     }
@@ -73,6 +79,7 @@ class ReportsComponent extends Component
     {
         $this->activeTab = $tab;
         $this->setDateRangeForTab($tab);
+        $this->keepToThisMonth();
         $this->resetPage();
 
         $this->dispatchChart();
@@ -131,6 +138,26 @@ class ReportsComponent extends Component
         }
     }
 
+    /** This month so far (the only period on month-only plans). */
+    public function showThisMonth(): void
+    {
+        $this->fromDate = now()->startOfMonth()->format('Y-m-d');
+        $this->toDate = now()->format('Y-m-d');
+        $this->activeTab = 'range';
+        $this->resetPage();
+        $this->dispatchChart();
+    }
+
+    /** On month-only plans, dates outside this month are pulled back into it. */
+    protected function keepToThisMonth(): void
+    {
+        if (!$this->monthOnly) return;
+        $first = now()->startOfMonth()->format('Y-m-d');
+        $today = now()->format('Y-m-d');
+        $this->fromDate = min(max((string) $this->fromDate ?: $first, $first), $today);
+        $this->toDate = max(min((string) $this->toDate ?: $today, $today), $this->fromDate);
+    }
+
     /** The period picker sets the dates; "today" keeps its own chart window, anything else is a custom range. */
     protected function syncTabWithDates(): void
     {
@@ -168,6 +195,7 @@ class ReportsComponent extends Component
         if ($this->fromDate > $this->toDate) {
             $this->toDate = $this->fromDate;
         }
+        $this->keepToThisMonth();
         $this->syncTabWithDates();
         $this->resetPage();
         $this->dispatchChart();
@@ -178,6 +206,7 @@ class ReportsComponent extends Component
         if ($this->toDate < $this->fromDate) {
             $this->fromDate = $this->toDate;
         }
+        $this->keepToThisMonth();
         $this->syncTabWithDates();
         $this->resetPage();
         $this->dispatchChart();

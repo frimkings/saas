@@ -64,24 +64,25 @@ class ClinicNavigation
     public static function reception(): array
     {
         $counts = app(AttentionItems::class)->counts('clinic');
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
 
         return self::visible([
             ['label' => 'Dashboard', 'route' => 'secretary.dashboard', 'icon' => 'fa-tachometer-alt'],
             ...self::departmentAttendance(),
-            ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0],
+            ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0, 'show' => $has(Feature::NEEDS_ATTENTION)],
             ['label' => 'Patients', 'icon' => 'fa-users', 'items' => [
                 ['label' => 'Registry Hub', 'route' => 'secretary.patients'],
-                ['label' => 'Appointments', 'route' => 'secretary.appointments', 'badge' => $counts['appointments'] ?? 0],
+                ['label' => 'Appointments', 'route' => 'secretary.appointments', 'badge' => $counts['appointments'] ?? 0, 'show' => $has(Feature::APPOINTMENTS) || \App\Support\PlanLeftovers::has(Feature::APPOINTMENTS)],
             ]],
             ['label' => 'Clearance & Spectacles', 'icon' => 'fa-clipboard-check', 'items' => [
                 ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
-                ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0],
+                ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0, 'show' => $has(Feature::SPECTACLE_ORDERS)],
             ]],
             ['label' => 'Sales & Billing', 'icon' => 'fa-cash-register', 'items' => [
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records'],
-                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*'],
-                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => (bool) auth()->user()?->hasAnyRole(['Cashier', 'Manager', 'Super Admin'])],
+                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],
+                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => $has(Feature::CASH_BOOK) && (bool) auth()->user()?->hasAnyRole(['Cashier', 'Manager', 'Super Admin'])],
             ]],
         ]);
     }
@@ -90,17 +91,18 @@ class ClinicNavigation
     public static function doctor(): array
     {
         $counts = app(AttentionItems::class)->counts('clinic');
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
 
-        return [
+        return self::visible([
             ['label' => 'Dashboard', 'route' => 'doctor.dashboard', 'icon' => 'fa-tachometer-alt'],
             ...self::departmentAttendance(),
-            ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0, 'active' => 'attention*'],
+            ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0, 'active' => 'attention*', 'show' => $has(Feature::NEEDS_ATTENTION)],
             ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
                 ['label' => 'Patient Queue', 'route' => 'doctor.patient-awaiting', 'active' => ['doctor.patient-awaiting', 'doctor.patient-records']],
                 ['label' => 'All Records', 'route' => 'doctor.all-records', 'active' => ['doctor.all-records', 'doctor.patient-timeline']],
-                ['label' => 'Referrals', 'route' => 'doctor.referrals'],
+                ['label' => 'Referrals', 'route' => 'doctor.referrals', 'show' => $has(Feature::REFERRALS)],
             ]],
-        ];
+        ]);
     }
 
     /** Super Admins and Managers, by navigation workspace (administration, clinical or optical). */
@@ -109,6 +111,7 @@ class ClinicNavigation
         $workspace = NavigationWorkspace::current();
         $user = auth()->user();
         $superAdmin = (bool) $user?->hasRole('Super Admin');
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         $communications = array_map(fn ($link) => ['label' => $link[1], 'route' => $link[0], 'icon' => self::iconName($link[2])],
             CommunicationsNavigation::links());
 
@@ -126,22 +129,22 @@ class ClinicNavigation
         $counts = app(AttentionItems::class)->counts('clinic');
         $menu = [];
         if ($workspace === 'administration') {
-            $menu[] = ['label' => 'Business Overview', 'route' => 'admin.dashboard', 'icon' => 'fa-tachometer-alt'];
+            $menu[] = ['label' => $has(Feature::BUSINESS_OVERVIEW) ? 'Business Overview' : 'Dashboard', 'route' => 'admin.dashboard', 'icon' => 'fa-tachometer-alt'];
         } else {
             $menu[] = ['label' => 'Clinical Task Center', 'route' => 'admin.clinical-task-center', 'icon' => 'fa-clipboard-check'];
             $menu[] = ['label' => 'Patients', 'route' => 'secretary.patients', 'icon' => 'fa-users'];
-            $menu[] = ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0];
-            $menu[] = ['label' => 'Appointments', 'route' => 'secretary.appointments', 'icon' => 'fa-calendar-alt', 'badge' => $counts['appointments'] ?? 0];
+            $menu[] = ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0, 'show' => $has(Feature::NEEDS_ATTENTION)];
+            $menu[] = ['label' => 'Appointments', 'route' => 'secretary.appointments', 'icon' => 'fa-calendar-alt', 'badge' => $counts['appointments'] ?? 0, 'show' => $has(Feature::APPOINTMENTS) || \App\Support\PlanLeftovers::has(Feature::APPOINTMENTS)];
         }
 
         if ($workspace === 'clinical') {
             // The reception desk: admins keep this menu on reception pages, so they need the links too.
             $menu[] = ['label' => 'Front Desk', 'icon' => 'fa-cash-register', 'items' => [
                 ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
-                ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0],
+                ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0, 'show' => $has(Feature::SPECTACLE_ORDERS)],
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records', 'active' => ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
-                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*'],
+                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],
             ]];
             $doctorPages = (bool) $user?->hasAnyRole(['Doctor', 'Super Admin']);
             $menu[] = ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
@@ -153,10 +156,10 @@ class ClinicNavigation
                 ['label' => 'Categories', 'route' => 'admin.category'],
                 ['label' => 'Products', 'route' => 'admin.product', 'active' => ['admin.product', 'admin.legacy-medication-names']],
                 ['label' => 'Stock Receiving', 'route' => 'admin.stock-movements'],
-                ['label' => 'Stock Transfers', 'route' => 'admin.stock-transfers'],
-                ['label' => 'Inventory Alerts', 'route' => 'admin.inventory-alerts'],
-                ['label' => 'Suppliers', 'route' => 'admin.suppliers'],
-                ['label' => 'Purchase Orders', 'route' => 'admin.purchase-orders'],
+                ['label' => 'Stock Transfers', 'route' => 'admin.stock-transfers', 'show' => $has(Feature::PURCHASING)],
+                ['label' => 'Inventory Alerts', 'route' => 'admin.inventory-alerts', 'show' => $has(Feature::INVENTORY_ALERTS)],
+                ['label' => 'Suppliers', 'route' => 'admin.suppliers', 'show' => $has(Feature::PURCHASING)],
+                ['label' => 'Purchase Orders', 'route' => 'admin.purchase-orders', 'show' => $has(Feature::PURCHASING)],
             ]];
         }
 
@@ -164,23 +167,28 @@ class ClinicNavigation
             // An optical-only subscriber gets the optical pages that do the same job.
             $opticalOnly = OpticalMode::opticalOnly();
             $menu[] = ['label' => 'Finances', 'icon' => 'fa-chart-line', 'items' => [
-                ['label' => FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports', 'route' => $opticalOnly ? 'optical.reports' : 'admin.reports'],
+                ['label' => FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports', 'route' => $opticalOnly ? 'optical.reports' : 'admin.reports',
+                    'show' => $opticalOnly || $has(Feature::SALES_REPORTS) || $has(Feature::SALES_REPORTS_MONTH)],
                 ['label' => 'Sales Records', 'route' => $opticalOnly ? 'optical.sales' : 'cashier.sales-records', 'active' => $opticalOnly ? 'optical.sales' : ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
-                ['label' => $opticalOnly ? 'Profit & Loss' : 'Income Statement', 'route' => $opticalOnly ? 'optical.profit' : 'admin.income-statement', 'activePath' => $opticalOnly ? null : 'admin/income-statement*'],
+                ['label' => $opticalOnly ? 'Profit & Loss' : 'Income Statement', 'route' => $opticalOnly ? 'optical.profit' : 'admin.income-statement', 'activePath' => $opticalOnly ? null : 'admin/income-statement*',
+                    'show' => $opticalOnly || $has(Feature::ADVANCED_REPORTS)],
                 ['label' => 'Combined Statement', 'route' => 'admin.combined-statement', 'show' => FinanceStatements::canViewCombined($user), 'activePath' => 'admin/combined-statement*'],
-                ['label' => 'Expenses', 'route' => $opticalOnly ? 'optical.expenses' : 'admin.expenses', 'activePath' => $opticalOnly ? null : 'admin/expenses*'],
+                ['label' => 'Expenses', 'route' => $opticalOnly ? 'optical.expenses' : 'admin.expenses', 'activePath' => $opticalOnly ? null : 'admin/expenses*',
+                    'show' => $opticalOnly || $has(Feature::EXPENSE_TRACKING)],
                 ['label' => 'Daily Cash Summary', 'route' => 'admin.daily-cash-summary', 'show' => ! $opticalOnly, 'activePath' => 'admin/daily-cash-summary*'],
-                ['label' => 'Cash Book', 'route' => 'admin.cash-book', 'show' => ! $opticalOnly],
-                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => ! $opticalOnly],
-                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'show' => ! $opticalOnly, 'active' => 'cashier.outstanding-balances*'],
-                ['label' => 'Lens Outstanding PDF', 'route' => 'admin.lens-outstanding-report'],
-                ['label' => 'Quotations', 'route' => 'admin.quotations', 'show' => ! $opticalOnly],
-                ['label' => 'Patient Ledger', 'route' => 'admin.patient-ledger', 'show' => ! $opticalOnly],
-                ['label' => 'Approvals', 'route' => 'admin.approvals', 'badge' => ApprovalCounts::total(), 'activePath' => 'admin/approvals*'],
+                ['label' => 'Cash Book', 'route' => 'admin.cash-book', 'show' => ! $opticalOnly && $has(Feature::CASH_BOOK)],
+                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => ! $opticalOnly && $has(Feature::CASH_BOOK)],
+                ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'show' => ! $opticalOnly && ($has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)), 'active' => 'cashier.outstanding-balances*'],
+                ['label' => 'Lens Outstanding PDF', 'route' => 'admin.lens-outstanding-report', 'show' => $has(Feature::SPECTACLES_PRO)],
+                ['label' => 'Quotations', 'route' => 'admin.quotations', 'show' => ! $opticalOnly && $has(Feature::QUOTATIONS)],
+                ['label' => 'Patient Ledger', 'route' => 'admin.patient-ledger', 'show' => ! $opticalOnly && $has(Feature::PATIENT_LEDGER)],
+                // Without approvals, requests apply at once; the page still handles password resets.
+                ['label' => 'Approvals', 'route' => 'admin.approvals', 'badge' => ApprovalCounts::total(), 'activePath' => 'admin/approvals*',
+                    'show' => $has(Feature::APPROVALS) || ApprovalCounts::total() > 0],
             ]];
         }
 
-        if ($workspace === 'clinical') {
+        if ($workspace === 'clinical' && ($has(Feature::INSURANCE) || \App\Support\PlanLeftovers::has(Feature::INSURANCE))) {
             $menu[] = ['label' => 'Insurance', 'icon' => 'fa-shield-alt', 'items' => [
                 ['label' => 'Claims', 'route' => 'admin.insurance.claims', 'activePath' => 'admin/insurance/claims*'],
                 ['label' => 'Insurers', 'route' => 'admin.insurance.insurers', 'activePath' => 'admin/insurance/insurers*'],
@@ -196,14 +204,14 @@ class ClinicNavigation
         if ($workspace === 'administration') {
             $menu[] = ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
                 ['label' => 'Users', 'route' => 'admin.users', 'show' => $superAdmin],
-                ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $superAdmin],
+                ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $superAdmin && $has(Feature::CUSTOM_ROLES)],
                 ['label' => 'Attendance', 'route' => 'admin.attendance', 'active' => 'admin.attendance*', 'show' => \App\Services\LicenseService::has(Feature::ATTENDANCE)],
-                ['label' => 'Login History', 'route' => 'admin.login-history'],
-                ['label' => 'Audit Trail', 'route' => 'admin.audit-trail'],
+                ['label' => 'Login History', 'route' => 'admin.login-history', 'show' => $has(Feature::AUDIT_TRAIL)],
+                ['label' => 'Audit Trail', 'route' => 'admin.audit-trail', 'show' => $has(Feature::AUDIT_TRAIL)],
             ]];
             $menu[] = ['label' => 'System', 'icon' => 'fa-cog', 'show' => $superAdmin, 'items' => [
                 ['label' => 'Settings', 'route' => 'admin.settings', 'activePath' => 'admin/settings*'],
-                ['label' => 'Backups', 'route' => 'admin.backups'],
+                ['label' => 'Backups', 'route' => 'admin.backups', 'show' => $has(Feature::MANUAL_BACKUP) || $has(Feature::SCHEDULED_BACKUPS)],
                 ['label' => 'Branches', 'route' => 'admin.branches', 'activePath' => 'admin/branches*'],
                 ['label' => 'Offline Health', 'route' => 'admin.offline-health'],
                 ['label' => 'License & Subscription', 'route' => 'admin.license'],

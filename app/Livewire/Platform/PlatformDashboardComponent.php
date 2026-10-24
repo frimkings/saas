@@ -99,6 +99,17 @@ class PlatformDashboardComponent extends Component
         session()->flash('panel_message',$clinic->fresh()->status==='active'?'Clinic reactivated.':'Clinic suspended. Its users can no longer sign in.');
     }
 
+    /** What the plan picked on the clinic panel would change, shown before it is applied. */
+    public function getPanelImpactProperty(): ?array
+    {
+        if (! $this->panelPlanId || ! $this->selectedClinicId) return null;
+        $clinic = Clinic::find($this->selectedClinicId);
+        $plan = SubscriptionPlan::find($this->panelPlanId);
+        if (! $clinic || ! $plan || $plan->id === $clinic->currentSubscription?->subscription_plan_id) return null;
+
+        return app(\App\Services\PlanChangeImpact::class)->for($clinic, $plan, $this->panelTiming === 'immediate');
+    }
+
     public function panelChangePlan(){
         $d=$this->validate(['panelPlanId'=>'required|exists:subscription_plans,id','panelInterval'=>'required|in:monthly,yearly','panelTiming'=>'required|in:immediate,period_end','panelReason'=>'required|min:5|max:500'],[],['panelPlanId'=>'plan','panelReason'=>'reason']);
         $clinic=Clinic::findOrFail($this->selectedClinicId);$current=$clinic->currentSubscription;

@@ -11,7 +11,8 @@
     $attentionClinicId = app(\App\Support\Tenancy\TenantContext::class)->clinicId();
     $attentionSummary = null;
     // Offline (single-clinic) installs have no clinic in the session; they still get the summary.
-    if (auth()->check() && ! auth()->user()->is_platform_admin && ! request()->routeIs('attention', 'optical.attention')) {
+    if (auth()->check() && ! auth()->user()->is_platform_admin && ! request()->routeIs('attention', 'optical.attention')
+        && \App\Services\LicenseService::has(\App\Support\Feature::NEEDS_ATTENTION)) {
         $attentionLine = request()->routeIs('optical.*') ? 'optical' : 'clinic';
         $seenKey = 'attention-summary-seen:' . auth()->id() . ':' . ($attentionClinicId ?? 0) . ':' . $attentionLine . ':' . today()->toDateString();
         if (! \Illuminate\Support\Facades\Cache::has($seenKey)) {

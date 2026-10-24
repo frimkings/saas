@@ -267,6 +267,7 @@ class SalesRecordsComponent extends Component
 
     public function exportCSV()
     {
+        abort_if($this->businessLine === 'clinic' && !\App\Services\LicenseService::has(\App\Support\Feature::SALES_EXPORT), 403);
         $this->normalizeFilters();
         [$fromDate, $toDate] = $this->dateRange();
 
@@ -442,6 +443,12 @@ class SalesRecordsComponent extends Component
             true
         );
 
+        // Clinic plans without approvals: the request is carried out at once by the person who made it.
+        if ($this->businessLine === 'clinic' && !\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS)) {
+            $this->carryOutAtOnce($refund, $sale);
+            return;
+        }
+
         NotificationService::sendToRoles(
             ['Manager', 'Super Admin'],
             'refund_requested',
@@ -470,6 +477,36 @@ class SalesRecordsComponent extends Component
         if ($this->businessLine === 'optical') {
             session()->flash('success', "Refund request for #{$sale->transaction_id} submitted. Awaiting manager approval.");
         }
+    }
+
+    /**
+     * Approves and processes a refund or void as soon as it is asked for (plans without approvals).
+     * If it can't be carried out, the request goes back to pending so a manager can decide it.
+     */
+    private function carryOutAtOnce(RefundLog $refund, Sales $sale): void
+    {
+        $processor = app(\App\Services\Finance\RefundProcessor::class);
+        try {
+            $processor->approve($refund);
+            $done = $processor->process($refund->fresh('sale'));
+        } catch (\RuntimeException $e) {
+            $refund->update(['status' => RefundLog::STATUS_PENDING, 'approved_by' => null, 'approved_at' => null]);
+            $this->dispatch('hide-initiateRefundModal');
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $e->getMessage().' The request is waiting under Approvals.']);
+            return;
+        }
+
+        $this->initiatingRefundSale = null;
+        $this->initiateRefundReason = '';
+        $this->initiateRefundReasonCode = '';
+        $this->initiateRefundType = RefundLog::TYPE_REFUND;
+        $this->initiateRefundItemIds = [];
+        $this->resetErrorBag();
+        $this->dispatch('hide-initiateRefundModal');
+        $this->dispatch('notify', ...[
+            'type' => 'success',
+            'message' => ucfirst($done->request_type)." {$done->refund_number} done for #{$sale->transaction_id}. Eligible stock was restored.",
+        ]);
     }
 
     /** Renderless close for the optical refund drawer, which the browser has already closed (dismissCall). */

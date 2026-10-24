@@ -115,6 +115,37 @@ class PlanProduct
         Feature::OUTSTANDING_BALANCES => ['Outstanding balances', self::CLINIC],
         Feature::SPECTACLES_PRO => ['Spectacle orders pro', self::CLINIC],
         Feature::UNLIMITED_USERS => ['Unlimited users', null],
+        Feature::HISTORY_CHARTS => ['History charts & risk flags', self::CLINIC],
+        Feature::CLINICAL_PDFS => ['Visit summary, medical record & consultation PDFs', self::CLINIC],
+        Feature::CLINICAL_DOCUMENTS => ['Clinical documents & scan uploads', self::CLINIC],
+        Feature::SALES_EXPORT => ['Sales records CSV export', self::CLINIC],
+        Feature::DISCOUNTS => ['Discounts at the till', self::CLINIC],
+        Feature::QUOTATIONS => ['Quotations', self::CLINIC],
+        Feature::SPECTACLE_ORDERS => ['Spectacle orders', self::CLINIC],
+        Feature::SALES_REPORTS_MONTH => ['Sales reports (this month)', self::CLINIC],
+        Feature::SALES_REPORTS => ['Sales reports (any dates)', self::CLINIC],
+        Feature::CASH_BOOK => ['Cash book & day close', self::CLINIC],
+        Feature::PATIENT_LEDGER => ['Patient ledger', self::CLINIC],
+        Feature::INSURANCE => ['Insurance (co-pay, claims, insurer payments)', self::CLINIC],
+        Feature::INVENTORY_ALERTS => ['Inventory alerts & expiring stock', self::CLINIC],
+        Feature::PRODUCT_IMPORT => ['Product import/export & lens catalogue', self::CLINIC],
+        Feature::PURCHASING => ['Suppliers, purchase orders & stock transfers', self::CLINIC],
+        Feature::PATIENT_MESSAGES => ['SMS messages, WhatsApp & clinic links', self::CLINIC],
+        Feature::STAFF_MESSAGES => ['Staff messages', self::CLINIC],
+        Feature::BUSINESS_OVERVIEW => ['Business overview dashboard', self::CLINIC],
+        Feature::NEEDS_ATTENTION => ['Needs attention reminders', self::CLINIC],
+        Feature::CUSTOM_ROLES => ['Custom roles & permissions', self::CLINIC],
+    ];
+
+    /**
+     * Clinic features sold by tier since 2026-10-24. Every clinic had them before, so a feature
+     * list without Feature::CLINIC_TIERS_CHOSEN (older plans and subscriptions) keeps all of them.
+     */
+    public const CLINIC_TIER_FEATURES = [
+        Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS, Feature::CLINICAL_DOCUMENTS, Feature::SALES_EXPORT, Feature::DISCOUNTS,
+        Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS, Feature::SALES_REPORTS_MONTH, Feature::SALES_REPORTS, Feature::CASH_BOOK,
+        Feature::PATIENT_LEDGER, Feature::INSURANCE, Feature::INVENTORY_ALERTS, Feature::PRODUCT_IMPORT, Feature::PURCHASING,
+        Feature::PATIENT_MESSAGES, Feature::STAFF_MESSAGES, Feature::BUSINESS_OVERVIEW, Feature::NEEDS_ATTENTION, Feature::CUSTOM_ROLES,
     ];
 
     /** Product keys for a product. */
@@ -151,7 +182,8 @@ class PlanProduct
     {
         // Only the attendance product narrows the list here; the screens leave clinic-only extras off an optical plan.
         $extras = array_values(array_intersect(array_keys($product === self::ATTENDANCE ? self::extrasFor($product) : self::EXTRAS), $extras));
-        return array_values(array_unique(array_merge(self::keys($product), $allExtras ? ['*'] : $extras, [Feature::ATTENDANCE_PARTS_CHOSEN])));
+        $markers = [Feature::ATTENDANCE_PARTS_CHOSEN, ...(in_array($product, [self::CLINIC, self::BOTH], true) ? [Feature::CLINIC_TIERS_CHOSEN] : [])];
+        return array_values(array_unique(array_merge(self::keys($product), $allExtras ? ['*'] : $extras, $markers)));
     }
 
     /** Whether the list names its products (new plans) or is a legacy "everything" list. */
@@ -189,14 +221,16 @@ class PlanProduct
             if (! self::allows($features, Feature::ATTENDANCE)) return false;
             return in_array('*', $features, true) || in_array($feature, $features, true) || ! in_array(Feature::ATTENDANCE_PARTS_CHOSEN, $features, true);
         }
-        if (! self::isProductAware($features)) return in_array('*', $features, true) || in_array($feature, $features, true);
+        // A list from before the clinic tiers has every tier feature.
+        $beforeTiers = in_array($feature, self::CLINIC_TIER_FEATURES, true) && ! in_array(Feature::CLINIC_TIERS_CHOSEN, $features, true);
+        if (! self::isProductAware($features)) return $beforeTiers || in_array('*', $features, true) || in_array($feature, $features, true);
         if (in_array($feature, self::PRODUCT_KEYS, true)) return in_array($feature, $features, true);
         if (self::productOf($features) === self::ATTENDANCE) {
             // Attendance and its own short list of extras; nothing from the clinic or the shop.
             if ($feature === Feature::ATTENDANCE) return true;
             if (! in_array($feature, self::ATTENDANCE_EXTRAS, true)) return false;
         }
-        return in_array('*', $features, true) || in_array($feature, $features, true);
+        return $beforeTiers || in_array('*', $features, true) || in_array($feature, $features, true);
     }
 
     /** The extras a list includes ('*' = all of them). */
@@ -207,6 +241,10 @@ class PlanProduct
         // A plan from before attendance was split: its attendance had every part, and keeps them when edited.
         if (! in_array(Feature::ATTENDANCE_PARTS_CHOSEN, $features, true) && self::allows($features, Feature::ATTENDANCE)) {
             $features = [...$features, ...self::ATTENDANCE_PARTS];
+        }
+        // A plan from before the clinic tiers had every tier feature, and keeps them when edited.
+        if (! in_array(Feature::CLINIC_TIERS_CHOSEN, $features, true)) {
+            $features = [...$features, ...self::CLINIC_TIER_FEATURES];
         }
         return array_values(array_intersect($possible, $features));
     }

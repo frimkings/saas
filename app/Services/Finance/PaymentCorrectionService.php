@@ -37,12 +37,18 @@ class PaymentCorrectionService
         AuditTrail::record('payment_correction.requested', 'Asked to move a payment of ' . number_format((float) $payment->amount, 2)
             . ' from ' . PaymentMethods::label($payment->payment_method) . ' to ' . PaymentMethods::label($toMethod), $correction);
 
+        // Clinic plans without approvals: the correction is made at once by the person who asked.
+        if ($line === PaymentMethods::CLINIC && !\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS)) {
+            $this->approve($correction, asOwner: false);
+            return $correction->fresh();
+        }
+
         return $correction;
     }
 
-    public function approve(PaymentCorrection $correction): void
+    public function approve(PaymentCorrection $correction, bool $asOwner = true): void
     {
-        $this->assertOwner();
+        if ($asOwner) $this->assertOwner();
 
         DB::transaction(function () use ($correction) {
             $correction = PaymentCorrection::lockForUpdate()->findOrFail($correction->id);

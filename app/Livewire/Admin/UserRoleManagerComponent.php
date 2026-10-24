@@ -320,8 +320,8 @@ class UserRoleManagerComponent extends Component
             catch (\Illuminate\Validation\ValidationException $e) { $this->addError('email', $e->errors()['subscription'][0]); return; }
         }
 
-        // Free tier: max 3 user accounts
-        if (!$this->isEdit && !LicenseService::has(Feature::UNLIMITED_USERS)) {
+        // Free tier (offline installs): max 3 user accounts. Hosted clinics are held to their plan's users above.
+        if (!$this->isEdit && !config('tenancy.enabled') && !LicenseService::has(Feature::UNLIMITED_USERS)) {
             $count = $this->currentClinic()->users()->count();
             if ($count >= 3) {
                 $this->dispatch('show-alert', ...[

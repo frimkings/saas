@@ -2,12 +2,14 @@
 <div>
     <x-ui.page-header title="Products" description="Drugs, drops and everything else you charge for, with prices, batches and stock.">
         @if($hasLegacyMedications)<x-ui.button :href="route('admin.legacy-medication-names')"><i class="fas fa-link" aria-hidden="true"></i>Previous software names</x-ui.button>@endif
+        @if(\App\Services\LicenseService::has(\App\Support\Feature::PRODUCT_IMPORT))
         <x-ui.button wire:click="toggleLensCatalog" aria-pressed="{{ $showLensCatalog ? 'true' : 'false' }}"><i class="fas fa-glasses" aria-hidden="true"></i>Lens catalog</x-ui.button>
         <x-ui.menu label="Import / export">
             <button type="button" wire:click="exportCsv" wire:loading.attr="disabled" wire:target="exportCsv" class="ui-menu-item" role="menuitem"><i class="fas fa-download" aria-hidden="true"></i>Export CSV</button>
             <button type="button" wire:click="$toggle('showImportPanel')" class="ui-menu-item" role="menuitem"><i class="fas fa-file-import" aria-hidden="true"></i>Import CSV</button>
             <button type="button" wire:click="downloadTemplate" class="ui-menu-item" role="menuitem"><i class="fas fa-file-download" aria-hidden="true"></i>Download template</button>
         </x-ui.menu>
+        @endif
         @if(!$showForm)
             <x-ui.button variant="primary" wire:click="showAddForm"><i class="fas fa-plus" aria-hidden="true"></i>Add product</x-ui.button>
         @endif

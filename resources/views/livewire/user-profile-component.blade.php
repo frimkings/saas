@@ -504,12 +504,14 @@
                         </a>
                         @endif
                     @endforeach
+                    @if(\App\Services\LicenseService::has(\App\Support\Feature::STAFF_MESSAGES))
                     <a href="{{ route('staff.messages') }}"
                        class="list-group-item block w-full border-b border-slate-100 text-left hover:bg-slate-50 flex items-center py-2 px-4 text-sm">
                         <i class="far fa-envelope mr-2 text-slate-500" style="width:16px"></i>
                         Messages
                         <i class="fas fa-chevron-right ml-auto text-slate-500" style="font-size:.65rem"></i>
                     </a>
+                    @endif
                 </div>
             </div>
 

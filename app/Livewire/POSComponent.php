@@ -1184,6 +1184,12 @@ class POSComponent extends Component
 
     public function requestDiscountApproval()
     {
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::DISCOUNTS)) {
+            $this->removeDiscount();
+            $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Discounts are not included in your plan.']);
+            return;
+        }
+
         if (!$this->hasFramesOrLenses || $this->getDiscountEligibleSubtotal() <= 0) {
             $this->removeDiscount();
             $this->dispatch('notify', ...[
@@ -1201,12 +1207,14 @@ class POSComponent extends Component
             return;
         }
 
-        if (Auth::user()?->hasRole(['Manager', 'Super Admin'])) {
+        // Without approvals (plans below Pro) the cashier's discount applies at once, as a manager's always does.
+        $approvalsOn = \App\Services\LicenseService::has(\App\Support\Feature::APPROVALS);
+        if (Auth::user()?->hasRole(['Manager', 'Super Admin']) || !$approvalsOn) {
             $this->recordApprovedDiscount(Auth::user());
 
             $this->dispatch('notify', ...[
                 'type' => 'success',
-                'message' => 'Discount approved.',
+                'message' => $approvalsOn ? 'Discount approved.' : 'Discount applied.',
             ]);
             return;
         }

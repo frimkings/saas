@@ -22,7 +22,8 @@ class InsuranceBilling
     /** The insurer to bill for this patient, or null when the patient pays everything. */
     public function insurerFor(?Patient $patient): ?Insurer
     {
-        if (!$patient?->insurer_id) {
+        // Without Feature::INSURANCE every patient pays in full; the insurer stays on their record.
+        if (!$patient?->insurer_id || !\App\Services\LicenseService::has(\App\Support\Feature::INSURANCE)) {
             return null;
         }
 

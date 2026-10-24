@@ -125,12 +125,37 @@ class ClinicAddonService
         app(PlatformAuditService::class)->record('CLINIC_ADDON_ADDED', $clinic->id, [], ['feature' => $feature, 'monthly_price' => $monthlyPrice, 'invoice' => $invoice?->number]);
         app(OwnerAlerts::class)->addonAdded($addon, $invoice);
 
+        // Clinical documents on a plan with no scan storage would have nowhere to keep the files: a storage pack comes with it.
+        if ($feature === \App\Support\Feature::CLINICAL_DOCUMENTS && $this->needsStoragePack($clinic)) {
+            $this->add($clinic, \App\Support\Feature::SCAN_STORAGE_PACK, (float) ($this->catalogue($clinic)->get(\App\Support\Feature::SCAN_STORAGE_PACK)['price'] ?? 0),
+                'Comes with Clinical documents: the plan has no scan storage', $by);
+        }
+
         return $addon;
+    }
+
+    /** The plan has no scan storage of its own and the clinic has no storage pack. */
+    public function needsStoragePack(Clinic $clinic): bool
+    {
+        return $this->planStorageMb($clinic) === 0 && ! in_array(\App\Support\Feature::SCAN_STORAGE_PACK, $this->activeFeatures($clinic->id), true);
+    }
+
+    /** The scan storage the clinic's plan itself includes (null = no limit). */
+    public function planStorageMb(Clinic $clinic): ?int
+    {
+        $limit = data_get($this->subscription($clinic)?->plan_snapshot, 'storage_limit_mb');
+
+        return $limit === null ? null : (int) $limit;
     }
 
     /** Stop an add-on at the end of the period already paid for (at once if nothing is paid ahead). */
     public function cancel(ClinicAddon $addon, ?User $by, ?string $reason = null): ClinicAddon
     {
+        // The storage pack is all the space Clinical documents has on a plan with no scan storage.
+        if ($addon->feature === \App\Support\Feature::SCAN_STORAGE_PACK && $this->planStorageMb($addon->clinic) === 0
+            && ClinicAddon::where('clinic_id', $addon->clinic_id)->where('feature', \App\Support\Feature::CLINICAL_DOCUMENTS)->activeAt()->whereNull('cancelled_at')->exists()) {
+            throw ValidationException::withMessages(['addon' => 'Clinical documents keeps its files in this storage pack. Remove Clinical documents first, or move the clinic to a plan with scan storage.']);
+        }
         $subscription = $this->subscription($addon->clinic);
         $paidUntil = $subscription && in_array($subscription->status, ['active', 'overdue'], true) && $subscription->current_period_ends_at?->isFuture()
             ? $subscription->current_period_ends_at : now();

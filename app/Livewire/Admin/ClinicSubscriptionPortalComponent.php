@@ -23,6 +23,17 @@ class ClinicSubscriptionPortalComponent extends Component
 
     public function saveBillingProfile():void{$data=$this->validate(['billingLegalName'=>'required|max:255','billingTaxId'=>'nullable|max:80','billingAddress'=>'required|max:1000','billingEmail'=>'required|email|max:255','billingPhone'=>'nullable|max:40']);app(TenantContext::class)->requireClinic()->update(['billing_legal_name'=>$data['billingLegalName'],'billing_tax_id'=>$data['billingTaxId']?:null,'billing_address'=>$data['billingAddress'],'billing_email'=>$data['billingEmail'],'billing_phone'=>$data['billingPhone']?:null]);session()->flash('subscription_message','Billing profile updated.');}
 
+    /** What the plan the clinic is asking for would change, shown before it asks. */
+    public function getRequestImpactProperty(): ?array
+    {
+        if (! $this->requestedPlanId) return null;
+        $clinic = app(TenantContext::class)->requireClinic();
+        $plan = SubscriptionPlan::find($this->requestedPlanId);
+        if (! $plan || $plan->id === app(SubscriptionService::class)->current($clinic)?->subscription_plan_id) return null;
+
+        return app(\App\Services\PlanChangeImpact::class)->for($clinic, $plan);
+    }
+
     public function requestPlanChange(): void
     {
         $data=$this->validate(['requestedPlanId'=>'required|exists:subscription_plans,id','requestedInterval'=>'required|in:monthly,yearly','requestMessage'=>'nullable|max:1000']);

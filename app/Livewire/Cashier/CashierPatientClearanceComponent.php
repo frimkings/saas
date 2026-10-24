@@ -544,6 +544,14 @@ class CashierPatientClearanceComponent extends Component
 
         AuditTrail::record('clearance.revoke_requested', "Revoke requested for clearance #{$clearance->id} ({$this->requestingRevokeName}): {$this->revokeReason}", $clearance, [], [], $clearance->patient_id);
 
+        // Plans without approvals: the revoke, and the refund of its fee, happen at once.
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS)) {
+            $result = app(\App\Services\ClearanceRevoker::class)->approve($revokeLog->fresh('clearance'), atOnce: true);
+            $this->cancelRevokeRequest();
+            $this->dispatch('notify', ...['type' => $result['ok'] ? 'success' : 'error', 'message' => $result['message']]);
+            return;
+        }
+
         NotificationService::sendToRoles(
             ['Manager', 'Super Admin'],
             'clearance_revoke_requested',

@@ -39,8 +39,11 @@
             <h1>Appointments</h1>
         </div>
         <div class="ui-actions">
+            {{-- After a downgrade, booked appointments are managed here but no new ones are booked --}}
+            @if(\App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS))
             <button type="button" wire:click="openWalkInModal" class="ui-button ui-button-secondary"><i class="fas fa-walking" aria-hidden="true"></i>Walk-in</button>
             <button type="button" wire:click="openNewAppointmentModal" class="ui-button ui-button-primary"><i class="fas fa-plus" aria-hidden="true"></i>New appointment</button>
+            @endif
             <button type="button" wire:click="exportReport" class="ui-button ui-button-secondary" title="Export CSV" aria-label="Export CSV"><i class="fas fa-download" aria-hidden="true"></i></button>
             <button type="button" onclick="window.print()" class="ui-button ui-button-secondary" title="Print" aria-label="Print"><i class="fas fa-print" aria-hidden="true"></i></button>
             <button type="button" wire:click="$set('activeFilter','settings')" class="ui-button ui-button-secondary" title="Settings" aria-label="Appointment settings"><i class="fas fa-cog" aria-hidden="true"></i></button>

@@ -14,7 +14,7 @@
         <x-ui.stat-tile label="Sales today" :value="$money($todaySales)" hint="Collected, all methods" icon="fa-coins" tone="accent" :href="route('cashier.sales-records')" />
         <x-ui.stat-tile label="Transactions" :value="number_format($transactionsToday)" :hint="number_format($paidToday).' fully paid · '.number_format($partialToday).' part paid'" icon="fa-receipt" :href="route('cashier.sales-records')" />
         <x-ui.stat-tile label="Awaiting clearance" :value="number_format($queueSize)" :tone="$queueSize > 0 ? 'warning' : 'neutral'" :hint="$queueSize > 0 ? 'Patients waiting to pay' : 'Nobody waiting'" icon="fa-user-clock" :href="route('secretary.patient-clearance')" />
-        <x-ui.stat-tile label="Outstanding balances" :value="number_format($outstandingCount)" :tone="$outstandingCount > 0 ? 'warning' : 'neutral'" hint="Sales part paid" icon="fa-balance-scale" :href="route('cashier.outstanding-balances')" />
+        @if(\App\Services\LicenseService::has(\App\Support\Feature::OUTSTANDING_BALANCES))<x-ui.stat-tile label="Outstanding balances" :value="number_format($outstandingCount)" :tone="$outstandingCount > 0 ? 'warning' : 'neutral'" hint="Sales part paid" icon="fa-balance-scale" :href="route('cashier.outstanding-balances')" />@endif
     </div>
 
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -43,7 +43,7 @@
 
         <x-ui.section title="Shortcuts" icon="fa-bolt">
             <nav class="grid gap-2 p-4" aria-label="Cashier shortcuts">
-                <a href="{{ route('cashier.outstanding-balances') }}" class="{{ $shortcut }}"><span><i class="fas fa-balance-scale mr-2 text-slate-400" aria-hidden="true"></i>Collect balances</span>@if($outstandingCount > 0)<span class="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{{ $outstandingCount }}</span>@endif</a>
+                @if(\App\Services\LicenseService::has(\App\Support\Feature::OUTSTANDING_BALANCES))<a href="{{ route('cashier.outstanding-balances') }}" class="{{ $shortcut }}"><span><i class="fas fa-balance-scale mr-2 text-slate-400" aria-hidden="true"></i>Collect balances</span>@if($outstandingCount > 0)<span class="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{{ $outstandingCount }}</span>@endif</a>@endif
                 <a href="{{ route('cashier.sales-records') }}" class="{{ $shortcut }}"><span><i class="fas fa-list mr-2 text-slate-400" aria-hidden="true"></i>Sales records</span></a>
                 <a href="{{ route('refunds.logs') }}" class="{{ $shortcut }}"><span><i class="fas fa-undo mr-2 text-slate-400" aria-hidden="true"></i>Refund log</span></a>
                 @if($canCloseDay)<a href="{{ route('admin.day-close') }}" class="{{ $shortcut }}"><span><i class="fas fa-lock mr-2 text-slate-400" aria-hidden="true"></i>Close the day</span></a>@endif

@@ -9,7 +9,7 @@
 @endphp
 <div class="clinic-ui ui-page space-y-6">
 
-    <x-ui.page-header title="Business Overview"
+    <x-ui.page-header :title="$overview ? 'Business Overview' : 'Dashboard'"
         :description="now()->format('l, d F Y').(count($lineOptions) > 1 ? ' · Money figures: '.($line === 'combined' ? 'Clinic & Optical' : $lineLabels[$line]) : '')">
         @if(count($lineOptions) > 1)
             <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 text-sm font-semibold" role="group" aria-label="Business line">
@@ -20,7 +20,7 @@
             </div>
         @endif
         <x-guide-tour page="clinic.dashboard" :context="['owner' => $owner]" />
-        <x-ui.button :href="$reportsLink"><i class="fas fa-chart-bar" aria-hidden="true"></i>Full reports</x-ui.button>
+        @if($canReports)<x-ui.button :href="$reportsLink"><i class="fas fa-chart-bar" aria-hidden="true"></i>Full reports</x-ui.button>@endif
     </x-ui.page-header>
 
     @if($setup)
@@ -39,14 +39,19 @@
         <div class="ui-tiles" data-tour="clinic-kpis">
             <x-ui.stat-tile label="Sales" :value="$money($todayRevenue)" hint="Collected today" icon="fa-cash-register" tone="accent" :href="$todayLink" />
             <x-ui.stat-tile label="Consultations" :value="number_format($consultationsToday)" hint="Patients seen by a doctor" icon="fa-stethoscope" />
-            <x-ui.stat-tile label="Appointments" :value="number_format($todayAppointments)" hint="Booked for today" icon="fa-calendar-check" :href="route('secretary.appointments')" />
+            @if($canAppointments)<x-ui.stat-tile label="Appointments" :value="number_format($todayAppointments)" hint="Booked for today" icon="fa-calendar-check" :href="route('secretary.appointments')" />@endif
             <x-ui.stat-tile label="Prescriptions to dispense" :value="number_format($pendingPrescriptions)" :tone="$pendingPrescriptions > 0 ? 'warning' : 'neutral'"
                 :hint="$pendingPrescriptions > 0 ? 'Waiting at the pharmacy counter' : 'Nothing waiting'" icon="fa-prescription-bottle-alt" />
         </div>
     </section>
 
     {{-- What staff need to act on today, including expiring stock --}}
+    @if($canAttention)
     @livewire('attention-panel-component', ['line' => 'clinic', 'compact' => true], key('attention-clinic'))
+    @endif
+
+    {{-- The month, revenue chart, stock and sign-ins come with Feature::BUSINESS_OVERVIEW --}}
+    @if($overview)
 
     <section aria-label="This month">
         <h2 class="{{ $group }}">{{ now()->format('F Y') }}</h2>
@@ -128,6 +133,8 @@
             @endif
         </x-ui.section>
     </div>
+
+    @endif
 
 {{-- Chart.js — fires after Livewire mounts the DOM --}}
 <script>

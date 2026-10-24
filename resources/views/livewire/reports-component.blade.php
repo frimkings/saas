@@ -18,6 +18,7 @@
                     <button wire:click="exportCsv" class="ui-button ui-button-secondary ui-button-sm">
                         <i class="fas fa-file-csv mr-1"></i>Export CSV
                     </button>
+                    @unless($monthOnly)
                     <a
                         href="{{ route('reports.export.pdf', array_filter([
                             'from' => $fromDate, 'to' => $toDate, 'search' => $searchQuery,
@@ -29,6 +30,7 @@
                     >
                         <i class="fas fa-file-pdf mr-1"></i>Export PDF
                     </a>
+                    @endunless
                 </div>
             </div>
 
@@ -41,7 +43,14 @@
             <div class="reports-filters mb-6 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:flex-nowrap">
                 <div class="w-44 shrink-0">
                     <span class="{{ $fl }}">Period</span>
-                    <x-date-range from="fromDate" to="toDate" presets="finance" class="w-full" />
+                    @if($monthOnly)
+                        <div class="flex gap-1" role="group" aria-label="Period">
+                            <button type="button" wire:click="switchTab('today')" class="ui-button ui-button-sm {{ $activeTab === 'today' ? 'ui-button-primary' : 'ui-button-secondary' }}">Today</button>
+                            <button type="button" wire:click="showThisMonth" class="ui-button ui-button-sm {{ $activeTab === 'range' ? 'ui-button-primary' : 'ui-button-secondary' }}">This month</button>
+                        </div>
+                    @else
+                        <x-date-range from="fromDate" to="toDate" presets="finance" class="w-full" />
+                    @endif
                 </div>
                 <div class="min-w-[8rem] flex-[2]">
                     <label for="reports-search" class="{{ $fl }}">Search</label>

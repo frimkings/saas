@@ -67,6 +67,10 @@ class AttentionPanelComponent extends Component
 
     public function render(AttentionItems $items)
     {
+        // Needs attention comes with Feature::NEEDS_ATTENTION; without it the panel is left out.
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::NEEDS_ATTENTION)) {
+            return '<div></div>';
+        }
         $groups = $items->groups($this->line);
         $total = array_sum(array_map(fn ($g) => $g['items']->count(), $groups));
         $optical = $this->line === AttentionItems::OPTICAL;

@@ -111,7 +111,7 @@
                         <div x-show="open" x-cloak x-transition.opacity.duration.100ms role="menu"
                              class="absolute right-0 z-30 mt-1 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
                             <a href="{{ route('user.profile') }}" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">My profile</a>
-                            <a href="{{ route('staff.messages') }}" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">Messages</a>
+                            @if(\App\Services\LicenseService::has(\App\Support\Feature::STAFF_MESSAGES))<a href="{{ route('staff.messages') }}" role="menuitem" class="block px-4 py-2 text-slate-700 no-underline hover:bg-slate-50">Messages</a>@endif
                             <form method="POST" action="{{ route('logout') }}" class="border-t border-slate-100">@csrf
                                 <button type="submit" role="menuitem" class="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50">Sign out</button>
                             </form>

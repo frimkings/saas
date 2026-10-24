@@ -4,6 +4,8 @@ namespace App\Livewire\Doctor;
 
 use App\Models\Consultations;
 use App\Models\Appointments;
+use App\Services\LicenseService;
+use App\Support\Feature;
 use App\Models\Cart;
 use App\Models\AuditTrail;
 use App\Models\ConsultationNote;
@@ -313,6 +315,9 @@ public $isEditingAppointment = false;
 
     public function switchTab($tab)
     {
+        // Clinical documents come with Feature::CLINICAL_DOCUMENTS.
+        // Scans uploaded before a downgrade stay viewable; uploading new ones needs the feature.
+        if ($tab === 'bills' && !LicenseService::has(Feature::CLINICAL_DOCUMENTS) && $this->patientDocumentCount === 0) return;
         $previousTab = $this->activeTab;
         $leavingRefraction = $this->activeTab === 'refraction' && $tab !== 'refraction';
         if ($tab === 'refraction' && $this->consultationID) {
@@ -382,6 +387,7 @@ public $isEditingAppointment = false;
 
     public function uploadPatientDocument()
     {
+        abort_if(!LicenseService::has(Feature::CLINICAL_DOCUMENTS), 403);
         $this->validate([
             'documentFiles' => 'required|array|min:1|max:10',
             'documentFiles.*' => 'file|'.\App\Support\UploadLimits::rule().'|mimes:jpg,jpeg,png,pdf,doc,docx',
@@ -2579,8 +2585,13 @@ public function deleteAppointment($appointmentId)
                 ->orderBy('scheduled_at')->first()
             : null;
 
-        $clinicalTrendData = $this->activeTab === 'history' ? $this->clinicalTrendData : [];
-        $eyeDiseaseRiskFlags = $this->activeTab === 'history' ? $this->eyeDiseaseRiskFlags : [];
+        // Plan tier parts of the record: charts and risk flags, the PDFs, clinical documents.
+        $canCharts = LicenseService::has(Feature::HISTORY_CHARTS);
+        $canClinicalPdfs = LicenseService::has(Feature::CLINICAL_PDFS);
+        $canDocuments = LicenseService::has(Feature::CLINICAL_DOCUMENTS);
+        $canAppointments = LicenseService::has(Feature::APPOINTMENTS);
+        $clinicalTrendData = $this->activeTab === 'history' && $canCharts ? $this->clinicalTrendData : [];
+        $eyeDiseaseRiskFlags = $this->activeTab === 'history' && $canCharts ? $this->eyeDiseaseRiskFlags : [];
         $lensOptions = collect();
         if ($this->activeTab === 'refraction') {
             $cachedLensOptions = Cache::remember(\App\Support\Tenancy\TenantCache::key('patient-records:lens-options:v2'), now()->addHour(), fn () =>
@@ -2615,7 +2626,7 @@ public function deleteAppointment($appointmentId)
             DB::disableQueryLog();
         }
 
-        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications'))
+        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments'))
             ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

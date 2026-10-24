@@ -5,7 +5,7 @@
     $allOptional = collect($extras['optional'])->keyBy('key');
     $previous = null;
     $old = ['plan' => old('plan'), 'interval' => old('interval', 'monthly'), 'features' => old('features', []), 'users' => old('users'),
-        'storage_gb' => old('storage_gb'), 'visits' => old('visits'), 'branches' => old('branches'), 'staff' => old('staff'),
+        'storage_mb' => old('storage_mb'), 'visits' => old('visits'), 'branches' => old('branches'), 'staff' => old('staff'),
         'tab' => old('plan') ? (old('features') || old('plan') === 'attendance' ? 'build' : 'plans') : null];
     $attPackages = collect($attendance['packages'])->keyBy('key');
     $attModules = collect($attendance['modules'])->keyBy('key');
@@ -75,8 +75,10 @@
         table{border-collapse:collapse;width:100%;min-width:760px;font-size:14px}
         th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:center}
         th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:#fff}
-        thead th{background:var(--soft);font-size:13px;color:var(--ink)}
-        thead th:first-child{background:var(--soft)}
+        thead th{background:var(--soft);font-size:13px;color:var(--ink);position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
+        thead th:first-child{background:var(--soft);z-index:3}
+        /* In the compare dialog the table scrolls itself, so its header row stays in view. */
+        #compare .table-wrap{overflow:auto;max-height:calc(100vh - 190px)}
         tr.group td{background:#f1f5f9;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left}
         td.yes{color:var(--ok);font-weight:900}td.no{color:#cbd5e1}
         th.featured{color:var(--teal)}
@@ -137,6 +139,7 @@
         .compare summary:focus-visible{outline:3px solid var(--mint);outline-offset:2px;border-radius:6px}
         .core-line{background:var(--soft);border-radius:9px;padding:7px 10px;font-size:12px;color:var(--muted);margin:10px 0 8px}
         .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+        .tiles-group{margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted)}
         .tile{display:grid;grid-template-columns:18px minmax(0,1fr) auto 38px;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:13px;cursor:pointer}
         .tile:hover{border-color:#94a3b8}.tile:has(input:checked){border-color:var(--teal);background:#f0fdfa}
         .tile input{width:16px;height:16px;margin:0;accent-color:var(--teal)}
@@ -169,6 +172,10 @@
         .products button[aria-selected=true]{background:rgba(255,255,255,.16);color:#fff}
         .products button:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
         .cards.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+        .free-sms{color:#dc2626;font-weight:800}
+        .compare-card{border-style:dashed;background:transparent;box-shadow:none;align-self:start;gap:10px;text-align:center}
+        .compare-card .btn,.compare-card .foot-link{margin-top:0}
+        .compare-card h3{margin:0}.compare-card .tag{margin:0}
         .staffbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 16px;margin-bottom:16px}
         .staffbar label{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--ink);font-size:14px}
         .staffbar input{font:inherit;font-weight:700;border:1.5px solid var(--line);border-radius:10px;padding:7px 10px;width:110px}
@@ -189,7 +196,7 @@
         <nav class="nav" aria-label="Main">
             <a class="brand" href="{{ route('pricing') }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.478 0-8.268-2.943-9.542-7z"/><circle cx="12" cy="12" r="3"/></svg>{{ $brand }}</a>
             <a class="link" href="#plans" data-tab-link="plans">Plans</a>
-            <a class="link" href="#build" data-tab-link="build">Build your own</a>
+            <a class="link" href="#build" data-tab-link="build">Customize</a>
             <a class="link" href="#attendance" data-product-link="attendance">Staff attendance</a>
             <a class="link" href="#request" data-open-request>Request a plan</a>
             <a class="signin" href="{{ route('login') }}">Sign in</a>
@@ -203,11 +210,11 @@
             <div class="hero-row">
                 <div class="tabs" role="tablist" aria-label="Pricing">
                     <button type="button" role="tab" id="tab-plans" aria-controls="panel-plans" aria-selected="true" data-tab="plans">Plans</button>
-                    <button type="button" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="false" data-tab="build">Build your own</button>
+                    <button type="button" role="tab" id="tab-build" aria-controls="panel-build" aria-selected="false" data-tab="build">Customize</button>
                 </div>
                 <div class="toggle" role="group" aria-label="Billing">
                     <button type="button" data-interval="monthly" aria-pressed="true">Monthly</button>
-                    <button type="button" data-interval="yearly" aria-pressed="false">Yearly <small data-clinic-only>2 months free</small></button>
+                    <button type="button" data-interval="yearly" aria-pressed="false">Yearly <small data-clinic-only>+ free SMS</small></button>
                 </div>
             </div>
         </div>
@@ -235,11 +242,10 @@
                     <h3>{{ $tier['name'] }}</h3>
                     <p class="tag">{{ $tier['tagline'] }}</p>
                     <div class="price" data-monthly="{{ $tier['monthly'] }}" data-yearly="{{ $tier['yearly'] }}">{{ $tier['currency'] }} {{ $fmt($tier['monthly']) }} <small>/mo</small></div>
-                    <div class="per" data-per data-monthly-text="" data-yearly-text="{{ $tier['currency'] }} {{ $fmt($tier['yearly'] / 12) }} a month, paid yearly">&nbsp;</div>
+                    <div class="per" data-per data-monthly-text="" data-yearly-text="{{ $tier['currency'] }} {{ $fmt($tier['yearly'] / 12) }} a month, paid yearly{!! $tier['yearly_sms'] ? ' &middot; <b class=&quot;free-sms&quot;>' . number_format($tier['yearly_sms']) . ' free SMS</b>' : '' !!}">&nbsp;</div>
                     <ul class="facts">
-                        <li><span class="tick">✓</span><span>{{ $tier['max_visits'] ? 'Up to ' . $tier['max_visits'] . ' patients a day' : 'Busy clinics, any number of patients' }}</span></li>
                         <li><span class="tick">✓</span><span><b>{{ $tier['users'] ?? 'Unlimited' }}</b> {{ $tier['users'] === 1 ? 'user' : 'users' }}</span></li>
-                        <li><span class="tick">{{ $tier['storage_mb'] === 0 ? '–' : '✓' }}</span><span>{!! $tier['storage_mb'] === 0 ? 'No scan uploads' : '<b>' . e($gb($tier['storage_mb'])) . '</b> for scans &amp; attachments' !!}</span></li>
+                        <li><span class="tick">{{ $tier['storage_mb'] === 0 ? '–' : '✓' }}</span><span>{!! $tier['storage_mb'] === 0 ? 'No scan uploads' : '<b>' . e($gb($tier['storage_mb'])) . '</b> for scans &amp; attachments' . (in_array('clinical_documents', $tier['features'], true) ? '' : ' (with the Clinical documents add-on)') !!}</span></li>
                         <li class="plus">{{ $previous ? 'Everything in ' . $previous['name'] . ', plus' : 'Patients, cashier & receipts, plus' }}</li>
                         @if(!$previous)
                             <li><span class="tick">✓</span><span>{{ \App\Services\PricingCatalogue::sentence($new) }}</span></li>
@@ -251,11 +257,18 @@
                 </article>
                 @php($previous = $tier)
             @endforeach
+            {{-- Straight after the last plan, where people look for it --}}
+            <aside class="card compare-card" aria-label="Compare the plans">
+                <h3>Not sure which?</h3>
+                <p class="tag">See every feature side by side, or add single features to a smaller plan.</p>
+                <button type="button" class="btn alt" data-open="compare">Compare every feature</button>
+                <button type="button" class="foot-link" data-open="addons">See the add-ons</button>
+            </aside>
         </div>
 
     </section>
 
-    {{-- ── Build your own ── --}}
+    {{-- ── Customize (build your own plan) ── --}}
     <section id="panel-build" role="tabpanel" aria-labelledby="tab-build" hidden>
         <div class="builder">
             <div class="panel">
@@ -265,24 +278,27 @@
                     <label class="field">Patients a day<input type="number" min="0" max="10000" id="b-visits" value="10" inputmode="numeric"></label>
                     <label class="field">Users (staff)<input type="number" min="1" max="1000" id="b-users" value="2" inputmode="numeric"></label>
                     <label class="field">Scan storage
-                        <select id="b-storage" title="About 300 scans per GB">@foreach([0, 1, 2, 5, 10, 15, 20, 30] as $size)<option value="{{ $size }}">{{ $size ? $size . ' GB (~' . number_format($size * 300) . ' scans)' : 'None' }}</option>@endforeach</select>
+                        <select id="b-storage" title="About 300 scans per GB">@foreach([0, 20, 150, 300, 1024, 2048, 5120, 10240, 20480] as $size)<option value="{{ $size }}">{{ $size ? \App\Services\PricingCatalogue::storageLabel($size) . ' (~' . number_format(round($size / 1024 * 300)) . ' scans)' : 'None' }}</option>@endforeach</select>
                     </label>
                     <label class="field">Branches<input type="number" min="1" max="100" id="b-branches" value="1" inputmode="numeric"></label>
                 </div>
 
-                <p class="core-line"><b>Every plan:</b> patients &amp; cashier · {{ \App\Services\PricingCatalogue::sentence(collect($extras['core'])->pluck('key')->all(), ' · ', true) }}</p>
+                <p class="core-line"><b>Every plan:</b> patient records &amp; clearance · the full consultation, refraction &amp; prescriptions · the till, receipts &amp; refunds · sales records · daily cash summary · {{ \App\Services\PricingCatalogue::sentence(collect($extras['core'])->pluck('key')->all(), ' · ', true) }} · moving your records from other software</p>
 
-                <div class="tiles">
-                    @foreach($extras['optional'] as $item)
-                        <label class="tile">
-                            <input type="checkbox" class="b-feature" value="{{ $item['key'] }}">
-                            <span class="name">{{ $item['label'] }}</span>
-                            <span class="in" title="Included in {{ $item['from'] }} and above">{{ preg_replace('/^Clinic\s+/', '', (string) $item['from']) }}+</span>
-                            <span class="cost">{{ $item['offered'] ? '+' . $fmt($item['price']) : '—' }}</span>
-                        </label>
-                    @endforeach
-                </div>
-                <p class="tiles-note">Prices are per month as an add-on; <span class="in-eg">Plus+</span> means it's included from that plan.</p>
+                @foreach(\App\Services\PricingCatalogue::grouped($extras['optional']) as $group => $items)
+                    <h4 class="tiles-group">{{ $group }}</h4>
+                    <div class="tiles">
+                        @foreach($items as $item)
+                            <label class="tile">
+                                <input type="checkbox" class="b-feature" value="{{ $item['key'] }}">
+                                <span class="name" title="{{ $item['label'] }}">{{ $item['label'] }}</span>
+                                <span class="in" title="Included in {{ $item['from'] }} and above">{{ preg_replace('/^Clinic\s+/', '', (string) $item['from']) }}+</span>
+                                <span class="cost" @unless($item['offered']) title="Comes with the plan only" @endunless>{{ $item['offered'] ? '+' . $fmt($item['price']) : '—' }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                @endforeach
+                <p class="tiles-note"><span class="in-eg">Plus+</span> means it's included from that plan. A price is what it costs a month on its own on a smaller plan; — means it comes with the plan only.</p>
             </div>
 
             <aside class="panel summary" aria-live="polite">
@@ -380,7 +396,7 @@
                 @csrf
                 <input type="hidden" name="plan" id="f-plan" value="{{ old('plan', $tiers->firstWhere('featured', true)['family'] ?? $tiers->first()['family'] ?? 'attendance:basic') }}">
                 <input type="hidden" name="interval" id="f-interval" value="{{ old('interval', 'monthly') }}">
-                <input type="hidden" name="users" id="f-users"><input type="hidden" name="storage_gb" id="f-storage"><input type="hidden" name="visits" id="f-visits"><input type="hidden" name="branches" id="f-branches"><input type="hidden" name="staff" id="f-staff">
+                <input type="hidden" name="users" id="f-users"><input type="hidden" name="storage_mb" id="f-storage"><input type="hidden" name="visits" id="f-visits"><input type="hidden" name="branches" id="f-branches"><input type="hidden" name="staff" id="f-staff">
                 <div id="f-features"></div>
                 <div class="hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
                 <div class="form-grid">
@@ -403,7 +419,7 @@
                 <div class="plan" id="c-plan">—</div>
                 <div class="total" id="c-total">—</div>
                 <ul id="c-lines"></ul>
-                <p style="font-size:13px;opacity:.8;margin:14px 0 0"><a href="#plans" data-tab-link="plans" data-close>Change plan</a> · <a href="#build" data-tab-link="build" data-close>Build your own</a></p>
+                <p style="font-size:13px;opacity:.8;margin:14px 0 0"><a href="#plans" data-tab-link="plans" data-close>Change plan</a> · <a href="#build" data-tab-link="build" data-close>Customize</a></p>
             </aside>
         </div>
     </dialog>
@@ -420,8 +436,8 @@
             <table>
                 <thead><tr><th scope="col">Feature</th>@foreach($tiers as $tier)<th scope="col" class="{{ $tier['featured'] ? 'featured' : '' }}">{{ $tier['name'] }}</th>@endforeach</tr></thead>
                 <tbody>
+                    <tr><td>Free SMS when paid yearly</td>@foreach($tiers as $tier)<td>@if($tier['yearly_sms'])<b class="free-sms">{{ number_format($tier['yearly_sms']) }}</b>@else — @endif</td>@endforeach</tr>
                     <tr><td>Price</td>@foreach($tiers as $tier)<td><b class="js-price" data-monthly="{{ $tier['monthly'] }}" data-yearly="{{ $tier['yearly'] }}">{{ $fmt($tier['monthly']) }}</b></td>@endforeach</tr>
-                    <tr><td>Patients a day</td>@foreach($tiers as $tier)<td>{{ $tier['max_visits'] ? 'up to ' . $tier['max_visits'] : 'any' }}</td>@endforeach</tr>
                     <tr><td>Users</td>@foreach($tiers as $tier)<td>{{ $tier['users'] ?? 'Unlimited' }}</td>@endforeach</tr>
                     <tr><td>Scans &amp; attachments</td>@foreach($tiers as $tier)<td class="{{ $tier['storage_mb'] === 0 ? 'no' : '' }}">{{ $tier['storage_mb'] === 0 ? '—' : $gb($tier['storage_mb']) }}</td>@endforeach</tr>
                     <tr><td>Branches</td>@foreach($tiers as $tier)<td>{{ $tier['branches'] === null ? 'Unlimited' : ($tier['extra_branch'] > 0 ? $tier['branches'] . ' + ' . $fmt($tier['extra_branch']) . ' each extra' : $tier['branches']) }}</td>@endforeach</tr>
@@ -490,7 +506,7 @@
 
 <footer>
     <div class="wrap">
-        <span>@if($tiers->isNotEmpty())<span data-clinic-only><button type="button" class="foot-link" data-open="compare">Compare every feature</button> · <button type="button" class="foot-link" data-open="addons">Add-ons</button> · </span>@endif<span data-att-only hidden><button type="button" class="foot-link" data-open="compare-att">Compare packages &amp; every size</button> · </span>Prices in {{ $currency }}</span>
+        <span>@if($tiers->isNotEmpty())<span data-clinic-only><button type="button" class="foot-link" data-open="addons">Add-ons</button> · </span>@endif<span data-att-only hidden><button type="button" class="foot-link" data-open="compare-att">Compare packages &amp; every size</button> · </span>Prices in {{ $currency }}</span>
         <span>@if($support['phone'])☏ {{ $support['phone'] }}@endif @if($support['email']) · ✉ <a href="mailto:{{ $support['email'] }}">{{ $support['email'] }}</a>@endif</span>
     </div>
 </footer>
@@ -522,9 +538,11 @@
                 if (why) break;
                 const x = OPTIONAL[f]; x.offered ? lines.push([x.label, x.price]) : why = `${x.label} isn't in this plan`;
             }
-            const planGb = t.storage_mb === null ? null : Math.floor(t.storage_mb / 1024);
-            if (!why && planGb !== null && sel.storage_gb > planGb) {
-                const packs = Math.ceil((sel.storage_gb - planGb) / Math.max(1, STORAGE.gb));
+            const planMb = t.storage_mb === null ? null : t.storage_mb;
+            // Clinical documents bought on a plan with no scan storage need somewhere to keep them: one pack at least.
+            const needMb = sel.features.includes('clinical_documents') && planMb === 0 ? Math.max(sel.storage_mb, 1) : sel.storage_mb;
+            if (!why && planMb !== null && needMb > planMb) {
+                const packs = Math.ceil((needMb - planMb) / (Math.max(1, STORAGE.gb) * 1024));
                 STORAGE.offered ? lines.push([`Scan storage: ${packs} × ${STORAGE.gb} GB`, packs * STORAGE.price]) : why = 'Not enough scan storage';
             }
             if (!why && t.branches !== null && sel.branches > t.branches) {
@@ -570,10 +588,10 @@
         return custom;
     }
 
-    const plain = () => ({features: [], users: 1, storage_gb: 0, visits: 0, branches: 1});
+    const plain = () => ({features: [], users: 1, storage_mb: 0, visits: 0, branches: 1});
     function selection() {
         const int = (id, min, d) => Math.max(min, parseInt($(id).value, 10) || d);
-        return {features: $$('.b-feature:checked').map(i => i.value), users: int('#b-users', 1, 1), storage_gb: parseInt($('#b-storage').value, 10) || 0,
+        return {features: $$('.b-feature:checked').map(i => i.value), users: int('#b-users', 1, 1), storage_mb: parseInt($('#b-storage').value, 10) || 0,
             visits: int('#b-visits', 0, 0), branches: int('#b-branches', 1, 1)};
     }
     const staff = () => Math.max(1, parseInt($('#a-staff').value, 10) || 1);
@@ -587,6 +605,9 @@
         $('#s-plan').textContent = q.best ? q.best.name : 'Talk to us';
         $('#s-total').innerHTML = q.best ? `${money(amount(q.best))} <small>${per()}</small>` : '<small>No plan covers this yet. Ask us for a quote.</small>';
         $('#s-lines').innerHTML = q.best && q.best.lines.length ? [[q.best.name, null], ...q.best.lines].map(([l, p, y]) => `<li><span>${p === null ? l + ' plan' : '+ ' + l}</span><b>${money(p === null ? (interval === 'yearly' ? TIERS.find(t => t.family === q.best.family).yearly : q.best.plan) : (interval === 'yearly' ? (y ?? 12 * p) : p))}</b></li>`).join('') : '';
+        // Paying yearly brings the plan's free SMS.
+        const sms = interval === 'yearly' && q.best ? (TIERS.find(t => t.family === q.best.family)?.yearly_sms || 0) : 0;
+        if (sms) $('#s-lines').innerHTML += `<li class="free-sms"><span>Free SMS with the yearly plan</span><b>${sms.toLocaleString()}</b></li>`;
         const save = $('#s-save');
         save.hidden = !(q.saving > 0);
         if (q.saving > 0) save.textContent = `Saves ${money(q.saving)} a month compared with ${TIERS[0].name} plus add-ons.`;
@@ -664,7 +685,7 @@
         let o = chosen.from === 'build' ? q.best : q.options.find(x => x.family === chosen.family);
         if (!o) o = q.options.find(x => x.ok);
         $('#f-plan').value = o.family; $('#f-staff').value = '';
-        $('#f-users').value = sel.users; $('#f-storage').value = sel.storage_gb; $('#f-visits').value = sel.visits; $('#f-branches').value = sel.branches;
+        $('#f-users').value = sel.users; $('#f-storage').value = sel.storage_mb; $('#f-visits').value = sel.visits; $('#f-branches').value = sel.branches;
         $('#f-features').innerHTML = sel.features.map(f => `<input type="hidden" name="features[]" value="${f}">`).join('');
         $('#c-plan').textContent = o.name;
         $('#c-total').textContent = `${money(amount(o))} ${per()}`;
@@ -743,7 +764,7 @@
     if (OLD.tab === 'build' && product === 'clinic') {
         $$('.b-feature').forEach(i => { i.checked = (OLD.features || []).includes(i.value); });
         if (OLD.users) $('#b-users').value = OLD.users; if (OLD.visits !== null) $('#b-visits').value = OLD.visits;
-        if (OLD.storage_gb !== null) $('#b-storage').value = OLD.storage_gb; if (OLD.branches) $('#b-branches').value = OLD.branches;
+        if (OLD.storage_mb !== null) $('#b-storage').value = OLD.storage_mb; if (OLD.branches) $('#b-branches').value = OLD.branches;
     }
     if (product === 'attendance') {
         if (OLD.staff) $('#a-staff').value = OLD.staff;

@@ -24,12 +24,12 @@ final class TourCatalog
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 1,
-        'clinic.dashboard' => 2,
+        'clinic.dashboard' => 3,
         'clinic.registry' => 1,
         'clinic.clearance' => 1,
-        'clinic.pos' => 1,
+        'clinic.pos' => 2,
         'clinic.queue' => 1,
-        'clinic.sales' => 2,
+        'clinic.sales' => 3,
         'clinic.day-close' => 2,
         'clinic.cash-book' => 1,
         'platform.dashboard' => 1,
@@ -203,8 +203,9 @@ final class TourCatalog
             ['title' => 'Welcome to the Clinic Suite', 'body' => 'Patients from registration to the doctor, the pharmacy counter, and the money: who paid, how, and what is left in the till. Here is a quick look round. It takes about a minute.'],
             ['target' => 'setup-checklist', 'title' => 'Getting started', 'body' => 'Work down this list to get the clinic ready. Each step ticks itself once it is done, and the list goes away when the first five are.'],
             ['target' => 'nav-workspace', 'title' => 'Two workspaces', 'body' => 'Clinical holds the front desk, the doctors and the stock. Administration holds the money, staff and settings. Switch between them here.'],
-            ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'Today\'s sales, consultations, appointments and prescriptions waiting, with this month and stock below. Click a figure to open what is behind it.'],
-            ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'Sales records, the income statement, expenses, the cash book and the day close, outstanding balances and each patient\'s ledger. Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count.'.($owner ? ' Voids and payment corrections are yours alone to approve.' : '')],
+            ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'What happened today: sales, consultations and prescriptions waiting, and more figures below on plans that include them. Click a figure to open what is behind it.'],
+            ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'The money pages your plan includes: sales records and the daily cash summary, and on bigger plans sales reports, expenses, the cash book and day close, outstanding balances, the income statement and each patient\'s ledger.'
+                .(\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS) ? ' Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count.'.($owner ? ' Voids and payment corrections are yours alone to approve.' : '') : '')],
             ['target' => 'nav-staff-security', 'title' => 'Staff & Security', 'body' => 'Users and their roles, login history and the audit trail. Each person sees only the parts of the menu their role opens.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
         ]];
@@ -240,7 +241,7 @@ final class TourCatalog
             ['target' => 'pos-patient', 'title' => 'Who is buying', 'body' => 'Pick the patient to load what the doctor prescribed, or just type a name for a walk-in.'],
             ['target' => 'pos-doctor-carts', 'title' => 'Doctor carts', 'body' => 'What the doctors prescribed today waits here, with a count. Open one to load it into the cart.'],
             ['target' => 'pos-products', 'title' => 'Add items', 'body' => 'Search or scan, and tap an item to put it in the cart. Stock goes down when the sale is made.'],
-            ['target' => 'pos-cart', 'title' => 'Check and take payment', 'body' => 'Change quantities, ask for a discount (a manager approves it, and it shows on the receipt), split the payment between cash, MoMo and card, then print the receipt.'],
+            ['target' => 'pos-cart', 'title' => 'Check and take payment', 'body' => 'Change quantities, add a discount if your plan has them (it shows on the receipt), split the payment between cash, MoMo and card, then print the receipt.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }
@@ -261,7 +262,7 @@ final class TourCatalog
             ['title' => 'Every sale', 'body' => 'All sales for the days you pick, with the amount after any discount and who made it.'],
             ['target' => 'sales-totals', 'title' => 'The totals', 'body' => 'What was sold, and how much was given in discounts.'],
             ['target' => 'sales-filters', 'title' => 'Find a sale', 'body' => 'Search by name or transaction number, pick the days, show only refunded or paid sales, or download them as CSV.'],
-            ['target' => 'sales-list', 'title' => 'Look closer or put it right', 'body' => 'The eye shows the items, discount and receipt. The red arrow asks for a refund, or a void for a sale entered by mistake today; the owner approves voids.'],
+            ['target' => 'sales-list', 'title' => 'Look closer or put it right', 'body' => 'The eye shows the items, discount and receipt. The red arrow refunds a sale, or voids one entered by mistake today; on plans with approvals a manager decides first.'],
             ($c['previous'] ?? false) ? ['target' => 'sales-previous', 'title' => 'Before you moved here', 'body' => 'What patients paid in your previous software, for reference. Those payments are not sales here and stay out of these totals and your reports.'] : null,
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];

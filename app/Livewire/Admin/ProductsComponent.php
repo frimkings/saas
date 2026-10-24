@@ -129,6 +129,7 @@ class ProductsComponent extends Component
 
     public function toggleLensCatalog()
     {
+        abort_if(!\App\Services\LicenseService::has(\App\Support\Feature::PRODUCT_IMPORT), 403);
         $this->showLensCatalog = !$this->showLensCatalog;
         $this->cancelLensOption();
     }
@@ -420,6 +421,7 @@ class ProductsComponent extends Component
 
     public function exportCsv()
     {
+        abort_if(!\App\Services\LicenseService::has(\App\Support\Feature::PRODUCT_IMPORT), 403);
         $products = $this->getFilteredQuery()->get();
         
         $filename = 'products_' . $this->activeTab . '_' . now()->format('Y-m-d_His') . '.csv';
@@ -469,6 +471,7 @@ class ProductsComponent extends Component
 
     public function importCsv()
     {
+        abort_if(!\App\Services\LicenseService::has(\App\Support\Feature::PRODUCT_IMPORT), 403);
         $this->validate([
             'importFile' => 'required|file|'.\App\Support\UploadLimits::rule().'|mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel',
         ], [
@@ -558,6 +561,7 @@ class ProductsComponent extends Component
 
     public function downloadTemplate()
     {
+        abort_if(!\App\Services\LicenseService::has(\App\Support\Feature::PRODUCT_IMPORT), 403);
         $headers = [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => 'attachment; filename="products_import_template.csv"',

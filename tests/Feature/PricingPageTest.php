@@ -32,14 +32,15 @@ class PricingPageTest extends TestCase
     private function request(array $overrides = []): array
     {
         return $overrides + ['clinic_name' => 'Bright Eyes', 'contact_name' => 'Ama Mensah', 'phone' => '0244000111', 'email' => 'ama@brighteyes.test',
-            'town' => 'Kumasi', 'plan' => 'clinic-standard', 'interval' => 'monthly', 'users' => 1, 'storage_gb' => 0, 'visits' => 0, 'branches' => 1];
+            'town' => 'Kumasi', 'plan' => 'clinic-standard', 'interval' => 'monthly', 'users' => 1, 'storage_mb' => 0, 'visits' => 0, 'branches' => 1];
     }
 
-    public function test_the_page_lists_the_five_plans_and_the_login_page_links_to_it(): void
+    public function test_the_page_lists_the_four_plans_and_the_login_page_links_to_it(): void
     {
         $this->get('/pricing')->assertOk()
-            ->assertSeeInOrder(['Clinic Starter', 'GHS 100', 'Clinic Essential', 'Clinic Standard', 'Most popular', 'Clinic Plus', 'Clinic Pro', 'GHS 320'])
-            ->assertSee('Build your own')->assertSee('https://wa.me/233241234567', false);
+            ->assertSeeInOrder(['Clinic Starter', 'GHS 100', 'Clinic Standard', 'Most popular', 'Clinic Plus', 'Clinic Pro', 'GHS 320'])
+            ->assertDontSee('Clinic Essential')
+            ->assertSee('Customize')->assertSee('https://wa.me/233241234567', false);
 
         $this->get('/login')->assertOk()->assertSee(route('pricing'), false)->assertSee('See plans &amp; pricing', false);
     }
@@ -57,13 +58,13 @@ class PricingPageTest extends TestCase
     {
         $catalogue = app(PricingCatalogue::class);
 
-        // Referral letters and 1 GB of scans for a small clinic: Starter + two add-ons beats Essential.
-        $small = $catalogue->quote(['features' => [Feature::REFERRALS], 'users' => 2, 'storage_gb' => 1, 'visits' => 5]);
+        // Referral letters and 1 GB of scans for a small clinic: Starter + two add-ons (135) beats Standard + a storage pack (200).
+        $small = $catalogue->quote(['features' => [Feature::REFERRALS], 'users' => 2, 'storage_mb' => 1024, 'visits' => 5]);
         $this->assertSame('clinic-starter', $small['best']['family']);
         $this->assertEquals(135, $small['best']['monthly']);
         $this->assertSame([['Referral letters', 15.0], ['Scan storage: 1 × 1 GB', 20.0]], $small['best']['lines']);
 
-        // Expenses and the audit trail for 3 users and 12 patients a day: Standard (180) beats Essential + add-ons (200).
+        // Expenses and the audit trail for 3 users and 12 patients a day: Standard + two add-ons (230) beats Plus + one (275).
         $mid = $catalogue->quote(['features' => [Feature::EXPENSE_TRACKING, Feature::AUDIT_TRAIL], 'users' => 3, 'visits' => 12]);
         $this->assertSame('clinic-standard', $mid['best']['family']);
         $this->assertFalse($mid['options'][0]['ok']);
@@ -72,14 +73,29 @@ class PricingPageTest extends TestCase
         // Five users rule out every plan with a user limit.
         $this->assertSame('clinic-plus', $catalogue->quote(['users' => 5])['best']['family']);
 
-        // Any plan takes more branches, each at the plan's own price (yearly too): Standard with 2 is 180 + 180.
+        // Any plan takes more branches, each at the plan's own price (yearly too): Standard with 2 is 180 + 50 of add-ons + 180.
         $branches = $catalogue->quote(['branches' => 2, 'features' => [Feature::EXPENSE_TRACKING, Feature::AUDIT_TRAIL], 'visits' => 20]);
         $this->assertSame('clinic-standard', $branches['best']['family']);
-        $this->assertSame([['1 extra branch', 180.0, 1800.0]], $branches['best']['lines']);
-        $this->assertEquals([360, 3600], [$branches['best']['monthly'], $branches['best']['yearly']]);
+        $this->assertContains(['1 extra branch', 180.0, 2160.0], $branches['best']['lines']);
+        $this->assertEquals([410, 2160 + 12 * 50 + 2160], [$branches['best']['monthly'], $branches['best']['yearly']]);
+
+        // Storage is in MB: 300 MB fits Plus as it is, while Standard (150 MB) needs a 1 GB pack.
+        $scans = $catalogue->quote(['users' => 4, 'storage_mb' => 300, 'visits' => 20]);
+        $this->assertSame([['Scan storage: 1 × 1 GB', 20.0]], collect($scans['options'])->firstWhere('family', 'clinic-standard')['lines']);
+        $this->assertSame([], collect($scans['options'])->firstWhere('family', 'clinic-plus')['lines']);
+        $this->assertSame(300, $scans['selection']['storage_mb']);
+        $this->assertSame(2048, $catalogue->quote(['storage_gb' => 2])['selection']['storage_mb'], 'older forms sent GB');
+
+        // Clinical documents on Starter uses its own 20 MB; a plan with no scan storage would bring a storage pack with it.
+        $docs = $catalogue->quote(['features' => [Feature::CLINICAL_DOCUMENTS], 'users' => 2, 'visits' => 5]);
+        $this->assertSame('clinic-starter', $docs['best']['family']);
+        $this->assertSame([['Clinical documents & scan uploads', 15.0]], $docs['best']['lines']);
+        $noStorage = $catalogue->tiers()->map(fn ($tier) => $tier['family'] === 'clinic-starter' ? ['storage_mb' => 0] + $tier : $tier);
+        $this->assertSame([['Clinical documents & scan uploads', 15.0], ['Scan storage: 1 × 1 GB', 20.0]],
+            $catalogue->quote(['features' => [Feature::CLINICAL_DOCUMENTS], 'users' => 2, 'visits' => 5], $noStorage)['best']['lines']);
 
         // Yearly: the plan's yearly price plus twelve months of each add-on.
-        $this->assertEquals(1000 + 12 * 35, $small['best']['yearly']);
+        $this->assertEquals(1200 + 12 * 35, $small['best']['yearly'], 'yearly is twelve months: no free months');
     }
 
     public function test_an_extra_not_offered_on_its_own_needs_the_plan_that_has_it(): void
@@ -89,22 +105,22 @@ class PricingPageTest extends TestCase
         $quote = app(PricingCatalogue::class)->quote(['features' => [Feature::APPROVALS]]);
 
         $this->assertSame('clinic-pro', $quote['best']['family']);
-        $this->assertSame('Approvals (voids, discounts) isn\'t in this plan', $quote['options'][0]['why']);
+        $this->assertSame('Approvals (voids, discounts, refunds) isn\'t in this plan', $quote['options'][0]['why']);
     }
 
     public function test_a_request_is_saved_quoted_again_and_emailed_to_the_platform(): void
     {
         Mail::fake();
 
-        $this->post('/pricing/request', $this->request(['plan' => 'clinic-starter', 'features' => [Feature::REFERRALS], 'storage_gb' => 1, 'interval' => 'yearly',
+        $this->post('/pricing/request', $this->request(['plan' => 'clinic-starter', 'features' => [Feature::REFERRALS], 'storage_mb' => 1024, 'interval' => 'yearly',
             'message' => 'We open in December']))
             ->assertRedirect(route('pricing'))->assertSessionHas('pricing_sent');
 
         $request = PricingRequest::sole();
-        $this->assertSame(['Clinic Starter', 'new', 'yearly', '135.00', '1420.00'], [$request->plan_name, $request->status, $request->billing_interval, $request->monthly_total, $request->quoted_total]);
+        $this->assertSame(['Clinic Starter', 'new', 'yearly', '135.00', '1620.00'], [$request->plan_name, $request->status, $request->billing_interval, $request->monthly_total, $request->quoted_total]);
         $this->assertSame([Feature::REFERRALS], $request->selection['features']);
         Mail::assertSent(OwnerNoticeMail::class, fn ($mail) => $mail->hasTo(self::INBOX) && $mail->hasReplyTo('ama@brighteyes.test')
-            && $mail->heading === 'Bright Eyes asked for Clinic Starter' && $mail->details['Price'] === 'GHS 1,420.00 a year'
+            && $mail->heading === 'Bright Eyes asked for Clinic Starter' && $mail->details['Price'] === 'GHS 1,620.00 a year'
             && $mail->details['Add-ons'] === 'Referral letters, Scan storage: 1 × 1 GB');
     }
 
@@ -149,12 +165,12 @@ class PricingPageTest extends TestCase
         $admin->forceFill(['is_platform_admin' => true])->save();
 
         Livewire::actingAs($admin)->test(PricingRequestsComponent::class)->call('setTab', 'page')
-            ->set('page.clinic-essential.show', false)->set('page.clinic-pro.max_visits', '120')->set('page.clinic-pro.tagline', 'For hospitals')
+            ->set('page.clinic-plus.show', false)->set('page.clinic-pro.max_visits', '120')->set('page.clinic-pro.tagline', 'For hospitals')
             ->call('savePage')->assertHasNoErrors();
 
         $tiers = app(PricingCatalogue::class)->tiers();
-        $this->assertSame(['clinic-starter', 'clinic-standard', 'clinic-plus', 'clinic-pro'], $tiers->pluck('family')->all());
+        $this->assertSame(['clinic-starter', 'clinic-standard', 'clinic-pro'], $tiers->pluck('family')->all());
         $this->assertSame([120, 'For hospitals'], [$tiers->last()['max_visits'], $tiers->last()['tagline']]);
-        $this->get('/pricing')->assertDontSee('Clinic Essential')->assertSee('For hospitals');
+        $this->get('/pricing')->assertDontSee('Clinic Plus')->assertSee('For hospitals');
     }
 }

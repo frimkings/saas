@@ -44,7 +44,7 @@
                                         @if(($sel['product'] ?? null) === 'attendance')
                                         <div><b>Size:</b> {{ number_format($sel['staff'] ?? 0) }} staff on attendance{{ !empty($sel['size']) ? ' (priced up to ' . $sel['size'] . ')' : '' }}</div>
                                         @else
-                                        <div><b>Size:</b> {{ $sel['users'] ?? '—' }} users · {{ $sel['visits'] ?? '—' }} patients a day · {{ $sel['storage_gb'] ?? 0 }} GB scans · {{ $sel['branches'] ?? 1 }} {{ ($sel['branches'] ?? 1) == 1 ? 'branch' : 'branches' }}</div>
+                                        <div><b>Size:</b> {{ $sel['users'] ?? '—' }} users · {{ $sel['visits'] ?? '—' }} patients a day · {{ isset($sel['storage_mb']) ? \App\Services\PricingCatalogue::storageLabel((int) $sel['storage_mb']) : ($sel['storage_gb'] ?? 0).' GB' }} scans · {{ $sel['branches'] ?? 1 }} {{ ($sel['branches'] ?? 1) == 1 ? 'branch' : 'branches' }}</div>
                                         @endif
                                         @if($r->message)<div style="margin-top:6px"><b>Message:</b> {{ $r->message }}</div>@endif
                                     </div>

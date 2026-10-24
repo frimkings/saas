@@ -35,7 +35,8 @@ class PatientMedicalRecordController extends Controller
             ->get();
 
         // Get all refractions
-        $refractions = Refractions::where('patient_id', $patient->id)
+        // Refractions belong to the patient through their consultations (the table has no patient_id).
+        $refractions = Refractions::whereIn('consultation_id', $consultations->pluck('id'))
             ->with('consultation')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -174,7 +175,8 @@ class PatientMedicalRecordController extends Controller
             ->get();
 
         // Get all refractions
-        $refractions = Refractions::where('patient_id', $patient->id)
+        // Refractions belong to the patient through their consultations (the table has no patient_id).
+        $refractions = Refractions::whereIn('consultation_id', $consultations->pluck('id'))
             ->with('consultation')
             ->orderBy('created_at', 'desc')
             ->get();

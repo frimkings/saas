@@ -21,14 +21,17 @@ final class CommunicationsNavigation
         $superAdmin = $user->hasRole('Super Admin');
         $manager = $superAdmin || $user->hasRole('Manager');
         $campaigns = LicenseService::has(Feature::SMS_CAMPAIGNS);
+        // Messages to patients (templates, credits, WhatsApp, logs) come with Feature::PATIENT_MESSAGES.
+        $messages = LicenseService::has(Feature::PATIENT_MESSAGES);
 
         return array_values(array_filter([
-            $superAdmin ? ['admin.messages', 'Messages', 'fas fa-comment-dots text-primary'] : null,
-            $superAdmin ? ['admin.sms-settings', 'SMS Credits & Sending', 'fas fa-sms text-info'] : null,
-            $superAdmin ? ['admin.whatsapp-settings', 'WhatsApp', 'fab fa-whatsapp text-success'] : null,
+            $superAdmin && $messages ? ['admin.messages', 'Messages', 'fas fa-comment-dots text-primary'] : null,
+            // Credits and logs serve broadcasts too, so they come with either.
+            $superAdmin && ($messages || $campaigns) ? ['admin.sms-settings', 'SMS Credits & Sending', 'fas fa-sms text-info'] : null,
+            $superAdmin && $messages ? ['admin.whatsapp-settings', 'WhatsApp', 'fab fa-whatsapp text-success'] : null,
             $superAdmin && $campaigns ? ['admin.broadcast', 'Broadcast', 'fas fa-bullhorn text-warning'] : null,
             $manager && $campaigns ? ['admin.patient-recall', 'Patient Recall', 'fas fa-user-clock text-purple'] : null,
-            $manager ? ['admin.sms-logs', 'SMS Logs', 'fas fa-list text-secondary'] : null,
+            $manager && ($messages || $campaigns) ? ['admin.sms-logs', 'SMS Logs', 'fas fa-list text-secondary'] : null,
         ]));
     }
 

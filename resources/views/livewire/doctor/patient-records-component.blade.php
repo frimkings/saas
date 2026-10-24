@@ -70,12 +70,12 @@
                         <i class="fas fa-ban"></i> {{ !$clearance ? 'No Clearance' : ($clearance->payment_status !== 'Paid' ? 'Unpaid' : 'Used') }}
                     </button>
                 @endif
-                @if($clearance)
+                @if($clearance && $canClinicalPdfs)
                     <a href="{{ route('doctor.medical-record.pdf', ['patient' => $patient, 'clearance' => $clearance]) }}"
                         class="px-btn px-btn--ghost" title="Download Medical Record PDF">
                         <i class="fas fa-file-pdf"></i> PDF
                     </a>
-                @else
+                @elseif(!$clearance && $canClinicalPdfs)
                     <button disabled class="px-btn px-btn--ghost" title="No clearance available">
                         <i class="fas fa-file-pdf"></i> PDF
                     </button>
@@ -115,6 +115,7 @@
                 wire:click.prevent="switchTab('refraction')">
                 <i class="fas fa-glasses"></i> Refraction
             </button>
+            @if($canDocuments || $patientDocumentCount > 0)
             <button class="emr-tab {{ $activeTab === 'bills' ? 'emr-tab--active' : '' }}"
                 wire:click.prevent="switchTab('bills')">
                 <i class="fas fa-folder-open"></i> Clinical Documents
@@ -122,6 +123,7 @@
                     <span class="emr-tab-badge">{{ $patientDocumentCount }}</span>
                 @endif
             </button>
+            @endif
             @if($activeTab === 'consultation')
                 <div class="consultation-tab-context"><div><strong><i class="fas fa-stethoscope"></i> {{ $isEditMode ? 'Edit Consultation' : 'New Consultation' }}</strong><small>{{ $isEditMode && $consultation ? 'Created by '.($consultation->user->name ?? 'N/A').' · '.$consultation->created_at->format('d M Y h:i A') : 'Clinical record in progress' }}</small></div><button type="button" onclick="if (window.consultationDirty) { event.stopImmediatePropagation(); appConfirm('Discard unsaved consultation changes?').then(ok => ok &amp;&amp; Livewire.find(this.closest('[wire\\:id]').getAttribute('wire:id')).cancelAndGoBack()) }" wire:click="cancelAndGoBack"><i class="fas fa-arrow-left"></i> Cancel</button></div>
             @endif
@@ -154,12 +156,13 @@
 
                     @include('livewire.doctor.partials.history-health-summary')
                     <nav class="history-subnav" aria-label="Patient history views">
-                        <button type="button" :class="{'is-active':historyView==='overview'}" :aria-pressed="historyView==='overview'" @click="historyView='overview'; $nextTick(()=>window.dispatchEvent(new Event('resize')))"><i class="fas fa-chart-line"></i> Charts & Refraction History</button>
-                        <button type="button" :class="{'is-active':historyView==='scans'}" :aria-pressed="historyView==='scans'" @click="historyView='scans'"><i class="fas fa-images"></i> Diagnostic Scans <span>{{ $patientDocumentCount }}</span></button>
+                        <button type="button" :class="{'is-active':historyView==='overview'}" :aria-pressed="historyView==='overview'" @click="historyView='overview'; $nextTick(()=>window.dispatchEvent(new Event('resize')))"><i class="fas fa-chart-line"></i> {{ $canCharts ? 'Charts & Refraction History' : 'Refraction History' }}</button>
+                        @if($canDocuments || $patientDocumentCount > 0)<button type="button" :class="{'is-active':historyView==='scans'}" :aria-pressed="historyView==='scans'" @click="historyView='scans'"><i class="fas fa-images"></i> Diagnostic Scans <span>{{ $patientDocumentCount }}</span></button>@endif
                         <button type="button" :class="{'is-active':historyView==='records'}" :aria-pressed="historyView==='records'" @click="historyView='records'"><i class="fas fa-history"></i> Past Encounters & Records <span>{{ $consultationCount }}</span></button>
                         @if($legacyPaymentCount)<button type="button" :class="{'is-active':historyView==='legacy-payments'}" :aria-pressed="historyView==='legacy-payments'" @click="historyView='legacy-payments'"><i class="fas fa-receipt"></i> Previous Software Payments <span>{{ $legacyPaymentCount }}</span></button>@endif
                     </nav>
 <div x-show="historyView==='overview'">
+@if($canCharts)
 <div class="history-charts-grid">
                         {{-- VA Trend Chart --}}
                         <div class="metrics-card">
@@ -199,8 +202,10 @@
                                 </div>
                             @endif
                         </div>
-                    <div class="history-chart-stats"><div class="history-eye-od">Latest OD IOP<strong>{{ $clinicalTrendData['summary']['latestIopOd'] ?? '—' }} <small>mmHg</small></strong></div><div class="history-eye-os">Latest OS IOP<strong>{{ $clinicalTrendData['summary']['latestIopOs'] ?? '—' }} <small>mmHg</small></strong></div></div></div></div>@include('livewire.doctor.partials.history-refraction-table')
+                    <div class="history-chart-stats"><div class="history-eye-od">Latest OD IOP<strong>{{ $clinicalTrendData['summary']['latestIopOd'] ?? '—' }} <small>mmHg</small></strong></div><div class="history-eye-os">Latest OS IOP<strong>{{ $clinicalTrendData['summary']['latestIopOs'] ?? '—' }} <small>mmHg</small></strong></div></div></div></div>@endif
+@include('livewire.doctor.partials.history-refraction-table')
                     {{-- Eye Disease Risk Flags --}}
+                    @if($canCharts)
                     <div class="section-card mb-section">
                         <div class="section-card__header">
                             <div class="section-card__title">
@@ -246,6 +251,7 @@
                             </div>
                         </div>
                     </div>
+                    @endif
 
 
 </div>
@@ -267,6 +273,7 @@
                                 <span class="section-badge">{{ $patientRecords->total() }}</span>
                             </div>
                             <div class="section-card__actions">
+                                @if($canClinicalPdfs)
                                 @php $selectedSummaryIds = collect($selectedVisitSummaries)->filter()->implode(','); @endphp
                                 <a href="{{ $selectedSummaryIds ? route('doctor.visit-summaries.download', ['ids' => $selectedSummaryIds]) : '#' }}"
                                     class="px-btn px-btn--ghost {{ $selectedSummaryIds ? '' : 'disabled' }}"
@@ -276,6 +283,7 @@
                                         <span class="section-badge">{{ count($selectedVisitSummaries) }}</span>
                                     @endif
                                 </a>
+                                @endif
 
                             </div>
                         </div>
@@ -729,6 +737,7 @@
             <div class="w-full px-2">
              
 
+                @if($canAppointments)
                 {{-- ⭐ APPOINTMENT BOOKING SECTION - Right Column ⭐ --}}
                 <div class="ui-panel mb-4">
                     <div class="ui-section-heading">
@@ -755,6 +764,7 @@
                         @endif
                     </div>
                 </div>
+                @endif
 
                 {{-- Next routine eye exam: the recall SMS goes out ahead of it (when the clinic switches it on) --}}
                 <div class="ui-panel mb-4">
@@ -788,6 +798,7 @@
                     </div>
                 </div>
 
+                @if($canAppointments)
                 <div class="border-t border-slate-200 pt-4" x-data="{showAppointment:@js($showAppointmentSection)}">
                     <div class="mb-2">
                         <button type="button" @click="showAppointment=!showAppointment" :class="showAppointment?'ui-button-secondary':'ui-button-secondary'" class="ui-button ui-button-sm w-full font-semibold shadow-sm ui-button-secondary">
@@ -799,6 +810,7 @@
                                 @include('components.appointment-quick-followup')
                         </div></template>
                 </div>
+                @endif
             </div>
 
         </div>
@@ -1325,6 +1337,8 @@
                     </div>
 
                     <div class="flex flex-wrap -mx-2">
+                        {{-- Uploading needs Feature::CLINICAL_DOCUMENTS; scans from before a downgrade stay viewable --}}
+                        @if($canDocuments)
                         <div class="w-full lg:w-5/12 px-2 mb-4">
                             <div class="ui-panel h-full">
                                 <div class="ui-section-heading">
@@ -1397,6 +1411,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <div class="w-full lg:w-7/12 px-2 mb-4">
                             <div class="ui-panel h-full">

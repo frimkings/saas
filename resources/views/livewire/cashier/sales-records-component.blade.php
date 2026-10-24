@@ -47,7 +47,7 @@
                 <button type="button" wire:click="sortBy('total_amount')" class="ui-button ui-button-secondary flex-1">
                     Amount @if($sortColumn === 'total_amount')<i class="fas fa-sort-{{ $sortDirection === 'asc' ? 'up' : 'down' }}" aria-hidden="true"></i>@endif
                 </button>
-                <button type="button" wire:click="exportCSV" class="ui-button ui-button-secondary flex-1"><i class="fas fa-file-csv" aria-hidden="true"></i>CSV</button>
+                @if(\App\Services\LicenseService::has(\App\Support\Feature::SALES_EXPORT))<button type="button" wire:click="exportCSV" class="ui-button ui-button-secondary flex-1"><i class="fas fa-file-csv" aria-hidden="true"></i>CSV</button>@endif
             </div>
         </div>
         <button type="button" wire:click="resetFilters" class="ui-button ui-button-secondary w-full">Reset</button>

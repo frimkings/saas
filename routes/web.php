@@ -114,8 +114,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/subscription/locked', \App\Http\Controllers\SubscriptionLockedController::class)->name('subscription.locked');
     Route::post('/context/navigation-workspace', \App\Http\Controllers\NavigationWorkspaceController::class)->name('navigation.workspace');
     // "Needs attention": today's reminders for clinic staff (everyone sees everything).
-    Route::get('/attention', \App\Livewire\AttentionPanelComponent::class)->name('attention');
-    Route::get('/attention/old-orders', \App\Livewire\OldOrdersComponent::class)->name('attention.old-orders');
+    Route::get('/attention', \App\Livewire\AttentionPanelComponent::class)->name('attention')->middleware('feature:needs_attention');
+    Route::get('/attention/old-orders', \App\Livewire\OldOrdersComponent::class)->name('attention.old-orders')->middleware('feature:needs_attention');
     // A platform announcement banner the signed-in Super Admin has read.
     Route::post('/announcements/{announcement}/dismiss', function (\App\Models\PlatformAnnouncement $announcement) {
         app(\App\Services\Platform\Announcements::class)->dismiss($announcement, auth()->user());
@@ -139,7 +139,7 @@ Route::middleware(['auth'])->group(function () {
     // The one endpoint open pages poll: badge counts and approval/clearance notices.
     Route::get('/pulse', \App\Http\Controllers\PulseController::class)->name('pulse');
 
-    Route::get('/messages', StaffMessagingComponent::class)->name('staff.messages');
+    Route::get('/messages', StaffMessagingComponent::class)->name('staff.messages')->middleware('feature:staff_messages');
 });
 
 
@@ -152,8 +152,8 @@ Route::middleware(['auth', 'role:Secretary|Manager|Super Admin'])->group(functio
    Route::get('secretary/dashboard', SecretaryDashboardController::class)->name('secretary.dashboard');
 
     Route::get('secretary/patients', PatientsComponent::class)->name('secretary.patients');
-    Route::get('secretary/appointments', AppointmentsComponent::class)->name('secretary.appointments')->middleware('feature:appointments');
-    Route::get('secretary/spectacles', SpectaclesComponent::class)->name('secretary.spectacles');
+    Route::get('secretary/appointments', AppointmentsComponent::class)->name('secretary.appointments')->middleware('feature-or-leftover:appointments');
+    Route::get('secretary/spectacles', SpectaclesComponent::class)->name('secretary.spectacles')->middleware('feature:spectacle_orders');
 Route::get('secretary/patient-clearance', CashierPatientClearanceComponent::class)->name('secretary.patient-clearance');
 
 
@@ -178,8 +178,8 @@ Route::middleware(['auth', 'role:Secretary|Manager|Super Admin'])->group(functio
    Route::get('secretary/dashboard', SecretaryDashboardController::class)->name('secretary.dashboard');
 
     Route::get('secretary/patients', PatientsComponent::class)->name('secretary.patients');
-    Route::get('secretary/appointments', AppointmentsComponent::class)->name('secretary.appointments')->middleware('feature:appointments');
-    Route::get('secretary/spectacles', SpectaclesComponent::class)->name('secretary.spectacles');
+    Route::get('secretary/appointments', AppointmentsComponent::class)->name('secretary.appointments')->middleware('feature-or-leftover:appointments');
+    Route::get('secretary/spectacles', SpectaclesComponent::class)->name('secretary.spectacles')->middleware('feature:spectacle_orders');
 Route::get('secretary/patient-clearance', CashierPatientClearanceComponent::class)->name('secretary.patient-clearance');
 
 
@@ -192,8 +192,8 @@ Route::middleware(['auth', 'role:Secretary|Cashier|Optician|Manager|Super Admin'
  //cashier
 Route::get('cashier/dashboard', CashierDashboardComponent::class)->name('cashier.dashboard');
 Route::get('cashier/seller-desk', POSComponent::class)->name('cashier.seller-desk');
-Route::get('cashier/day-close', \App\Livewire\Admin\DayCloseComponent::class)->name('admin.day-close')->middleware('role:Cashier|Manager|Super Admin');
-Route::get('cashier/outstanding-balances', OutstandingBalancesComponent::class)->name('cashier.outstanding-balances')->middleware('feature:outstanding_balances');
+Route::get('cashier/day-close', \App\Livewire\Admin\DayCloseComponent::class)->name('admin.day-close')->middleware('feature:cash_book')->middleware('role:Cashier|Manager|Super Admin');
+Route::get('cashier/outstanding-balances', OutstandingBalancesComponent::class)->name('cashier.outstanding-balances')->middleware('feature-or-leftover:outstanding_balances');
 Route::get('/livewire/ajax-patients', [POSComponent::class, 'getPatientsJson']);
 Route::get('/cashier/sales-records', SalesRecordsComponent::class)->name('cashier.sales-records');
 Route::get('/cashier/refund-logs', RefundLogsComponent::class)->name('refunds.logs');
@@ -307,7 +307,7 @@ Route::get('/admin/subscription/invoices/{invoice}', [\App\Http\Controllers\Clin
 Route::get('/admin/subscription/receipts/{invoice}', [\App\Http\Controllers\ClinicBillingDocumentController::class,'receipt'])->middleware('role:Super Admin')->name('admin.subscription.receipt');
 Route::get('/admin/sales-records', SalesRecordsComponent::class)->name('admin.sales-records');
 Route::get('/admin/sales-records/previous-software', \App\Livewire\Admin\LegacyPaymentsComponent::class)->name('admin.sales-records.previous');
-Route::get('/admin/reports/export/pdf', [\App\Http\Controllers\ReportExportController::class, 'exportPdf'])->name('reports.export.pdf')->middleware('optical-only');
+Route::get('/admin/reports/export/pdf', [\App\Http\Controllers\ReportExportController::class, 'exportPdf'])->name('reports.export.pdf')->middleware('feature:sales_reports')->middleware('optical-only');
 Route::get('/admin/income-statement', \App\Livewire\Admin\IncomeStatementComponent::class)->name('admin.income-statement')->middleware(['optical-only', 'feature:advanced_reports']);
 Route::get('/admin/combined-statement', \App\Livewire\Admin\CombinedStatementComponent::class)->name('admin.combined-statement')->middleware(['feature:advanced_reports', 'feature:optical']);
 Route::get('/admin/combined-statement/export/{format}', \App\Http\Controllers\CombinedStatementExportController::class)->whereIn('format', ['csv', 'pdf'])->name('admin.combined-statement.export')->middleware(['feature:advanced_reports', 'feature:optical']);
@@ -315,11 +315,11 @@ Route::get('/admin/income-statement/export/csv', [IncomeStatementExportControlle
 Route::get('/admin/income-statement/export/pdf', [IncomeStatementExportController::class, 'exportPdf'])->name('admin.income-statement.export.pdf')->middleware(['optical-only', 'feature:advanced_reports']);
 Route::get('/admin/income-statement/preview', [IncomeStatementExportController::class, 'preview'])->name('admin.income-statement.preview')->middleware(['optical-only', 'feature:advanced_reports']);
 Route::get('/admin/diagnoses', \App\Livewire\Admin\DiagnosisComponent::class)->name('admin.diagnoses');
-Route::get('/admin/inventory-alerts', InventoryAlertsComponent::class)->name('admin.inventory-alerts')->middleware('feature:inventory');
+Route::get('/admin/inventory-alerts', InventoryAlertsComponent::class)->name('admin.inventory-alerts')->middleware('feature:inventory_alerts')->middleware('feature:inventory');
 Route::get('/admin/stock-movements', StockMovementComponent::class)->name('admin.stock-movements')->middleware('feature:inventory');
-Route::get('/admin/stock-transfers', \App\Livewire\Admin\StockTransferComponent::class)->name('admin.stock-transfers')->middleware('feature:inventory');
+Route::get('/admin/stock-transfers', \App\Livewire\Admin\StockTransferComponent::class)->name('admin.stock-transfers')->middleware('feature:purchasing')->middleware('feature:inventory');
 Route::get('/admin/daily-cash-summary', DailyCashSummaryComponent::class)->name('admin.daily-cash-summary');
-Route::get('/admin/cash-book', \App\Livewire\Admin\CashBookComponent::class)->name('admin.cash-book');
+Route::get('/admin/cash-book', \App\Livewire\Admin\CashBookComponent::class)->name('admin.cash-book')->middleware('feature:cash_book');
 Route::get('/admin/lens-outstanding-report', function () { // feature:spectacles_pro checked in middleware below
     $debts = \App\Models\LensOrder::with(['refraction.consultation.patient'])
         ->whereRaw('(frame_price + lens_price + glazing_fee + service_total - discount_amount) > paid_amount')
@@ -337,7 +337,7 @@ Route::get('/admin/lens-outstanding-report', function () { // feature:spectacles
 Route::get('/admin/login-history', LoginHistoryComponent::class)->name('admin.login-history')->middleware('feature:audit_trail');
 Route::get('/admin/audit-trail', AuditTrailViewerComponent::class)->name('admin.audit-trail')->middleware('feature:audit_trail');
 Route::get('/admin/license', LicenseComponent::class)->name('admin.license')->middleware(['auth', 'role:Super Admin']);
-Route::get('/admin/sms-logs', SmsLogsComponent::class)->name('admin.sms-logs');
+Route::get('/admin/sms-logs', SmsLogsComponent::class)->name('admin.sms-logs')->middleware('feature:patient_messages,sms_campaigns');
 Route::get('/admin/expenses', \App\Livewire\Admin\ExpensesComponent::class)->name('admin.expenses')->middleware(['optical-only', 'feature:expense_tracking']);
 Route::get('/admin/expenses/previous-software', \App\Livewire\Admin\LegacyExpensesComponent::class)->name('admin.expenses.previous')->middleware(['optical-only', 'feature:expense_tracking']);
 Route::get('/admin/expenses/receipt/{expense}', function (\App\Models\Expense $expense) {
@@ -349,32 +349,32 @@ Route::get('admin/clinical-task-center', ClinicalTaskCenterComponent::class)->na
 Route::get('admin/category', CategoryComponent::class)->name('admin.category');
 Route::get('admin/product', ProductsComponent::class)->name('admin.product');
 Route::get('admin/product/previous-software-names', \App\Livewire\Admin\LegacyMedicationNamesComponent::class)->name('admin.legacy-medication-names');
-Route::get('admin/suppliers', \App\Livewire\Admin\SupplierComponent::class)->name('admin.suppliers')->middleware('feature:inventory');
-Route::get('admin/quotations', \App\Livewire\Admin\QuotationComponent::class)->name('admin.quotations');
+Route::get('admin/suppliers', \App\Livewire\Admin\SupplierComponent::class)->name('admin.suppliers')->middleware('feature:purchasing')->middleware('feature:inventory');
+Route::get('admin/quotations', \App\Livewire\Admin\QuotationComponent::class)->name('admin.quotations')->middleware('feature:quotations');
 Route::get('admin/quotations/{id}/pdf', function (int $id) {
     $q = \App\Models\Quotation::with('items', 'creator')->findOrFail($id);
     $setting = \App\Models\Setting::getSettings();
     return \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.quotation', compact('q', 'setting'))
         ->setPaper('a4', 'portrait')
         ->stream("Quotation-{$q->quotation_number}.pdf");
-})->name('admin.quotations.pdf');
-Route::get('admin/purchase-orders', \App\Livewire\Admin\PurchaseOrderComponent::class)->name('admin.purchase-orders');
+})->name('admin.quotations.pdf')->middleware('feature:quotations');
+Route::get('admin/purchase-orders', \App\Livewire\Admin\PurchaseOrderComponent::class)->name('admin.purchase-orders')->middleware('feature:purchasing');
 Route::get('admin/purchase-orders/{id}/pdf', function (int $id) {
     $po = \App\Models\PurchaseOrder::with('items', 'supplier', 'creator')->findOrFail($id);
     $setting = \App\Models\Setting::getSettings();
     return \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.purchase-order', compact('po', 'setting'))
         ->setPaper('a4', 'portrait')
         ->stream("PO-{$po->po_number}.pdf");
-})->name('admin.purchase-orders.pdf');
-Route::get('admin/patient-ledger', \App\Livewire\Admin\PatientLedgerComponent::class)->name('admin.patient-ledger');
+})->name('admin.purchase-orders.pdf')->middleware('feature:purchasing');
+Route::get('admin/patient-ledger', \App\Livewire\Admin\PatientLedgerComponent::class)->name('admin.patient-ledger')->middleware('feature:patient_ledger');
 // Route::get('users', UsersComponent::class)->name('admin.users');
 Route::get('admin/settings', AdminSettingsComponent::class)->name('admin.settings');
 Route::get('admin/branches', \App\Livewire\Admin\BranchManagementComponent::class)->name('admin.branches');
 
 // Insurance module
-Route::get('/admin/insurance/claims', \App\Livewire\Admin\InsuranceClaimsComponent::class)->name('admin.insurance.claims');
-Route::get('/admin/insurance/insurers', \App\Livewire\Admin\InsurersComponent::class)->name('admin.insurance.insurers');
-Route::get('/admin/insurance/receivables', \App\Livewire\Admin\InsurerReceivablesComponent::class)->name('admin.insurance.receivables');
+Route::get('/admin/insurance/claims', \App\Livewire\Admin\InsuranceClaimsComponent::class)->name('admin.insurance.claims')->middleware('feature-or-leftover:insurance');
+Route::get('/admin/insurance/insurers', \App\Livewire\Admin\InsurersComponent::class)->name('admin.insurance.insurers')->middleware('feature-or-leftover:insurance');
+Route::get('/admin/insurance/receivables', \App\Livewire\Admin\InsurerReceivablesComponent::class)->name('admin.insurance.receivables')->middleware('feature-or-leftover:insurance');
 
 // Staff attendance from the terminal's monthly report
 // Heads of department open these too; the page and the download decide whose attendance each person sees.
@@ -391,17 +391,17 @@ Route::get('/admin/patient-recall', \App\Livewire\Admin\PatientRecallComponent::
 
 // Communications: the clinic's messages, SMS credits, WhatsApp and broadcasts (Super Admin, as in Settings).
 Route::middleware(['auth', 'role:Super Admin'])->prefix('admin/communications')->group(function () {
-    Route::get('messages', \App\Livewire\Admin\SmsTemplatesComponent::class)->name('admin.messages');
-    Route::get('sms', \App\Livewire\Admin\SmsSettingsComponent::class)->name('admin.sms-settings');
-    Route::get('whatsapp', \App\Livewire\Admin\WhatsAppSettingsComponent::class)->name('admin.whatsapp-settings');
+    Route::get('messages', \App\Livewire\Admin\SmsTemplatesComponent::class)->name('admin.messages')->middleware('feature:patient_messages');
+    Route::get('sms', \App\Livewire\Admin\SmsSettingsComponent::class)->name('admin.sms-settings')->middleware('feature:patient_messages,sms_campaigns');
+    Route::get('whatsapp', \App\Livewire\Admin\WhatsAppSettingsComponent::class)->name('admin.whatsapp-settings')->middleware('feature:patient_messages');
     Route::get('broadcast', \App\Livewire\Admin\BroadcastComponent::class)->name('admin.broadcast')->middleware('feature:sms_campaigns');
 });
 
 // Insurer remittances: Super Admin, or any role given the "record insurer payments" permission.
-Route::get('admin/insurance/payments', \App\Livewire\Admin\InsurerPaymentsComponent::class)->middleware(['auth', 'role_or_permission:Super Admin|record insurer payments'])->name('admin.insurance.payments');
+Route::get('admin/insurance/payments', \App\Livewire\Admin\InsurerPaymentsComponent::class)->middleware(['auth', 'role_or_permission:Super Admin|record insurer payments'])->name('admin.insurance.payments')->middleware('feature-or-leftover:insurance');
 
 Route::get('admin/users', UserRoleManagerComponent::class)->middleware(['auth', 'role_or_permission:Super Admin|manage users'])->name('admin.users');
-Route::get('admin/roles-permissions', RolePermissionManagerComponent::class)->middleware(['auth', 'role:Super Admin'])->name('admin.roles-permissions');
+Route::get('admin/roles-permissions', RolePermissionManagerComponent::class)->middleware(['auth', 'role:Super Admin'])->name('admin.roles-permissions')->middleware('feature:custom_roles');
 Route::get('admin/password-reset-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'password_reset']))->middleware(['auth', 'role:Super Admin'])->name('admin.password-reset-approvals');
 
 Route::middleware(['auth', 'role:Super Admin'])->group(function () {
@@ -438,8 +438,8 @@ Route::middleware(['auth', 'role:Super Admin'])->group(function () {
     })->name('admin.backup.download')->middleware('feature:manual_backup');
 });
 
+Route::get('admin/approvals', AllApprovalsComponent::class)->middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billing|approve clearance revoke'])->name('admin.approvals');
 Route::middleware(['auth', 'role_or_permission:Manager|Super Admin|manage billing|approve clearance revoke', 'feature:approvals'])->group(function () {
-    Route::get('admin/approvals', AllApprovalsComponent::class)->name('admin.approvals');
     Route::get('admin/discount-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'discount']))->name('admin.discount-approvals');
     Route::get('admin/refund-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'refund']))->name('admin.refund-approvals');
     Route::get('admin/clearance-revoke-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'revoke']))->name('admin.clearance-revoke-approvals');
@@ -459,17 +459,17 @@ Route::get('doctor/patientrecords-{clearance}', PatientRecordsComponent::class)-
 Route::get('doctor/allrecords', AllrecordsComponent::class)->name('doctor.all-records');
 Route::get('/doctor/patient/{patient}/clearance/{clearance}/medical-record/pdf', 
     [PatientMedicalRecordController::class, 'generatePDF'])
-    ->name('doctor.medical-record.pdf');
+    ->name('doctor.medical-record.pdf')->middleware('feature:clinical_pdfs');
 Route::get('/doctor/patient/{patient}/clearance/{clearance}/medical-record/preview', 
     [PatientMedicalRecordController::class, 'preview'])
-    ->name('doctor.medical-record.preview');
+    ->name('doctor.medical-record.preview')->middleware('feature:clinical_pdfs');
 
 Route::get('/doctor/consultation/{consultation}/pdf', 
     [PatientMedicalRecordController::class, 'generateConsultationPDF'])
-    ->name('doctor.consultation.pdf');
+    ->name('doctor.consultation.pdf')->middleware('feature:clinical_pdfs');
 Route::get('/doctor/consultation/{consultation}/visit-summary/print',
     [PatientMedicalRecordController::class, 'visitSummary'])
-    ->name('doctor.visit-summary.print');
+    ->name('doctor.visit-summary.print')->middleware('feature:clinical_pdfs');
 Route::get('/doctor/consultation/{consultation}/prescription/print',
     [PatientMedicalRecordController::class, 'printPrescription'])
     ->name('doctor.prescription.print');
@@ -478,7 +478,7 @@ Route::get('/doctor/patient/{patient}/timeline',
     ->name('doctor.patient-timeline');
 Route::get('/doctor/visit-summaries/download',
     [PatientMedicalRecordController::class, 'downloadVisitSummaries'])
-    ->name('doctor.visit-summaries.download');
+    ->name('doctor.visit-summaries.download')->middleware('feature:clinical_pdfs');
 
 Route::get('doctor/referrals', ReferralComponent::class)->name('doctor.referrals')->middleware('feature:referrals');
 Route::get('/doctor/referrals/{referral}/print', [ReferralController::class, 'printLetter'])->name('doctor.referral.pdf')->middleware('feature:referrals');

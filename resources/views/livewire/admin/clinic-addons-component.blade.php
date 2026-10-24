@@ -29,6 +29,7 @@
                                 <button type="button" class="ui-button ui-button-sm ui-button-secondary" wire:click="ask('{{ $feature }}')">Request</button>
                             @endif
                         </div>
+                        @if($notes[$feature] ?? null)<small class="block text-slate-500 mt-1">{{ $notes[$feature] }}</small>@endif
                         @if($requesting === $feature)
                             <div class="mt-2">
                                 <textarea class="ui-input ui-input-sm" rows="2" wire:model="message" placeholder="Anything we should know? (optional)" aria-label="Message with the request"></textarea>

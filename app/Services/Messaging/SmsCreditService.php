@@ -128,6 +128,24 @@ class SmsCreditService
         ]);
     }
 
+    /**
+     * A yearly plan comes with SMS credits (ClinicalSuitePlans::YEARLY_SMS): added once the yearly renewal
+     * invoice is paid in full, once per invoice.
+     */
+    public function grantYearlyPlanSms(PlatformInvoice $invoice): ?SmsCreditTransaction
+    {
+        $subscription = $invoice->subscription;
+        if ($invoice->source !== 'renewal' || $subscription?->billing_interval !== 'yearly') return null;
+        $credits = \App\Support\Pricing\ClinicalSuitePlans::YEARLY_SMS[$subscription->plan?->family_code] ?? 0;
+        if ($credits <= 0) return null;
+
+        return $this->add($invoice->clinic_id, $credits, 'grant', [
+            'platform_invoice_id' => $invoice->id,
+            'note'                => "Free SMS with the yearly plan (invoice {$invoice->number})",
+            'idempotency_key'     => 'yearly-sms:invoice:' . $invoice->id,
+        ]);
+    }
+
     /** A clinic asks to buy a bundle: issue an invoice; credits follow once it is paid. */
     public function requestBundle(Clinic $clinic, SmsBundle $bundle): PlatformInvoice
     {

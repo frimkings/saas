@@ -61,8 +61,8 @@ return [
         'admin.login-history' => 'audit_trail',
         'admin.expenses' => 'expense_tracking',
         'admin.report-delivery' => 'report_delivery',
-        'cashier.outstanding-balances' => 'outstanding_balances',
         'doctor.referrals' => 'referrals',
-        'secretary.appointments' => 'appointments',
+        // Appointments and outstanding balances are checked on their routes (feature-or-leftover), which also
+        // keep them open to finish work left from a bigger plan.
     ],
 ];

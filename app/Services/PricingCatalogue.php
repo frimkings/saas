@@ -25,20 +25,26 @@ class PricingCatalogue
 
     /** How the page groups the features, in order; anything unlisted goes under "More". */
     public const GROUPS = [
-        'Daily work' => [Feature::APPOINTMENTS, Feature::OUTSTANDING_BALANCES, Feature::INVENTORY, Feature::REFERRALS, Feature::SMS_CAMPAIGNS],
-        'Money' => [Feature::EXPENSE_TRACKING, Feature::ADVANCED_REPORTS, Feature::APPROVALS],
-        'Records & scans' => [Feature::AUDIT_TRAIL],
-        'Owner emails' => [Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY, Feature::MORNING_ALERTS],
+        'Front desk' => [Feature::APPOINTMENTS, Feature::NEEDS_ATTENTION, Feature::DISCOUNTS, Feature::OUTSTANDING_BALANCES, Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS, Feature::SALES_EXPORT],
+        'Clinical' => [Feature::REFERRALS, Feature::CLINICAL_DOCUMENTS, Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS],
+        'Stock' => [Feature::INVENTORY, Feature::INVENTORY_ALERTS, Feature::PRODUCT_IMPORT, Feature::PURCHASING],
+        'Money' => [Feature::SALES_REPORTS_MONTH, Feature::SALES_REPORTS, Feature::EXPENSE_TRACKING, Feature::CASH_BOOK, Feature::PATIENT_LEDGER, Feature::ADVANCED_REPORTS, Feature::INSURANCE, Feature::APPROVALS],
+        'Messages' => [Feature::PATIENT_MESSAGES, Feature::SMS_CAMPAIGNS, Feature::STAFF_MESSAGES],
+        'Owner' => [Feature::BUSINESS_OVERVIEW, Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY, Feature::MORNING_ALERTS, Feature::AUDIT_TRAIL, Feature::CUSTOM_ROLES],
         'Optical' => [Feature::SPECTACLES_PRO],
     ];
 
     /** Shorter names for the page than the platform's plan screen uses. */
     private const LABELS = [
         Feature::ADVANCED_REPORTS => 'Income statement',
-        Feature::APPROVALS => 'Approvals (voids, discounts)', Feature::MORNING_ALERTS => 'Morning alerts email',
-        Feature::SPECTACLES_PRO => 'Spectacle orders pro', Feature::AUDIT_TRAIL => 'Audit trail & logins',
+        Feature::APPROVALS => 'Approvals (voids, discounts, refunds)', Feature::MORNING_ALERTS => 'Morning alerts email',
+        Feature::SPECTACLES_PRO => 'Outstanding-lenses report', Feature::AUDIT_TRAIL => 'Audit trail & logins',
         Feature::DAILY_SUMMARY => 'Daily sales email', Feature::WEEKLY_SUMMARY => 'Weekly sales email', Feature::MONTHLY_SUMMARY => 'Monthly sales email',
-        Feature::OUTSTANDING_BALANCES => 'Outstanding balances', Feature::SMS_CAMPAIGNS => 'SMS reminders',
+        Feature::OUTSTANDING_BALANCES => 'Outstanding balances', Feature::SMS_CAMPAIGNS => 'Broadcast & patient recall',
+        Feature::PATIENT_MESSAGES => 'SMS reminders & WhatsApp links', Feature::INVENTORY => 'Products & stock',
+        Feature::SALES_REPORTS_MONTH => 'Sales reports (this month)', Feature::SALES_REPORTS => 'Sales reports (any dates, PDF)',
+        Feature::INSURANCE => 'Insurance co-pay & claims', Feature::CLINICAL_PDFS => 'Visit summary & medical record PDFs',
+        Feature::HISTORY_CHARTS => 'VA & IOP charts, risk flags', Feature::PURCHASING => 'Suppliers & purchase orders',
     ];
 
     /** ['plans' => [family => ['order' => int, 'max_visits' => ?int, 'tagline' => string, 'featured' => bool]]] */
@@ -71,6 +77,7 @@ class PricingCatalogue
                     'tagline' => (string) ($page['tagline'] ?? ''), 'featured' => (bool) ($page['featured'] ?? false),
                     'order' => (int) ($page['order'] ?? 99), 'max_visits' => isset($page['max_visits']) ? (int) $page['max_visits'] : null,
                     'monthly' => (float) $plan->base_price, 'yearly' => (float) $plan->annual_price, 'currency' => $plan->currency ?: 'GHS',
+                    'yearly_sms' => \App\Support\Pricing\ClinicalSuitePlans::YEARLY_SMS[$plan->family_code] ?? 0,
                     'users' => $plan->included_users, 'storage_mb' => $plan->storage_limit_mb,
                     'branches' => $plan->included_branches, 'extra_branch' => (float) $plan->additional_branch_price,
                     'features' => array_values(array_diff($extras, [Feature::UNLIMITED_USERS])),
@@ -110,7 +117,7 @@ class PricingCatalogue
     }
 
     /**
-     * Quote a selection: features (keys), users, storage_gb, visits (a day), branches.
+     * Quote a selection: features (keys), users, storage_mb (or storage_gb), visits (a day), branches.
      * Returns the best option, every plan's option (or why it can't), and the yearly figures.
      */
     public function quote(array $selection, ?Collection $tiers = null): array
@@ -120,11 +127,11 @@ class PricingCatalogue
         $storage = $this->extras($tiers)['storage'];
         $wanted = array_values(array_intersect((array) ($selection['features'] ?? []), $extras->keys()->all()));
         $users = max(1, (int) ($selection['users'] ?? 1));
-        $gb = max(0, (int) ($selection['storage_gb'] ?? 0));
+        $mb = max(0, (int) ($selection['storage_mb'] ?? ((int) ($selection['storage_gb'] ?? 0)) * 1024));
         $visits = max(0, (int) ($selection['visits'] ?? 0));
         $branches = max(1, (int) ($selection['branches'] ?? 1));
 
-        $options = $tiers->map(function (array $tier) use ($extras, $storage, $wanted, $users, $gb, $visits, $branches) {
+        $options = $tiers->map(function (array $tier) use ($extras, $storage, $wanted, $users, $mb, $visits, $branches) {
             $lines = [];
             $why = null;
             if ($tier['max_visits'] !== null && $visits > $tier['max_visits']) $why = "Meant for up to {$tier['max_visits']} patients a day";
@@ -134,9 +141,11 @@ class PricingCatalogue
                 $extra = $extras[$feature];
                 $extra['offered'] ? $lines[] = [$extra['label'], $extra['price']] : $why = "{$extra['label']} isn't in this plan";
             }
-            $planGb = $tier['storage_mb'] === null ? null : intdiv((int) $tier['storage_mb'], 1024);
-            if (! $why && $planGb !== null && $gb > $planGb) {
-                $packs = (int) ceil(($gb - $planGb) / max(1, $storage['gb']));
+            $planMb = $tier['storage_mb'] === null ? null : (int) $tier['storage_mb'];
+            // Clinical documents bought on a plan with no scan storage need somewhere to keep them: one pack at least.
+            $needMb = in_array(Feature::CLINICAL_DOCUMENTS, $wanted, true) && $planMb === 0 ? max($mb, 1) : $mb;
+            if (! $why && $planMb !== null && $needMb > $planMb) {
+                $packs = (int) ceil(($needMb - $planMb) / (max(1, $storage['gb']) * 1024));
                 $storage['offered'] ? $lines[] = ["Scan storage: {$packs} × {$storage['gb']} GB", $packs * $storage['price']] : $why = 'Not enough scan storage';
             }
             if (! $why && $tier['branches'] !== null && $branches > $tier['branches']) {
@@ -160,7 +169,7 @@ class PricingCatalogue
 
         return ['best' => $best, 'options' => $options->all(),
             'saving' => $best && $starter && $starter['ok'] && $starter['family'] !== $best['family'] ? round($starter['monthly'] - $best['monthly'], 2) : 0.0,
-            'selection' => ['features' => $wanted, 'users' => $users, 'storage_gb' => $gb, 'visits' => $visits, 'branches' => $branches]];
+            'selection' => ['features' => $wanted, 'users' => $users, 'storage_mb' => $mb, 'visits' => $visits, 'branches' => $branches]];
     }
 
     public static function label(string $feature): string
@@ -169,6 +178,20 @@ class PricingCatalogue
     }
 
     /** Labels as one run of text: "SMS reminders, daily sales email, clinic inventory" (acronyms kept). */
+    /** Scan storage as people read it: "400 MB", "2 GB". */
+    public static function storageLabel(int $mb): string
+    {
+        return $mb >= 1024 ? rtrim(rtrim(number_format($mb / 1024, 1), '0'), '.') . ' GB' : $mb . ' MB';
+    }
+
+    /** The optional extras by page group, in the page's order: [group => [extra, ...]]. */
+    public static function grouped(array $items): array
+    {
+        $order = array_keys(self::GROUPS);
+        return collect($items)->groupBy('group')->sortBy(fn ($list, $group) => ($i = array_search($group, $order, true)) === false ? 99 : $i)
+            ->map(fn ($list) => $list->values()->all())->all();
+    }
+
     public static function sentence(array $features, string $glue = ', ', bool $lowerFirst = false): string
     {
         return collect(array_values($features))->map(function ($feature, $i) use ($lowerFirst) {

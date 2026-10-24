@@ -115,13 +115,13 @@ class DayCloseComponent extends Component
         $this->validate(['correctTo' => 'required|string', 'correctReason' => 'required|string|min:5|max:500'], [], ['correctTo' => 'right method', 'correctReason' => 'reason']);
         $payment = PaymentTransaction::findOrFail($this->correctingPaymentId);
         try {
-            $corrections->request($payment, $this->correctTo, $this->correctReason);
+            $correction = $corrections->request($payment, $this->correctTo, $this->correctReason);
         } catch (\RuntimeException $e) {
             $this->addError('correctTo', $e->getMessage());
             return;
         }
         $this->correctingPaymentId = null;
-        session()->flash('success', 'Correction sent to the owner for approval.');
+        session()->flash('success', $correction->status === PaymentCorrection::APPROVED ? 'Payment moved to the right method.' : 'Correction sent to the owner for approval.');
     }
 
     public function approveCorrection(int $id): void

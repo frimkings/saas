@@ -16,13 +16,17 @@ class StaffMessagesDropdownComponent extends Component
 
     public function syncCount(): void
     {
-        $this->unreadCount = auth()->check()
+        $this->unreadCount = auth()->check() && \App\Services\LicenseService::has(\App\Support\Feature::STAFF_MESSAGES)
             ? StaffMessage::where('recipient_id', auth()->id())->whereNull('read_at')->count()
             : 0;
     }
 
     public function render()
     {
+        // The staff inbox comes with Feature::STAFF_MESSAGES; without it the top-bar icon is left out.
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::STAFF_MESSAGES)) {
+            return '<div></div>';
+        }
         $messages = auth()->check()
             ? StaffMessage::with('sender')
                 ->whereNull('parent_id')

@@ -88,7 +88,7 @@ class AttendanceOnlyProductTest extends TestCase
         // On a clinic or optical plan attendance is an extra like any other: ticked, in "every extra", or not there.
         $this->assertFalse(PlanProduct::allows(PlanProduct::features('clinic', ['appointments']), 'attendance'));
         $withIt = PlanProduct::features('clinic', ['attendance']);
-        $this->assertSame(['clinical', 'attendance', 'attendance_parts_chosen'], $withIt);
+        $this->assertSame(['clinical', 'attendance', 'attendance_parts_chosen', 'clinic_tiers_chosen'], $withIt);
         $this->assertSame('clinic', PlanProduct::productOf($withIt));
         $this->assertTrue(PlanProduct::allows($withIt, 'attendance'));
         $this->assertTrue(PlanProduct::allows(PlanProduct::features('optical', [], true), 'attendance'));

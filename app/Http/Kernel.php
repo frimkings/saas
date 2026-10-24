@@ -83,6 +83,7 @@ class Kernel extends HttpKernel
     'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
     'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         'feature' => \App\Http\Middleware\EnsureFeatureEnabled::class,
+        'feature-or-leftover' => \App\Http\Middleware\EnsureFeatureOrLeftover::class,
         'optical-only' => \App\Http\Middleware\RedirectOpticalOnly::class,
         'optical.access' => \App\Http\Middleware\EnsureOpticalAccess::class,
         'tenant' => \App\Http\Middleware\ResolveTenantContext::class,

@@ -3,8 +3,8 @@
 @forelse($patientRecords as $record)
     <article class="history-encounter" wire:key="history-encounter-{{ $record->id }}">
         <header>
-            <div class="history-encounter-identity"><input type="checkbox" class="modern-checkbox" wire:model.live="selectedVisitSummaries" value="{{ $record->id }}" aria-label="Select visit {{ $record->created_at->format('d M Y') }} for download"><span class="history-visit-number">#{{ $record->id }}</span><div><h4>{{ $record->chiefComplaint ?: 'Consultation' }}</h4><p>{{ $record->created_at->format('d F Y · h:i A') }} · Doctor: {{ $record->user?->name ?: 'Not recorded' }}</p></div></div>
-            <a href="{{ route('doctor.visit-summary.print', $record) }}" target="_blank" rel="noopener" class="px-btn px-btn--primary"><i class="fas fa-eye"></i> View Full Detailed Record</a>
+            <div class="history-encounter-identity">@if($canClinicalPdfs)<input type="checkbox" class="modern-checkbox" wire:model.live="selectedVisitSummaries" value="{{ $record->id }}" aria-label="Select visit {{ $record->created_at->format('d M Y') }} for download">@endif<span class="history-visit-number">#{{ $record->id }}</span><div><h4>{{ $record->chiefComplaint ?: 'Consultation' }}</h4><p>{{ $record->created_at->format('d F Y · h:i A') }} · Doctor: {{ $record->user?->name ?: 'Not recorded' }}</p></div></div>
+            @if($canClinicalPdfs)<a href="{{ route('doctor.visit-summary.print', $record) }}" target="_blank" rel="noopener" class="px-btn px-btn--primary"><i class="fas fa-eye"></i> View Full Detailed Record</a>@endif
         </header>
         <div class="history-encounter-grid">
             <div><h5>Diagnoses</h5>@forelse($record->diagnoses as $diagnosis)<span class="diag-chip">{{ $diagnosis->name }}</span>@empty<p>No diagnosis recorded.</p>@endforelse</div>

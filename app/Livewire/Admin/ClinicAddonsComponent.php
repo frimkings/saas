@@ -52,6 +52,15 @@ class ClinicAddonsComponent extends Component
         $offers = $addons->catalogue($clinic)->filter(fn ($offer) => $offer['offered']
             && ! $addons->planIncludes($clinic, $offer['feature']) && ! $active->contains('feature', $offer['feature']));
 
-        return view('livewire.admin.clinic-addons-component', compact('active', 'pending', 'offers'));
+        // What else an add-on needs on this plan, said before the clinic asks for it.
+        $packPrice = (float) ($addons->catalogue($clinic)->get(\App\Support\Feature::SCAN_STORAGE_PACK)['price'] ?? 0);
+        $notes = array_filter([
+            \App\Support\Feature::CLINICAL_DOCUMENTS => $addons->needsStoragePack($clinic)
+                ? 'Your plan has no scan storage, so a 1 GB storage pack (' . number_format($packPrice, 2) . ' a month) comes with it.' : null,
+            \App\Support\Feature::APPOINTMENTS => ! \App\Services\LicenseService::has(\App\Support\Feature::PATIENT_MESSAGES)
+                ? 'Reminder texts to patients also need "SMS messages, WhatsApp & clinic links".' : null,
+        ]);
+
+        return view('livewire.admin.clinic-addons-component', compact('active', 'pending', 'offers', 'notes'));
     }
 }

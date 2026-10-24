@@ -516,7 +516,9 @@ window.printReceiptFromDom = function(event) {
                         <span>{{ currency() }} {{ number_format($totalAmount, 2) }}</span>
                     </div>
 
-                    {{-- Discount --}}
+                    {{-- Discount (Feature::DISCOUNTS); without approvals the cashier applies it --}}
+                    @php $approvalsOn = \App\Services\LicenseService::has(\App\Support\Feature::APPROVALS); @endphp
+                    @if(\App\Services\LicenseService::has(\App\Support\Feature::DISCOUNTS))
                     <div class="pos-discount-wrap" @if($pendingDiscountApprovalId && !$discountApproved) wire:poll.15s="checkDiscountApprovalStatus" @endif>
                         <div class="pos-discount-row">
                             <div class="pos-dtype">
@@ -541,8 +543,10 @@ window.printReceiptFromDom = function(event) {
                                         {{ $pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending' ? 'disabled' : '' }}>
                                     @if($pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending')
                                         <i class="fas fa-clock mr-1"></i>Pending
-                                    @else
+                                    @elseif($approvalsOn)
                                         <i class="fas fa-paper-plane mr-1"></i>Approve
+                                    @else
+                                        <i class="fas fa-check mr-1"></i>Apply
                                     @endif
                                 </button>
                             @endif
@@ -564,7 +568,7 @@ window.printReceiptFromDom = function(event) {
                                     </button>
                                     <span class="ms-auto">−{{ currency() }} {{ number_format($discountAmount, 2) }}</span>
                                 @else
-                                    <i class="fas fa-lock"></i> Manager approval required
+                                    <i class="fas fa-lock"></i> {{ $approvalsOn ? 'Manager approval required' : 'Press Apply to use this discount' }}
                                     <button type="button" class="pos-disc-remove" wire:click="removeDiscount">
                                         Remove discount
                                     </button>
@@ -573,6 +577,7 @@ window.printReceiptFromDom = function(event) {
                             </div>
                         @endif
                     </div>
+                    @endif
 
                     {{-- Part payment --}}
                     @if($hasFramesOrLenses)

@@ -48,7 +48,7 @@ class ProspectQuotesTest extends TestCase
         Mail::fake();
         $this->post('/pricing/request', $overrides + ['clinic_name' => 'Bright Eyes', 'contact_name' => 'Ama Mensah', 'phone' => '0244000111',
             'email' => 'ama@brighteyes.test', 'town' => 'Kumasi', 'plan' => 'clinic-standard', 'interval' => 'monthly', 'features' => ['referral_letters'],
-            'users' => 1, 'storage_gb' => 0, 'visits' => 0, 'branches' => 3])->assertRedirect();
+            'users' => 1, 'storage_mb' => 0, 'visits' => 0, 'branches' => 3])->assertRedirect();
 
         return PricingRequest::latest('id')->firstOrFail();
     }

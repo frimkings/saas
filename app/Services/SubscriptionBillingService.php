@@ -93,6 +93,8 @@ class SubscriptionBillingService
             $paid=round((float)$invoice->amount_paid+$amount,2);$fullyPaid=$paid >= (float)$invoice->total;
             $invoice->update(['amount_paid'=>$paid,'status'=>$fullyPaid?'paid':'partial','paid_at'=>$fullyPaid?now():null]);
             if($fullyPaid && $invoice->source==='renewal') $this->renewFromPaidInvoice($invoice->fresh('subscription'));
+            // A yearly plan's free SMS (ClinicalSuitePlans::YEARLY_SMS) arrive with its paid renewal.
+            if($fullyPaid && $invoice->source==='renewal') app(\App\Services\Messaging\SmsCreditService::class)->grantYearlyPlanSms($invoice->fresh('subscription.plan'));
             if($fullyPaid && $invoice->source==='sms_bundle') app(\App\Services\Messaging\SmsCreditService::class)->creditFromInvoice($invoice->fresh());
             app(BillingNotificationService::class)->paymentReceived($payment->load('invoice.clinic','invoice.subscription'));
             if($invoice->balance()<=0) \App\Models\SubscriptionCollectionCase::where('platform_invoice_id',$invoice->id)->whereIn('status',['open','promise'])->update(['status'=>'resolved','resolved_at'=>now()]);

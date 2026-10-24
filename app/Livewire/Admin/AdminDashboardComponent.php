@@ -225,7 +225,15 @@ class AdminDashboardComponent extends Component
         $user = auth()->user();
         $optical = $this->line === BusinessLine::OPTICAL;
 
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
+        $opticalOnly = \App\Support\OpticalMode::opticalOnly();
+
         return view('livewire.admin.admin-dashboard-component', [
+            // Plans without the business overview get Today only.
+            'overview' => $opticalOnly || $has(\App\Support\Feature::BUSINESS_OVERVIEW),
+            'canReports' => $optical || $has(\App\Support\Feature::SALES_REPORTS) || $has(\App\Support\Feature::SALES_REPORTS_MONTH),
+            'canAppointments' => $has(\App\Support\Feature::APPOINTMENTS),
+            'canAttention' => $has(\App\Support\Feature::NEEDS_ATTENTION),
             'setup' => $user?->hasAnyRole(['Super Admin', 'Manager']) ? \App\Support\Guides\ClinicSetup::for() : null,
             'owner' => (bool) $user?->hasRole('Super Admin'),
             'lineLabels' => [BusinessLine::CLINIC => 'Clinic', BusinessLine::OPTICAL => 'Optical', self::COMBINED => 'Combined'],

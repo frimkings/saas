@@ -21,7 +21,6 @@ class AllApprovalsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(!LicenseService::has(Feature::APPROVALS), 403, 'Approval workflows require a Pro license.');
         $user = auth()->user();
         abort_if(
             !$user?->hasAnyRole(['Manager', 'Super Admin']) &&
@@ -39,6 +38,7 @@ class AllApprovalsComponent extends Component
                 }
             }
         }
+        abort_unless($this->canAccess($this->activeType), 403, 'Approval workflows require a Pro plan.');
     }
 
     public function switchType(string $type): void
@@ -51,6 +51,11 @@ class AllApprovalsComponent extends Component
     public function canAccess(string $type): bool
     {
         $user = auth()->user();
+        // Without approvals, discounts, refunds, corrections and revokes apply when asked for; the page keeps
+        // password resets, and anything left pending from before so it can still be decided.
+        if (in_array($type, ['discount', 'refund', 'correction', 'revoke'], true) && !LicenseService::has(Feature::APPROVALS) && !$this->hasPending($type)) {
+            return false;
+        }
         return match($type) {
             'discount', 'refund'  => $user?->hasAnyRole(['Manager', 'Super Admin']) || $user?->can('manage billing'),
             'revoke'              => $user?->hasAnyRole(['Manager', 'Super Admin']) || $user?->can('approve clearance revoke'),
@@ -58,6 +63,17 @@ class AllApprovalsComponent extends Component
             'correction',
             'spectacle_renewal'  => $user?->hasRole('Super Admin'),
             default              => false,
+        };
+    }
+
+    private function hasPending(string $type): bool
+    {
+        return match ($type) {
+            'discount' => DiscountApprovalRequest::where('status', DiscountApprovalRequest::STATUS_PENDING)->exists(),
+            'refund' => RefundLog::pendingCount() > 0,
+            'correction' => \App\Models\PaymentCorrection::pendingCount() > 0,
+            'revoke' => ClearanceRevokeLog::pendingCount() > 0,
+            default => false,
         };
     }
 

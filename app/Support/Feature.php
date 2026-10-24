@@ -46,4 +46,28 @@ class Feature
     // On every plan saved since attendance was split into parts. A list without it (older plans,
     // older offline keys) has attendance whole: every part comes with it.
     const ATTENDANCE_PARTS_CHOSEN = 'attendance_parts_chosen';
+
+    // Clinic features sold by plan tier (2026-10-24). Before then every clinic plan had them all.
+    const HISTORY_CHARTS       = 'history_charts';       // VA/IOP charts and risk flags on the History tab
+    const CLINICAL_PDFS        = 'clinical_pdfs';        // visit summary, medical record and consultation PDFs
+    const CLINICAL_DOCUMENTS   = 'clinical_documents';   // scan and attachment uploads
+    const SALES_EXPORT         = 'sales_export';         // sales records CSV
+    const DISCOUNTS            = 'discounts';            // discounts at the till
+    const QUOTATIONS           = 'quotations';
+    const SPECTACLE_ORDERS     = 'spectacle_orders';
+    const SALES_REPORTS_MONTH  = 'sales_reports_month';  // sales reports for this month only
+    const SALES_REPORTS        = 'sales_reports';        // sales reports for any dates, with PDF
+    const CASH_BOOK            = 'cash_book';            // cash book and day close
+    const PATIENT_LEDGER       = 'patient_ledger';
+    const INSURANCE            = 'insurance';            // co-pay, coverage rules, claims, insurer payments
+    const INVENTORY_ALERTS     = 'inventory_alerts';     // inventory alerts and expiring stock notices
+    const PRODUCT_IMPORT       = 'product_import';       // product CSV import/export and the lens catalogue
+    const PURCHASING           = 'purchasing';           // suppliers, purchase orders, stock transfers
+    const PATIENT_MESSAGES     = 'patient_messages';     // SMS templates and credits, WhatsApp, clinic links
+    const STAFF_MESSAGES       = 'staff_messages';       // the staff messages inbox
+    const BUSINESS_OVERVIEW    = 'business_overview';    // the full owner dashboard (others get a simple one)
+    const NEEDS_ATTENTION      = 'needs_attention';      // reminders panel, badges, start-of-shift summary
+    const CUSTOM_ROLES         = 'custom_roles';         // roles and permissions editor
+    // On every plan saved since the tiers. A list without it (older plans, offline keys) has every tier feature.
+    const CLINIC_TIERS_CHOSEN  = 'clinic_tiers_chosen';
 }

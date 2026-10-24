@@ -231,6 +231,7 @@ public $recallCategories = [
 
     public function openNewAppointmentModal(): void
     {
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)) return; // booking new ones needs the feature
         $this->resetForm();
         $this->editingAppointmentId = null;
         $this->newAppointmentStatus = 'Pending';
@@ -240,6 +241,7 @@ public $recallCategories = [
 
     public function openWalkInModal(): void
     {
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)) return; // booking new ones needs the feature
         $this->resetForm();
         $this->editingAppointmentId = null;
         $this->newAppointmentStatus = 'Arrived';
@@ -471,6 +473,7 @@ public $recallCategories = [
 
     public function quickBookWalkIn()
     {
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)) return; // booking new ones needs the feature
         $clinicId = Patient::clinicIdForWrite();
         $this->validate([
             'patient_id' => ['required', Rule::exists('patients', 'id')->where(fn ($query) => $query
@@ -777,6 +780,11 @@ public $recallCategories = [
 
     public function saveAppointment()
     {
+        // After a downgrade the booked appointments can still be managed, but not new ones booked.
+        if (!$this->editingAppointmentId && !\App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)) {
+            $this->addError('patient_id', 'Booking new appointments is not in your plan. Booked appointments can still be changed or cancelled.');
+            return;
+        }
         $this->validate();
         $scheduledAt = Carbon::parse($this->scheduled_at);
 

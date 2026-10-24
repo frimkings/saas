@@ -1,4 +1,12 @@
 @php
+    // Links to pages the plan doesn't include are left out.
+    $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
+    $hasRoute = fn (string $url) => match (true) {
+        str_contains($url, '/secretary/appointments') => $has(\App\Support\Feature::APPOINTMENTS),
+        str_contains($url, '/cashier/outstanding-balances') => $has(\App\Support\Feature::OUTSTANDING_BALANCES),
+        str_contains($url, '/secretary/spectacles') => $has(\App\Support\Feature::SPECTACLE_ORDERS),
+        default => true,
+    };
     $tiles = [
         ['New patients today', number_format($patientsRegisteredToday), 'Registered today', 'fa-user-plus', 'text-blue-600', route('secretary.patients'), 'All patients'],
         ['Appointments today', number_format($appointmentsToday), 'Scheduled and active', 'fa-calendar-check', 'text-orange-500', route('secretary.appointments'), 'View schedule'],
@@ -9,6 +17,7 @@
         ['Awaiting doctor', number_format($awaitingDoctor), 'Not yet seen today', 'fa-user-clock', 'text-orange-500', route('secretary.patient-clearance'), 'Clearance desk'],
         ['Spectacle renewals due', number_format($renewalsDue), number_format($spectaclesReady).' ready for pickup', 'fa-glasses', 'text-teal-600', route('secretary.spectacles'), 'Spectacles'],
     ];
+    $tiles = array_values(array_filter($tiles, fn ($tile) => $hasRoute($tile[5])));
     $apptBadge = fn ($status) => match ($status ?? 'scheduled') {
         'completed' => 'bg-green-50 text-green-700',
         'cancelled' => 'bg-red-50 text-red-700',
@@ -22,7 +31,7 @@
             <p class="ui-muted">Welcome, {{ auth()->user()->name }} &middot; {{ now()->format('l, j F Y') }}</p>
         </div>
         <div class="ui-actions">
-            <a href="{{ route('secretary.appointments') }}" class="ui-button ui-button-secondary"><i class="fas fa-calendar-alt" aria-hidden="true"></i>Appointments</a>
+            @if($has(\App\Support\Feature::APPOINTMENTS))<a href="{{ route('secretary.appointments') }}" class="ui-button ui-button-secondary"><i class="fas fa-calendar-alt" aria-hidden="true"></i>Appointments</a>@endif
             <a href="{{ route('cashier.seller-desk') }}" class="ui-button ui-button-primary"><i class="fas fa-cash-register" aria-hidden="true"></i>Open POS</a>
         </div>
     </div>
@@ -116,7 +125,7 @@
                 </table>
             </div>
             <div class="border-t border-slate-200 p-3 text-right">
-                <a href="{{ route('secretary.appointments') }}" class="ui-button ui-button-secondary">Manage appointments</a>
+                @if($has(\App\Support\Feature::APPOINTMENTS))<a href="{{ route('secretary.appointments') }}" class="ui-button ui-button-secondary">Manage appointments</a>@endif
             </div>
         </section>
     </div>
@@ -128,6 +137,7 @@
             ['Point of sale', 'Process drug and product sales.', route('cashier.seller-desk'), 'Open POS', 'fa-shopping-cart'],
             ['Drugs & spectacles', 'Manage spectacle orders and drug dispensing.', route('secretary.spectacles'), 'Open dispensary', 'fa-capsules'],
         ] as [$title, $text, $url, $action, $icon])
+            @continue(!$hasRoute($url))
             <div class="ui-panel flex flex-col justify-between gap-3 p-4">
                 <div>
                     <h2><i class="fas {{ $icon }} mr-2 text-teal-600" aria-hidden="true"></i>{{ $title }}</h2>
