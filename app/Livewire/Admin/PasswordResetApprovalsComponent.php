@@ -15,6 +15,10 @@ class PasswordResetApprovalsComponent extends Component
     public $noteInput    = '';
     public $confirmId    = null;
     public $confirmAction = null; // 'approve' | 'reject'
+    /** The code just issued, shown once for the manager to hand over in person. */
+    public ?string $issuedCode = null;
+    public ?string $issuedFor = null;
+    public ?string $issuedUntil = null;
 
     public function mount(): void
     {
@@ -52,7 +56,7 @@ class PasswordResetApprovalsComponent extends Component
                 'admin_note'  => $this->noteInput ?: null,
                 'actioned_at' => now(),
             ]);
-            $this->dispatch('notify', ...['type' => 'success', 'message' => "Reset request for {$req->email} has been approved."]);
+            $this->showCode($req);
         } else {
             $req->update([
                 'status'      => 'rejected',
@@ -64,6 +68,27 @@ class PasswordResetApprovalsComponent extends Component
         }
 
         $this->cancelConfirm();
+    }
+
+    /** A fresh code for an approved request (the first was lost, ran out, or came before codes). */
+    public function newCode($id): void
+    {
+        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        $req = PasswordResetRequest::where('status', 'approved')->findOrFail($id);
+        $this->showCode($req);
+    }
+
+    public function closeCode(): void
+    {
+        $this->reset('issuedCode', 'issuedFor', 'issuedUntil');
+    }
+
+    private function showCode(PasswordResetRequest $req): void
+    {
+        $code = $req->issueCode();
+        $this->issuedCode = substr($code, 0, 3).' '.substr($code, 3);
+        $this->issuedFor = $req->email;
+        $this->issuedUntil = PasswordResetRequest::CODE_MINUTES.' minutes';
     }
 
     public function render()

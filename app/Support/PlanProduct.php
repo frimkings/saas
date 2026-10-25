@@ -135,6 +135,9 @@ class PlanProduct
         Feature::BUSINESS_OVERVIEW => ['Business overview dashboard', self::CLINIC],
         Feature::NEEDS_ATTENTION => ['Needs attention reminders', self::CLINIC],
         Feature::CUSTOM_ROLES => ['Custom roles & permissions', self::CLINIC],
+        // Services rather than screens: they unlock nothing in the app, they tell the platform team what was sold.
+        Feature::PRIORITY_SUPPORT => ['Priority support', null],
+        Feature::GUIDED_ONBOARDING => ['Guided onboarding & data import help', null],
     ];
 
     /**

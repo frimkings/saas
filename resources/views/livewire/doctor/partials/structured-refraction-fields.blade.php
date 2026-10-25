@@ -107,6 +107,10 @@
         </optgroup>
        @endforeach
       </select>
+      @if($lensOptions->isEmpty())
+       {{-- Each clinic sets up its own lens types. --}}
+       <small class="mt-1 block text-xs text-amber-700">No lens types yet. A manager adds them under Products → Lens catalog.</small>
+      @endif
      </div>
     </div>
 

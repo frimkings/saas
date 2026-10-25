@@ -55,7 +55,7 @@ class PatientsComponent extends Component
 
     public function mount()
     {
-        if (!Auth::user()->hasAnyRole(['Secretary', 'Super Admin'])) {
+        if (!Auth::user()->hasAnyRole(['Secretary', 'Manager', 'Super Admin'])) {
             return redirect()->route('dashboard')->with('error', 'Access Denied.');
         }
         $this->resetForm();
@@ -65,7 +65,7 @@ class PatientsComponent extends Component
     // Fix #1/#3: re-check role on every Livewire AJAX request, not just mount()
     public function hydrate()
     {
-        if (!Auth::user()->hasAnyRole(['Secretary', 'Super Admin'])) {
+        if (!Auth::user()->hasAnyRole(['Secretary', 'Manager', 'Super Admin'])) {
             abort(403);
         }
     }
@@ -514,6 +514,8 @@ class PatientsComponent extends Component
             'whatsapp_opt_out'         => 'boolean',
             'marketing_opt_out'        => 'boolean',
         ], [], [
+            'dob' => 'birthday',
+            'contact' => 'contact number',
             'insurer_id' => 'Insurer',
             'insurance_member_id' => 'Member ID',
             'insurance_member_name' => 'Member Name',

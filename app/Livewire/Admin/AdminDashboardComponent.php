@@ -227,11 +227,16 @@ class AdminDashboardComponent extends Component
 
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         $opticalOnly = \App\Support\OpticalMode::opticalOnly();
+        // Sales reports and the income statement open for the owner and staff given "manage billing".
+        $money = (bool) ($user?->hasRole('Super Admin') || $user?->can('manage billing'));
 
         return view('livewire.admin.admin-dashboard-component', [
             // Plans without the business overview get Today only.
             'overview' => $opticalOnly || $has(\App\Support\Feature::BUSINESS_OVERVIEW),
-            'canReports' => $optical || $has(\App\Support\Feature::SALES_REPORTS) || $has(\App\Support\Feature::SALES_REPORTS_MONTH),
+            'canReports' => $optical || ($money && ($has(\App\Support\Feature::SALES_REPORTS) || $has(\App\Support\Feature::SALES_REPORTS_MONTH))),
+            'canUsers' => (bool) ($user?->hasRole('Super Admin') || $user?->can('manage users')),
+            'canAudit' => $has(\App\Support\Feature::AUDIT_TRAIL),
+            'patientsLink' => $user?->hasAnyRole(['Doctor', 'Super Admin']) ? route('doctor.all-records') : route('secretary.patients'),
             'canAppointments' => $has(\App\Support\Feature::APPOINTMENTS),
             'canAttention' => $has(\App\Support\Feature::NEEDS_ATTENTION),
             'setup' => $user?->hasAnyRole(['Super Admin', 'Manager']) ? \App\Support\Guides\ClinicSetup::for() : null,
@@ -241,7 +246,8 @@ class AdminDashboardComponent extends Component
             'statementLink' => match (true) {
                 $this->line === self::COMBINED && FinanceStatements::canViewCombined($user) => ['Combined Statement', route('admin.combined-statement')],
                 $optical => ['Profit & Loss', route('optical.profit')],
-                default => ['Income Statement', route('admin.income-statement')],
+                $money && $has(\App\Support\Feature::ADVANCED_REPORTS) => ['Income Statement', route('admin.income-statement')],
+                default => ['This month', null],
             },
             'expensesLink' => $optical ? route('optical.expenses') : route('admin.expenses'),
             'outstandingLink' => $optical ? route('optical.sales') : route('cashier.outstanding-balances'),

@@ -197,7 +197,8 @@ Route::get('cashier/outstanding-balances', OutstandingBalancesComponent::class)-
 Route::get('/livewire/ajax-patients', [POSComponent::class, 'getPatientsJson']);
 Route::get('/cashier/sales-records', SalesRecordsComponent::class)->name('cashier.sales-records');
 Route::get('/cashier/refund-logs', RefundLogsComponent::class)->name('refunds.logs');
-Route::get('/cart', CartComponent::class)->name('cart');
+// The old cart page needed a patient it was never given; the till is the Point of Sale.
+Route::redirect('/cart', '/cashier/seller-desk')->name('cart');
 
 // FIXED: Changed from /receipt/{saleId} to /cashier/receipt/{saleId}
 Route::get('/cashier/receipt/{saleId}', function (int $saleId, \Illuminate\Http\Request $request) {
@@ -489,6 +490,7 @@ Route::get('/refraction/print/{consultation}', function($consultationID){
 
     $consultation = \App\Models\Consultations::with('patient')->findOrFail($consultationID);
     $refraction   = \App\Models\Refractions::where('consultation_id', $consultationID)->first();
+    abort_unless($refraction, 404, 'No refraction was recorded for this consultation.');
     $patient      = $consultation->patient;
 
     return view('livewire.doctor.refraction-print', compact('consultation', 'refraction', 'patient'));

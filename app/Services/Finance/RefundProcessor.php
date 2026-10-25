@@ -38,6 +38,10 @@ class RefundProcessor
         if (!$sale) {
             throw new \RuntimeException('Sale record not found for this refund.');
         }
+        // The money goes out today; a closed day stays as it was counted (the same rule as voids).
+        if (app(DayCloseService::class)->isClosed(now())) {
+            throw new \RuntimeException('Today has been closed, so a refund can no longer be paid out today. Ask the owner to reopen the day, or pay it out tomorrow.');
+        }
 
         return DB::transaction(function () use ($log, $sale) {
             // Pessimistic locks prevent two concurrent requests from double-processing

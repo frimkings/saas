@@ -202,6 +202,39 @@ class ProductsComponent extends Component
         $this->editingProduct = null;
     }
 
+    /** Whether the chosen category holds services (consultations, tests, procedures), the same test clearance uses. */
+    public function getIsServiceProperty(): bool
+    {
+        if (empty($this->state['category_id'])) return false;
+        $category = \App\Models\Category::find($this->state['category_id']);
+
+        return $category && ($category->type === 'service' || stripos((string) $category->name, 'service') !== false);
+    }
+
+    /**
+     * A service has no stock, batch or expiry: it is never counted (made to order), and the fields the
+     * products table still needs get defaults so the form doesn't ask for them.
+     */
+    private function fillServiceDefaults(): void
+    {
+        if (! $this->isService) return;
+        $this->state['made_to_order'] = true;
+        $this->state['quantity'] = 0;
+        if (trim((string) ($this->state['batch_number'] ?? '')) === '') {
+            do { $batch = 'SVC-'.strtoupper(\Illuminate\Support\Str::random(6)); } while (Product::where('batch_number', $batch)->exists());
+            $this->state['batch_number'] = $batch;
+        }
+        if (empty($this->state['manufacture_date'])) $this->state['manufacture_date'] = now()->toDateString();
+        if (empty($this->state['expiry_date']) || $this->state['expiry_date'] <= $this->state['manufacture_date']) $this->state['expiry_date'] = '2099-12-31';
+        if ($this->state['cost_price'] === '' || $this->state['cost_price'] === null) $this->state['cost_price'] = 0;
+    }
+
+    /** Services may cost the clinic nothing to provide; stocked products need a cost. */
+    private function costRule(): string
+    {
+        return $this->isService ? 'required|numeric|min:0' : 'required|numeric|min:0.01';
+    }
+
     /** Quantity is only asked for products kept in stock; made-to-order products are never counted. */
     private function quantityRule(int $min): string
     {
@@ -271,6 +304,7 @@ class ProductsComponent extends Component
 
     public function createProduct()
     {
+        $this->fillServiceDefaults();
         $clinicId = Product::clinicIdForWrite();
         $validatedData = Validator::make($this->state, [
             'name' => ['required', 'string', Rule::unique('products', 'name')->where('clinic_id', $clinicId)],
@@ -280,7 +314,7 @@ class ProductsComponent extends Component
             'manufacture_date' => 'required|date|date_format:Y-m-d|before:expiry_date',
             'quantity' => $this->quantityRule(1),
             'made_to_order' => 'boolean',
-            'cost_price' => 'required|numeric|min:0.01',
+            'cost_price' => $this->costRule(),
             'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
         ])->validate();
 
@@ -332,6 +366,7 @@ class ProductsComponent extends Component
             return;
         }
 
+        $this->fillServiceDefaults();
         $clinicId = Product::clinicIdForWrite();
         $validatedData = Validator::make($this->state, [
             'name' => ['required', 'string', Rule::unique('products', 'name')->where('clinic_id', $clinicId)->ignore($this->editingProduct->id)],
@@ -341,7 +376,7 @@ class ProductsComponent extends Component
             'manufacture_date' => 'required|date|date_format:Y-m-d|before:expiry_date',
             'quantity' => $this->quantityRule(0),
             'made_to_order' => 'boolean',
-            'cost_price' => 'required|numeric|min:0.01',
+            'cost_price' => $this->costRule(),
             'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
         ])->validate();
 

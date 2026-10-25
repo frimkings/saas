@@ -68,6 +68,8 @@ class Feature
     const BUSINESS_OVERVIEW    = 'business_overview';    // the full owner dashboard (others get a simple one)
     const NEEDS_ATTENTION      = 'needs_attention';      // reminders panel, badges, start-of-shift summary
     const CUSTOM_ROLES         = 'custom_roles';         // roles and permissions editor
+    const PRIORITY_SUPPORT     = 'priority_support';     // support requests answered first (a service, no screen)
+    const GUIDED_ONBOARDING    = 'guided_onboarding';    // set-up and data import done with the clinic (a service)
     // On every plan saved since the tiers. A list without it (older plans, offline keys) has every tier feature.
     const CLINIC_TIERS_CHOSEN  = 'clinic_tiers_chosen';
 }

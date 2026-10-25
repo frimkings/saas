@@ -94,6 +94,12 @@ class SpectaclesComponent extends Component
     {
         $this->fromDate = now()->subMonths(3)->format('Y-m-d');
         $this->toDate   = now()->format('Y-m-d');
+
+        // Open where the work is: refractions waiting for an order, when no order is in progress.
+        $waiting = Refractions::where('dispensing_required', true)->doesntHave('lensOrder')->exists();
+        if ($waiting && !LensOrder::whereIn('status', ['Pending', 'In Lab', 'Ready'])->exists()) {
+            $this->recordType = 'refractions';
+        }
     }
 
     /* =================== FILTERS =================== */
@@ -269,6 +275,17 @@ class SpectaclesComponent extends Component
 
         if (!$this->canTransition($order, $newStatus)) return;
 
+        // The glasses leave only once the bill is paid (as on the optical side).
+        if ($newStatus === 'Collected' && $order->refraction) {
+            $bill = $this->posOrderSummary($order->refraction);
+            $owed = (float) ($bill['bill_balance'] ?? $bill['balance'] ?? 0);
+            if ($owed > 0.004) {
+                $this->dispatch('notify', ...['type' => 'error', 'message' => 'Balance ' . currency() . ' ' . number_format($owed, 2)
+                    . ' is still due on the bill. Take it at the POS (Outstanding Balances) first.']);
+                return;
+            }
+        }
+
         $noteMap = [
             'Collected' => 'Collected by ' . (Auth::user()->name ?? 'staff') . ' on ' . now()->format('d M Y H:i'),
             'Ready'     => 'Ready for pickup - ' . now()->format('d M Y H:i'),
@@ -334,13 +351,7 @@ class SpectaclesComponent extends Component
             return false;
         }
 
-        if ($newStatus === 'Collected') {
-            $order->loadMissing('refraction.consultation.sale.items.product.category', 'refraction.consultation.cartItems.product.category');
-            if (($this->posOrderSummary($order->refraction)['balance'] ?? 0) > 0 && !$authorizedOverride) {
-                $this->dispatch('notify', ...['type' => 'error', 'message' => 'Collection blocked: outstanding balance remains.']);
-                return false;
-            }
-        }
+        // Collection with money owed is refused in updateStatus(), with no override.
 
         if ($override) $this->appendOrderNote($order, 'Override reason: ' . trim($this->statusOverrideReason) . ' - ' . (Auth::user()->name ?? 'staff'));
         return true;
@@ -886,7 +897,9 @@ class SpectaclesComponent extends Component
         $frames = $items->filter(fn ($item) => Str::contains($category($item), 'frame'));
         $lenses = $items->reject(fn ($item) => Str::contains($category($item), 'frame'))
             ->filter(fn ($item) => Str::contains($category($item), 'lens'));
-        $price = fn ($group) => $group->isEmpty() ? null : (float) $group->sum(fn ($item) => $item->subtotal ?? $item->total);
+        // Sale lines held on a part-paid bill have no subtotal yet: value them at their price.
+        $price = fn ($group) => $group->isEmpty() ? null : (float) $group->sum(fn ($item) => $item->getAttribute('subtotal') !== null
+            ? \App\Support\Optical\ClinicSpectacleBilling::lineValue($item) : (float) $item->total);
 
         return [
             'frame'       => $frames->first()?->product,

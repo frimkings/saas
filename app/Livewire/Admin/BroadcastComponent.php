@@ -71,18 +71,24 @@ class BroadcastComponent extends Component
         $patients = $this->buildBroadcastQuery()->get(['id', 'name', 'contact']);
         $clinic   = Setting::getSettings()->clinic_name ?? 'the clinic';
         $smsService = new SmsService();
-        $sent = $failed = 0;
+        $sent = $queued = $failed = 0;
 
+        // Hosted clinics hand each message to the queue (one job per patient), so a big list no longer
+        // runs out the request's time; offline installs still send them here, one by one.
         foreach ($patients as $patient) {
             $msg = SmsTemplate::fillMessage($text, ['[NAME]' => $patient->name, '[CLINIC]' => $clinic]);
             $result = $smsService->send($patient->contact, $msg, $patient->id, 'custom_broadcast');
-            $result['success'] ? $sent++ : $failed++;
+            if (!$result['success']) $failed++;
+            elseif ($result['queued'] ?? false) $queued++;
+            else $sent++;
         }
 
         $this->broadcastConfirmStep = false;
+        $done = array_filter(["Sent: {$sent}" => $sent, "Queued to send: {$queued}" => $queued, "Failed: {$failed}" => $failed]);
         $this->dispatch('notify', ...[
             'type'    => $failed === 0 ? 'success' : 'warning',
-            'message' => "Broadcast complete — Sent: {$sent}" . ($failed ? ", Failed: {$failed}" : '') . '.',
+            'message' => 'Broadcast ' . ($queued ? 'on its way' : 'complete') . ' — ' . (implode(', ', array_keys($done)) ?: 'Sent: 0') . '.'
+                . ($queued ? ' Delivery shows in SMS logs within a few minutes.' : ''),
         ]);
     }
 

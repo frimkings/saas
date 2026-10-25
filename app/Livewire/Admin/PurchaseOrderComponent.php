@@ -121,17 +121,26 @@ class PurchaseOrderComponent extends Component
         $idx   = (int) $parts[0];
         $field = $parts[1];
 
-        if ($field === 'description') {
-            if (strlen((string) $value) >= 2) {
-                $this->productLineIdx = $idx;
-                $this->productResults = Product::where('name', 'like', "%{$value}%")
-                    ->limit(8)->get(['id', 'name', 'cost_price'])->toArray();
-            } else {
-                $this->productResults = [];
-                $this->productLineIdx = -1;
-            }
-        } elseif (in_array($field, ['quantity_ordered', 'unit_cost'])) {
+        if (in_array($field, ['quantity_ordered', 'unit_cost'])) {
             $this->recalcLine($idx);
+        }
+    }
+
+    /**
+     * Product suggestions as a line's description is typed. The description itself is a deferred
+     * binding sent with the next request, so a quick change to quantity or cost can't wipe it.
+     */
+    public function searchProducts(int $idx, string $term = ''): void
+    {
+        if (!isset($this->items[$idx])) return;
+        $this->items[$idx]['description'] = $term;
+        if (mb_strlen(trim($term)) >= 2) {
+            $this->productLineIdx = $idx;
+            $this->productResults = Product::where('name', 'like', '%'.addcslashes(trim($term), '%_\\').'%')
+                ->limit(8)->get(['id', 'name', 'cost_price'])->toArray();
+        } else {
+            $this->productResults = [];
+            $this->productLineIdx = -1;
         }
     }
 
@@ -324,6 +333,10 @@ class PurchaseOrderComponent extends Component
                         'cost_price'      => $item->unit_cost ?: null,
                         'notes'           => "Received against {$po->po_number}",
                     ]);
+                    // The product takes the latest delivery's cost, as Stock Receiving does.
+                    if ($product && (float) $item->unit_cost > 0) {
+                        $product->forceFill(['cost_price' => $item->unit_cost])->save();
+                    }
 
                     app(\App\Services\Inventory\BranchInventoryService::class)->increase(
                         $item->product_id,

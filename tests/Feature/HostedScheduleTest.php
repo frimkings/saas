@@ -128,4 +128,22 @@ class HostedScheduleTest extends TestCase
         config(['tenancy.enabled' => false]);
         $this->assertSame(5, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-10-04 05:00')));
     }
+
+    /** With several servers each running the scheduler, every hosted task runs on one of them only. */
+    public function test_hosted_tasks_run_on_one_server(): void
+    {
+        $events = function () {
+            $schedule = new Schedule();
+            (fn () => $this->schedule($schedule))->call($this->app->make(Kernel::class));
+            return collect($schedule->events());
+        };
+
+        config(['tenancy.enabled' => true]);
+        $hosted = $events();
+        $this->assertNotEmpty($hosted);
+        $this->assertTrue($hosted->every(fn ($event) => $event->onOneServer));
+
+        config(['tenancy.enabled' => false]);
+        $this->assertTrue($events()->every(fn ($event) => ! $event->onOneServer));
+    }
 }

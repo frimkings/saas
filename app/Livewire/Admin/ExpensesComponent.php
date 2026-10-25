@@ -30,6 +30,7 @@ class ExpensesComponent extends Component
     protected $paginationTheme = 'tailwind';
 
     public const DEFAULT_OPTICAL_CATEGORIES = ['Rent', 'Salaries & wages', 'Utilities', 'Lab & glazing charges', 'Marketing', 'Repairs & maintenance', 'Transport & delivery', 'Bank & MoMo charges', 'Other'];
+    public const DEFAULT_CLINIC_CATEGORIES = ['Rent', 'Salaries & wages', 'Utilities', 'Medical consumables', 'Marketing', 'Repairs & maintenance', 'Transport & delivery', 'Bank & MoMo charges', 'Other'];
 
     #[Locked]
     public string $businessLine = Expense::CLINIC;
@@ -469,9 +470,9 @@ class ExpensesComponent extends Component
     public function addDefaultCategories(): void
     {
         abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
-        abort_unless($this->isOptical(), 404);
         $this->assertWritable();
-        foreach (self::DEFAULT_OPTICAL_CATEGORIES as $name) {
+        // A one-click start for a clinic or shop with no categories yet; each can rename or add its own.
+        foreach ($this->isOptical() ? self::DEFAULT_OPTICAL_CATEGORIES : self::DEFAULT_CLINIC_CATEGORIES as $name) {
             ExpenseCategory::firstOrCreate(['name' => $name], ['section' => ExpenseCategory::OPERATING, 'is_active' => true]);
         }
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Common categories added.']);

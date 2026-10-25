@@ -24,7 +24,7 @@ final class TourCatalog
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 1,
-        'clinic.dashboard' => 3,
+        'clinic.dashboard' => 4,
         'clinic.registry' => 1,
         'clinic.clearance' => 1,
         'clinic.pos' => 2,
@@ -201,7 +201,7 @@ final class TourCatalog
 
         return ['key' => 'clinic.dashboard', 'title' => 'Clinic Suite', 'steps' => [
             ['title' => 'Welcome to the Clinic Suite', 'body' => 'Patients from registration to the doctor, the pharmacy counter, and the money: who paid, how, and what is left in the till. Here is a quick look round. It takes about a minute.'],
-            ['target' => 'setup-checklist', 'title' => 'Getting started', 'body' => 'Work down this list to get the clinic ready. Each step ticks itself once it is done, and the list goes away when the first five are.'],
+            ['target' => 'setup-checklist', 'title' => 'Getting started', 'body' => 'Work down this list to get the clinic ready. Each step ticks itself once it is done, and the list goes away when its main steps are.'],
             ['target' => 'nav-workspace', 'title' => 'Two workspaces', 'body' => 'Clinical holds the front desk, the doctors and the stock. Administration holds the money, staff and settings. Switch between them here.'],
             ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'What happened today: sales, consultations and prescriptions waiting, and more figures below on plans that include them. Click a figure to open what is behind it.'],
             ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'The money pages your plan includes: sales records and the daily cash summary, and on bigger plans sales reports, expenses, the cash book and day close, outstanding balances, the income statement and each patient\'s ledger.'

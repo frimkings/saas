@@ -57,6 +57,17 @@ class PatientRecordsComponent extends Component
     
     // Consultation state
     private const BLANK_STATE = ['odq' => [], 'odq_details' => [], 'examination_assessments' => []];
+    /** The refraction fields of $state. */
+    private const REFRACTION_KEYS = [
+        'objective_method', 'objective_od_sphere', 'objective_od_cylinder', 'objective_od_axis',
+        'objective_od_va', 'objective_os_sphere', 'objective_os_cylinder', 'objective_os_axis',
+        'objective_os_va', 'objective_notes', 'subjective_od_sphere', 'subjective_od_cylinder',
+        'subjective_od_axis', 'subjective_od_add', 'subjective_od_bcva', 'subjective_os_sphere',
+        'subjective_os_cylinder', 'subjective_os_axis', 'subjective_os_add', 'subjective_os_bcva',
+        'subjective_notes', 'dispensing_required', 'refractionOD', 'refractionOS', 'refractionOD_distance_va',
+        'refractionOD_ADD', 'refractionOD_near_va', 'refractionOS_distance_va',
+        'refractionOS_ADD', 'refractionOS_near_va', 'refractionnotes', 'pd', 'lensType',
+    ];
     public $state = self::BLANK_STATE;
     /** Next routine eye exam due (Y-m-d), saved on the patient; drives the recall SMS. */
     public $nextExamDueOn = null;
@@ -98,6 +109,9 @@ class PatientRecordsComponent extends Component
     public $refractionnotes;
     public $checkRefraction;
     public string $refractionSection = 'objective';
+    /** The consultation whose refraction is in the form (null before one is chosen). */
+    #[\Livewire\Attributes\Locked]
+    public ?int $refractionLoadedFor = null;
 public $editingAppointmentId = null;
 public $isEditingAppointment = false;
 
@@ -133,9 +147,12 @@ public $isEditingAppointment = false;
         $term = trim((string) $this->diagnosisSearch);
         if ($this->activeTab !== 'consultation' || mb_strlen($term) < 2) return [];
 
+        // Any word of the name: "glau" finds "Chronic Angle Closure Glaucoma"; names starting with it come first.
+        $like = addcslashes($term, '%_\\');
         return \App\Models\Diagnosis::query()
             ->select(['id', 'name'])
-            ->where('name', 'like', $term . '%')
+            ->where(fn ($q) => $q->where('name', 'like', $like . '%')->orWhere('name', 'like', '% ' . $like . '%'))
+            ->orderByRaw('CASE WHEN name LIKE ? THEN 0 ELSE 1 END', [$like . '%'])
             ->orderBy('name')
             ->limit(10)
             ->get();
@@ -196,6 +213,14 @@ public $isEditingAppointment = false;
 
         // Initialize appointment booking
         $this->initializeAppointmentBooking();
+
+        // Reopening a visit whose consultation is already saved: load it, as History → Open would,
+        // so refraction and prescription can be saved straight away. The file still opens on History.
+        $visitConsultationId = Consultations::where('clearance_id', $clearance->id)->where('patient_id', $this->patient->id)->value('id');
+        if ($visitConsultationId) {
+            $this->editConsultation($visitConsultationId);
+            $this->activeTab = 'history';
+        }
     }
 
     /**
@@ -359,6 +384,7 @@ public $isEditingAppointment = false;
         $this->isEditMode = false;
         $this->consultation = null;
         $this->consultationID = null;
+        $this->refractionLoadedFor = null;
         $this->clinicalAddendum = '';
         $this->resetValidation();
         $this->productsList = [];
@@ -2057,7 +2083,10 @@ public function deleteAppointment($appointmentId)
             $this->dispatch('notify', ...['type' => 'success', 'message' => 'Consultation saved successfully.']);
 
             $savedConsultationId = $consultation->id;
+            // Refraction typed before the consultation was saved stays in the form for this visit.
+            $typedRefraction = array_intersect_key($this->state, array_flip(self::REFRACTION_KEYS));
             $this->resetForm();
+            $this->state = array_merge($this->state, $typedRefraction);
             $this->consultationID = $savedConsultationId;  // preserve so Prescription tab works
             $this->activeTab = 'prescription';
 
@@ -2181,7 +2210,9 @@ public function deleteAppointment($appointmentId)
             $this->dispatch('notify', ...['type' => 'success', 'message' => 'Consultation updated successfully.']);
 
             $savedConsultationId = $this->consultation->id;
+            $typedRefraction = array_intersect_key($this->state, array_flip(self::REFRACTION_KEYS));
             $this->resetForm();
+            $this->state = array_merge($this->state, $typedRefraction);
             $this->consultationID = $savedConsultationId;  // preserve so Prescription tab works
             $this->activeTab = 'prescription';
 
@@ -2267,17 +2298,14 @@ public function deleteAppointment($appointmentId)
         $this->consultation = $consultation;
         $this->refractionSection = 'objective';
 
-        $refractionKeys = [
-            'objective_method', 'objective_od_sphere', 'objective_od_cylinder', 'objective_od_axis',
-            'objective_od_va', 'objective_os_sphere', 'objective_os_cylinder', 'objective_os_axis',
-            'objective_os_va', 'objective_notes', 'subjective_od_sphere', 'subjective_od_cylinder',
-            'subjective_od_axis', 'subjective_od_add', 'subjective_od_bcva', 'subjective_os_sphere',
-            'subjective_os_cylinder', 'subjective_os_axis', 'subjective_os_add', 'subjective_os_bcva',
-            'subjective_notes', 'dispensing_required', 'refractionOD', 'refractionOS', 'refractionOD_distance_va',
-            'refractionOD_ADD', 'refractionOD_near_va', 'refractionOS_distance_va',
-            'refractionOS_ADD', 'refractionOS_near_va', 'refractionnotes', 'pd', 'lensType',
-        ];
-        $this->state = array_diff_key($this->state, array_flip($refractionKeys));
+        // Refraction typed but not saved yet stays when the doctor returns to this visit's refraction
+        // (e.g. after saving the consultation); a different visit, or one already refracted, loads its own.
+        $keepTyped = !$consultation->refraction
+            && in_array($this->refractionLoadedFor, [null, $consultation->id], true);
+        if (!$keepTyped) {
+            $this->state = array_diff_key($this->state, array_flip(self::REFRACTION_KEYS));
+        }
+        $this->refractionLoadedFor = $consultation->id;
 
         if ($consultation->refraction) {
             $this->state = array_merge($this->state, $consultation->refraction->toArray());
@@ -2324,7 +2352,22 @@ public function deleteAppointment($appointmentId)
                 'state.refractionOD_near_va' => 'nullable|string|max:20',
                 'state.refractionOS_near_va' => 'nullable|string|max:20',
                 'state.refractionnotes' => 'nullable|string|max:2000',
-            ], [], [
+            ], [
+                'state.pd.required_if' => 'Enter the P.D. when glasses are to be dispensed.',
+                'state.lensType.required_if' => 'Choose the lens type and coating when glasses are to be dispensed.',
+            ], [
+                'state.pd' => 'P.D.',
+                'state.lensType' => 'lens type',
+                'state.objective_od_sphere' => 'Objective OD (right eye) sphere',
+                'state.objective_od_cylinder' => 'Objective OD (right eye) cylinder',
+                'state.objective_os_sphere' => 'Objective OS (left eye) sphere',
+                'state.objective_os_cylinder' => 'Objective OS (left eye) cylinder',
+                'state.subjective_od_sphere' => 'OD (right eye) sphere',
+                'state.subjective_od_cylinder' => 'OD (right eye) cylinder',
+                'state.subjective_od_add' => 'OD (right eye) ADD',
+                'state.subjective_os_sphere' => 'OS (left eye) sphere',
+                'state.subjective_os_cylinder' => 'OS (left eye) cylinder',
+                'state.subjective_os_add' => 'OS (left eye) ADD',
                 'state.objective_od_axis' => 'Objective OD (right eye) axis',
                 'state.objective_os_axis' => 'Objective OS (left eye) axis',
                 'state.subjective_od_axis' => 'Subjective OD (right eye) axis',

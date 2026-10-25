@@ -19,34 +19,8 @@ use Tests\TestCase;
 /** The four Clinical Suite plans (2026-10-24): what each opens, and clinics on older plans keeping everything. */
 class ClinicPlanTiersTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ClinicOnPlan;
 
-    private Clinic $clinic;
-
-    /** The owner of a clinic on one of the four plans, signed in. */
-    protected function ownerOn(string $family): User
-    {
-        config(['tenancy.enabled' => true]);
-        foreach (['Super Admin', 'Manager', 'Cashier', 'Doctor', 'Secretary'] as $name) Role::findOrCreate($name, 'web');
-        $definition = ClinicalSuitePlans::plans()[$family];
-        $plan = SubscriptionPlan::create(['name' => $definition['name'], 'code' => $family, 'family_code' => $family, 'version' => 1, 'product' => PlanProduct::CLINIC,
-            'features' => ClinicalSuitePlans::features($definition), 'included_branches' => 1, 'included_users' => $definition['users'],
-            'storage_limit_mb' => $definition['storage_mb'], 'base_price' => $definition['price'], 'annual_price' => $definition['price'] * 10,
-            'currency' => 'GHS', 'billing_interval' => 'monthly', 'is_active' => true]);
-        $this->clinic = Clinic::create(['name' => 'Bright Eyes', 'slug' => 'bright-'.$family, 'status' => 'active', 'deployment_mode' => 'hosted']);
-        $branch = $this->clinic->branches()->create(['code' => 'MAIN', 'name' => 'Main', 'is_default' => true, 'is_active' => true]);
-        ClinicSubscription::create(['clinic_id' => $this->clinic->id, 'subscription_plan_id' => $plan->id, 'status' => 'active', 'feature_snapshot' => $plan->features,
-            'current_period_starts_at' => now()->subDay(), 'current_period_ends_at' => now()->addMonth()]);
-        $owner = User::factory()->create();
-        $owner->assignRole('Super Admin');
-        $this->clinic->users()->attach($owner->id, ['status' => 'active', 'is_default' => true, 'clinic_role' => 'Super Admin']);
-        $branch->users()->attach($owner->id, ['status' => 'active', 'is_default' => true]);
-        DB::table('branch_user_role')->insert(['branch_id' => $branch->id, 'user_id' => $owner->id, 'role_id' => Role::findByName('Super Admin')->id, 'created_at' => now(), 'updated_at' => now()]);
-        app(TenantContext::class)->set($owner, $this->clinic, $branch, [$branch->id]);
-        $this->actingAs($owner);
-
-        return $owner;
-    }
 
     private function blocked(string $route): void
     {
@@ -102,9 +76,10 @@ class ClinicPlanTiersTest extends TestCase
         $this->ownerOn('clinic-plus');
         $this->get(route('admin.cash-book'))->assertOk();
         $this->get(route('admin.expenses'))->assertOk();
+        $this->get(route('admin.income-statement'))->assertOk();
         $this->get(route('admin.dashboard'))->assertOk()->assertSee('Business Overview');
         Livewire::test(ReportsComponent::class)->assertSet('monthOnly', false);
-        foreach (['admin.income-statement', 'admin.patient-ledger', 'admin.insurance.claims', 'admin.audit-trail'] as $route) {
+        foreach (['admin.patient-ledger', 'admin.insurance.claims', 'admin.audit-trail'] as $route) {
             $this->blocked($route);
         }
 
@@ -128,18 +103,6 @@ class ClinicPlanTiersTest extends TestCase
     }
 
     /** A paid sale of two items, from the signed-in owner. */
-    private function paidSale(): Sales
-    {
-        $category = Category::firstOrCreate(['name' => 'Drops'], ['user_id' => auth()->id()]);
-        $product = Product::factory()->create(['user_id' => auth()->id(), 'category_id' => $category->id, 'quantity' => 3]);
-        $patient = Patient::createWithGeneratedPxNumber(['user_id' => auth()->id(), 'name' => 'Esi Mensah', 'contact' => '0241114444', 'gender' => 'Female']);
-        $sale = Sales::create(['user_id' => auth()->id(), 'patient_id' => $patient->id, 'transaction_id' => 'TXN-TIER-'.uniqid(), 'business_line' => 'clinic',
-            'total_amount' => 100, 'amount_paid' => 100, 'payment_status' => 'paid']);
-        SaleItem::create(['sale_id' => $sale->id, 'product_id' => $product->id, 'prescribed_quantity' => 2, 'dispensed_quantity' => 2, 'selling_price' => 50, 'subtotal' => 100]);
-        PaymentTransaction::create(['sale_id' => $sale->id, 'amount' => 100, 'payment_method' => 'cash', 'collected_by' => auth()->id()]);
-
-        return $sale->fresh('items');
-    }
 
     private function askForRefund(Sales $sale): void
     {
@@ -201,7 +164,7 @@ class ClinicPlanTiersTest extends TestCase
 
     public function test_an_add_on_gives_a_smaller_plan_the_feature(): void
     {
-        $owner = $this->ownerOn('clinic-plus');
+        $owner = $this->ownerOn('clinic-standard');
         $this->blocked('admin.income-statement');
         $addons = app(\App\Services\ClinicAddonService::class);
 

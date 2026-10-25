@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
 
 /**
  * The clinic income statement for a period: revenue (at full price) and cost of sales from
- * clinic sales, grouped by product category and leaving out returned items; discounts given
+ * clinic sales, grouped by product category and leaving out returned items, plus lab work on spectacle orders; discounts given
  * and insurer shortfalls written off as operating expenses; expenses from the Expense Tracker
  * (grouped by category, in the section the category reports under) plus manual statement
  * entries; tax from entries.
@@ -24,6 +24,7 @@ class ClinicStatementService
 {
     public const DISCOUNTS = 'Discounts allowed';
     public const WRITE_OFFS = 'Insurance shortfalls written off';
+    public const LAB_WORK = 'Lab work (spectacle orders)';
 
     /** Clinic sale lines in the period, joined to their product and category. */
     public function salesLines(CarbonInterface $from, CarbonInterface $to)
@@ -63,12 +64,23 @@ class ClinicStatementService
     /** @return Collection<int, object{name: string, amount: string}> */
     public function costLines(CarbonInterface $from, CarbonInterface $to): Collection
     {
-        return $this->salesLines($from, $to)
+        $lines = $this->salesLines($from, $to)
             ->selectRaw("COALESCE(categories.name, 'Uncategorized') as name")
             ->selectRaw('SUM(sale_items.dispensed_quantity * COALESCE(sale_items.unit_cost, products.cost_price, 0)) as amount')
             ->groupBy('categories.id', 'categories.name')
             ->orderBy('name')
             ->get();
+
+        // What outside labs charge for the clinic's spectacle orders (orders made from a refraction).
+        $lab = (float) \App\Models\LensOrder::query()
+            ->whereNotNull('refraction_id')->whereNull('sale_id')
+            ->where('status', '!=', 'Cancelled')
+            ->where('lab_cost', '>', 0)
+            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
+            ->sum('lab_cost');
+        if ($lab > 0) $lines->push((object) ['name' => self::LAB_WORK, 'amount' => round($lab, 2)]);
+
+        return $lines;
     }
 
     /**

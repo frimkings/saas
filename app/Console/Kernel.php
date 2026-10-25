@@ -77,6 +77,11 @@ class Kernel extends ConsoleKernel
             $schedule->command('tenancy:run-scheduled sms:optical-collection-reminders')->dailyAt('10:00')->withoutOverlapping();
         }
 
+        // Hosted SMS go through the queue; any still waiting long after (queue down) are sent directly.
+        if ($hosted) {
+            $often($schedule->command('tenancy:run-scheduled sms:send-stuck'))->withoutOverlapping();
+        }
+
         // Platform SMS account must cover every clinic's prepaid credits
         $schedule->command('sms:check-platform-balance')->dailyAt('07:00')->withoutOverlapping();
 
@@ -107,6 +112,12 @@ class Kernel extends ConsoleKernel
         $often($schedule->command('platform:send-announcements'))->withoutOverlapping();
         // Clinic requests (plan changes, SMS orders, sender IDs) still waiting after a day.
         $schedule->command('platform:remind-requests')->dailyAt('08:00')->withoutOverlapping();
+
+        // Hosted: with more than one server (autoscaling) each runs the scheduler, so every task takes
+        // a lock in the shared cache first and runs once, not once per server (no duplicate SMS or billing).
+        if ($hosted) {
+            foreach ($schedule->events() as $event) $event->onOneServer();
+        }
     }
 
     /**

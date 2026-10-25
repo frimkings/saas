@@ -17,7 +17,7 @@
 x-init="initTheme()"
 @confirm-checkout.window="handleConfirmCheckout()"
 @sell-without-pending-discount.window="handleSellWithoutPendingDiscount()"
-@show-pending-carts.window="pendingCartsOpen = true"
+x-on:show-pending-carts.window="pendingCartsOpen = true"
 @close-pending-carts-modal.window="pendingCartsOpen = false"
 @pos-cart-loaded.window="$nextTick(() => document.querySelector('.pos-checkout')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))"
 >
@@ -768,7 +768,7 @@ window.printReceiptFromDom = function(event) {
         totalCarts: 0,
         currentUserId: null
     }"
-    @show-pending-carts.window="
+    x-on:show-pending-carts.window="
         showPendingCartsModal = true;
         pendingCarts = $event.detail.carts;
         totalCarts = $event.detail.totalCarts;
@@ -896,7 +896,7 @@ window.printReceiptFromDom = function(event) {
         expandedDiscount: null,
         totalDiscounts: 0
     }"
-    @show-approved-discounts.window="
+    x-on:show-approved-discounts.window="
         showApprovedDiscountsModal = true;
         approvedDiscounts = $event.detail.discounts;
         totalDiscounts = $event.detail.totalDiscounts;

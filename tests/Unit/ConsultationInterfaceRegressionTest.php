@@ -52,7 +52,8 @@ class ConsultationInterfaceRegressionTest extends TestCase
         $this->assertStringContainsString("import './patient-records'", $jsEntry);
         $this->assertStringContainsString("wire:model.live.debounce.400ms=\"diagnosisSearch\"", $view);
         $this->assertStringContainsString("wire:model.live.debounce.400ms=\"productSearch\"", $view);
-        $this->assertStringContainsString("->where('name', 'like', \$term . '%')", $component);
+        // Any word of the name matches, names starting with the term first (2026-10-25).
+        $this->assertStringContainsString("\$q->where('name', 'like', \$like . '%')->orWhere('name', 'like', '% ' . \$like . '%')", $component);
         $this->assertStringContainsString("TenantCache::key('patient-records:lens-options:v2')", $component);
         $this->assertStringContainsString("->only(['id', 'family', 'display_name'])", $component);
         $this->assertStringContainsString('<template x-if="showAppointment">', $view);

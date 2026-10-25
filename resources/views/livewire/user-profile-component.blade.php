@@ -20,26 +20,26 @@
     $quickLinks = match(true) {
         $user->hasRole(['Super Admin','Manager']) => [
             ['label' => 'Admin Dashboard',  'route' => 'admin.dashboard',      'icon' => 'fas fa-tachometer-alt'],
-            ['label' => 'User Management',  'route' => 'admin.users',           'icon' => 'fas fa-users-cog'],
-            ['label' => 'Audit Trail',      'route' => 'admin.audit-trail',     'icon' => 'fas fa-history'],
-            ['label' => 'Settings',         'route' => 'admin.settings',        'icon' => 'fas fa-cog'],
+            ['label' => 'User Management',  'route' => 'admin.users',           'icon' => 'fas fa-users-cog', 'show' => $user->hasRole('Super Admin') || $user->can('manage users')],
+            ['label' => 'Audit Trail',      'route' => 'admin.audit-trail',     'icon' => 'fas fa-history', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::AUDIT_TRAIL)],
+            ['label' => 'Settings',         'route' => 'admin.settings',        'icon' => 'fas fa-cog', 'show' => $user->hasRole('Super Admin')],
         ],
         $user->hasRole('Doctor') => [
             ['label' => 'Doctor Dashboard', 'route' => 'doctor.dashboard',      'icon' => 'fas fa-stethoscope'],
             ['label' => 'Awaiting Patients','route' => 'doctor.patient-awaiting','icon' => 'fas fa-user-clock'],
             ['label' => 'All Records',      'route' => 'doctor.all-records',    'icon' => 'fas fa-folder-open'],
-            ['label' => 'Referrals',        'route' => 'doctor.referrals',      'icon' => 'fas fa-share-alt'],
+            ['label' => 'Referrals',        'route' => 'doctor.referrals',      'icon' => 'fas fa-share-alt', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::REFERRALS)],
         ],
         $user->hasRole('Secretary') => [
             ['label' => 'Sec. Dashboard',   'route' => 'secretary.dashboard',   'icon' => 'fas fa-tachometer-alt'],
             ['label' => 'Patients',         'route' => 'secretary.patients',    'icon' => 'fas fa-users'],
-            ['label' => 'Appointments',     'route' => 'secretary.appointments','icon' => 'fas fa-calendar-check'],
+            ['label' => 'Appointments',     'route' => 'secretary.appointments','icon' => 'fas fa-calendar-check', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)],
             ['label' => 'Clearance',        'route' => 'secretary.patient-clearance','icon' => 'fas fa-check-circle'],
         ],
         default => [
             ['label' => 'POS / Seller Desk','route' => 'cashier.seller-desk',  'icon' => 'fas fa-cash-register'],
             ['label' => 'Sales Records',    'route' => 'cashier.sales-records', 'icon' => 'fas fa-receipt'],
-            ['label' => 'Outstanding',      'route' => 'cashier.outstanding-balances','icon' => 'fas fa-file-invoice-dollar'],
+            ['label' => 'Outstanding',      'route' => 'cashier.outstanding-balances','icon' => 'fas fa-file-invoice-dollar', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::OUTSTANDING_BALANCES)],
         ],
     };
 @endphp
@@ -495,7 +495,7 @@
                 </div>
                 <div class="overflow-hidden rounded-md border border-slate-200 bg-white">
                     @foreach($quickLinks as $link)
-                        @if(\Illuminate\Support\Facades\Route::has($link['route']))
+                        @if(\Illuminate\Support\Facades\Route::has($link['route']) && ($link['show'] ?? true))
                         <a href="{{ route($link['route']) }}"
                            class="list-group-item block w-full border-b border-slate-100 text-left hover:bg-slate-50 flex items-center py-2 px-4 text-sm">
                             <i class="{{ $link['icon'] }} mr-2 text-slate-500" style="width:16px"></i>

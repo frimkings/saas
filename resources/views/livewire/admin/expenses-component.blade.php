@@ -172,7 +172,7 @@
                         @else
                             <h2>No expenses recorded in these dates</h2>
                             <p class="ui-muted">Record rent, salaries, utilities and other running costs so {{ $isOptical ? 'Profit & Loss' : 'the income statement' }} shows real profit. Set rent and salaries to repeat and they come due by themselves.</p>
-                            @if($isOptical && $allCategories->isEmpty() && $isManager)<x-ui.button wire:click="addDefaultCategories">Add common categories</x-ui.button>@endif
+                            @if($allCategories->isEmpty() && $isManager)<x-ui.button wire:click="addDefaultCategories">Add common categories</x-ui.button>@endif
                         @endif
                         <x-ui.button variant="primary" x-on:click="create()">Record expense</x-ui.button>
                     </div></td></tr>

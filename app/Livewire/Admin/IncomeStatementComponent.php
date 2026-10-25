@@ -77,7 +77,7 @@ class IncomeStatementComponent extends Component
 
     public function mount()
     {
-        abort_if(!LicenseService::has(Feature::ADVANCED_REPORTS), 403, 'Advanced reporting requires a Pro license.');
+        abort_if(!LicenseService::has(Feature::ADVANCED_REPORTS), 403, 'The income statement is not included in your plan.');
         $user = auth()->user();
         abort_if(!$user?->hasRole('Super Admin') && !$user?->can('manage billing'), 403);
         AuditTrail::record('report.accessed', 'Accessed income statement page');

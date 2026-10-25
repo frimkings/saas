@@ -86,16 +86,33 @@ class OfflinePasswordResetController extends Controller
         }
 
         $request->validate([
+            'code'                  => 'required|string|max:12',
             'password'              => ['required', 'confirmed', Password::min(6)],
             'password_confirmation' => 'required',
         ]);
+
+        // The approval alone isn't enough: only the person the manager gave the code to can finish.
+        $problem = $req->codeProblem();
+        if ($problem !== null || !$req->acceptsCode($request->code)) {
+            $closed = $req->fresh()->isRejected();
+            if ($closed) session()->forget('offline_reset_email');
+            $message = match (true) {
+                $closed => 'Too many wrong codes. This request is closed; ask for a new reset.',
+                $problem === 'none' => 'Ask your manager for your reset code: they get it under Approvals → Password resets.',
+                $problem === 'expired' => 'That code has expired. Ask your manager for a new one.',
+                default => 'That code is not right. Check it with your manager.',
+            };
+            return $closed
+                ? redirect()->route('password.request')->withErrors(['email' => $message])
+                : back()->withErrors(['code' => $message]);
+        }
 
         User::where('email', $email)->firstOrFail()->update([
             'password' => Hash::make($request->password),
         ]);
 
         // Mark request completed so it can't be reused
-        $req->update(['status' => 'completed', 'actioned_at' => now()]);
+        $req->update(['status' => 'completed', 'actioned_at' => now(), 'code_hash' => null]);
         session()->forget('offline_reset_email');
 
         return redirect()->route('login')

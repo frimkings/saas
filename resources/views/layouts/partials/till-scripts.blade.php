@@ -38,11 +38,13 @@
             rows.push(['Billed to ' + String(d.insurerName).replace(/[<>&"]/g, ''), posMoney(d.insurerAmount)]);
         }
         rows.push([d.insurerName ? 'Patient pays' : 'Total amount', posMoney(d.totalAmount)]);
-        rows.push(['Amount paid', posMoney(d.amountPaid)]);
-        rows.push(['Change', '<strong>' + posMoney(d.change) + '</strong>', 'bg-green-50']);
+        rows.push([d.isPartPayment ? 'Deposit paid now' : 'Amount paid', posMoney(d.amountPaid)]);
+        // A part payment holds the order: show what is still owed, not change.
+        if (d.isPartPayment) rows.push(['Balance due on pickup', '<strong>' + posMoney(d.balance) + '</strong>', 'bg-amber-50']);
+        else rows.push(['Change', '<strong>' + posMoney(d.change) + '</strong>', 'bg-green-50']);
 
         Swal.fire({
-            title: 'Confirm sale',
+            title: d.isPartPayment ? 'Confirm part payment' : 'Confirm sale',
             html: posRows(rows),
             icon: 'question',
             showCancelButton: true,

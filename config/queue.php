@@ -15,6 +15,10 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'sync'),
 
+    // True on a Laravel Cloud managed queue: its workers start when jobs arrive and stop when it is
+    // empty, so SMS are queued without waiting to see a worker running (see MessageDispatcher).
+    'managed' => (bool) env('QUEUE_MANAGED', false),
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections

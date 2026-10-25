@@ -60,12 +60,12 @@
             <x-ui.stat-tile label="Expenses" :value="$money($monthExpenses)" hint="Expense tracker" icon="fa-file-invoice-dollar" :href="$expensesLink" />
             <x-ui.stat-tile label="Outstanding balances" :value="number_format($outstandingCount)" :tone="$outstandingCount > 0 ? 'warning' : 'neutral'"
                 hint="Sales part paid" icon="fa-balance-scale" :href="$outstandingLink" />
-            <x-ui.stat-tile label="New patients" :value="number_format($newPatientsMonth)" :hint="number_format($totalPatients).' registered in all'" icon="fa-user-plus" :href="route('doctor.all-records')" />
+            <x-ui.stat-tile label="New patients" :value="number_format($newPatientsMonth)" :hint="number_format($totalPatients).' registered in all'" icon="fa-user-plus" :href="$patientsLink" />
         </div>
     </section>
 
     <x-ui.section title="Revenue, last 7 days" :description="'Money collected each day ('.currency().')'" icon="fa-chart-bar">
-        <x-slot:actions><x-ui.button class="ui-button-sm" :href="$reportsLink">Full report</x-ui.button></x-slot:actions>
+        <x-slot:actions>@if($canReports)<x-ui.button class="ui-button-sm" :href="$reportsLink">Full report</x-ui.button>@endif</x-slot:actions>
         <div class="p-4"><div wire:ignore class="relative h-[260px]"><canvas id="dashboardRevenueChart" role="img" aria-label="Revenue for the last 7 days"></canvas></div></div>
     </x-ui.section>
 
@@ -81,7 +81,7 @@
 
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <x-ui.section title="Top 5 selling products" :description="now()->format('F Y')" icon="fa-trophy">
-            <x-slot:actions><x-ui.button class="ui-button-sm" :href="$reportsLink">Sales report</x-ui.button></x-slot:actions>
+            <x-slot:actions>@if($canReports)<x-ui.button class="ui-button-sm" :href="$reportsLink">Sales report</x-ui.button>@endif</x-slot:actions>
             @if(count($topProducts))
                 <div class="ui-table-wrap">
                     <table class="ui-table">
@@ -106,9 +106,9 @@
         <x-ui.section title="Recent sign-ins" :description="number_format($totalActiveUsers).' active '.\Illuminate\Support\Str::plural('user', $totalActiveUsers)" icon="fa-shield-alt">
             <x-slot:actions>
                 <x-ui.menu label="Staff">
-                    <a href="{{ route('admin.users') }}" class="ui-menu-item" role="menuitem"><i class="fas fa-users" aria-hidden="true"></i>Manage users</a>
-                    <a href="{{ route('admin.login-history') }}" class="ui-menu-item" role="menuitem"><i class="fas fa-history" aria-hidden="true"></i>Login history</a>
-                    <a href="{{ route('admin.audit-trail') }}" class="ui-menu-item" role="menuitem"><i class="fas fa-clipboard-list" aria-hidden="true"></i>Audit trail</a>
+                    @if($canUsers)<a href="{{ route('admin.users') }}" class="ui-menu-item" role="menuitem"><i class="fas fa-users" aria-hidden="true"></i>Manage users</a>@endif
+                    @if($canAudit)<a href="{{ route('admin.login-history') }}" class="ui-menu-item" role="menuitem"><i class="fas fa-history" aria-hidden="true"></i>Login history</a>
+                    <a href="{{ route('admin.audit-trail') }}" class="ui-menu-item" role="menuitem"><i class="fas fa-clipboard-list" aria-hidden="true"></i>Audit trail</a>@endif
                 </x-ui.menu>
             </x-slot:actions>
             @if(count($recentLogins))

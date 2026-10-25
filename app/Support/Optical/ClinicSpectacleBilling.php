@@ -12,6 +12,18 @@ use Illuminate\Support\Str;
  */
 class ClinicSpectacleBilling
 {
+    /**
+     * What a sale line is worth. A line held on a part-paid bill is not dispensed yet and keeps a
+     * subtotal of 0 until the balance is paid, so it is valued at its price instead.
+     */
+    public static function lineValue($item): float
+    {
+        $subtotal = (float) ($item->subtotal ?? 0);
+        if ($subtotal > 0 || (int) ($item->dispensed_quantity ?? 0) > 0) return $subtotal;
+
+        return round((float) ($item->selling_price ?? 0) * (int) ($item->prescribed_quantity ?? 0), 2);
+    }
+
     /** Orders whose money lives on the clinic consultation bill. */
     public static function appliesTo($order): bool
     {
@@ -57,13 +69,13 @@ class ClinicSpectacleBilling
             ->filter(fn ($sale) => $sale->items->contains($isOpticalProduct));
 
         if ($sales->isNotEmpty()) {
-            $amount = $paid = $insurer = $discount = 0.0;
+            $amount = $paid = $insurer = $discount = $billBalance = 0.0;
             $saleItems = collect();
 
             foreach ($sales as $sale) {
                 $items           = $sale->items->filter($isOpticalProduct);
-                $opticalSubtotal = (float) $items->sum('subtotal');
-                $allSubtotal     = (float) $sale->items->sum('subtotal');
+                $opticalSubtotal = (float) $items->sum(fn ($item) => self::lineValue($item));
+                $allSubtotal     = (float) $sale->items->sum(fn ($item) => self::lineValue($item));
                 $total           = (float) $sale->total_amount;
                 // Apply the sale-level discount (or write-off) proportionally to the optical items.
                 $share = $allSubtotal > 0 && $total > 0 ? $opticalSubtotal * ($total / $allSubtotal) : $opticalSubtotal;
@@ -80,6 +92,7 @@ class ClinicSpectacleBilling
                 $insurer  += $lineInsurer;
                 $paid     += round($patientPart * $paidRatio, 2);
                 $discount += (float) ($sale->discount_amount ?? 0);
+                $billBalance += max(0, $total - (float) $sale->insurer_amount - (float) $sale->amount_paid);
                 $saleItems = $saleItems->merge($items);
             }
 
@@ -99,6 +112,8 @@ class ClinicSpectacleBilling
                 'discount' => $discount,
                 'transaction' => $sales->pluck('transaction_id')->implode(', '),
                 'items' => $saleItems,
+                // What is still owed on the whole bill(s), exactly; collection waits for it.
+                'bill_balance' => round($billBalance, 2),
             ];
         }
 

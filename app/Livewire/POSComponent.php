@@ -538,6 +538,16 @@ class POSComponent extends Component
             return;
         }
 
+        // A registered patient buys drugs and lenses on a doctor's prescription; frames, services
+        // and other items can be sold at the till straight away.
+        if ($this->patientId && !$this->prescriptionConsultationId && $this->needsPrescription($product)) {
+            $this->dispatch('notify', ...[
+                'type'    => 'warning',
+                'message' => $product->name . ' needs a doctor\'s prescription. The doctor adds it on the patient\'s file, then it loads here.',
+            ]);
+            return;
+        }
+
         $currentQty = isset($this->cart[$productId]) ? $this->cart[$productId]['quantity'] : 0;
         if (!$product->canSupply($currentQty + 1)) {
             $this->dispatch('notify', ...[
@@ -673,6 +683,15 @@ class POSComponent extends Component
     private function isFrameProduct(Product $product): bool
     {
         return str_contains(strtolower($product->category->name ?? ''), 'frame');
+    }
+
+    /** Drugs and lenses are only sold to a registered patient on a doctor's prescription. */
+    private function needsPrescription(Product $product): bool
+    {
+        $type = strtolower((string) ($product->category->type ?? ''));
+        $name = strtolower((string) ($product->category->name ?? ''));
+
+        return $product->isDrugCategory() || $type === 'lens' || str_contains($name, 'lens');
     }
 
     public function updatedFrameSearchTerm()
@@ -1662,7 +1681,9 @@ class POSComponent extends Component
 
     private function persistCart($cartKey)
     {
-        if (!$this->patientId) return;
+        // Cart rows hang off a doctor's consultation; a till sale with no prescription stays on the
+        // till until checkout (a cart row needs a consultation to belong to).
+        if (!$this->patientId || !$this->prescriptionConsultationId) return;
 
         $cartData = $this->cart[$cartKey] ?? null;
         $productId = $this->getCartItemProductId($cartKey, $cartData);

@@ -6,8 +6,11 @@
         ['Registered patients', $totalPatients, 'All time', 'fa-users', 'text-violet-600', route('doctor.all-records'), 'View records'],
         ['Patients seen today', $seenToday, 'Consultations completed today', 'fa-check-circle', 'text-green-600', null, null],
         ['Pending prescriptions', $pendingPrescriptions, 'Not yet dispensed', 'fa-prescription-bottle-alt', 'text-amber-500', null, null],
-        ['Referrals this month', $referralsMonth, now()->format('F Y'), 'fa-paper-plane', 'text-blue-600', route('doctor.referrals'), 'View referrals'],
     ];
+    // Referrals come with the plan (Standard and up).
+    if (\App\Services\LicenseService::has(\App\Support\Feature::REFERRALS)) {
+        $tiles[] = ['Referrals this month', $referralsMonth, now()->format('F Y'), 'fa-paper-plane', 'text-blue-600', route('doctor.referrals'), 'View referrals'];
+    }
     $chip = 'inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold';
 @endphp
 <div class="clinic-ui ui-page space-y-6">

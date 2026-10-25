@@ -28,11 +28,11 @@ class ClinicalSuitePlans
     public const PLUS = [...self::STANDARD,
         Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS, Feature::OUTSTANDING_BALANCES, Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS,
         Feature::SALES_REPORTS, Feature::EXPENSE_TRACKING, Feature::CASH_BOOK, Feature::PURCHASING, Feature::BUSINESS_OVERVIEW,
-        Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY, Feature::MORNING_ALERTS];
+        Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY, Feature::MORNING_ALERTS, Feature::ADVANCED_REPORTS];
 
     public const PRO = [...self::PLUS,
-        Feature::SPECTACLES_PRO, Feature::PATIENT_LEDGER, Feature::ADVANCED_REPORTS, Feature::APPROVALS, Feature::INSURANCE,
-        Feature::AUDIT_TRAIL, Feature::UNLIMITED_USERS];
+        Feature::SPECTACLES_PRO, Feature::PATIENT_LEDGER, Feature::APPROVALS, Feature::INSURANCE,
+        Feature::AUDIT_TRAIL, Feature::UNLIMITED_USERS, Feature::PRIORITY_SUPPORT, Feature::GUIDED_ONBOARDING];
 
     /** Paying yearly costs twelve months (no free months) and adds these SMS credits to the clinic's wallet, by plan family. */
     public const YEARLY_SMS = ['clinic-starter' => 30, 'clinic-standard' => 300, 'clinic-plus' => 1000, 'clinic-pro' => 2000];
@@ -53,9 +53,9 @@ class ClinicalSuitePlans
             'clinic-standard' => ['name' => 'Clinic Standard', 'price' => 180, 'users' => 4, 'storage_mb' => 150, 'extras' => self::STANDARD,
                 'max_visits' => 25, 'tagline' => 'Appointments, SMS reminders, discounts and this month\'s sales.'],
             'clinic-plus' => ['name' => 'Clinic Plus', 'price' => 250, 'users' => 10, 'storage_mb' => 300, 'extras' => self::PLUS,
-                'max_visits' => 50, 'tagline' => 'Full sales reports, expenses, cash book and day close.', 'featured' => true],
+                'max_visits' => 50, 'tagline' => 'Full sales reports, expenses, cash book, day close and the income statement.', 'featured' => true],
             'clinic-pro' => ['name' => 'Clinic Pro', 'price' => 320, 'users' => null, 'storage_mb' => 2048, 'extras' => self::PRO,
-                'max_visits' => null, 'tagline' => 'Insurance, approvals, the income statement and audit trail.'],
+                'max_visits' => null, 'tagline' => 'Insurance, approvals, audit trail and priority support with guided set-up.'],
         ];
     }
 
@@ -73,9 +73,9 @@ class ClinicalSuitePlans
         Feature::HISTORY_CHARTS => 15, Feature::CLINICAL_PDFS => 10, Feature::OUTSTANDING_BALANCES => 15, Feature::QUOTATIONS => 10,
         Feature::SPECTACLE_ORDERS => 25, Feature::SALES_REPORTS => 25, Feature::EXPENSE_TRACKING => 25, Feature::CASH_BOOK => 30,
         Feature::PURCHASING => 25, Feature::BUSINESS_OVERVIEW => 15, Feature::WEEKLY_SUMMARY => 10, Feature::MONTHLY_SUMMARY => 10,
-        Feature::MORNING_ALERTS => 15,
-        // Pro's extras
-        Feature::SPECTACLES_PRO => 30, Feature::PATIENT_LEDGER => 15, Feature::ADVANCED_REPORTS => 30, Feature::APPROVALS => 30,
+        Feature::MORNING_ALERTS => 15, Feature::ADVANCED_REPORTS => 30,
+        // Pro's extras (priority support and onboarding come only with Pro)
+        Feature::SPECTACLES_PRO => 30, Feature::PATIENT_LEDGER => 15, Feature::APPROVALS => 30,
         Feature::INSURANCE => 50, Feature::AUDIT_TRAIL => 25,
         Feature::SCAN_STORAGE_PACK => 20,
     ];

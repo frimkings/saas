@@ -207,6 +207,7 @@
                                     </div>
                                 </div>
 
+                                @unless($this->isService)
                                 <div class="w-full md:w-4/12 px-2">
                                     <div class="mb-4">
                                         <label for="products-state-batch-number">Batch Number <span class="text-red-700">*</span></label>
@@ -216,6 +217,7 @@
                                         @error('batch_number') <span class="ui-error">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
+                                @endunless
 
                                 <div class="w-full md:w-4/12 px-2">
                                     <div class="mb-4">
@@ -235,6 +237,10 @@
                             <div class="flex flex-wrap -mx-2">
                                 <div class="w-full md:w-3/12 px-2">
                                     <div class="mb-4">
+                                        @if($this->isService)
+                                            <span class="block">Quantity</span>
+                                            <p class="block w-full py-2 text-slate-500">A service is not stocked: no batch, quantity or expiry needed.</p>
+                                        @else
                                         @if(empty($state['made_to_order']))
                                             <label for="products-state-quantity">Quantity <span class="text-red-700">*</span></label>
                                             <input id="products-state-quantity" type="number" min="0" wire:model="state.quantity"
@@ -253,12 +259,13 @@
                                         @if(!empty($state['made_to_order']) && $editingProduct && !$editingProduct->made_to_order && $editingProduct->quantity > 0)
                                             <small class="mt-1 block text-xs text-amber-600">Saving clears the current quantity of {{ $editingProduct->quantity }}. The old number is kept in the audit trail.</small>
                                         @endif
+                                        @endif
                                     </div>
                                 </div>
 
                                 <div class="w-full md:w-3/12 px-2">
                                     <div class="mb-4">
-                                        <label for="products-state-cost-price">Cost Price <span class="text-red-700">*</span></label>
+                                        <label for="products-state-cost-price">Cost Price @unless($this->isService)<span class="text-red-700">*</span>@endunless</label>
                                         <input id="products-state-cost-price" type="number" step="0.01" min="0" wire:model.blur="state.cost_price"
                                                class="ui-input @error('cost_price') is-invalid @enderror"
                                                placeholder="0.00">
@@ -295,6 +302,7 @@
                                 </div>
                             </div>
 
+                            @unless($this->isService)
                             <div class="flex flex-wrap -mx-2">
                                 <div class="w-full md:w-6/12 px-2">
                                     <div class="mb-4">
@@ -314,6 +322,7 @@
                                     </div>
                                 </div>
                             </div>
+                            @endunless
                         </div>
 
                         <div class="border-t border-slate-200 bg-slate-50 px-4 py-2">

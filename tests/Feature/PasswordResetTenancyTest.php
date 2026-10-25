@@ -84,10 +84,14 @@ class PasswordResetTenancyTest extends TestCase
         $this->signInAs($this->member($this->clinicB, 'Super Admin'), $this->clinicB);
 
         $this->assertSame(1, PasswordResetRequest::pendingCount());
-        Livewire::test(PasswordResetApprovalsComponent::class)->assertSee($request->email)
-            ->call('openConfirm', $request->id, 'approve')->call('execute');
+        $page = Livewire::test(PasswordResetApprovalsComponent::class)->assertSee($request->email)
+            ->call('openConfirm', $request->id, 'approve')->call('execute')
+            ->assertSee('Reset code for '.$request->email);
 
         $this->assertSame('approved', $request->fresh()->status);
+        // The code is shown once to the admin and only its hash is kept.
+        $this->assertTrue($request->fresh()->acceptsCode((string) $page->get('issuedCode')));
+        $this->assertNotSame(str_replace(' ', '', $page->get('issuedCode')), $request->fresh()->code_hash);
     }
 
     public function test_platform_accounts_and_former_staff_are_hidden_from_clinic_admins(): void

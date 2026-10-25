@@ -60,7 +60,9 @@ class EazismsDriver implements SmsDriver
         }
 
         try {
-            $response = (new Client(['timeout' => 15]))->get($credentials->url, ['query' => $query]);
+            // A short connect wait: no connection means nothing was sent, so a retry is safe. The reply wait
+            // stays longer, as a message may already be on its way when the reply is slow.
+            $response = (new Client(['connect_timeout' => 3, 'timeout' => 10]))->get($credentials->url, ['query' => $query]);
             $raw      = trim((string) $response->getBody());
             $body     = json_decode($raw, true);
             $body     = is_array($body) ? $body : [];   // plain-text or JSON-string replies are read from $raw

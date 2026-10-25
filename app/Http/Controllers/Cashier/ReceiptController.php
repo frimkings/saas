@@ -89,9 +89,11 @@ class ReceiptController extends Controller
                 'adjustments:id,sale_id,type,amount,method,input_value,approved_by,created_by,reason,created_at',
             ]);
 
-        // Cashiers can only view receipts for their own sales
+        // Cashiers can only view receipts for their own sales, or ones they took a payment on (a visit
+        // bill opened at clearance by the front desk and paid at the till).
         if ($user->hasRole('Cashier')) {
-            $query->where('user_id', $user->id);
+            $query->where(fn ($q) => $q->where('user_id', $user->id)
+                ->orWhereHas('paymentTransactions', fn ($p) => $p->where('collected_by', $user->id)));
         }
 
         return $query->findOrFail($saleId);

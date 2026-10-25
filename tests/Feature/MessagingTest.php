@@ -147,6 +147,34 @@ class MessagingTest extends TestCase
         $this->assertDatabaseHas('sms_logs', ['id' => $result['log_id'], 'status' => 'sent']);
     }
 
+    public function test_a_managed_queue_is_used_with_no_worker_seen_and_stuck_sms_are_sent_directly(): void
+    {
+        $this->tenant();
+        config(['queue.default' => 'database', 'queue.managed' => true]);
+        Queue::fake();
+
+        // A managed queue has no worker while idle, so no heartbeat: the SMS is still queued.
+        \Illuminate\Support\Facades\Cache::forget(\App\Services\Messaging\MessageDispatcher::WORKER_HEARTBEAT);
+        $result = app(SmsService::class)->send('0241234567', 'Queued without a worker');
+        $this->assertTrue($result['queued']);
+        $this->assertCount(0, $this->driver->sent);
+
+        // Recently queued: left to the queue.
+        $this->artisan('sms:send-stuck')->assertSuccessful();
+        $this->assertCount(0, $this->driver->sent);
+
+        // Still waiting long after (the queue never ran it): sent directly, once.
+        \App\Models\SmsLog::whereKey($result['log_id'])->update(['updated_at' => now()->subMinutes(30)]);
+        $this->artisan('sms:send-stuck')->expectsOutputToContain('1 sent')->assertSuccessful();
+        $this->artisan('sms:send-stuck')->assertSuccessful();
+        $this->assertCount(1, $this->driver->sent);
+        $this->assertDatabaseHas('sms_logs', ['id' => $result['log_id'], 'status' => 'sent']);
+
+        // A queue job arriving late finds it already sent and does nothing.
+        (new SendSmsMessage($result['log_id']))->handle(app(SmsService::class));
+        $this->assertCount(1, $this->driver->sent);
+    }
+
     public function test_credits_are_charged_per_sms_part_and_sending_stops_when_exhausted(): void
     {
         $tenant = $this->tenant(credits: 3);

@@ -262,7 +262,8 @@
                                 <tr>
                                     <td class="relative">
                                         <input aria-label="Description or search product" type="text"
-                                               wire:model.live.debounce.300ms="items.{{ $i }}.description"
+                                               wire:model="items.{{ $i }}.description"
+                                               x-on:input.debounce.300ms="$wire.searchProducts({{ $i }}, $event.target.value)"
                                                class="ui-input ui-input-sm @error('items.'.$i.'.description') is-invalid @enderror"
                                                placeholder="Description or search product…"
                                                autocomplete="off">

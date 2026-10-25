@@ -17,12 +17,14 @@ class MessageDispatcher
      * Offline/desktop installs usually run no queue worker, so they keep sending inline.
      * The sync driver is also sent inline: its Queue::after hook clears the tenant
      * context, which would strand the rest of the current request.
+     * A managed queue (Laravel Cloud, QUEUE_MANAGED=true) starts its workers when jobs arrive and
+     * has none while idle, so it is trusted without a heartbeat; sms:send-stuck catches any it misses.
      */
     public function queues(): bool
     {
         return app(ClinicAccessService::class)->hosted()
             && config('queue.connections.'.config('queue.default').'.driver') !== 'sync'
-            && $this->workerRunning();
+            && (config('queue.managed') || $this->workerRunning());
     }
 
     public function workerRunning(): bool

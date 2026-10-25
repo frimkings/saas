@@ -1,6 +1,19 @@
 <div class="clinic-ui ui-page" data-livewire-root>
 <div class="w-full">
 
+    @if($issuedCode)
+        <div class="ui-panel ui-panel--success mb-6 p-5" role="status">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <div class="text-sm font-semibold text-slate-700">Reset code for {{ $issuedFor }}</div>
+                    <div class="my-2 font-mono text-3xl font-bold tracking-widest text-slate-900">{{ $issuedCode }}</div>
+                    <p class="mb-0 text-sm text-slate-600">Give this code to them in person or by phone, not by email. They type it with their new password. It works once, for {{ $issuedUntil }}, and is not shown again: use <b>New code</b> if it is lost.</p>
+                </div>
+                <button type="button" wire:click="closeCode" class="ui-button ui-button-sm ui-button-secondary">Done</button>
+            </div>
+        </div>
+    @endif
+
     {{-- Stat cards --}}
     <div class="flex flex-wrap -mx-2 mb-6">
         @foreach([
@@ -106,6 +119,10 @@
                                     <i class="fas fa-times mr-1"></i> Reject
                                 </button>
                             @elseif($req->isApproved())
+                                <button wire:click="newCode({{ $req->id }})"
+                                    class="ui-button ui-button-sm ui-button-secondary mr-1">
+                                    <i class="fas fa-key mr-1"></i> New code
+                                </button>
                                 <button wire:click="openConfirm({{ $req->id }}, 'reject')"
                                     class="ui-button ui-button-sm ui-button-danger">
                                     <i class="fas fa-ban mr-1"></i> Revoke

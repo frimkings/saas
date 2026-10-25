@@ -65,16 +65,18 @@ class ClinicNavigation
     {
         $counts = app(AttentionItems::class)->counts('clinic');
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
+        // Registration, appointments, clearance and spectacles are the front desk's; a cashier has the till side only.
+        $desk = (bool) auth()->user()?->hasAnyRole(['Secretary', 'Manager', 'Super Admin']);
 
         return self::visible([
-            ['label' => 'Dashboard', 'route' => 'secretary.dashboard', 'icon' => 'fa-tachometer-alt'],
+            ['label' => 'Dashboard', 'route' => $desk ? 'secretary.dashboard' : 'cashier.dashboard', 'icon' => 'fa-tachometer-alt'],
             ...self::departmentAttendance(),
             ['label' => 'Needs Attention', 'route' => 'attention', 'icon' => 'fa-bell', 'badge' => $counts['total'] ?? 0, 'show' => $has(Feature::NEEDS_ATTENTION)],
-            ['label' => 'Patients', 'icon' => 'fa-users', 'items' => [
+            ['label' => 'Patients', 'icon' => 'fa-users', 'show' => $desk, 'items' => [
                 ['label' => 'Registry Hub', 'route' => 'secretary.patients'],
                 ['label' => 'Appointments', 'route' => 'secretary.appointments', 'badge' => $counts['appointments'] ?? 0, 'show' => $has(Feature::APPOINTMENTS) || \App\Support\PlanLeftovers::has(Feature::APPOINTMENTS)],
             ]],
-            ['label' => 'Clearance & Spectacles', 'icon' => 'fa-clipboard-check', 'items' => [
+            ['label' => 'Clearance & Spectacles', 'icon' => 'fa-clipboard-check', 'show' => $desk, 'items' => [
                 ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
                 ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0, 'show' => $has(Feature::SPECTACLE_ORDERS)],
             ]],
@@ -111,6 +113,8 @@ class ClinicNavigation
         $workspace = NavigationWorkspace::current();
         $user = auth()->user();
         $superAdmin = (bool) $user?->hasRole('Super Admin');
+        // Sales reports and the income statement open for the owner and staff given "manage billing".
+        $money = $superAdmin || (bool) $user?->can('manage billing');
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         $communications = array_map(fn ($link) => ['label' => $link[1], 'route' => $link[0], 'icon' => self::iconName($link[2])],
             CommunicationsNavigation::links());
@@ -168,10 +172,10 @@ class ClinicNavigation
             $opticalOnly = OpticalMode::opticalOnly();
             $menu[] = ['label' => 'Finances', 'icon' => 'fa-chart-line', 'items' => [
                 ['label' => FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports', 'route' => $opticalOnly ? 'optical.reports' : 'admin.reports',
-                    'show' => $opticalOnly || $has(Feature::SALES_REPORTS) || $has(Feature::SALES_REPORTS_MONTH)],
+                    'show' => $opticalOnly || ($money && ($has(Feature::SALES_REPORTS) || $has(Feature::SALES_REPORTS_MONTH)))],
                 ['label' => 'Sales Records', 'route' => $opticalOnly ? 'optical.sales' : 'cashier.sales-records', 'active' => $opticalOnly ? 'optical.sales' : ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
                 ['label' => $opticalOnly ? 'Profit & Loss' : 'Income Statement', 'route' => $opticalOnly ? 'optical.profit' : 'admin.income-statement', 'activePath' => $opticalOnly ? null : 'admin/income-statement*',
-                    'show' => $opticalOnly || $has(Feature::ADVANCED_REPORTS)],
+                    'show' => $opticalOnly || ($money && $has(Feature::ADVANCED_REPORTS))],
                 ['label' => 'Combined Statement', 'route' => 'admin.combined-statement', 'show' => FinanceStatements::canViewCombined($user), 'activePath' => 'admin/combined-statement*'],
                 ['label' => 'Expenses', 'route' => $opticalOnly ? 'optical.expenses' : 'admin.expenses', 'activePath' => $opticalOnly ? null : 'admin/expenses*',
                     'show' => $opticalOnly || $has(Feature::EXPENSE_TRACKING)],

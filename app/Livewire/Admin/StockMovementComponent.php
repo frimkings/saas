@@ -197,7 +197,9 @@ class StockMovementComponent extends Component
 
     public function render()
     {
+        // Only stocked products: services and made-to-order items are never received.
         $products = Product::with('category')
+            ->where('made_to_order', false)
             ->when($this->productSearch, function ($query) {
                 $search = '%' . $this->productSearch . '%';
                 $query->where(function ($q) use ($search) {

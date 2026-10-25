@@ -32,6 +32,7 @@ class PricingCatalogue
         'Messages' => [Feature::PATIENT_MESSAGES, Feature::SMS_CAMPAIGNS, Feature::STAFF_MESSAGES],
         'Owner' => [Feature::BUSINESS_OVERVIEW, Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY, Feature::MORNING_ALERTS, Feature::AUDIT_TRAIL, Feature::CUSTOM_ROLES],
         'Optical' => [Feature::SPECTACLES_PRO],
+        'Support' => [Feature::PRIORITY_SUPPORT, Feature::GUIDED_ONBOARDING],
     ];
 
     /** Shorter names for the page than the platform's plan screen uses. */
