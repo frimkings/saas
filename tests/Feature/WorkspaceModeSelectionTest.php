@@ -98,9 +98,10 @@ class WorkspaceModeSelectionTest extends TestCase
             ->assertSee('New plan') // opens the plan panel; its form is not rendered until then
             ->assertSee('tab=plans', false);
 
+        // The old onboarding tab opens the wizard on Clinics.
         $this->get(route('platform.dashboard', ['tab' => 'onboarding']))
             ->assertOk()
-            ->assertSee('Clinic Onboarding')
-            ->assertSee('Create clinic and Super Admin');
+            ->assertSee('Onboard new clinic')
+            ->assertDontSee('Clinic Onboarding');
     }
 }

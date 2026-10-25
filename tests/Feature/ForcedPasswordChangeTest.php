@@ -82,7 +82,7 @@ class ForcedPasswordChangeTest extends TestCase
         ]);
 
         Livewire::actingAs($developer)->test(PlatformDashboardComponent::class)
-            ->set('tab', 'onboarding')
+            ->call('openOnboarding')
             ->set('newClinicName', 'New Eye Clinic')
             ->set('newClinicSlug', 'new-eye-clinic')
             ->set('newClinicDeployment', 'hosted')
@@ -94,7 +94,7 @@ class ForcedPasswordChangeTest extends TestCase
             ->set('newPlanId', $plan->id)
             ->call('onboardClinic')
             ->assertHasNoErrors()
-            ->assertSee('Clinic and Super Admin created successfully.');
+            ->assertSee('Clinic and Super Admin created. The Super Admin signs in with the temporary password');
 
         $admin = User::where('email', 'clinic.admin@example.test')->firstOrFail();
         $clinic = Clinic::where('slug', 'new-eye-clinic')->firstOrFail();

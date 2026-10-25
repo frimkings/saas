@@ -11,7 +11,7 @@
     @if($tab === 'requests')
         <section class="ui-card">
             <div class="ui-card-head">
-                <div><h2>Requests</h2><p>Each one is emailed to the requests inbox (Platform → Support) as it arrives, with a reminder at 8:00 while it's still new after a day. "Make a quote" turns one into a quotation or pro-forma invoice to send them. Set the clinic up under Clinic Onboarding, then mark it "Became a clinic".</p></div>
+                <div><h2>Requests</h2><p>Each one is emailed to the requests inbox (Platform → Support) as it arrives, with a reminder at 8:00 while it's still new after a day. "Make a quote" turns one into a quotation or pro-forma invoice to send them. Set the clinic up under Clinics → Onboard new clinic, then mark it "Became a clinic".</p></div>
                 <label class="ui-field" style="width:240px" data-tour="pr-status"><span>Show</span>
                     <select class="ui-input" wire:model.live="status">
                         <option value="open">Open (new and contacted)</option>
@@ -59,7 +59,7 @@
                                         @if($key !== $r->status)<button type="button" class="ui-button ui-button-sm {{ $key === 'lost' ? 'ui-button-danger' : ($key === 'won' ? 'ui-button-primary' : 'ui-button-secondary') }}" wire:click="mark({{ $r->id }}, '{{ $key }}')">Mark {{ strtolower($label) }}</button>@endif
                                     @endforeach
                                     <a class="ui-button ui-button-primary ui-button-sm" href="{{ route('platform.quotes', ['request' => $r->id]) }}">Make a quote</a>
-                                    <a class="ui-button ui-button-secondary ui-button-sm" href="{{ route('platform.dashboard', ['tab' => 'onboarding']) }}">Clinic Onboarding</a>
+                                    <a class="ui-button ui-button-secondary ui-button-sm" href="{{ route('platform.dashboard', ['tab' => 'onboarding']) }}">Onboard new clinic</a>
                                 </div>
                             </td></tr>
                         @endif

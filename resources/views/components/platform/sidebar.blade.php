@@ -5,7 +5,7 @@
     $newPricing = \App\Models\PricingRequest::where('status', 'new')->count();
     $smsLow = (bool) (app(\App\Services\Messaging\PlatformSmsBalance::class)->last()['low'] ?? false);
     $tabs = ['dashboard' => '▥ Dashboard', 'clinics' => '✚ Clinics Directory', 'plans' => '◆ Subscription Plans', 'billing' => '▤ Invoices & Billing',
-        'onboarding' => '＋ Clinic Onboarding', 'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
+        'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
     $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'usage' => ['platform.usage', '◷ Clinic Usage'],'imports' => ['platform.imports', '⇧ Legacy Imports'],
         'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'pricing' => ['platform.pricing', '＄ Pricing Page'], 'quotes' => ['platform.quotes', '❏ Quotes'],'support' => ['platform.support', '☏ Support Contact']];
 @endphp

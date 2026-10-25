@@ -104,7 +104,7 @@ class PlatformRequestAlerts
         $this->mailer->sendToPlatform(null, self::inbox(), 'platform_pricing_request', 'pricing_request:' . $request->id,
             "{$request->clinic_name} asked for {$request->plan_name}",
             fn () => (new OwnerNoticeMail(config('mail.from.name') . ' · Platform', "{$request->clinic_name} asked for {$request->plan_name}",
-                "{$request->contact_name} asked for a plan on the pricing page. Call or email them, then set the clinic up under Clinic Onboarding.",
+                "{$request->contact_name} asked for a plan on the pricing page. Call or email them, then set the clinic up under Clinics → Onboard new clinic.",
                 array_filter([
                     'Clinic' => $request->clinic_name . ($request->town ? " ({$request->town})" : ''),
                     'Contact' => $request->contact_name,

@@ -1,4 +1,4 @@
-<x-platform.page active="quotes" title="Quotes" subtitle="Quotations and pro-forma invoices for businesses that are not on the platform yet — Clinic, Optical, Attendance or a mix. They are not invoices: billing starts once the business is set up through Clinic Onboarding.">
+<x-platform.page active="quotes" title="Quotes" subtitle="Quotations and pro-forma invoices for businesses that are not on the platform yet — Clinic, Optical, Attendance or a mix. They are not invoices: billing starts once the business is set up through Clinics → Onboard new clinic.">
     <x-slot:actions><button type="button" class="ui-button ui-button-primary" wire:click="newQuote" data-tour="pq-new">＋ New quote</button></x-slot:actions>
     <style>.pq-text{width:100%;min-height:64px;box-sizing:border-box;background:#050d1c;border:1px solid #273750;color:#edf5ff;border-radius:8px;padding:9px 11px;font:inherit}.pq-lines td{padding:6px 8px}.pq-total{display:grid;grid-template-columns:auto auto;gap:4px 18px;justify-content:end;margin-top:10px;color:#aebbd0}.pq-total b{color:#e8eef8;text-align:right}</style>
 
@@ -32,7 +32,7 @@
                     <select class="ui-input" wire:model.live="form.subscription_plan_id"><option value="">Not chosen yet</option>
                         @foreach($plans->groupBy('product') as $product => $group)<optgroup label="{{ \App\Support\PlanProduct::label($product) }}">@foreach($group as $plan)<option value="{{ $plan->id }}">{{ $plan->name }}</option>@endforeach</optgroup>@endforeach
                     </select>
-                    <small class="ui-hint">Used to fill in Clinic Onboarding when they accept. It doesn't change the lines.</small>
+                    <small class="ui-hint">Used to fill in the clinic onboarding form when they accept. It doesn't change the lines.</small>
                 </label>
                 <label class="ui-field"><span>Product</span>
                     <select class="ui-input" wire:model="form.product">@foreach(\App\Support\PlanProduct::PRODUCTS as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>
@@ -83,7 +83,7 @@
 
     <section class="ui-card">
         <div class="ui-card-head">
-            <div><h2>All quotes</h2><p>Once a business accepts, press "Set up as clinic": Clinic Onboarding opens with their details filled in, and the quote is marked accepted when the clinic is created.</p></div>
+            <div><h2>All quotes</h2><p>Once a business accepts, press "Set up as clinic": the Onboard new clinic form opens with their details filled in, and the quote is marked accepted when the clinic is created.</p></div>
             <div class="ui-actions">
                 <label class="ui-field" style="width:200px"><span>Search</span><input class="ui-input" type="search" wire:model.live.debounce.400ms="search" placeholder="Business, number or phone"></label>
                 <label class="ui-field" style="width:220px" data-tour="pq-status"><span>Show</span>
@@ -106,7 +106,7 @@
                             <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="edit({{ $q->id }})">{{ $q->status === 'accepted' ? 'View' : 'Open' }}</button>
                             <a class="ui-button ui-button-secondary ui-button-sm" href="{{ route('platform.quote.pdf', $q) }}" target="_blank" rel="noopener">PDF</a>
                             @if($q->status !== 'accepted')
-                                <a class="ui-button ui-button-primary ui-button-sm" href="{{ route('platform.dashboard', ['tab' => 'onboarding', 'quote' => $q->id]) }}">Set up as clinic</a>
+                                <a class="ui-button ui-button-primary ui-button-sm" href="{{ route('platform.dashboard', ['tab' => 'clinics', 'quote' => $q->id]) }}">Set up as clinic</a>
                                 @if($q->status !== 'declined')<button type="button" class="ui-button ui-button-danger ui-button-sm" wire:click="decide({{ $q->id }}, 'declined')" wire:confirm="Mark {{ $q->number }} as declined?">Declined</button>
                                 @else<button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="decide({{ $q->id }}, 'sent')">Reopen</button>@endif
                             @endif

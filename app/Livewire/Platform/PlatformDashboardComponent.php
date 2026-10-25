@@ -58,10 +58,13 @@ class PlatformDashboardComponent extends Component
     /** Ticked to make someone who already has an account the owner of the new business as well (two separate businesses, one sign-in). */
     public bool $newAdminLinkExisting=false;
 
- public function mount(){if(!in_array($this->tab,['dashboard','clinics','plans','billing','onboarding','audit','licenses'],true))$this->tab='dashboard';if($this->onboardingQuoteId)$this->onboardFromQuote();}
+ public function mount(){
+        // The old Clinic Onboarding tab is now the wizard on Clinics; old links still open it there.
+        if($this->tab==='onboarding'){$this->tab='clinics';$this->openOnboarding();}
+        if(!in_array($this->tab,['dashboard','clinics','plans','billing','audit','licenses'],true))$this->tab='dashboard';if($this->onboardingQuoteId)$this->onboardFromQuote();}
     /** Clinic Onboarding filled in from an accepted quote: the business, its contact as Super Admin, and the plan quoted. */
     private function onboardFromQuote(): void{$q=\App\Models\ProspectQuote::find($this->onboardingQuoteId);if(!$q||$q->status==='accepted'){$this->onboardingQuoteId=null;return;}
-        $this->tab='onboarding';$this->openOnboarding();$this->newClinicName=$q->business_name;$this->newClinicSlug=Str::slug($q->business_name);$this->newClinicEmail=(string)$q->email;$this->newClinicPhone=(string)$q->phone;$this->newClinicCurrency=$q->currency;
+        $this->tab='clinics';$this->openOnboarding();$this->newClinicName=$q->business_name;$this->newClinicSlug=Str::slug($q->business_name);$this->newClinicEmail=(string)$q->email;$this->newClinicPhone=(string)$q->phone;$this->newClinicCurrency=$q->currency;
         $this->newAdminName=(string)$q->contact_name;$this->newAdminEmail=(string)$q->email;$this->newAdminPhone=(string)$q->phone;
         $plan=$q->subscription_plan_id?SubscriptionPlan::where('is_active',true)->find($q->subscription_plan_id):null;$this->newClinicProduct=$plan?->product?:($q->product?:$this->newClinicProduct);$this->newPlanId=$plan?->id;} public function updatedSearch(){ $this->resetPage(); } public function resetFilters(){ $this->reset(['search','planFilter','statusFilter','deploymentFilter','limitFilter','productFilter']);$this->resetPage(); } public function setTab(string $v){abort_unless(in_array($v,['dashboard','clinics','plans','billing','onboarding','audit','licenses']),422);$this->tab=$v;$this->selectedClinicId=null;$this->resetPage();} public function selectClinic(int $id){$clinic=Clinic::with('currentSubscription')->findOrFail($id);$this->selectedClinicId=$clinic->id;
         $this->reset('deleteClinicConfirmation','deleteClinicAccounts','deleteClinicReason','statusReason','panelPlanId','panelReason','renewPayNow','renewReference','panelInvoiceId','panelPaymentAmount','panelPaymentReference');

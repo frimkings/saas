@@ -18,7 +18,7 @@ use ZipArchive;
 
 /**
  * Legacy Imports → From other software: brings a prospect's records from another vendor's
- * software (Cloudify first) into a clinic that was already set up through Clinic Onboarding.
+ * software (Cloudify first) into a clinic that was already set up through Clinics → Onboard new clinic.
  * Upload → check (nothing written) → match staff → import in the background → undo if needed.
  */
 class ExternalImportComponent extends Component

@@ -17,7 +17,7 @@ use Livewire\WithPagination;
 /**
  * Platform → Quotes: quotations and pro-forma invoices for businesses that are not on the platform
  * yet, written from a pricing-page request or from scratch, sent by email or SMS, and turned into
- * a clinic through Clinic Onboarding once accepted.
+ * a clinic through Clinics → Onboard new clinic once accepted.
  */
 class ProspectQuotesComponent extends Component
 {

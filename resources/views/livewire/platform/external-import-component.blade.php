@@ -7,7 +7,7 @@
     <form class="ui-card" wire:submit="checkFiles" data-tour="xi-upload"
           x-data="{ sending: false, progress: 0 }" x-on:livewire-upload-start="sending = true; progress = 0" x-on:livewire-upload-finish="sending = false"
           x-on:livewire-upload-error="sending = false" x-on:livewire-upload-progress="progress = $event.detail.progress">
-        <div class="ui-card-head"><div><h2>New import</h2><p>Set the clinic up through Clinic Onboarding first, then bring their old records into it. Checking the files writes nothing to the clinic.</p></div></div>
+        <div class="ui-card-head"><div><h2>New import</h2><p>Set the clinic up through Clinics → Onboard new clinic first, then bring their old records into it. Checking the files writes nothing to the clinic.</p></div></div>
         <div class="ui-row">
             <label class="ui-field"><span>Clinic to import into</span>
                 <select class="ui-input" wire:model="clinicId"><option value="">Choose a clinic…</option>@foreach($clinics as $clinic)<option value="{{ $clinic->id }}">{{ $clinic->name }}{{ $clinic->status !== 'active' ? ' ('.$clinic->status.')' : '' }}</option>@endforeach</select>

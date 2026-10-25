@@ -367,7 +367,7 @@ final class TourCatalog
                 ['target' => 'cu-clinics', 'title' => 'Clinic by clinic', 'body' => 'Sort by any column to see who uses the most, and press a clinic for its day-by-day use.'],
             ]],
             'platform.imports-other' => ['Import from other software', [
-                ['target' => 'xi-tabs', 'title' => 'Two kinds of import', 'body' => 'An SQL dump from our own older system creates a new clinic. Files exported from other software, such as Cloudify, go into a clinic you have already set up through Clinic Onboarding.'],
+                ['target' => 'xi-tabs', 'title' => 'Two kinds of import', 'body' => 'An SQL dump from our own older system creates a new clinic. Files exported from other software, such as Cloudify, go into a clinic you have already set up through Clinics → Onboard new clinic.'],
                 ['target' => 'xi-upload', 'title' => 'Check the files first', 'body' => 'Choose the clinic and upload all the exported .xlsx files (or one .zip). Checking writes nothing to the clinic.'],
                 ['target' => 'xi-list', 'title' => 'Every import', 'body' => 'Open one to see its report, import it, follow its progress, or undo it. Uploaded files are deleted once an import finishes.'],
             ]],
