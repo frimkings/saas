@@ -259,6 +259,13 @@
                                         @if(!empty($state['made_to_order']) && $editingProduct && !$editingProduct->made_to_order && $editingProduct->quantity > 0)
                                             <small class="mt-1 block text-xs text-amber-600">Saving clears the current quantity of {{ $editingProduct->quantity }}. The old number is kept in the audit trail.</small>
                                         @endif
+                                        @if(empty($state['made_to_order']))
+                                            {{-- Low stock from this quantity down, at this branch. --}}
+                                            <label for="products-state-reorder-level" class="mt-2 block">Reorder at</label>
+                                            <input id="products-state-reorder-level" type="number" min="0" wire:model="state.reorder_level"
+                                                   class="ui-input @error('reorder_level') is-invalid @enderror" placeholder="10">
+                                            @error('reorder_level') <span class="ui-error">{{ $message }}</span> @enderror
+                                        @endif
                                         @endif
                                     </div>
                                 </div>
@@ -486,9 +493,10 @@
                                         <td class="ui-number">
                                             <strong>{{ currency() }} {{ number_format($product->selling_price, 2) }}</strong>
                                         </td>
-                                        <td class="hidden whitespace-nowrap text-xs lg:table-cell">{{ $product->manufacture_date->format('d M Y') }}</td>
+                                        <td class="hidden whitespace-nowrap text-xs lg:table-cell">{{ $product->made_to_order ? '—' : $product->manufacture_date->format('d M Y') }}</td>
                                         <td class="whitespace-nowrap text-xs">
-                                            {{ $product->expiry_date->format('d M Y') }}
+                                            {{-- Services and made-to-order items are not stocked, so they have no dates. --}}
+                                            {{ $product->made_to_order ? '—' : $product->expiry_date->format('d M Y') }}
                                         </td>
                                         <td class="text-center">
                                             @if($isExpired)

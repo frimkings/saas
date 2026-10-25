@@ -119,7 +119,7 @@
                                     @endif
                                 </td>
                                 <td class="text-center" style="white-space:nowrap;">
-                                    @if(!in_array($po->status, ['received','cancelled']))
+                                    @if(in_array($po->status, ['ordered','partial']))
                                         <button wire:click="openGrn({{ $po->id }})"
                                                 class="ui-button ui-button-sm ui-button-primary"
                                                 title="Receive Goods">
@@ -346,6 +346,8 @@
             </div>
             <div class="p-4">
                 <p class="text-slate-500 text-sm mb-4">Enter the quantity actually received for each item. Leave zero for items not yet delivered.</p>
+                {{-- Problems with the receipt as a whole (more than is outstanding, lines from another order). --}}
+                @error('grnLines')<div class="ui-panel ui-panel--danger mb-3 px-3 py-2 text-sm text-red-800" role="alert">{{ $message }}</div>@enderror
                 <div class="ui-table-wrap">
                     <table class="ui-table ui-table-sm" style="font-size:.85rem;">
                         <thead class="">
@@ -381,7 +383,8 @@
                                     <td>
                                         <input type="date"
                                                wire:model="grnLines.{{ $i }}.expiry_date" aria-label="Expiry date"
-                                               class="ui-input ui-input-sm">
+                                               class="ui-input ui-input-sm @error('grnLines.'.$i.'.expiry_date') is-invalid @enderror">
+                                        @error('grnLines.'.$i.'.expiry_date')<div class="ui-error" style="font-size:.7rem;">{{ $message }}</div>@enderror
                                     </td>
                                 </tr>
                             @endforeach

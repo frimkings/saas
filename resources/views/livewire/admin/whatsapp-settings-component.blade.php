@@ -48,9 +48,10 @@
                 <div class="w-full md:w-6/12 px-2 mb-4">
                     <label for="whatsapp-set-accesstoken">Access Token</label>
                     <input id="whatsapp-set-accesstoken" wire:model="accessToken" type="password"
-                        class="ui-input"
+                        class="ui-input @error('accessToken') is-invalid @enderror"
                         placeholder="Leave blank to keep existing token"
                         autocomplete="new-password">
+                    @error('accessToken')<div class="ui-error">{{ $message }}</div>@enderror
                     <small class="text-slate-500">Enter only to update. Current value is stored encrypted.</small>
                 </div>
             </div>

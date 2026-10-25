@@ -54,6 +54,12 @@ class SmsTemplatesComponent extends Component
     // Spectacle renewal (persisted to settings)
     public int $renewalReminderDays = 30;
 
+    // Days after "Ready" for pickup reminders, e.g. "7, 14, 21" (the same setting as Optical Settings)
+    public string $pickupSchedule = '';
+
+    /** Partner-clinic messages belong to the optical suite. */
+    private const OPTICAL_KEYS = ['partner_job_ready', 'partner_jobs_awaiting'];
+
     public function mount(): void
     {
         $this->loadTemplates();
@@ -68,6 +74,7 @@ class SmsTemplatesComponent extends Component
         $this->balanceEveryDays      = (int)  ($s->balance_reminder_every_days ?? 7);
         $this->balanceMax            = (int)  ($s->balance_reminder_max ?? 3);
         $this->renewalReminderDays   = (int)  ($s->spectacle_renewal_reminder_days ?? 30);
+        $this->pickupSchedule        = implode(', ', \App\Models\OpticalSetting::currentReminderSchedule());
         $this->testPhone             = (string) (auth()->user()?->phone ?? '');
     }
 
@@ -80,6 +87,7 @@ class SmsTemplatesComponent extends Component
         $this->templates = SmsTemplate::orderBy('id')
             ->where('key', '!=', 'custom_broadcast')
             ->when(! $this->campaigns(), fn ($query) => $query->whereNotIn('key', self::CAMPAIGN_KEYS))
+            ->when(! LicenseService::has(Feature::OPTICAL), fn ($query) => $query->whereNotIn('key', self::OPTICAL_KEYS))
             ->get(['id', 'key', 'label', 'message', 'placeholders', 'is_enabled'])
             ->keyBy('key')
             ->map(fn($t) => [
@@ -87,7 +95,9 @@ class SmsTemplatesComponent extends Component
                 'label'        => $t->label,
                 'message'      => $t->message,
                 'is_enabled'   => (bool) ($t->is_enabled ?? false),
-                'placeholders' => array_values(array_unique(array_merge($t->placeholders ?? [], SmsTemplate::CONTEXT_PLACEHOLDERS))),
+                // Rows keep the list from when they were made; the built-in list may have grown since.
+                'placeholders' => array_values(array_unique(array_merge($t->placeholders ?? [],
+                    DefaultSmsTemplates::TEMPLATES[$t->key]['placeholders'] ?? [], SmsTemplate::CONTEXT_PLACEHOLDERS))),
             ])
             ->toArray();
     }
@@ -107,13 +117,22 @@ class SmsTemplatesComponent extends Component
             "templates.{$key}.message.max"      => 'Message must be 1000 characters or fewer.',
         ]);
 
-        SmsTemplate::where('key', $key)->update([
-            'message' => trim($this->templates[$key]['message']),
-        ]);
+        // A placeholder this message cannot fill would reach the patient as raw text.
+        $message = trim($this->templates[$key]['message']);
+        if ($unknown = SmsTemplate::unknownPlaceholders($message, $this->templates[$key]['placeholders'] ?? [])) {
+            $this->addError("templates.{$key}.message", 'This message cannot fill ' . implode(', ', $unknown)
+                . '. It can use: ' . implode(' ', $this->templates[$key]['placeholders'] ?? []) . '.');
+            return;
+        }
 
+        SmsTemplate::where('key', $key)->update(['message' => $message]);
+
+        // Messages that use a link nobody has set are held back, so say so now.
+        $unset = \App\Support\Messaging\ClinicLinks::missingIn($message, app(\App\Support\Tenancy\TenantContext::class)->branch());
         $this->dispatch('notify', ...[
-            'type'    => 'success',
-            'message' => '"' . $this->templates[$key]['label'] . '" saved.',
+            'type'    => $unset ? 'warning' : 'success',
+            'message' => '"' . $this->templates[$key]['label'] . '" saved.'
+                . ($unset ? ' It uses ' . implode(', ', $unset) . ', which is not set, so it will not be sent until you add it in Settings → Clinic Links.' : ''),
         ]);
     }
 
@@ -270,13 +289,30 @@ class SmsTemplatesComponent extends Component
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Spectacle renewal timing saved.']);
     }
 
+    /** Which days after "Ready" the pickup reminders go (blank switches them off). */
+    public function savePickupSchedule(): void
+    {
+        $this->validate(['pickupSchedule' => 'nullable|string|max:100']);
+        $days = \App\Models\OpticalSetting::parseSchedule($this->pickupSchedule, 'pickupSchedule');
+
+        $settings = \App\Models\OpticalSetting::firstOrNew();
+        $settings->fill(['collection_reminder_schedule' => $days]);
+        \App\Models\AuditTrail::recordSave($settings, 'optical.settings', 'pickup reminder days');
+        $this->pickupSchedule = implode(', ', $days);
+
+        $this->dispatch('notify', ...['type' => 'success', 'message' => $days
+            ? 'Pickup reminders go ' . implode(', ', $days) . ' days after an order is ready.'
+            : 'Pickup reminders are off.']);
+    }
+
     public function saveBirthdaySettings(): void
     {
         $this->requireCampaigns();
         $this->validate([
             'birthdayFilter'       => 'required|in:all,this_year,last_24_months,custom',
-            'birthdayCustomMonths' => 'nullable|integer|min:1|max:120',
+            'birthdayCustomMonths' => 'nullable|required_if:birthdayFilter,custom|integer|min:1|max:120',
         ], [
+            'birthdayCustomMonths.required_if' => 'Enter how many months back.',
             'birthdayFilter.in'            => 'Please select a valid filter option.',
             'birthdayCustomMonths.integer' => 'Months must be a whole number.',
             'birthdayCustomMonths.min'     => 'Must be at least 1 month.',

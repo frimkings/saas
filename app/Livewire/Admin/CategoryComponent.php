@@ -181,7 +181,7 @@ class CategoryComponent extends Component
         $categories = Category::withCount([
                 'products',
                 'products as in_stock_products_count' => fn ($query) => $query->where('quantity', '>', 0),
-                'products as low_stock_products_count' => fn ($query) => $query->where('quantity', '>', 0)->where('quantity', '<=', 10),
+                'products as low_stock_products_count' => fn ($query) => $query->lowStock(),
             ])
             ->when($this->searchTerm, function ($query) {
                 $query->where(function ($searchQuery) {

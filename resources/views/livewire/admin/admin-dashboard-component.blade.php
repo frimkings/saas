@@ -37,7 +37,7 @@
     <section aria-label="Today">
         <h2 class="{{ $group }}">Today</h2>
         <div class="ui-tiles" data-tour="clinic-kpis">
-            <x-ui.stat-tile label="Sales" :value="$money($todayRevenue)" hint="Collected today" icon="fa-cash-register" tone="accent" :href="$todayLink" />
+            <x-ui.stat-tile label="Sales" :value="$money($todayRevenue)" hint="Billed today, insurers' share included" icon="fa-cash-register" tone="accent" :href="$todayLink" />
             <x-ui.stat-tile label="Consultations" :value="number_format($consultationsToday)" hint="Patients seen by a doctor" icon="fa-stethoscope" />
             @if($canAppointments)<x-ui.stat-tile label="Appointments" :value="number_format($todayAppointments)" hint="Booked for today" icon="fa-calendar-check" :href="route('secretary.appointments')" />@endif
             <x-ui.stat-tile label="Prescriptions to dispense" :value="number_format($pendingPrescriptions)" :tone="$pendingPrescriptions > 0 ? 'warning' : 'neutral'"
@@ -64,7 +64,7 @@
         </div>
     </section>
 
-    <x-ui.section title="Revenue, last 7 days" :description="'Money collected each day ('.currency().')'" icon="fa-chart-bar">
+    <x-ui.section title="Revenue, last 7 days" :description="'Sales billed each day ('.currency().')'" icon="fa-chart-bar">
         <x-slot:actions>@if($canReports)<x-ui.button class="ui-button-sm" :href="$reportsLink">Full report</x-ui.button>@endif</x-slot:actions>
         <div class="p-4"><div wire:ignore class="relative h-[260px]"><canvas id="dashboardRevenueChart" role="img" aria-label="Revenue for the last 7 days"></canvas></div></div>
     </x-ui.section>
@@ -72,7 +72,7 @@
     <section aria-label="Stock">
         <h2 class="{{ $group }}">Stock · {{ number_format($productsInStock) }} {{ \Illuminate\Support\Str::plural('product', $productsInStock) }} in stock</h2>
         <div class="ui-tiles">
-            <x-ui.stat-tile label="Low stock" :value="number_format($lowStockCount)" hint="10 units or fewer" icon="fa-exclamation-triangle" :tone="$lowStockCount > 0 ? 'warning' : 'neutral'" :href="route('admin.inventory-alerts')" />
+            <x-ui.stat-tile label="Low stock" :value="number_format($lowStockCount)" hint="At or below the reorder level" icon="fa-exclamation-triangle" :tone="$lowStockCount > 0 ? 'warning' : 'neutral'" :href="route('admin.inventory-alerts')" />
             <x-ui.stat-tile label="Out of stock" :value="number_format($outOfStockCount)" hint="None left" icon="fa-times-circle" :tone="$outOfStockCount > 0 ? 'danger' : 'neutral'" :href="route('admin.inventory-alerts')" />
             <x-ui.stat-tile label="Expiring soon" :value="number_format($expiringSoonCount)" hint="Within 90 days" icon="fa-clock" :tone="$expiringSoonCount > 0 ? 'warning' : 'neutral'" :href="route('admin.inventory-alerts')" />
             <x-ui.stat-tile label="Expired" :value="number_format($expiredCount)" hint="Past the expiry date" icon="fa-ban" :tone="$expiredCount > 0 ? 'danger' : 'neutral'" :href="route('admin.inventory-alerts')" />

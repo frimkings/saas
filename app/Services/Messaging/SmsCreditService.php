@@ -184,7 +184,7 @@ class SmsCreditService
         $tax = round($subtotal * ((float) ($subscription?->pricing_snapshot['tax_rate'] ?? 0) / 100), 2);
 
         $invoice = PlatformInvoice::create([
-            'number'                 => 'SMS-' . now()->format('YmHis') . '-' . Str::upper(Str::random(4)),
+            'number'                 => 'SMS-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(4)),
             'clinic_id'              => $clinic->id,
             'clinic_subscription_id' => $subscription?->id,
             'period_start'           => now()->toDateString(),

@@ -154,6 +154,8 @@ class ClinicNavigation
             $menu[] = ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
                 ['label' => 'Patients Awaiting', 'route' => 'doctor.patient-awaiting', 'show' => $doctorPages, 'active' => ['doctor.patient-awaiting', 'doctor.patient-records']],
                 ['label' => 'All Records', 'route' => 'doctor.all-records', 'show' => $doctorPages, 'active' => ['doctor.all-records', 'doctor.patient-timeline']],
+                // Referral letters, medical reports and excuse duty letters (the same page doctors use).
+                ['label' => 'Referrals', 'route' => 'doctor.referrals', 'show' => $doctorPages && $has(Feature::REFERRALS)],
                 ['label' => 'Diagnoses', 'route' => 'admin.diagnoses'],
             ]];
             $menu[] = ['label' => 'Clinical Inventory', 'icon' => 'fa-boxes', 'items' => [

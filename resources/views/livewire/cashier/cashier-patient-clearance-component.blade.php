@@ -84,7 +84,12 @@
                         @forelse($patients as $patient)
                             <tr>
                                 <td class="text-center text-slate-500">{{ $loop->iteration }}</td>
-                                <td class="font-semibold">{{ $patient->name }}</td>
+                                <td class="font-semibold">
+                                    {{ $patient->name }}
+                                    @if($patient->insurer && $patient->insurer->active && \App\Services\LicenseService::has(\App\Support\Feature::INSURANCE))
+                                        <span class="{{ $badge }} ml-1 bg-sky-50 text-sky-800 font-normal" title="Insured: the insurer's share is billed to it"><i class="fas fa-shield-alt mr-1" aria-hidden="true"></i>{{ $patient->insurer->name }}</span>
+                                    @endif
+                                </td>
                                 <td>
                                     @if($patient->contact)
                                         <a href="tel:{{ $patient->contact }}" class="whitespace-nowrap text-slate-600 no-underline hover:text-teal-700"><i class="fas fa-phone-alt mr-1" aria-hidden="true"></i>{{ $patient->contact }}</a>
@@ -275,8 +280,13 @@
                                 <p class="mb-2 font-semibold text-teal-800"><i class="fas fa-shield-alt mr-1" aria-hidden="true"></i>Insurance details</p>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div><span class="block text-xs text-slate-500">Insurer</span><strong>{{ $insuranceSummary['insurer'] }}</strong></div>
-                                    <div><span class="block text-xs text-slate-500">Policy</span><strong>{{ $insuranceSummary['policy_number'] ?: 'N/A' }}</strong></div>
-                                    <div class="col-span-2"><span class="block text-xs text-slate-500">Member</span><strong>{{ $insuranceSummary['member_name'] ?: 'N/A' }} ({{ $insuranceSummary['member_id'] ?: 'No ID' }})</strong></div>
+                                    <div><span class="block text-xs text-slate-500">Member ID</span><strong>{{ $insuranceSummary['member_id'] ?: 'Not recorded' }}</strong></div>
+                                    @if($insuranceSummary['policy_number'])
+                                        <div><span class="block text-xs text-slate-500">Policy</span><strong>{{ $insuranceSummary['policy_number'] }}</strong></div>
+                                    @endif
+                                    @if($insuranceSummary['member_name'])
+                                        <div><span class="block text-xs text-slate-500">Member name</span><strong>{{ $insuranceSummary['member_name'] }}</strong></div>
+                                    @endif
                                 </div>
                                 @unless($insuranceSummary['active'])
                                     <p class="mt-2 text-xs text-red-700">This insurer is inactive, so the patient pays the full amount.</p>

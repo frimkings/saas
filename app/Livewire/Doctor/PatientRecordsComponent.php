@@ -768,6 +768,7 @@ public function deleteAppointment($appointmentId)
         $term = trim((string) $value);
         if ($this->activeTab === 'prescription' && mb_strlen($term) >= 2) {
             $this->searchResults = Product::query()
+                ->inActiveCategory()
                 ->select(['id', 'category_id', 'name', 'batch_number', 'quantity', 'made_to_order', 'selling_price'])
                 ->with('category:id,name')
                 ->where(function ($query) use ($term) {
@@ -1429,23 +1430,14 @@ public function deleteAppointment($appointmentId)
             'complaint' => $this->state['chiefComplaint'] ?? null,
             'va_od' => $this->state['vaOD6m'] ?? null,
             'va_os' => $this->state['vaOS6m'] ?? null,
-            'anterior_segment' => trim(implode(' | ', array_filter([
-                $this->state['corneaOD'] ?? null,
-                $this->state['corneaOS'] ?? null,
-                $this->state['lensOD'] ?? null,
-                $this->state['lensOS'] ?? null,
-            ]))),
-            'posterior_segment' => trim(implode(' | ', array_filter([
-                $this->state['fundusOD'] ?? null,
-                $this->state['fundusOS'] ?? null,
-                $this->state['cdrOD'] ?? null,
-                $this->state['cdrOS'] ?? null,
-            ]))),
+            // Each finding says which eye and what it is, so the receiving doctor can read it.
+            'anterior_segment' => $this->labelledFindings(['Cornea OD' => 'corneaOD', 'Cornea OS' => 'corneaOS', 'Lens OD' => 'lensOD', 'Lens OS' => 'lensOS']),
+            'posterior_segment' => $this->labelledFindings(['Fundus OD' => 'fundusOD', 'Fundus OS' => 'fundusOS', 'C/D OD' => 'cdrOD', 'C/D OS' => 'cdrOS']),
             'iop' => trim('OD: ' . ($this->state['IOPOD'] ?? 'N/A') . ', OS: ' . ($this->state['IOPOS'] ?? 'N/A')),
             'diagnosis' => $diagnosis ?: null,
             'reason_for_referral' => 'URGENT: ' . implode(', ', $reasons),
             'management' => $this->state['notes'] ?? null,
-            'status' => 'draft',
+            'status' => 'pending',
         ]);
 
         AuditTrail::record(
@@ -1458,6 +1450,14 @@ public function deleteAppointment($appointmentId)
         );
 
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Urgent referral draft created. Open Referrals to complete or print it.']);
+    }
+
+    /** "Cornea OD: clear | Lens OS: cataract" from the consultation fields that were filled in. */
+    private function labelledFindings(array $fields): string
+    {
+        return collect($fields)
+            ->map(fn ($key, $label) => filled($this->state[$key] ?? null) ? "{$label}: {$this->state[$key]}" : null)
+            ->filter()->implode(' | ');
     }
 
     private function clinicalTextForRisk($records): string

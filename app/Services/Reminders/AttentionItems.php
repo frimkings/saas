@@ -325,7 +325,8 @@ class AttentionItems
             if ($quantity > 0) {
                 $inventory = app(BranchInventoryService::class);
                 $before = $inventory->quantity($product);
-                $inventory->decrease($product, $quantity);
+                // The units come out of this batch (not the next one to expire).
+                $inventory->decrease($product, $quantity, $lot?->branch_id, $lot?->id);
                 Stock::create([
                     'product_id' => $product->id, 'user_id' => Auth::id(),
                     'reference_no' => 'EXP-' . now()->format('Ymd-His') . '-' . random_int(100, 999),

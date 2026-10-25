@@ -47,13 +47,10 @@ class PatientRecallComponent extends Component
         $bulkChannel = $s->whatsapp_bulk_channel ?? 'sms';
         ['sms' => $useSms, 'whatsapp' => $useWhatsApp] = AutomaticChannels::pick($bulkChannel, $s, $s->whatsapp_recall_template ?? null);
 
-        $msg = SmsTemplate::render('patient_recall', [
-            '[NAME]'   => $patient->name,
-            '[CLINIC]' => $clinic,
-        ]);
+        $msg = $this->recallMessage($patient, $clinic);
 
         if (!$msg) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Recall SMS template is empty. Please configure it in SMS Templates.']);
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $this->whyNoMessage($patient)]);
             return;
         }
 
@@ -93,20 +90,18 @@ class PatientRecallComponent extends Component
             return;
         }
 
-        $patients    = $this->dueQuery()->get(['id', 'name', 'contact']);
+        $patients    = $this->dueQuery()->with('homeBranch')->get(['id', 'name', 'contact', 'home_branch_id']);
         $clinic      = $s->clinic_name ?? 'the clinic';
         $bulkChannel = $s->whatsapp_bulk_channel ?? 'sms';
         ['sms' => $useSms, 'whatsapp' => $useWhatsApp] = AutomaticChannels::pick($bulkChannel, $s, $s->whatsapp_recall_template ?? null);
         $smsService  = new SmsService();
         $waService   = new WhatsAppService();
         $sent = $failed = 0;
+        $reason = null;
 
         foreach ($patients as $patient) {
-            $msg = SmsTemplate::render('patient_recall', [
-                '[NAME]'   => $patient->name,
-                '[CLINIC]' => $clinic,
-            ]);
-            if (!$msg) { continue; }
+            $msg = $this->recallMessage($patient, $clinic);
+            if (!$msg) { $failed++; $reason ??= $this->whyNoMessage($patient); continue; }
 
             $anySent = false;
 
@@ -138,7 +133,7 @@ class PatientRecallComponent extends Component
         AuditTrail::record('recall.bulk_sent', "Bulk recall: {$sent} sent, {$failed} failed");
         $this->dispatch('notify', ...[
             'type'    => $failed > 0 ? 'warning' : 'success',
-            'message' => "Bulk recall done — {$sent} sent, {$failed} failed.",
+            'message' => "Bulk recall done — {$sent} sent, {$failed} failed." . ($reason ? ' ' . $reason : ''),
         ]);
     }
 
@@ -180,6 +175,25 @@ class PatientRecallComponent extends Component
         return view('livewire.admin.patient-recall-component', compact(
             'patientsPaginated', 'months', 'dueCount', 'sentCount', 'returnedCount', 's'
         ))->layout('layouts.admin.admin-layout');
+    }
+
+    /**
+     * The recall wording for one patient. Sending from this page works whether or not the
+     * automatic recall is switched on; the patient's home branch fills the branch details.
+     */
+    private function recallMessage(Patient $patient, string $clinic): string
+    {
+        return SmsTemplate::render('patient_recall', ['[NAME]' => $patient->name, '[CLINIC]' => $clinic], $patient->homeBranch, evenIfOff: true);
+    }
+
+    private function whyNoMessage(Patient $patient): string
+    {
+        $message = (string) (SmsTemplate::where('key', 'patient_recall')->value('message') ?? '');
+        $missing = \App\Support\Messaging\ClinicLinks::missingIn($message, $patient->homeBranch);
+
+        return $missing
+            ? 'The recall message uses ' . implode(', ', $missing) . ', which is not set. Add it in Settings → Clinic Links.'
+            : 'The recall message is empty. Write it in Communications → Messages.';
     }
 
     // ── Private query builders ────────────────────────────────────────────────

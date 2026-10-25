@@ -293,8 +293,14 @@ class InsurersComponent extends Component
 
     private function validateForm(): array
     {
+        // One insurer per name in the clinic (case-insensitive under the default collation).
+        $clinicId = app(\App\Support\Tenancy\TenantContext::class)->clinicId();
+        $uniqueName = Rule::unique('insurers', 'name')
+            ->where(fn ($query) => $query->whereNull('deleted_at')->when($clinicId !== null, fn ($q) => $q->where('clinic_id', $clinicId)))
+            ->ignore($this->insurerId);
+
         return $this->validate([
-            'state.name'        => 'required|string|max:120',
+            'state.name'        => ['required', 'string', 'max:120', $uniqueName],
             'state.code'        => 'nullable|string|max:30',
             'state.scheme_type' => 'required|in:NHIS,Private,Corporate',
             'state.contact_person' => 'nullable|string|max:120',
@@ -303,7 +309,9 @@ class InsurersComponent extends Component
             'state.active'      => 'boolean',
             'state.patient_pays_difference' => 'boolean',
             'state.shortfall_action'        => ['required', Rule::in(array_keys(Insurer::SHORTFALL_ACTIONS))],
-        ], [], [
+        ], [
+            'state.name.unique' => 'An insurer with this name already exists.',
+        ], [
             'state.name'        => 'Insurer Name',
             'state.code'        => 'Code',
             'state.scheme_type' => 'Scheme Type',

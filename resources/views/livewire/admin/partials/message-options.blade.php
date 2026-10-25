@@ -87,6 +87,12 @@
         @break
 
     @case('spectacles_reminder')
-        <p class="text-sm text-slate-500 mt-4 pt-4 border-t border-slate-200 mb-0"><i class="fas fa-info-circle mr-1"></i>Which days after "Ready" the pickup reminders go is set in Optical Settings.</p>
+        <div class="{{ $optionRow }}" style="gap:.25rem">
+            <span class="text-slate-500 font-semibold">Send</span>
+            <input type="text" wire:model="pickupSchedule" maxlength="100" placeholder="7, 14, 21" class="{{ $numberInput }}" style="width:120px" aria-label="Days after Ready for pickup reminders">
+            <span class="text-slate-500">days after an order is marked Ready (up to 5 days; leave blank for none).</span>
+            <button type="button" wire:click="savePickupSchedule" class="ui-button ui-button-sm ui-button-secondary ml-2">Save days</button>
+        </div>
+        @error('pickupSchedule') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror
         @break
 @endswitch

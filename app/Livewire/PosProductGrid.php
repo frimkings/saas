@@ -38,7 +38,9 @@ class PosProductGrid extends Component
 
     public function render()
     {
+        // Switched-off categories are not sold.
         $products = Product::with('category')
+            ->inActiveCategory()
             ->searchNameOrBatch($this->productSearchTerm)
             ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDateIndexed('expiry_date', '>=', now()))
             ->when($this->selectedCategoryId, fn($q) => $q->where('category_id', $this->selectedCategoryId))
@@ -46,7 +48,7 @@ class PosProductGrid extends Component
 
         return view('livewire.pos-product-grid', [
             'products' => $products,
-            'categories' => Category::orderBy('name')->get(),
+            'categories' => Category::where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 }

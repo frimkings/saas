@@ -50,7 +50,16 @@ class WhatsAppSettingsComponent extends Component
             'recallTemplate'   => 'nullable|string|max:100',
             'renewalTemplate'  => 'nullable|string|max:100',
             'bulkChannel'      => 'required|in:sms,whatsapp,both',
+        ], [
+            'phoneNumberId.required_if' => 'Enter the Phone Number ID while WhatsApp is switched on.',
+        ], [
+            'phoneNumberId' => 'Phone Number ID',
+            'testPhone'     => 'phone number',
         ]);
+        if ($this->whatsappEnabled && trim($this->accessToken) === '' && empty(Setting::getSettings()->whatsapp_access_token)) {
+            $this->addError('accessToken', 'Enter the access token while WhatsApp is switched on.');
+            return;
+        }
 
         $data = [
             'whatsapp_phone_number_id'   => trim($this->phoneNumberId) ?: null,
@@ -74,6 +83,13 @@ class WhatsAppSettingsComponent extends Component
 
     public function toggleWhatsApp(): void
     {
+        // Switching on needs saved credentials; otherwise every WhatsApp message would fail.
+        $s = Setting::getSettings();
+        if (! $this->whatsappEnabled && (empty($s->whatsapp_phone_number_id) || empty($s->whatsapp_access_token))) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Save the Phone Number ID and access token first, then switch WhatsApp on.']);
+            return;
+        }
+
         $this->whatsappEnabled = !$this->whatsappEnabled;
         Setting::getSettings()->update(['whatsapp_enabled' => $this->whatsappEnabled]);
 
@@ -85,7 +101,7 @@ class WhatsAppSettingsComponent extends Component
 
     public function sendTest(): void
     {
-        $this->validate(['testPhone' => 'required|string|max:20']);
+        $this->validate(['testPhone' => 'required|string|max:20'], ['testPhone.required' => 'Enter the phone number to send the test to.']);
 
         $s = Setting::getSettings();
         $msg = 'Test WhatsApp message from ' . ($s->clinic_name ?? 'the clinic') . '. Your WhatsApp integration is working correctly.';

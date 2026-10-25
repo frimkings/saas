@@ -4,7 +4,6 @@ namespace App\Livewire\Optical;
 
 use App\Models\OpticalSetting;
 use App\Services\ClinicAccessService;
-use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 class OpticalSettingsComponent extends Component
@@ -46,7 +45,7 @@ class OpticalSettingsComponent extends Component
             'quote_validity_days' => 'required|integer|between:1,365',
             'pos_max_discount_percent' => 'required|integer|between:0,100',
         ]);
-        $schedule = $this->parseSchedule($this->reminder_schedule);
+        $schedule = OpticalSetting::parseSchedule($this->reminder_schedule);
         app(ClinicAccessService::class)->assertWritable('optical');
         $values = [
             'min_deposit_percentage' => $this->min_deposit_percentage,
@@ -63,22 +62,6 @@ class OpticalSettingsComponent extends Component
         \App\Models\AuditTrail::recordSave($settings, 'optical.settings', 'optical settings');
         $this->reminder_schedule = implode(', ', $schedule);
         session()->flash('success', 'Optical module settings saved successfully.');
-    }
-
-    /** "3, 10, 30" → [3, 10, 30]: up to 5 different whole days from 1 to 365. */
-    private function parseSchedule(string $input): array
-    {
-        $parts = array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', $input) ?: []), fn ($part) => $part !== ''));
-        $fail = fn (string $message) => throw ValidationException::withMessages(['reminder_schedule' => $message]);
-        if (count($parts) > 5) $fail('Enter at most 5 reminder days.');
-        $days = [];
-        foreach ($parts as $part) {
-            if (! ctype_digit($part) || (int) $part < 1 || (int) $part > 365) $fail('Reminder days must be whole numbers from 1 to 365, e.g. 3, 10, 30.');
-            $days[] = (int) $part;
-        }
-        if (count(array_unique($days)) !== count($days)) $fail('Each reminder day can only be listed once.');
-        sort($days);
-        return $days;
     }
 
     public function render()

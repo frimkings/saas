@@ -141,11 +141,105 @@ class SmsTemplateSwitchTest extends TestCase
     public function test_broadcast_page_saves_its_message_and_counts_recipients_before_sending(): void
     {
         $user = $this->clinicAdmin(['clinical', '*']);
+        $this->withCredits();
         \App\Models\Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Ama', 'contact' => '0241112222', 'gender' => 'Female']);
 
         Livewire::test(BroadcastComponent::class)
             ->set('message', 'Happy holidays [NAME] from [CLINIC]!')->call('prepareBroadcast')
-            ->assertSet('broadcastConfirmStep', true)->assertSet('broadcastRecipientCount', 1);
+            ->assertSet('broadcastConfirmStep', true)->assertSet('broadcastRecipientCount', 1)->assertSet('broadcastCreditsNeeded', 1);
         $this->assertSame('Happy holidays [NAME] from [CLINIC]!', SmsTemplate::where('key', 'custom_broadcast')->value('message'));
+    }
+
+    /** The platform gateway (faked) and 100 credits in the clinic's wallet. */
+    private function withCredits(int $credits = 100): void
+    {
+        config(['services.eazisms' => ['url' => 'https://platform.test/sms', 'key' => 'platform-key', 'default_sender' => 'EYEPLATFORM']]);
+        $this->app->instance(\App\Services\Messaging\SmsDriver::class, new class implements \App\Services\Messaging\SmsDriver {
+            public function send(\App\Services\Messaging\SmsCredentials $credentials, string $to, string $message): array { return ['success' => true, 'message_id' => 'm1']; }
+            public function balance(\App\Services\Messaging\SmsCredentials $credentials): array { return ['success' => true, 'response' => ['balance' => 1]]; }
+        });
+        Setting::getSettings()->update(['sms_enabled' => true]);
+        if ($credits) app(\App\Services\Messaging\SmsCreditService::class)->add(app(TenantContext::class)->clinicId(), $credits, 'grant', ['note' => 'Test credits']);
+    }
+
+    public function test_a_broadcast_fills_the_occasion_leaves_out_opt_outs_and_refuses_unknown_placeholders(): void
+    {
+        $user = $this->clinicAdmin(['clinical', '*']);
+        $this->withCredits();
+        $patient = fn (string $name, array $extra = []) => \App\Models\Patient::createWithGeneratedPxNumber(
+            ['user_id' => $user->id, 'name' => $name, 'contact' => '02411' . random_int(10000, 99999), 'gender' => 'Female'] + $extra);
+        $patient('Ama');
+        $patient('Kofi', ['marketing_opt_out' => true]);
+
+        $page = Livewire::test(BroadcastComponent::class)
+            ->set('message', 'Happy [OCCASION], [NAME]! Bring [FOO].')->call('prepareBroadcast')->assertHasErrors('message')
+            ->set('message', 'Happy [OCCASION], [NAME], from [BRANCH]!')->call('prepareBroadcast')->assertHasErrors('occasion')
+            ->set('occasion', 'Christmas')->call('prepareBroadcast')->assertHasNoErrors()
+            ->assertSet('broadcastRecipientCount', 1);
+        $page->call('sendCustomBroadcast');
+
+        $this->assertSame(['Happy Christmas, Ama, from Main!'], \App\Models\SmsLog::where('template_key', 'custom_broadcast')->pluck('message')->all());
+    }
+
+    public function test_a_message_cannot_be_saved_with_a_placeholder_it_cannot_fill(): void
+    {
+        $this->clinicAdmin(['clinical', '*']);
+        Livewire::test(SmsTemplatesComponent::class)
+            ->set('templates.appointment_booking.message', 'Hi [NAME], your glasses [ORDER_ID] are ready.')->call('save', 'appointment_booking')
+            ->assertHasErrors('templates.appointment_booking.message')
+            ->set('templates.appointment_booking.message', 'Hi [NAME], see you on [DATE] at [TIME] at [BRANCH].')->call('save', 'appointment_booking')
+            ->assertHasNoErrors();
+    }
+
+    public function test_manual_recall_sends_while_the_automatic_recall_is_off(): void
+    {
+        $user = $this->clinicAdmin(['clinical', '*']);
+        $this->withCredits();
+        $ama = \App\Models\Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Ama', 'contact' => '0241112222', 'gender' => 'Female']);
+        SmsTemplate::ensureDefaults();
+        $this->assertFalse((bool) SmsTemplate::where('key', 'patient_recall')->value('is_enabled'));
+
+        Livewire::test(\App\Livewire\Admin\PatientRecallComponent::class)->call('sendRecall', $ama->id)->assertDispatched('notify', type: 'success');
+        $this->assertSame(1, \App\Models\SmsLog::where('template_key', 'patient_recall')->count());
+    }
+
+    public function test_refused_sms_are_logged_with_the_reason(): void
+    {
+        $this->clinicAdmin(['clinical', '*']);
+        $this->withCredits(0);
+
+        $result = app(\App\Services\SmsService::class)->send('0241112222', 'Hello', null, 'appointment_booking');
+        $this->assertFalse($result['success']);
+        $this->assertSame('failed', \App\Models\SmsLog::sole()->status);
+
+        Setting::getSettings()->update(['sms_enabled' => false]);
+        app(\App\Services\SmsService::class)->send('0241112222', 'Hello again', null, 'appointment_booking');
+        $this->assertSame('skipped', \App\Models\SmsLog::latest('id')->first()->status);
+    }
+
+    public function test_clinic_plans_hide_partner_messages_and_set_pickup_days_and_birthday_months(): void
+    {
+        $this->clinicAdmin(['clinical', 'patient_messages', 'sms_campaigns', 'spectacle_orders']);
+        $page = Livewire::test(SmsTemplatesComponent::class)
+            ->assertDontSee('Partner Job Ready')->assertSee('Spectacles Pickup Reminder')
+            ->set('pickupSchedule', '3, 10, 400')->call('savePickupSchedule')->assertHasErrors('pickupSchedule')
+            ->set('pickupSchedule', '10, 3')->call('savePickupSchedule')->assertHasNoErrors();
+        $this->assertSame([3, 10], \App\Models\OpticalSetting::currentReminderSchedule());
+
+        $page->set('birthdayFilter', 'custom')->set('birthdayCustomMonths', null)->call('saveBirthdaySettings')->assertHasErrors('birthdayCustomMonths');
+    }
+
+    public function test_whatsapp_is_not_switched_on_without_credentials(): void
+    {
+        $this->clinicAdmin(['clinical', '*']);
+        Livewire::test(\App\Livewire\Admin\WhatsAppSettingsComponent::class)->call('toggleWhatsApp')->assertSet('whatsappEnabled', false);
+        $this->assertFalse((bool) Setting::getSettings()->whatsapp_enabled);
+    }
+
+    public function test_a_branch_sms_limit_has_a_ceiling(): void
+    {
+        $this->clinicAdmin(['clinical', '*']);
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(\App\Services\Messaging\BranchSmsLimits::class)->set(app(TenantContext::class)->branch(), 99999999999);
     }
 }

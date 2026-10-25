@@ -7,7 +7,7 @@
     <div class="ui-panel"><form wire:submit="createTransfer" class="p-5 flex flex-wrap -mx-2 items-end">
         <div class="mb-4 w-full md:w-3/12 px-2"><label for="stock-transf-destinationbranchid">Destination</label><select id="stock-transf-destinationbranchid" wire:model="destinationBranchId" class="ui-input"><option value="">Select branch</option>@foreach($branches as $branch)<option value="{{ $branch->id }}">{{ $branch->name }}</option>@endforeach</select>@error('destinationBranchId')<small class="text-red-700">{{ $message }}</small>@enderror</div>
         <div class="mb-4 w-full md:w-3/12 px-2"><label for="stock-transf-productid">Product</label><select id="stock-transf-productid" wire:model="productId" class="ui-input"><option value="">Select product</option>@foreach($products as $product)<option value="{{ $product->id }}">{{ $product->name }}</option>@endforeach</select>@error('productId')<small class="text-red-700">{{ $message }}</small>@enderror</div>
-        <div class="mb-4 w-full md:w-2/12 px-2"><label for="stock-transf-quantity">Quantity</label><input id="stock-transf-quantity" wire:model="quantity" type="number" min="1" class="ui-input"></div>
+        <div class="mb-4 w-full md:w-2/12 px-2"><label for="stock-transf-quantity">Quantity</label><input id="stock-transf-quantity" wire:model="quantity" type="number" min="1" class="ui-input">@error('quantity')<small class="text-red-700">{{ $message }}</small>@enderror</div>
         <div class="mb-4 w-full md:w-3/12 px-2"><label for="stock-transf-notes">Notes</label><input id="stock-transf-notes" wire:model="notes" class="ui-input"></div>
         <div class="mb-4 w-full md:w-1/12 px-2"><button class="ui-button ui-button-primary">Create</button></div>
     </form></div>

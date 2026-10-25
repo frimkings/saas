@@ -41,6 +41,20 @@ class SmsTemplate extends Model
         return static::fillMessage($message, $replacements, $branch);
     }
 
+    /**
+     * Placeholders in a message that this message cannot fill (typos, or ones from another
+     * message), which would otherwise reach the patient as raw text.
+     *
+     * @param  list<string>  $allowed
+     * @return list<string>
+     */
+    public static function unknownPlaceholders(string $message, array $allowed): array
+    {
+        preg_match_all('/\[[A-Z][A-Z0-9_]*\]/', $message, $found);
+
+        return array_values(array_diff(array_unique($found[0]), $allowed, [\App\Support\Messaging\ClinicLinks::LEGACY]));
+    }
+
     /** Replace placeholders in any message text, adding clinic/branch values the caller left out. */
     public static function fillMessage(string $message, array $replacements, ?Branch $branch = null): string
     {

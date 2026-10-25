@@ -185,17 +185,23 @@ class OutstandingBalancesComponent extends Component
             $newAmountPaid = round($oldAmountPaid + $amount, 2);
             $fullyPaid = $newAmountPaid >= $sale->patient_share;
 
+            // Only lines still on hold are released; lines already handed over (a bill the
+            // insurer later refused, say) keep their quantity and price.
+            $heldItems = $sale->items->filter(fn ($item) => (int) $item->prescribed_quantity > (int) $item->dispensed_quantity);
+
             $sale->update([
                 'amount_paid' => $newAmountPaid,
                 'payment_status' => $fullyPaid ? 'paid' : 'partial',
-                'profit' => $fullyPaid ? $this->recalculateProfit($sale) : $sale->profit,
+                'profit' => $fullyPaid && $heldItems->isNotEmpty() ? $this->recalculateProfit($sale) : $sale->profit,
             ]);
 
             if ($fullyPaid) {
-                $sale->items()->update([
-                    'dispensed_quantity' => DB::raw('prescribed_quantity'),
-                    'subtotal' => DB::raw('prescribed_quantity * selling_price'),
-                ]);
+                foreach ($heldItems as $item) {
+                    $item->update([
+                        'dispensed_quantity' => $item->prescribed_quantity,
+                        'subtotal' => (float) $item->subtotal > 0 ? $item->subtotal : round((int) $item->prescribed_quantity * (float) $item->selling_price, 2),
+                    ]);
+                }
 
                 $cartIds = $sale->items->pluck('cart_id')->filter()->unique()->values();
 
@@ -281,11 +287,14 @@ class OutstandingBalancesComponent extends Component
     {
         $grossProfit = (float) $sale->items->sum(function ($item) {
             $cost = $item->unit_cost ?? $item->product->cost_price ?? 0; // cost when sold
+            $quantity = max((int) $item->prescribed_quantity, (int) $item->dispensed_quantity);
 
-            return ((float) $item->selling_price - (float) $cost) * (int) $item->prescribed_quantity;
+            return ((float) $item->selling_price - (float) $cost) * $quantity;
         });
+        // Insurer shortfalls the clinic wrote off already came off the bill.
+        $writtenOff = (float) \App\Models\SaleAdjustment::where('sale_id', $sale->id)->where('type', 'insurance_write_off')->sum('amount');
 
-        return max(0, $grossProfit - (float) $sale->discount_amount);
+        return max(0, $grossProfit - (float) $sale->discount_amount - $writtenOff);
     }
 
     public function updatedSearchQuery(): void

@@ -11,7 +11,7 @@
     <div class="ui-heading">
         <div>
             <h1>Outstanding balances</h1>
-            <p class="ui-muted">Orders on hold. Collect the balance to release the items to the customer.</p>
+            <p class="ui-muted">Bills the patient still owes on: orders on hold, and amounts an insurer did not pay. Items on hold are released once the bill is paid.</p>
         </div>
     </div>
 
@@ -68,7 +68,7 @@
                             </td>
                             <td>
                                 @foreach($sale->items->take(2) as $item)
-                                    <span class="block max-w-[140px] truncate text-xs">{{ $item->product->name ?? 'N/A' }} <span class="text-slate-500">x{{ $item->prescribed_quantity }}</span></span>
+                                    <span class="block max-w-[140px] truncate text-xs">{{ $item->product->name ?? 'N/A' }} <span class="text-slate-500">x{{ max($item->prescribed_quantity, $item->dispensed_quantity) }}</span></span>
                                 @endforeach
                                 @if($sale->items->count() > 2)
                                     <span class="text-xs text-slate-500">+{{ $sale->items->count() - 2 }} more</span>
@@ -184,6 +184,8 @@
         @php
             $newBalance = max(0, $selectedSale->remaining_balance - (float) $collectAmount);
             $willFullyPay = (float) $collectAmount > 0 && $newBalance <= 0.001;
+            // Lines already handed over (a bill an insurer later refused) have nothing to release.
+            $hasHeld = $selectedSale->items->contains(fn ($item) => $item->prescribed_quantity > $item->dispensed_quantity);
         @endphp
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" x-data x-on:keydown.escape.window="$wire.closeModal()">
             <div class="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="collect-dialog-title">
@@ -216,7 +218,7 @@
                     </div>
 
                     <div>
-                        <p class="{{ $label }}">Items on hold</p>
+                        <p class="{{ $label }}">{{ $hasHeld ? 'Items on hold' : 'Items (already handed over)' }}</p>
                         <div class="ui-table-wrap rounded-lg border border-slate-200">
                             <table class="ui-table">
                                 <thead><tr><th>Product</th><th class="text-center">Qty</th><th class="ui-number">Price</th><th class="ui-number">Subtotal</th></tr></thead>
@@ -224,7 +226,7 @@
                                     @foreach($selectedSale->items as $item)
                                         <tr>
                                             <td>{{ $item->product->name ?? 'N/A' }}</td>
-                                            <td class="text-center">{{ $item->prescribed_quantity }}</td>
+                                            <td class="text-center">{{ max($item->prescribed_quantity, $item->dispensed_quantity) }}</td>
                                             <td class="ui-number">{{ $money($item->selling_price) }}</td>
                                             <td class="ui-number">{{ $money($item->subtotal) }}</td>
                                         </tr>
@@ -278,7 +280,7 @@
                     @if((float) $collectAmount > 0)
                         <div @class(['rounded-lg border px-3 py-2 text-sm', 'border-green-200 bg-green-50 text-green-800' => $willFullyPay, 'border-sky-200 bg-sky-50 text-sky-900' => ! $willFullyPay]) role="status">
                             @if($willFullyPay)
-                                <i class="fas fa-check-circle mr-1" aria-hidden="true"></i><strong>Fully paid.</strong> Items will be released to the customer.
+                                <i class="fas fa-check-circle mr-1" aria-hidden="true"></i><strong>Fully paid.</strong>{{ $hasHeld ? ' Items will be released to the customer.' : '' }}
                             @else
                                 <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Remaining balance after this payment: <strong>{{ $money($newBalance) }}</strong>
                             @endif
@@ -291,7 +293,7 @@
                     <button type="button" class="ui-button ui-button-primary"
                             @if($willFullyPay) onclick="window.releasedReceiptWindow = window.open('about:blank', '_blank', 'width=302,height=650')" @endif
                             wire:click="collectPayment" wire:loading.attr="disabled">
-                        <span wire:loading.remove wire:target="collectPayment"><i class="fas fa-check mr-1" aria-hidden="true"></i>{{ $willFullyPay ? 'Record & release items' : 'Record payment' }}</span>
+                        <span wire:loading.remove wire:target="collectPayment"><i class="fas fa-check mr-1" aria-hidden="true"></i>{{ $willFullyPay && $hasHeld ? 'Record & release items' : 'Record payment' }}</span>
                         <span wire:loading wire:target="collectPayment"><i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Saving…</span>
                     </button>
                 </div>

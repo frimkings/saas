@@ -54,6 +54,6 @@ class Category extends Model
 
     public function getLowStockCountAttribute()
     {
-        return $this->products()->where('quantity', '>', 0)->where('quantity', '<=', 10)->count();
+        return $this->products()->lowStock()->count();
     }
 }

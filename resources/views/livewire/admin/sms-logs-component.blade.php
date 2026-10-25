@@ -25,7 +25,7 @@
     @if(!$showArchive)
     <div class="ui-tiles ui-tiles--auto mb-6">
         <div>
-            <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-paper-plane" aria-hidden="true"></i>Total Sent</span><span class="ui-tile__value">{{ number_format($totals['total']) }}</span></div>
+            <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-paper-plane" aria-hidden="true"></i>All attempts</span><span class="ui-tile__value">{{ number_format($totals['total']) }}</span></div>
         </div>
         <div>
             <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-check" aria-hidden="true"></i>Sent</span><span class="ui-tile__value">{{ number_format($totals['success']) }}</span></div>
@@ -155,7 +155,7 @@
                                             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800">Failed</span>
                                     @endswitch
                                     <div class="text-slate-500" style="font-size:0.7rem;">
-                                        {{ $log->channel === 'whatsapp' ? 'WhatsApp' : 'SMS · ' . ($log->segments ?? 1) . ' ' . \Illuminate\Support\Str::plural('credit', $log->segments ?? 1) }}
+                                        {{ $log->channel === 'whatsapp' ? 'WhatsApp' : (in_array($log->status, ['sent', 'queued'], true) ? 'SMS · ' . ($log->segments ?? 1) . ' ' . \Illuminate\Support\Str::plural('credit', $log->segments ?? 1) : 'SMS · no credit used') }}
                                     </div>
                                 </td>
                             </tr>

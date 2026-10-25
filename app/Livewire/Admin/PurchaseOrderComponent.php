@@ -260,6 +260,10 @@ class PurchaseOrderComponent extends Component
     {
         $po = PurchaseOrder::with('items.product')->findOrFail($id);
         abort_if(in_array($po->status, ['received', 'cancelled']), 403);
+        if ($po->status === 'draft') {
+            $this->dispatch('notify', ...['type' => 'warning', 'message' => 'This order is still a draft. Edit it and mark it Ordered before receiving goods.']);
+            return;
+        }
 
         $this->grnPoId = $po->id;
         $this->grnLines = $po->items->map(fn ($i) => [
@@ -283,12 +287,14 @@ class PurchaseOrderComponent extends Component
             'grnLines.*.id'          => 'required|integer|distinct',
             'grnLines.*.receive_qty' => 'required|integer|min:0',
             'grnLines.*.batch_number' => 'nullable|string|max:100',
-            'grnLines.*.expiry_date' => 'nullable|date',
+            'grnLines.*.expiry_date' => 'nullable|date|after_or_equal:today',
+        ], [
+            'grnLines.*.expiry_date.after_or_equal' => 'This delivery has already expired, so it cannot be received into stock.',
         ]);
 
         DB::transaction(function () {
             $po = PurchaseOrder::query()->lockForUpdate()->findOrFail($this->grnPoId);
-            abort_if(in_array($po->status, ['received', 'cancelled']), 403);
+            abort_if(in_array($po->status, ['received', 'cancelled', 'draft']), 403);
 
             $items = $po->items()->lockForUpdate()->get()->keyBy('id');
             $submittedIds = collect($this->grnLines)->pluck('id')->map(fn ($id) => (int) $id);
@@ -322,7 +328,7 @@ class PurchaseOrderComponent extends Component
                     Stock::create([
                         'product_id'      => $item->product_id,
                         'user_id'         => auth()->id(),
-                        'reference_no'    => $po->po_number,
+                        'reference_no'    => $this->receiptReference($po->po_number),
                         'movement_type'   => 'received',
                         'supplier'        => $po->supplier?->name,
                         'batch_number'    => $line['batch_number'] ?: null,
@@ -366,6 +372,15 @@ class PurchaseOrderComponent extends Component
 
         $this->showGrnModal = false;
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Goods received and stock updated.']);
+    }
+
+    /** PO-…-R1, -R2…: one stock movement reference per line received, unique within the clinic. */
+    private function receiptReference(string $poNumber): string
+    {
+        $n = Stock::where('reference_no', 'like', $poNumber . '-R%')->count() + 1;
+        while (Stock::where('reference_no', $poNumber . '-R' . $n)->exists()) $n++;
+
+        return $poNumber . '-R' . $n;
     }
 
     public function confirmCancel(int $id): void
@@ -473,6 +488,19 @@ class PurchaseOrderComponent extends Component
             ]);
 
             AuditTrail::record('purchase_order.payment_recorded', "Payment of {$this->pay_amount} recorded for {$po->po_number}", $po, force: true);
+
+            // The money leaves the till or account it was paid from, so the cash book and day close see it.
+            $paidOn = \Illuminate\Support\Carbon::parse($this->pay_date);
+            $dayClose = app(\App\Services\Finance\DayCloseService::class);
+            if ($dayClose->isClosed($paidOn)) {
+                throw ValidationException::withMessages(['pay_date' => 'That day has been closed. Ask the owner to reopen it, or record the payment on an open day.']);
+            }
+            \App\Models\CashMovement::create([
+                'type' => \App\Models\CashMovement::SUPPLIER, 'payment_method' => $this->pay_method ?: 'cash', 'amount' => -$payment,
+                'moved_on' => $paidOn->toDateString(), 'reference' => $po->po_number,
+                'notes' => trim(($po->supplier?->name ?? '') . ($this->pay_reference ? " · {$this->pay_reference}" : '')) ?: null,
+                'recorded_by' => auth()->id(),
+            ]);
         });
 
         $this->showPaymentModal = false;

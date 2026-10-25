@@ -45,7 +45,7 @@ class SubscriptionBillingService
         $tax = round($subtotal * ((float)($pricing['tax_rate'] ?? 0) / 100), 2);
 
         $invoice = PlatformInvoice::firstOrCreate(['idempotency_key'=>$key], [
-            'number'=>'INV-'.now()->format('YmHis').'-'.Str::upper(Str::random(5)),
+            'number'=>'INV-'.now()->format('YmdHis').'-'.Str::upper(Str::random(5)),
             'clinic_id'=>$subscription->clinic_id,'clinic_subscription_id'=>$subscription->id,
             // Due on the grace day: staff are locked out after it (see config/subscriptions.php).
             'period_start'=>$start,'period_end'=>$end,'due_date'=>$start->copy(),

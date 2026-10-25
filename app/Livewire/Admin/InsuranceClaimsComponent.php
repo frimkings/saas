@@ -211,10 +211,17 @@ class InsuranceClaimsComponent extends Component
                 return;
             }
 
-            if (empty($this->state['claim_amount'])) {
-                // An insured bill already knows the insurer's share; otherwise claim the whole bill.
-                $this->state['claim_amount'] = (float) $sale->insurer_amount > 0 ? $sale->insurer_amount : $sale->total_amount;
+            if ((float) $sale->insurer_amount <= 0) {
+                $this->state['sale_id'] = '';
+                $this->dispatch('notify', ...[
+                    'type'    => 'error',
+                    'message' => 'This bill was not billed to an insurer, so there is nothing to claim on it.',
+                ]);
+                return;
             }
+
+            // The claim asks the insurer for its share of the bill, no more.
+            $this->state['claim_amount'] = $sale->insurer_amount;
         }
     }
 
@@ -227,6 +234,19 @@ class InsuranceClaimsComponent extends Component
     {
         $data = $this->validateForm();
         $data = $this->normalizeClaimData($data);
+
+        // A claim on a bill cannot ask for more than the insurer's share of it.
+        if ($data['sale_id']) {
+            $share = round((float) Sales::whereKey($data['sale_id'])->value('insurer_amount'), 2);
+            if ($share <= 0) {
+                $this->addError('state.sale_id', 'This bill was not billed to an insurer, so there is nothing to claim on it.');
+                return;
+            }
+            if (round((float) $data['claim_amount'], 2) - $share > 0.005) {
+                $this->addError('state.claim_amount', 'The claim cannot be more than the insurer\'s share of the bill (' . currency() . ' ' . number_format($share, 2) . ').');
+                return;
+            }
+        }
 
         if ($this->isEditing) {
             $claim = InsuranceClaim::findOrFail($this->claimId);
@@ -289,7 +309,7 @@ class InsuranceClaimsComponent extends Component
         $this->statusState     = [
             'submission_date'  => now()->toDateString(),
             'approval_date'    => now()->toDateString(),
-            'approved_amount'  => '',
+            'approved_amount'  => $newStatus === 'approved' ? number_format((float) $claim->claim_amount, 2, '.', '') : '',
             'payment_date'     => now()->toDateString(),
             'rejection_reason' => '',
         ];
@@ -316,22 +336,19 @@ class InsuranceClaimsComponent extends Component
                 break;
 
             case 'approved':
-                $this->validate([
-                    'statusState.approval_date'    => 'required|date',
-                    'statusState.approved_amount'  => 'required|numeric|min:0',
-                ], [], [
-                    'statusState.approval_date'   => 'Approval Date',
-                    'statusState.approved_amount' => 'Approved Amount',
-                ]);
+                // Approved means the whole claim; a smaller figure is a part approval.
+                $this->validate(['statusState.approval_date' => 'required|date'], [], ['statusState.approval_date' => 'Approval Date']);
                 $update['approval_date']   = $this->statusState['approval_date'];
-                $update['approved_amount'] = $this->statusState['approved_amount'];
+                $update['approved_amount'] = $claim->claim_amount;
                 break;
 
             case 'partially_approved':
                 $this->validate([
                     'statusState.approval_date'    => 'required|date',
-                    'statusState.approved_amount'  => 'required|numeric|min:0',
-                ], [], [
+                    'statusState.approved_amount'  => 'required|numeric|min:0|lt:' . (float) $claim->claim_amount,
+                ], [
+                    'statusState.approved_amount.lt' => 'A part approval is less than the claim (' . currency() . ' ' . number_format((float) $claim->claim_amount, 2) . '). For the whole claim, use Approved.',
+                ], [
                     'statusState.approval_date'   => 'Approval Date',
                     'statusState.approved_amount' => 'Approved Amount',
                 ]);
@@ -579,14 +596,17 @@ class InsuranceClaimsComponent extends Component
             ->when($this->claimId, fn ($q) => $q->where('id', '!=', $this->claimId))
             ->pluck('sale_id');
 
+        // Only bills with an insurer's share can be claimed.
         $this->patientSales = Sales::where('patient_id', $patientId)
             ->whereNotIn('id', $claimedSaleIds)
+            ->where('insurer_amount', '>', 0)
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id', 'transaction_id', 'total_amount', 'created_at'])
+            ->get(['id', 'transaction_id', 'total_amount', 'insurer_amount', 'created_at'])
             ->map(fn ($s) => [
                 'id'    => $s->id,
-                'label' => "#{$s->id} — " . ($s->transaction_id ?? 'No TxID') . " — " . currency() . " " . number_format($s->total_amount, 2) . " ({$s->created_at->format('d M Y')})",
+                'label' => "#{$s->id} — " . ($s->transaction_id ?? 'No TxID') . " — insurer's share " . currency() . " " . number_format($s->insurer_amount, 2)
+                    . " of " . number_format($s->total_amount, 2) . " ({$s->created_at->format('d M Y')})",
             ])
             ->toArray();
     }

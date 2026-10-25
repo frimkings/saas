@@ -42,6 +42,22 @@ class OpticalSetting extends Model
         return min(100, max(0, (int) (static::first()?->pos_max_discount_percent ?? 10)));
     }
 
+    /** "3, 10, 30" → [3, 10, 30]: up to 5 different whole days from 1 to 365. Blank = off. */
+    public static function parseSchedule(string $input, string $field = 'reminder_schedule'): array
+    {
+        $parts = array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', $input) ?: []), fn ($part) => $part !== ''));
+        $fail = fn (string $message) => throw \Illuminate\Validation\ValidationException::withMessages([$field => $message]);
+        if (count($parts) > 5) $fail('Enter at most 5 reminder days.');
+        $days = [];
+        foreach ($parts as $part) {
+            if (! ctype_digit($part) || (int) $part < 1 || (int) $part > 365) $fail('Reminder days must be whole numbers from 1 to 365, e.g. 3, 10, 30.');
+            $days[] = (int) $part;
+        }
+        if (count(array_unique($days)) !== count($days)) $fail('Each reminder day can only be listed once.');
+        sort($days);
+        return $days;
+    }
+
     public static function currentReminderSchedule(): array
     {
         $settings = static::first();

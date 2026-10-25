@@ -25,9 +25,15 @@ class StockTransferComponent extends Component
             'quantity' => ['required', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
-        $service->create($data['destinationBranchId'], [[
-            'product_id' => $data['productId'], 'quantity' => $data['quantity'],
-        ]], $data['notes'] ?: null);
+        // The service's refusals (not stocked, expired, more than the branch holds) are shown, not thrown.
+        try {
+            $service->create($data['destinationBranchId'], [[
+                'product_id' => $data['productId'], 'quantity' => $data['quantity'],
+            ]], $data['notes'] ?: null);
+        } catch (\RuntimeException $e) {
+            $this->addError('quantity', $e->getMessage());
+            return;
+        }
         $this->reset(['destinationBranchId', 'productId', 'notes']);
         $this->quantity = 1;
         $this->dispatch('notify', type: 'success', message: 'Draft transfer created.');
@@ -36,7 +42,12 @@ class StockTransferComponent extends Component
     public function dispatchTransfer(int $id, StockTransferService $service): void
     {
         $this->context();
-        $service->dispatch(StockTransfer::query()->findOrFail($id));
+        try {
+            $service->dispatch(StockTransfer::query()->findOrFail($id));
+        } catch (\RuntimeException $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+            return;
+        }
         $this->dispatch('notify', type: 'success', message: 'Stock dispatched.');
     }
 
@@ -45,7 +56,12 @@ class StockTransferComponent extends Component
         $context = $this->context();
         $transfer = StockTransfer::withoutGlobalScopes()->where('clinic_id', $context->clinicId())
             ->where('destination_branch_id', $context->branchId())->findOrFail($id);
-        $service->receive($transfer);
+        try {
+            $service->receive($transfer);
+        } catch (\RuntimeException $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+            return;
+        }
         $this->dispatch('notify', type: 'success', message: 'Stock received into this branch.');
     }
 
@@ -60,7 +76,7 @@ class StockTransferComponent extends Component
             ->where('destination_branch_id', $context->branchId())->with(['items.product'])->latest()->get();
 
         return view('livewire.admin.stock-transfer-component', [
-            'branches' => $branches, 'products' => Product::query()->orderBy('name')->get(),
+            'branches' => $branches, 'products' => Product::query()->stocked()->where('quantity', '>', 0)->orderBy('name')->get(),
             'outgoing' => $outgoing, 'incoming' => $incoming,
         ])->layout('layouts.admin.admin-layout');
     }

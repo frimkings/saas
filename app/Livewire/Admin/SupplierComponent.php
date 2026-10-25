@@ -100,7 +100,7 @@ class SupplierComponent extends Component
 
     private function validateForm(): array
     {
-        return $this->validate([
+        $validated = $this->validate([
             'state.name'           => ['required', 'string', 'max:150',
                 Rule::unique('suppliers', 'name')
                     ->where(fn ($query) => $query->where('clinic_id', Supplier::clinicIdForWrite()))
@@ -119,6 +119,8 @@ class SupplierComponent extends Component
             'state.email'          => 'email address',
             'state.lead_time_days' => 'lead time (days)',
         ])['state'];
+        // Optional fields left blank are stored as nothing (an empty lead time broke the save).
+        return array_map(fn ($value) => $value === '' ? null : $value, $validated);
     }
 
     private function resetForm(): void

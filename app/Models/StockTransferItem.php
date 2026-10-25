@@ -13,4 +13,10 @@ class StockTransferItem extends Model
     {
         return $this->belongsTo(StockTransfer::class, 'stock_transfer_id');
     }
+
+    /** The Stock Transfers page lists each line's product (it crashed without this). */
+    public function product()
+    {
+        return $this->belongsTo(Product::class)->withTrashed();
+    }
 }

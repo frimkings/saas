@@ -28,19 +28,31 @@
                         <tbody>
                             @forelse($products as $product)
                                 @php
-                                    $expired = $product->expiry_date->lt(now());
-                                    $days = $expired ? 0 : now()->startOfDay()->diffInDays($product->expiry_date->startOfDay());
+                                    // On the expiry tabs, the batch that raised the alert (a product can have an expired batch
+                                    // while its newer stock is fine); otherwise the product's own details.
+                                    $today = now()->startOfDay();
+                                    $lot = match ($activeTab) {
+                                        'expired' => $product->inventoryLots->first(fn ($l) => $l->expiry_date?->lt($today)),
+                                        'expiring' => $product->inventoryLots->first(fn ($l) => $l->expiry_date?->gte($today) && $l->expiry_date->lte($today->copy()->addDays((int) $expiryWindow))),
+                                        default => null,
+                                    };
+                                    $expiry = $lot?->expiry_date ?? $product->expiry_date;
+                                    $expired = $expiry->lt($today);
+                                    $days = $expired ? 0 : $today->diffInDays($expiry->copy()->startOfDay());
+                                    $out = (int) $product->quantity <= 0;
                                 @endphp
                                 <tr>
                                     <td><strong>{{ $product->name }}</strong></td>
                                     <td><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ $product->category->name ?? 'N/A' }}</span></td>
-                                    <td><code>{{ $product->batch_number }}</code></td>
-                                    <td class="text-center"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $product->quantity <= 10 ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800' }}">{{ $product->quantity }}</span></td>
+                                    <td><code>{{ $lot?->batch_number ?? $product->batch_number }}</code></td>
+                                    <td class="text-center"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $product->isLowStock() || $out ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800' }}">{{ $lot ? $lot->quantity.' of '.$product->quantity : $product->quantity }}</span></td>
                                     <td class="text-right">{{ currency() }} {{ number_format($product->cost_price, 2) }}</td>
                                     <td class="text-right font-semibold">{{ currency() }} {{ number_format($product->selling_price, 2) }}</td>
-                                    <td>{{ $product->expiry_date->format('M d, Y') }}</td>
+                                    <td>{{ $expiry->format('M d, Y') }}</td>
                                     <td>
-                                        @if($expired)
+                                        @if($activeTab === 'low' && $out)
+                                            <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800">Out of stock</span>
+                                        @elseif($expired)
                                             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800">Expired</span>
                                         @elseif($days <= (int) $expiryWindow)
                                             <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ $days }} day(s) left</span>

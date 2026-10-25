@@ -84,6 +84,11 @@ class StockMovementComponent extends Component
             $this->addError('expiryDate', 'The expiry date must be after or equal to the manufacture date.');
             return;
         }
+        // Expired goods are not taken into stock.
+        if ($this->expiryDate && $this->expiryDate < now()->toDateString()) {
+            $this->addError('expiryDate', 'This delivery has already expired, so it cannot be received into stock.');
+            return;
+        }
 
         if (Product::whereKey($this->productId)->value('made_to_order')) {
             $this->addError('productId', 'This product is made to order, so its stock is not counted. Untick "Made to order" on the product to keep it in stock.');
@@ -121,10 +126,9 @@ class StockMovementComponent extends Component
                 'expiry_date' => optional($product->expiry_date)->format('Y-m-d'),
             ];
 
-            $product->batch_number = $this->batchNumber ?: $product->batch_number;
+            // The delivery becomes a batch of its own; the product keeps its batch and shows the expiry of
+            // its next batch to expire (BranchInventoryService). Only the cost follows the latest delivery.
             $product->cost_price = $this->costPrice !== '' ? $this->costPrice : $product->cost_price;
-            $product->manufacture_date = $this->manufactureDate ?: $product->manufacture_date;
-            $product->expiry_date = $this->expiryDate ?: $product->expiry_date;
             $product->save();
             $inventory->increase($product, $quantityReceived, [
                 'batch_number' => $this->batchNumber ?: $product->batch_number,

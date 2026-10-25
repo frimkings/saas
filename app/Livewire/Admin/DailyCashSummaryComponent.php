@@ -10,6 +10,7 @@ use App\Models\Sales;
 use App\Support\BusinessLine;
 use App\Support\FinanceStatements;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
 class DailyCashSummaryComponent extends Component
@@ -138,7 +139,7 @@ class DailyCashSummaryComponent extends Component
         $agg = $this->salesQuery()->whereBetween('created_at', [$start, $end])
             ->selectRaw('
                 COUNT(*) as sales_count,
-                COALESCE(SUM(total_amount), 0) as gross_sales,
+                COALESCE(SUM(' . Sales::BILLED_SQL . '), 0) as gross_sales,
                 COALESCE(SUM(amount_paid), 0) as amount_paid,
                 COALESCE(SUM(GREATEST(0, total_amount - insurer_amount - amount_paid)), 0) as outstanding,
                 COUNT(CASE WHEN is_refunded = 1 THEN 1 END) as refunds_count,
@@ -158,7 +159,7 @@ class DailyCashSummaryComponent extends Component
         $insurance = null;
         if ($this->line !== BusinessLine::OPTICAL && Insurer::exists()) {
             $insurance = [
-                'billed'     => (float) Sales::where('business_line', BusinessLine::CLINIC)->whereBetween('created_at', [$start, $end])->sum('insurer_amount'),
+                'billed'     => (float) Sales::where('business_line', BusinessLine::CLINIC)->whereBetween('created_at', [$start, $end])->sum(DB::raw(Sales::INSURER_BILLED_SQL)),
                 'received'   => (float) InsurerPayment::whereBetween('paid_on', [$start->toDateString(), $end->toDateString()])->sum('amount'),
                 'writtenOff' => (float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', [$start, $end])->sum('amount'),
             ];

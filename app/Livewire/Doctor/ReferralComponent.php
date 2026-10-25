@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Doctor;
 
+use App\Models\AuditTrail;
 use App\Models\Diagnosis;
 use App\Models\Patient;
 use App\Models\Referral;
@@ -94,7 +95,8 @@ class ReferralComponent extends Component
 
         if ($this->letterType === 'medical_report') {
             return array_merge($base, [
-                'clinicalFindings' => 'nullable|string|max:2000',
+                // A report says something: findings, a diagnosis, or both.
+                'clinicalFindings' => 'nullable|required_without:selectedDiagnoses|string|max:2000',
                 'treatment'        => 'nullable|string|max:1000',
                 'recommendation'   => 'nullable|string|max:1000',
             ]);
@@ -102,13 +104,31 @@ class ReferralComponent extends Component
 
         if ($this->letterType === 'excuse_duty') {
             return array_merge($base, [
-                'excuseFromDate' => 'required|date',
+                // The excuse starts no earlier than the day the patient was seen (the letter date).
+                'excuseFromDate' => 'required|date|after_or_equal:referralDate',
                 'excuseToDate'   => 'required|date|after_or_equal:excuseFromDate',
                 'excuseNotes'    => 'nullable|string|max:2000',
             ]);
         }
 
         return $base;
+    }
+
+    protected function messages(): array
+    {
+        return [
+            'excuseFromDate.after_or_equal'      => 'The excuse cannot start before the day the patient was seen (the letter date).',
+            'excuseToDate.after_or_equal'        => 'The last day must be on or after the first day.',
+            'clinicalFindings.required_without'  => 'Write the clinical findings or choose a diagnosis.',
+        ];
+    }
+
+    protected function validationAttributes(): array
+    {
+        return [
+            'referralTo' => 'Refer to', 'referralDate' => 'Letter date', 'patientName' => 'Patient name',
+            'excuseFromDate' => 'First day', 'excuseToDate' => 'Last day', 'clinicalFindings' => 'Clinical findings',
+        ];
     }
 
     public function mount()
@@ -192,6 +212,11 @@ class ReferralComponent extends Component
     public function openEdit($id)
     {
         $r = Referral::findOrFail($id);
+        // A completed letter has been handed over; it is reopened (status back to Pending) before it changes.
+        if ($r->status === 'completed') {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'This letter is completed. Set it back to Pending to edit it.']);
+            return;
+        }
 
         $this->editingId         = $id;
         $this->letterType        = $r->letter_type;
@@ -247,10 +272,14 @@ class ReferralComponent extends Component
     public function save()
     {
         $this->validate();
+        if ($this->letterType === 'excuse_duty'
+            && \Carbon\Carbon::parse($this->excuseFromDate)->diffInDays(\Carbon\Carbon::parse($this->excuseToDate)) + 1 > Referral::MAX_EXCUSE_DAYS) {
+            $this->addError('excuseToDate', 'One letter can excuse at most ' . Referral::MAX_EXCUSE_DAYS . ' days. For longer, review the patient and issue another.');
+            return;
+        }
 
         $data = [
             'letter_type'     => $this->letterType,
-            'referred_by'     => auth()->id(),
             'patient_id'      => $this->selectedPatientId,
             'referral_date'   => $this->referralDate,
             'patient_name'    => $this->patientName,
@@ -279,11 +308,22 @@ class ReferralComponent extends Component
             'excuse_notes'       => $this->letterType === 'excuse_duty' ? trim($this->excuseNotes) : null,
         ];
 
+        // The letter stays issued by whoever wrote it; an edit records who changed it.
         if ($this->editingId) {
-            Referral::findOrFail($this->editingId)->update($data);
+            $referral = Referral::findOrFail($this->editingId);
+            if ($referral->status === 'completed') {
+                $this->dispatch('notify', ...['type' => 'error', 'message' => 'This letter is completed. Set it back to Pending to edit it.']);
+                return;
+            }
+            $old = $referral->only(array_keys($data));
+            $referral->update($data + ['updated_by' => auth()->id()]);
+            AuditTrail::record('referral.updated', "Edited {$referral->letter_type_label} #{$referral->id} for {$referral->patient_name}",
+                $referral, $old, $referral->only(array_keys($data)), $referral->patient_id);
             $msg = 'Letter updated successfully.';
         } else {
-            Referral::create($data);
+            $referral = Referral::create($data + ['referred_by' => auth()->id()]);
+            AuditTrail::record('referral.created', "Wrote {$referral->letter_type_label} #{$referral->id} for {$referral->patient_name}",
+                $referral, [], $data, $referral->patient_id);
             $msg = 'Letter created successfully.';
         }
 
@@ -302,7 +342,10 @@ class ReferralComponent extends Component
     public function deleteReferral()
     {
         abort_unless(auth()->user()->hasRole('Super Admin'), 403);
-        Referral::findOrFail($this->confirmDeleteId)->delete();
+        $referral = Referral::findOrFail($this->confirmDeleteId);
+        AuditTrail::record('referral.deleted', "Deleted {$referral->letter_type_label} #{$referral->id} for {$referral->patient_name}",
+            $referral, $referral->toArray(), [], $referral->patient_id);
+        $referral->delete();
         $this->confirmDeleteId = null;
         $this->dispatch('hide-delete-confirm');
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Letter deleted.']);
@@ -317,7 +360,15 @@ class ReferralComponent extends Component
     /* ── Status update ── */
     public function updateStatus($id, $newStatus)
     {
-        Referral::findOrFail($id)->update(['status' => $newStatus]);
+        if (! in_array($newStatus, ['pending', 'completed', 'cancelled'], true)) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Unknown status.']);
+            return;
+        }
+        $referral = Referral::findOrFail($id);
+        $old = $referral->status;
+        $referral->update(['status' => $newStatus, 'updated_by' => auth()->id()]);
+        AuditTrail::record('referral.status', "{$referral->letter_type_label} #{$referral->id} for {$referral->patient_name}: {$old} → {$newStatus}",
+            $referral, ['status' => $old], ['status' => $newStatus], $referral->patient_id);
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Status updated.']);
     }
 

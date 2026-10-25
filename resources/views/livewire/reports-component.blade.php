@@ -204,6 +204,10 @@
                             <div class="text-sm font-semibold mb-0 text-sky-700">{{ currency() }} {{ number_format($insurance['billed'], 2) }}</div>
                         </div>
                         <div class="w-6/12 w-full md:w-auto md:flex-1 px-2 mb-2">
+                            <div class="text-sm text-slate-500">Not paid — moved to patients</div>
+                            <div class="text-sm font-semibold mb-0">{{ currency() }} {{ number_format($insurance['toPatients'], 2) }}</div>
+                        </div>
+                        <div class="w-6/12 w-full md:w-auto md:flex-1 px-2 mb-2">
                             <div class="text-sm text-slate-500">Received from insurers</div>
                             <div class="text-sm font-semibold mb-0 text-green-700">{{ currency() }} {{ number_format($insurance['received'], 2) }}</div>
                         </div>
@@ -217,7 +221,8 @@
                         </div>
                     </div>
                     <div class="text-sm text-slate-500 mt-1">
-                        Net Revenue includes the insurers' share. Received and written off cover payments and write-offs dated in this period;
+                        Net Revenue includes everything first billed to insurers; shortfalls written off are a cost, as on the income statement.
+                        Patients' share is what the patients were asked to pay at the till. Received and written off cover payments and write-offs dated in this period;
                         "owe now" is every insured bill still unpaid by its insurer, whatever its date.
                     </div>
                 </div>

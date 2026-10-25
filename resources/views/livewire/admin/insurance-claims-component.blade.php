@@ -411,11 +411,14 @@
               <div class="flex items-stretch">
                 <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600">{{ currency() }}</span></div>
                 <input id="insurance-cl-statusstate-approved-amount" wire:model="statusState.approved_amount" type="number" step="0.01" min="0"
+                       @readonly($pendingStatus === 'approved')
                        class="ui-input @error('statusState.approved_amount') is-invalid @enderror" placeholder="0.00">
                 @error('statusState.approved_amount')<div class="ui-error">{{ $message }}</div>@enderror
               </div>
               @if($pendingStatus === 'partially_approved')
-                <small class="text-slate-500">Enter the partial amount approved by the insurer.</small>
+                <small class="text-slate-500">Enter the amount the insurer approved, less than the claim.</small>
+              @else
+                <small class="text-slate-500">The whole claim. If the insurer approved less, use Part. Approved.</small>
               @endif
             </div>
             @if($statusClaim?->sale_id)

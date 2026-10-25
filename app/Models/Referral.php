@@ -40,12 +40,21 @@ class Referral extends Model
         'excuse_to_date',
         'excuse_notes',
         'status',
+        'updated_by',
+        'issued_by',
+        'issued_at',
+        'printed_by',
+        'printed_at',
     ];
+
+    /** The longest excuse from duty one letter may give; longer needs a medical report and review. */
+    public const MAX_EXCUSE_DAYS = 60;
 
     protected $casts = [
         'referral_date'    => 'date',
         'excuse_from_date' => 'date',
         'excuse_to_date'   => 'date',
+        'printed_at'       => 'datetime',
     ];
 
     public static array $letterTypeLabels = [

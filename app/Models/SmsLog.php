@@ -37,4 +37,10 @@ class SmsLog extends Model
     {
         return $this->belongsTo(Patient::class);
     }
+
+    /** Gateways can answer with a long body; keep what fits the column rather than failing the save. */
+    public function setErrorAttribute(?string $value): void
+    {
+        $this->attributes['error'] = $value === null ? null : \Illuminate\Support\Str::limit($value, 250);
+    }
 }

@@ -73,6 +73,18 @@ public function getPatientShareAttribute(): float
     return max(0, round((float) $this->total_amount - (float) $this->insurer_amount, 2));
 }
 
+/** Insurer shortfalls written off a bill (they lowered total_amount), in SQL. */
+public const WRITTEN_OFF_SQL = "(SELECT COALESCE(SUM(sa.amount), 0) FROM sale_adjustments sa WHERE sa.sale_id = sales.id AND sa.type = 'insurance_write_off')";
+
+/** Insurer shortfalls moved onto the patient's part of a bill, in SQL. */
+public const MOVED_TO_PATIENT_SQL = "(SELECT COALESCE(SUM(ic.shortfall_amount), 0) FROM insurance_claims ic WHERE ic.sale_id = sales.id AND ic.deleted_at IS NULL AND ic.shortfall_action = 'bill_patient')";
+
+/** The bill before insurer write-offs: what was charged, as the income statement counts it. */
+public const BILLED_SQL = '(total_amount + ' . self::WRITTEN_OFF_SQL . ')';
+
+/** What was first billed to the insurer: its share now, plus what it later did not pay. */
+public const INSURER_BILLED_SQL = '(insurer_amount + ' . self::WRITTEN_OFF_SQL . ' + ' . self::MOVED_TO_PATIENT_SQL . ')';
+
 /** What the insurer still owes on a bill: its share less anything received on the claim, in SQL. */
 public const INSURER_OWED_SQL = '(insurer_amount - COALESCE((SELECT ic.amount_received FROM insurance_claims ic WHERE ic.sale_id = sales.id AND ic.deleted_at IS NULL LIMIT 1), 0))';
 

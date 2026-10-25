@@ -114,9 +114,9 @@ class Product extends Model
     /**
      * Check if product is low on stock. Made-to-order products are never low.
      */
-    public function isLowStock($threshold = 10)
+    public function isLowStock($threshold = null)
     {
-        return ! $this->made_to_order && $this->quantity > 0 && $this->quantity <= $threshold;
+        return ! $this->made_to_order && $this->quantity > 0 && $this->quantity <= ($threshold ?? $this->reorderLevel());
     }
 
     /** Whether $quantity can be sold now: made-to-order products are never limited by stock. */
@@ -194,12 +194,53 @@ class Product extends Model
         return $query->where('made_to_order', false);
     }
 
-    /**
-     * Scope to get low stock products.
-     */
-    public function scopeLowStock($query, $threshold = 10)
+    /** Products whose category is switched on: an inactive category's products are not sold or prescribed. */
+    public function scopeInActiveCategory($query)
     {
-        return $query->stocked()->where('quantity', '>', 0)->where('quantity', '<=', $threshold);
+        return $query->where(fn ($q) => $q->whereNull('category_id')
+            ->orWhereHas('category', fn ($c) => $c->where('is_active', true)));
+    }
+
+    public function inActiveCategory(): bool
+    {
+        return !$this->category || (bool) ($this->category->is_active ?? true);
+    }
+
+    public const DEFAULT_REORDER_LEVEL = 10;
+
+    /**
+     * Products at or below their reorder level (the branch's, else 10) but not out: a fixed
+     * $threshold overrides it.
+     */
+    public function scopeLowStock($query, $threshold = null)
+    {
+        return $this->belowReorderLevel($query->stocked()->where('quantity', '>', 0), $threshold);
+    }
+
+    /** Low or out of stock: everything that needs reordering. */
+    public function scopeNeedsReorder($query, $threshold = null)
+    {
+        return $this->belowReorderLevel($query->stocked(), $threshold);
+    }
+
+    private function belowReorderLevel($query, $threshold)
+    {
+        if ($threshold !== null) return $query->where('quantity', '<=', $threshold);
+        $branchId = app(\App\Support\Tenancy\TenantContext::class)->branchId();
+        $level = 'select bi.reorder_level from branch_inventory_items bi where bi.product_id = products.id'
+            . ($branchId ? ' and bi.branch_id = ' . (int) $branchId : '') . ' order by bi.reorder_level desc limit 1';
+
+        return $query->whereRaw("products.quantity <= COALESCE(({$level}), ?)", [self::DEFAULT_REORDER_LEVEL]);
+    }
+
+    /** This branch's reorder level for the product (10 until someone sets one). */
+    public function reorderLevel(): int
+    {
+        $branchId = app(\App\Support\Tenancy\TenantContext::class)->branchId();
+
+        return (int) (BranchInventoryItem::query()->where('product_id', $this->id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->max('reorder_level') ?? self::DEFAULT_REORDER_LEVEL);
     }
 
     /**

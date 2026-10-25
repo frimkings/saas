@@ -40,6 +40,10 @@ class ClaimSettlement
         if ($allocations->isEmpty()) {
             throw ValidationException::withMessages(['allocations' => 'Choose the claims this payment covers.']);
         }
+        // The payment lands in the cash book on its date; a closed day stays as it was counted.
+        if (app(\App\Services\Finance\DayCloseService::class)->isClosed($details['paid_on'])) {
+            throw ValidationException::withMessages(['payment.paid_on' => 'That day has been closed. Ask the owner to reopen it, or record the payment on an open day.']);
+        }
         if (abs($allocations->sum('amount') - $amount) > 0.005) {
             throw ValidationException::withMessages([
                 'allocations' => 'The amounts given to claims (' . number_format($allocations->sum('amount'), 2)
@@ -63,6 +67,15 @@ class ClaimSettlement
                     throw ValidationException::withMessages([
                         'allocations' => "Claim #{$claimId} only has " . number_format($claim->outstandingAmount(), 2) . ' outstanding.',
                     ]);
+                }
+                // Nor more than the insurer's share of the bill (claims logged before claims were capped).
+                if ($claim->sale_id) {
+                    $share = round((float) Sales::whereKey($claim->sale_id)->value('insurer_amount') - (float) $claim->amount_received, 2);
+                    if ($row['amount'] - max(0, $share) > 0.005) {
+                        throw ValidationException::withMessages([
+                            'allocations' => "Claim #{$claimId}: the insurer's share of the bill has only " . number_format(max(0, $share), 2) . ' left to pay.',
+                        ]);
+                    }
                 }
             }
 
@@ -150,6 +163,7 @@ class ClaimSettlement
         }
 
         $sale->insurer_amount = round((float) $sale->insurer_amount - $shortfall, 2);
+        $this->lowerLineShares($sale, $shortfall);
         if ($sale->remaining_balance > 0.005) {
             // The patient now owes the gap: it shows in Outstanding Balances and balance reminders.
             $sale->payment_status = 'partial';
@@ -175,6 +189,31 @@ class ClaimSettlement
         );
 
         return $shortfall;
+    }
+
+    /**
+     * Take the shortfall off the lines' insurer shares too (in proportion), so refunds
+     * and the patient ledger see what the insurer actually pays on each item.
+     */
+    private function lowerLineShares(Sales $sale, float $shortfall): void
+    {
+        $items = $sale->items()->where('insurer_amount', '>', 0)
+            ->whereColumn('refunded_quantity', '<', 'dispensed_quantity')
+            ->orderBy('id')->lockForUpdate()->get();
+        $total = (float) $items->sum('insurer_amount');
+        if ($total <= 0) {
+            return;
+        }
+
+        $left = min($shortfall, $total);
+        foreach ($items->values() as $i => $item) {
+            $cut = $i === $items->count() - 1
+                ? $left
+                : min($left, round($shortfall * (float) $item->insurer_amount / $total, 2));
+            $cut = min($cut, (float) $item->insurer_amount);
+            $item->update(['insurer_amount' => round((float) $item->insurer_amount - $cut, 2)]);
+            $left = round($left - $cut, 2);
+        }
     }
 
     /** Mark the claim paid and settle whatever the insurer did not pay. */

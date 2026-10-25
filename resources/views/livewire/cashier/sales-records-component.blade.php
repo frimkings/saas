@@ -23,7 +23,7 @@
                 </div>
             @endif
             <div class="rounded-xl bg-teal-700 px-6 py-2 text-white">
-                <p class="text-xs font-semibold uppercase tracking-wide text-teal-100">Total sales (paid)</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-teal-100">Total sales (not refunded)</p>
                 <p class="text-xl font-semibold">{{ currency() }} {{ number_format($totalSales, 2) }}</p>
             </div>
         </div>
@@ -41,8 +41,8 @@
         <div>
             <span class="{{ $label }}">Status &amp; export</span>
             <div class="flex gap-1">
-                <button type="button" wire:click="toggleRefundFilter" class="ui-button {{ $refundTone }} flex-1" title="Show all, refunded or paid sales">
-                    @if($filterRefunded === null) All @elseif($filterRefunded === 1) Refunded @else Paid @endif
+                <button type="button" wire:click="toggleRefundFilter" class="ui-button {{ $refundTone }} flex-1" title="Show all, refunded or not refunded sales">
+                    @if($filterRefunded === null) All @elseif($filterRefunded === 1) Refunded @else Not refunded @endif
                 </button>
                 <button type="button" wire:click="sortBy('total_amount')" class="ui-button ui-button-secondary flex-1">
                     Amount @if($sortColumn === 'total_amount')<i class="fas fa-sort-{{ $sortDirection === 'asc' ? 'up' : 'down' }}" aria-hidden="true"></i>@endif
@@ -88,7 +88,13 @@
                                 @if($sale->is_refunded)
                                     <span class="{{ $chip }} bg-red-100 text-red-800">Refunded</span>
                                 @else
-                                    <span class="{{ $chip }} bg-green-100 text-green-800">Paid</span>
+                                    @if($sale->payment_status === 'partial')
+                                        <span class="{{ $chip }} bg-amber-100 text-amber-800" title="The patient still owes part of this bill">Part paid</span>
+                                    @elseif($sale->payment_status === 'unpaid')
+                                        <span class="{{ $chip }} bg-amber-100 text-amber-800">Unpaid</span>
+                                    @else
+                                        <span class="{{ $chip }} bg-green-100 text-green-800">Paid</span>
+                                    @endif
                                 @endif
                             </td>
                             <td>

@@ -281,6 +281,7 @@
                             <span wire:loading wire:target="sendTest">Sending…</span>
                         </button>
                     </div>
+                    @error('testPhone')<div class="text-sm text-red-700 mt-1">{{ $message }}</div>@enderror
                     <small class="mt-1 block text-xs text-slate-500">Sends a test message to confirm SMS delivery is working{{ $platformManaged ? ' (uses 1 SMS credit)' : '' }}.</small>
 
                     @unless($platformManaged)

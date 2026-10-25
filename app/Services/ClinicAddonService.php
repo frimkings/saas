@@ -348,7 +348,7 @@ class ClinicAddonService
         $subtotal = round(array_sum(array_column($lines, 1)), 2);
         $tax = round($subtotal * $this->taxRate($subscription) / 100, 2);
         $invoice = PlatformInvoice::create([
-            'number' => 'ADD-' . now()->format('YmHis') . '-' . Str::upper(Str::random(4)),
+            'number' => 'ADD-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(4)),
             'clinic_id' => $clinic->id, 'clinic_subscription_id' => $subscription->id,
             'period_start' => $start, 'period_end' => $end, 'due_date' => now()->addDays(7)->toDateString(),
             'subtotal' => $subtotal, 'tax' => $tax, 'total' => $subtotal + $tax, 'amount_paid' => 0,

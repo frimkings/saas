@@ -619,6 +619,7 @@ class CashierPatientClearanceComponent extends Component
                 );
             })
             ->whereDoesntHave('clearances', fn($q) => $q->where('clearance_date', $today))
+            ->with('insurer:id,name,active')
             ->latest()
             ->paginate(10, ['*'], 'pending_page');
 

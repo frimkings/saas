@@ -18,12 +18,15 @@ class CashMovement extends Model
     public const BANKED = 'banked';
     public const ADDED = 'added';
     public const VARIANCE = 'variance';
+    // A payment to a supplier against a purchase order invoice (money out).
+    public const SUPPLIER = 'supplier_paid';
 
     public const LABELS = [
         self::OPENING  => 'Opening balance',
         self::BANKED   => 'Banked / handed over',
         self::ADDED    => 'Money added',
         self::VARIANCE => 'Count over / short',
+        self::SUPPLIER => 'Paid to supplier',
     ];
 
     protected $fillable = [

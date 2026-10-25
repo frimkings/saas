@@ -172,8 +172,8 @@ class CashBook
         }
 
         $insurer = InsurerPayment::where('payment_method', $method)->whereBetween('paid_on', $days);
-        foreach ($insurer->with('insurer:id,name')->get() as $payment) {
-            $add($payment->paid_on->copy()->setTime(12, 0), 'insurer', 'Insurer payment — ' . ($payment->insurer?->name ?? 'insurer'), $payment->receipt_number, (float) $payment->amount, 0);
+        foreach ($insurer->with(['insurer:id,name', 'receiver:id,name'])->get() as $payment) {
+            $add($payment->paid_on->copy()->setTime(12, 0), 'insurer', 'Insurer payment — ' . ($payment->insurer?->name ?? 'insurer'), $payment->receipt_number, (float) $payment->amount, 0, $payment->receiver?->name);
         }
 
         $refunds = RefundLog::where('status', RefundLog::STATUS_PROCESSED)->whereBetween('processed_at', [$from, $to])

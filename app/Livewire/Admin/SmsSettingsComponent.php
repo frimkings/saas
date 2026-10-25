@@ -127,7 +127,7 @@ class SmsSettingsComponent extends Component
 
     public function sendTest(): void
     {
-        $this->validateOnly('testPhone', ['testPhone' => 'required|string|max:20']);
+        $this->validateOnly('testPhone', ['testPhone' => 'required|string|max:20'], ['testPhone.required' => 'Enter the phone number to send the test to.']);
 
         $s = Setting::getSettings();
         $clinicName = $s->clinic_name ?? 'The Clinic';

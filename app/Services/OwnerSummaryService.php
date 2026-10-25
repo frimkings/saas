@@ -197,7 +197,7 @@ class OwnerSummaryService
         // Times are stored in UTC; $from and $to are clinic-time days.
         $range = [$from->copy()->startOfDay()->utc(), $to->copy()->endOfDay()->utc()];
         $clinicSales = $clinical
-            ? Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereBetween('created_at', $range)->selectRaw('COUNT(*) as n, COALESCE(SUM(total_amount),0) as total')->first()
+            ? Sales::where('business_line', 'clinic')->where('is_refunded', false)->whereBetween('created_at', $range)->selectRaw('COUNT(*) as n, COALESCE(SUM(' . Sales::BILLED_SQL . '),0) as total')->first()
             : null;
         $opticalSales = $optical ? $this->optical->sales($from, $to) : null;
         $payments = PaymentTransaction::whereBetween('created_at', $range)->get(['amount', 'payment_method']);

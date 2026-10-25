@@ -142,9 +142,15 @@
                                    class="ui-button ui-button-sm ui-button-danger" title="Print Letter">
                                     <i class="fas fa-print"></i>
                                 </a>
+                                @if($ref->status === 'completed')
+                                <button type="button" disabled class="ui-button ui-button-sm ui-button-secondary ml-1 opacity-50" title="Completed: set it back to Pending to edit">
+                                    <i class="fas fa-lock"></i>
+                                </button>
+                                @else
                                 <button wire:click="openEdit({{ $ref->id }})" class="ui-button ui-button-sm ui-button-secondary ml-1" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                @endif
                                 @if(auth()->user()->hasRole('Super Admin'))
                                 <button wire:click="confirmDelete({{ $ref->id }})" class="ui-button ui-button-sm ui-button-danger ml-1" title="Delete">
                                     <i class="fas fa-trash-alt"></i>
@@ -403,13 +409,14 @@
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
                             <label for="letter-excuse-from" class="{{ $fl }}">Excused from {!! $req !!}</label>
-                            <input id="letter-excuse-from" type="date" wire:model.live="excuseFromDate" class="ui-input @error('excuseFromDate') is-invalid @enderror">
+                            <input id="letter-excuse-from" type="date" wire:model.live="excuseFromDate" min="{{ $referralDate }}" class="ui-input @error('excuseFromDate') is-invalid @enderror">
                             @error('excuseFromDate')<p class="ui-error">{{ $message }}</p>@enderror
                         </div>
                         <div>
                             <label for="letter-excuse-to" class="{{ $fl }}">Excused until {!! $req !!}</label>
-                            <input id="letter-excuse-to" type="date" wire:model.live="excuseToDate" class="ui-input @error('excuseToDate') is-invalid @enderror">
+                            <input id="letter-excuse-to" type="date" wire:model.live="excuseToDate" min="{{ $excuseFromDate ?: $referralDate }}" class="ui-input @error('excuseToDate') is-invalid @enderror">
                             @error('excuseToDate')<p class="ui-error">{{ $message }}</p>@enderror
+                            <p class="mt-1 text-xs text-slate-500">From the day the patient was seen, for at most {{ \App\Models\Referral::MAX_EXCUSE_DAYS }} days.</p>
                         </div>
                     </div>
                     <div>

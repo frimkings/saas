@@ -237,8 +237,8 @@ class InsurerPaymentsTest extends TestCase
 
         Livewire::test(\App\Livewire\Admin\DailyCashSummaryComponent::class)
             ->set('line', 'clinic')
-            // Billed is the insurer's current share: 320 less the 70 written off.
-            ->assertViewHas('insurance', function ($insurance) { return $insurance['billed'] == 250 && $insurance['received'] == 250 && $insurance['writtenOff'] == 70; })
+            // Billed is what was first billed to the insurer, including the 70 it did not pay.
+            ->assertViewHas('insurance', function ($insurance) { return $insurance['billed'] == 320 && $insurance['received'] == 250 && $insurance['writtenOff'] == 70; })
             ->assertSee('Received from insurers');
     }
 

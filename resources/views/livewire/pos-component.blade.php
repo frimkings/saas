@@ -85,6 +85,9 @@ x-on:show-pending-carts.window="pendingCartsOpen = true"
                         </div>
                     @endif
                     <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:900;"><span>TOTAL</span><span>{{ currency() }} {{ number_format($receiptData['total_amount'], 2) }}</span></div>
+                    @if(!empty($receiptData['insurer_name']) && (float) ($receiptData['insurer_amount'] ?? 0) > 0)
+                        <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:3px;"><span>BILLED TO {{ strtoupper($receiptData['insurer_name']) }}</span><span>{{ currency() }} {{ number_format($receiptData['insurer_amount'], 2) }}</span></div>
+                    @endif
                     @if(!empty($receiptData['payments']))
                         @foreach($receiptData['payments'] as $p)
                             <div style="display:flex; justify-content:space-between; font-size:11px; margin-top:3px;">

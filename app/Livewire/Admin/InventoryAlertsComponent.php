@@ -23,7 +23,7 @@ class InventoryAlertsComponent extends Component
 
     private function query()
     {
-        $query = Product::with('category')->stocked()
+        $query = Product::with(['category', 'inventoryLots' => fn ($l) => $l->where('quantity', '>', 0)->orderBy('expiry_date')])->stocked()
             ->when($this->search, function ($query) {
                 $search = '%' . $this->search . '%';
                 $query->where(function ($q) use ($search) {
@@ -34,16 +34,29 @@ class InventoryAlertsComponent extends Component
             });
 
         if ($this->activeTab === 'expired') {
-            return $query->whereDateIndexed('expiry_date', '<', Carbon::today())->orderBy('expiry_date');
+            return $query->where(fn ($q) => $this->expiredWhere($q))->orderBy('expiry_date');
         }
 
         if ($this->activeTab === 'expiring') {
-            return $query->whereDateIndexed('expiry_date', '>=', Carbon::today())
-                ->whereDateIndexed('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))
-                ->orderBy('expiry_date');
+            return $query->where(fn ($q) => $this->expiringWhere($q))->orderBy('expiry_date');
         }
 
-        return $query->where('quantity', '<=', 10)->orderBy('quantity');
+        return $query->needsReorder()->orderBy('quantity');
+    }
+
+    /** Expired: the product's own date, or any batch of it still holding stock. */
+    private function expiredWhere($q)
+    {
+        return $q->whereDateIndexed('expiry_date', '<', Carbon::today())
+            ->orWhereHas('inventoryLots', fn ($l) => $l->where('quantity', '>', 0)->whereDate('expiry_date', '<', Carbon::today()));
+    }
+
+    private function expiringWhere($q)
+    {
+        $until = Carbon::today()->addDays((int) $this->expiryWindow);
+
+        return $q->where(fn ($own) => $own->whereDateIndexed('expiry_date', '>=', Carbon::today())->whereDateIndexed('expiry_date', '<=', $until))
+            ->orWhereHas('inventoryLots', fn ($l) => $l->where('quantity', '>', 0)->whereDate('expiry_date', '>=', Carbon::today())->whereDate('expiry_date', '<=', $until));
     }
 
     public function render()
@@ -51,10 +64,9 @@ class InventoryAlertsComponent extends Component
         // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
         return view('livewire.admin.inventory-alerts-component', [
             'products' => $this->query()->paginate(20),
-            'lowCount' => Product::stocked()->where('quantity', '<=', 10)->count(),
-            'expiringCount' => Product::stocked()->whereDateIndexed('expiry_date', '>=', Carbon::today())
-                ->whereDateIndexed('expiry_date', '<=', Carbon::today()->addDays((int) $this->expiryWindow))->count(),
-            'expiredCount' => Product::stocked()->whereDateIndexed('expiry_date', '<', Carbon::today())->count(),
+            'lowCount' => Product::needsReorder()->count(),
+            'expiringCount' => Product::stocked()->where(fn ($q) => $this->expiringWhere($q))->count(),
+            'expiredCount' => Product::stocked()->where(fn ($q) => $this->expiredWhere($q))->count(),
         ])->layout('layouts.admin.admin-layout');
     }
 }

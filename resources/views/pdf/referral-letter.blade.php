@@ -163,10 +163,10 @@ html, body {
     <div class="field-line"><span class="fl-label">Patient:</span><span class="fl-value">{{ $referral->patient_name }}</span></div>
     <div class="meta-row">
         <div class="meta-row__item">
-            <div class="field-line"><span class="fl-label">Age / Sex:</span><span class="fl-value {{ $referral->patient_age_sex ? '' : 'fl-value--empty' }}">{{ $referral->patient_age_sex ?: '&nbsp;' }}</span></div>
+            <div class="field-line"><span class="fl-label">Age / Sex:</span><span class="fl-value {{ $referral->patient_age_sex ? '' : 'fl-value--empty' }}">{{ $referral->patient_age_sex ?: " " }}</span></div>
         </div>
         <div class="meta-row__item">
-            <div class="field-line"><span class="fl-label">Contact:</span><span class="fl-value {{ $referral->patient_contact ? '' : 'fl-value--empty' }}">{{ $referral->patient_contact ?: '&nbsp;' }}</span></div>
+            <div class="field-line"><span class="fl-label">Contact:</span><span class="fl-value {{ $referral->patient_contact ? '' : 'fl-value--empty' }}">{{ $referral->patient_contact ?: " " }}</span></div>
         </div>
     </div>
 
@@ -186,7 +186,7 @@ html, body {
         </div>
     </div>
 
-    <div class="section-block"><span class="sb-label">Diagnosis:</span><div class="sb-value {{ $referral->diagnosis ? '' : 'sb-value--empty' }}">{{ $referral->diagnosis ?: 'Not specified' }}</div></div>
+    <div class="section-block"><span class="sb-label">Diagnosis:</span><div class="sb-value {{ $referral->diagnosis ? '' : 'sb-value--empty' }}">{{ $referral->diagnosis_display ?: 'Not specified' }}</div></div>
     <div class="section-block"><span class="sb-label">Reason for Referral:</span><div class="sb-value {{ $referral->reason_for_referral ? '' : 'sb-value--empty' }}">{{ $referral->reason_for_referral ?: 'Not specified' }}</div></div>
     <div class="section-block"><span class="sb-label">Management Given / Notes:</span><div class="sb-value {{ $referral->management ? '' : 'sb-value--empty' }}">{{ $referral->management ?: 'None' }}</div></div>
 
@@ -205,7 +205,7 @@ html, body {
     </div>
     <div class="field-line" style="margin-bottom:10px;">
         <span class="fl-label">Age / Sex:</span>
-        <span class="fl-value {{ $referral->patient_age_sex ? '' : 'fl-value--empty' }}">{{ $referral->patient_age_sex ?: '&nbsp;' }}</span>
+        <span class="fl-value {{ $referral->patient_age_sex ? '' : 'fl-value--empty' }}">{{ $referral->patient_age_sex ?: " " }}</span>
         @if($referral->patient_contact)
         &nbsp;&nbsp;<span class="fl-label" style="min-width:60px;">Contact:</span>
         <span class="fl-value">{{ $referral->patient_contact }}</span>
@@ -219,7 +219,7 @@ html, body {
 
     <div class="mr-field">
         <div class="mr-label">Diagnosis</div>
-        <div class="mr-value {{ $referral->diagnosis ? '' : 'mr-value--empty' }}">{{ $referral->diagnosis ?: 'Not specified' }}</div>
+        <div class="mr-value {{ $referral->diagnosis ? '' : 'mr-value--empty' }}">{{ $referral->diagnosis_display ?: 'Not specified' }}</div>
     </div>
 
     <div class="mr-field">

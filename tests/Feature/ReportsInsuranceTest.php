@@ -50,9 +50,11 @@ class ReportsInsuranceTest extends TestCase
         $component = $this->report();
         $insurance = $component->viewData('insurance');
 
-        $this->assertEquals(430, $component->viewData('summary')['total_sales']); // 500 less the 70 written off
-        $this->assertEquals(250, $insurance['billed']);
+        // Bills count at what was charged; the 70 written off is a cost, as on the income statement.
+        $this->assertEquals(500, $component->viewData('summary')['total_sales']);
+        $this->assertEquals(320, $insurance['billed']);   // what was first billed, including what was written off
         $this->assertEquals(180, $insurance['patient']);
+        $this->assertEquals(0, $insurance['toPatients']);
         $this->assertEquals(250, $insurance['received']);
         $this->assertEquals(70, $insurance['writtenOff']);
         $this->assertEquals(0, $insurance['owedNow']);

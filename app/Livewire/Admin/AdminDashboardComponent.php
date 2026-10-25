@@ -94,10 +94,10 @@ class AdminDashboardComponent extends Component
         // ── Row 1 ────────────────────────────────────────────────────────
         $this->totalPatients = Patient::count();
 
-        // total_amount = invoice value of sales (matches Reports page "Net Revenue")
+        // Bills before insurer write-offs (matches the Reports page "Net Revenue")
         $this->todayRevenue = $this->lineSales()->whereDateIndexed('created_at', $today)
             ->where('is_refunded', false)
-            ->sum('total_amount');
+            ->sum(DB::raw(\App\Models\Sales::BILLED_SQL));
 
         $this->todayAppointments = Appointments::whereDateIndexed('scheduled_at', $today)
             ->whereNotIn('status', ['cancelled'])
@@ -108,7 +108,7 @@ class AdminDashboardComponent extends Component
         // ── Row 2 ────────────────────────────────────────────────────────
         $this->monthRevenue = $this->lineSales()->whereBetween('created_at', [$monthStart, $monthEnd])
             ->where('is_refunded', false)
-            ->sum('total_amount');
+            ->sum(DB::raw(\App\Models\Sales::BILLED_SQL));
 
         $this->outstandingCount = $this->lineSales()->where('payment_status', 'partial')
             ->where('is_refunded', false)
@@ -126,7 +126,7 @@ class AdminDashboardComponent extends Component
 
         // ── Chart — past 7 days (single GROUP BY query instead of 7 loops) ──
         $window = Carbon::today()->subDays(6)->startOfDay();
-        $dailyRows = $this->lineSales()->selectRaw('DATE(created_at) as day, SUM(total_amount) as total')
+        $dailyRows = $this->lineSales()->selectRaw('DATE(created_at) as day, SUM(' . \App\Models\Sales::BILLED_SQL . ') as total')
             ->where('created_at', '>=', $window)
             ->where('is_refunded', false)
             ->groupBy('day')

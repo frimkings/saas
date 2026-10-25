@@ -123,7 +123,7 @@
                 <div class="income-panel">
                     <div class="p-4 border-b border-slate-200">
                         <h5 class="font-semibold mb-0">Statement</h5>
-                        <div class="income-subtitle">Revenue and cost of sales come from paid sales. Expenses and tax are entered below.</div>
+                        <div class="income-subtitle">Revenue and cost of sales come from the period's sales, including what insurers and patients still owe. Expenses and tax are entered below.</div>
                     </div>
                     <div class="ui-table-wrap">
                         <table class="ui-table statement-table mb-0">

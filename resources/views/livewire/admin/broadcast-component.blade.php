@@ -6,8 +6,8 @@
     </div>
 
     <div class="ui-panel mb-4"
-         x-data="{ text: $wire.entangle('message'), name: @js($sampleName), clinic: @js($clinicName),
-                   get preview() { return (this.text || '').split('[NAME]').join(this.name).split('[CLINIC]').join(this.clinic); },
+         x-data="{ text: $wire.entangle('message'), occasion: $wire.entangle('occasion'), name: @js($sampleName), clinic: @js($clinicName),
+                   get preview() { return (this.text || '').split('[NAME]').join(this.name).split('[CLINIC]').join(this.clinic).split('[OCCASION]').join(this.occasion || '[OCCASION]'); },
                    get parts() { const n = this.preview.length; return n <= 160 ? 1 : Math.ceil(n / 153); } }">
         <div class="p-5">
             <label class="text-sm font-semibold text-slate-500 mb-1" for="broadcast-message">Message</label>
@@ -16,6 +16,12 @@
             <div class="mt-2 text-sm">
                 <span class="font-semibold text-slate-500 mr-1">Insert:</span>
                 @foreach($placeholders as $ph)<code class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200 mr-1">{{ $ph }}</code>@endforeach
+            </div>
+            <div class="mt-3" x-show="(text || '').includes('[OCCASION]')">
+                <label class="text-sm font-semibold text-slate-500 mb-1" for="broadcast-occasion">Occasion <span class="font-normal">(replaces [OCCASION])</span></label>
+                <input id="broadcast-occasion" type="text" x-model="occasion" maxlength="60" placeholder="e.g. Christmas"
+                       class="ui-input bg-slate-50 border-0 @error('occasion') is-invalid @enderror" style="max-width:280px">
+                @error('occasion') <span class="text-red-700 text-sm block mt-1">{{ $message }}</span> @enderror
             </div>
             <label class="text-sm font-semibold text-slate-500 mt-4 mb-1">Preview</label>
             <div class="border border-slate-200 rounded-md p-2 bg-white text-sm" style="white-space:pre-wrap" x-text="preview"></div>
@@ -48,8 +54,19 @@
             <div class="mt-4">
                 @if($broadcastConfirmStep)
                     <div class="rounded-lg border text-sm border-amber-200 bg-amber-50 text-amber-900 border-0 py-2 px-4 mb-2">
-                        <i class="fas fa-exclamation-triangle mr-1"></i> This sends the message to <strong>{{ $broadcastRecipientCount }} patient(s)</strong> and uses that many SMS credits or more. Send now?
+                        <i class="fas fa-exclamation-triangle mr-1"></i> This sends the message to <strong>{{ $broadcastRecipientCount }} patient(s)</strong>
+                        (patients who opted out are left out) and uses about <strong>{{ number_format($broadcastCreditsNeeded) }}</strong> SMS credits.
+                        @if($broadcastCredits !== null)
+                            You have {{ number_format($broadcastCredits) }} left.
+                        @endif
+                        Send now?
                     </div>
+                    @if($broadcastCredits !== null && $broadcastCredits < $broadcastCreditsNeeded)
+                        <div class="rounded-lg border text-sm border-red-200 bg-red-50 text-red-800 py-2 px-4 mb-2">
+                            <i class="fas fa-exclamation-circle mr-1"></i> Not enough credits for everyone: about {{ number_format($broadcastCreditsNeeded - $broadcastCredits) }} more are needed, so some patients will not get it.
+                            <a href="{{ route('admin.sms-settings') }}">Buy credits</a>
+                        </div>
+                    @endif
                     <button type="button" wire:click="sendCustomBroadcast" wire:loading.attr="disabled" wire:target="sendCustomBroadcast" class="ui-button ui-button-sm ui-button-danger font-semibold mr-2">
                         <span wire:loading.remove wire:target="sendCustomBroadcast"><i class="fas fa-paper-plane mr-1"></i> Yes, send now</span>
                         <span wire:loading wire:target="sendCustomBroadcast">Sending…</span>

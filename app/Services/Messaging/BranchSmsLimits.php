@@ -102,7 +102,7 @@ class BranchSmsLimits
     {
         if ($parts < 1) throw ValidationException::withMessages(['add' => 'Enter how many SMS to add, 1 or more.']);
 
-        return $this->change($branch, fn (Branch $locked) => ($locked->sms_limit ?? $locked->sms_used) + $parts, "Added {$parts} SMS");
+        return $this->change($branch, fn (Branch $locked) => $this->withinCeiling(($locked->sms_limit ?? $locked->sms_used) + $parts, 'add'), "Added {$parts} SMS");
     }
 
     /** Set the limit exactly; null removes it. It can't be set below what the branch has already used. */
@@ -112,8 +112,20 @@ class BranchSmsLimits
             if ($limit !== null && $limit < $locked->sms_used) {
                 throw ValidationException::withMessages(['limit' => "{$locked->name} has already used {$locked->sms_used} SMS; the limit can't be lower than that."]);
             }
-            return $limit;
+            return $limit === null ? null : $this->withinCeiling($limit, 'limit');
         }, $limit === null ? 'Removed the SMS limit' : "Set the SMS limit to {$limit}");
+    }
+
+    /** A branch limit above this is a typo (and would not fit the column). */
+    public const CEILING = 1000000;
+
+    private function withinCeiling(int $limit, string $field): int
+    {
+        if ($limit > self::CEILING) {
+            throw ValidationException::withMessages([$field => 'A branch limit can be at most ' . number_format(self::CEILING) . ' SMS.']);
+        }
+
+        return $limit;
     }
 
     private function change(Branch $branch, callable $newLimit, string $what): Branch

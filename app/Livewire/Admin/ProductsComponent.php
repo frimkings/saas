@@ -198,6 +198,7 @@ class ProductsComponent extends Component
             'cost_price'       => '',
             'selling_price'    => '',
             'profit_margin'    => '',
+            'reorder_level'    => Product::DEFAULT_REORDER_LEVEL,
         ];
         $this->editingProduct = null;
     }
@@ -233,6 +234,18 @@ class ProductsComponent extends Component
     private function costRule(): string
     {
         return $this->isService ? 'required|numeric|min:0' : 'required|numeric|min:0.01';
+    }
+
+    /** "Reorder at": this branch shows the product as low stock from this quantity down. */
+    private function reorderLevelInput(): int
+    {
+        $level = $this->state['reorder_level'] ?? null;
+        if ($level === '' || $level === null) return Product::DEFAULT_REORDER_LEVEL;
+        if (!is_numeric($level) || (int) $level < 0 || (int) $level > 100000) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['reorder_level' => 'Enter a reorder level from 0 to 100000.']);
+        }
+
+        return (int) $level;
     }
 
     /** Quantity is only asked for products kept in stock; made-to-order products are never counted. */
@@ -316,6 +329,8 @@ class ProductsComponent extends Component
             'made_to_order' => 'boolean',
             'cost_price' => $this->costRule(),
             'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
+        ], [
+            'selling_price.gte' => 'The selling price cannot be below the cost price.',
         ])->validate();
 
         $validatedData['user_id'] = Auth::id();
@@ -323,7 +338,10 @@ class ProductsComponent extends Component
         $validatedData['made_to_order'] = (bool) ($validatedData['made_to_order'] ?? false);
         if ($validatedData['made_to_order']) $validatedData['quantity'] = 0;
 
-        Product::create($validatedData);
+        $reorderLevel = $this->reorderLevelInput();
+        unset($validatedData['reorder_level']);
+        $product = Product::create($validatedData);
+        app(\App\Services\Inventory\BranchInventoryService::class)->setReorderLevel($product, $reorderLevel);
 
         $this->cancelForm();
         
@@ -352,6 +370,7 @@ class ProductsComponent extends Component
             'cost_price'       => $cost,
             'selling_price'    => $sell,
             'profit_margin'    => $cost > 0 ? round((($sell - $cost) / $cost) * 100, 2) : '',
+            'reorder_level'    => $this->editingProduct->reorderLevel(),
         ];
         $this->showForm = true;
     }
@@ -378,13 +397,16 @@ class ProductsComponent extends Component
             'made_to_order' => 'boolean',
             'cost_price' => $this->costRule(),
             'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
+        ], [
+            'selling_price.gte' => 'The selling price cannot be below the cost price.',
         ])->validate();
 
         $validatedData['optical_category_id'] = null;
+        $reorderLevel = $this->reorderLevelInput();
         $madeToOrder = (bool) ($validatedData['made_to_order'] ?? false);
         unset($validatedData['made_to_order']);
 
-        DB::transaction(function () use ($validatedData, $madeToOrder) {
+        DB::transaction(function () use ($validatedData, $madeToOrder, $reorderLevel) {
             if ($madeToOrder) {
                 // Stock is cleared (and recorded) once, when the product becomes made to order.
                 unset($validatedData['quantity']);
@@ -399,6 +421,7 @@ class ProductsComponent extends Component
                 }
             }
             $this->editingProduct->update($validatedData);
+            app(\App\Services\Inventory\BranchInventoryService::class)->setReorderLevel($this->editingProduct->fresh(), $reorderLevel);
         });
 
         $this->cancelForm();
@@ -554,6 +577,17 @@ class ProductsComponent extends Component
                 'expiry_date' => $this->normalizeImportDate($data['expiry_date'] ?? $data['expires_at'] ?? null),
                 'user_id' => Auth::id(),
             ];
+            // A service row needs only a name, category and price, as on the form.
+            $isService = $category->type === 'service' || stripos((string) $category->name, 'service') !== false;
+            if ($isService) {
+                if (trim((string) $payload['batch_number']) === '') {
+                    do { $payload['batch_number'] = 'SVC-' . strtoupper(\Illuminate\Support\Str::random(6)); } while (Product::where('batch_number', $payload['batch_number'])->exists());
+                }
+                $payload['quantity'] = 0;
+                $payload['manufacture_date'] = $payload['manufacture_date'] ?: now()->toDateString();
+                $payload['expiry_date'] = $payload['expiry_date'] ?: '2099-12-31';
+                $payload['cost_price'] = ($payload['cost_price'] === null || $payload['cost_price'] === '') ? 0 : $payload['cost_price'];
+            }
 
             $clinicId = Product::clinicIdForWrite();
             $validator = Validator::make($payload, [
@@ -563,8 +597,10 @@ class ProductsComponent extends Component
                 'expiry_date' => 'required|date|date_format:Y-m-d|after:manufacture_date',
                 'manufacture_date' => 'required|date|date_format:Y-m-d|before:expiry_date',
                 'quantity' => 'required|integer|min:0|max:10000',
-                'cost_price' => 'required|numeric|min:0.01',
+                'cost_price' => $isService ? 'required|numeric|min:0' : 'required|numeric|min:0.01',
                 'selling_price' => 'required|numeric|min:0.01|gte:cost_price',
+            ], [
+                'selling_price.gte' => 'The selling price cannot be below the cost price.',
             ]);
 
             if ($validator->fails()) {
@@ -573,7 +609,7 @@ class ProductsComponent extends Component
                 continue;
             }
 
-            Product::create(array_merge($validator->validated(), ['user_id' => Auth::id()]));
+            Product::create(array_merge($validator->validated(), ['user_id' => Auth::id(), 'made_to_order' => $isService]));
             $imported++;
         }
 
@@ -649,7 +685,11 @@ class ProductsComponent extends Component
             return 'Expiring Soon';
         }
 
-        if ($product->quantity < 10) {
+        if ((int) $product->quantity <= 0) {
+            return 'Out of stock';
+        }
+
+        if ($product->isLowStock()) {
             return 'Low Stock';
         }
 
@@ -688,7 +728,7 @@ class ProductsComponent extends Component
         switch ($this->activeTab) {
             // Made-to-order products are never on the shelf, so they have no stock or expiry alerts.
             case 'low-stock':
-                $query->stocked()->where('quantity', '<', 10);
+                $query->needsReorder();
                 break;
 
             case 'expiring':
@@ -763,7 +803,8 @@ class ProductsComponent extends Component
     public function render()
     {
         $products = $this->getFilteredQuery()->paginate(10);
-        $categories = Category::orderBy('name')->get();
+        // New and edited products go into a switched-on category (or keep the one they are in).
+        $categories = Category::where(fn ($q) => $q->where('is_active', true)->orWhere('id', $this->state['category_id'] ?? 0))->orderBy('name')->get();
         $lensOptions = LensOption::orderByRaw("CASE family WHEN 'Single Vision' THEN 1 WHEN 'Bifocal' THEN 2 WHEN 'Progressive' THEN 3 ELSE 4 END")
             ->orderBy('display_name')
             ->get();
@@ -772,14 +813,13 @@ class ProductsComponent extends Component
         $fourMonths = Carbon::today()->addMonths(4);
         $allProducts = Product::selectRaw("
             COUNT(*) as total,
-            SUM(CASE WHEN made_to_order = 0 AND quantity < 10 THEN 1 ELSE 0 END) as low_stock,
             SUM(CASE WHEN made_to_order = 0 AND DATE(expiry_date) >= ? AND DATE(expiry_date) <= ? THEN 1 ELSE 0 END) as expiring,
             SUM(CASE WHEN made_to_order = 0 AND DATE(expiry_date) < ? THEN 1 ELSE 0 END) as expired
         ", [$today, $fourMonths, $today])->first();
 
         $stats = [
             'total'     => (int) $allProducts->total,
-            'low_stock' => (int) $allProducts->low_stock,
+            'low_stock' => Product::needsReorder()->count(),
             'expiring'  => (int) $allProducts->expiring,
             'expired'   => (int) $allProducts->expired,
         ];

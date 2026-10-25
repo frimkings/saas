@@ -538,6 +538,11 @@ class POSComponent extends Component
             return;
         }
 
+        if (!$product->inActiveCategory()) {
+            $this->dispatch('notify', ...['type' => 'warning', 'message' => $product->name . ' is in a category that has been switched off.']);
+            return;
+        }
+
         // A registered patient buys drugs and lenses on a doctor's prescription; frames, services
         // and other items can be sold at the till straight away.
         if ($this->patientId && !$this->prescriptionConsultationId && $this->needsPrescription($product)) {
@@ -704,6 +709,7 @@ class POSComponent extends Component
         $frameCategoryIds = Category::whereRaw('LOWER(name) LIKE ?', ['%frame%'])->pluck('id');
 
         $this->frameSearchResults = Product::with('category')
+            ->inActiveCategory()
             ->whereIn('category_id', $frameCategoryIds)
             ->searchNameOrBatch($this->frameSearchTerm)
             ->inStock()
@@ -729,8 +735,8 @@ class POSComponent extends Component
             return;
         }
 
-        if (!$this->isFrameProduct($product)) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Only Frame category products can be added here.']);
+        if (!$this->isFrameProduct($product) || !$product->inActiveCategory()) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Only frames from an active Frames category can be added here.']);
             return;
         }
 
@@ -2224,7 +2230,7 @@ class POSComponent extends Component
                     'sale_id'        => $sale->id,
                     'amount'         => $recordAmount,
                     'payment_method' => $payment['method'],
-                    'notes'          => $isPartPayment ? 'Initial deposit' : 'Full payment',
+                    'notes'          => $isPartPayment ? 'Initial deposit' : 'Paid at the till',
                     'collected_by'   => Auth::id(),
                 ]);
                 $remaining -= $recordAmount;

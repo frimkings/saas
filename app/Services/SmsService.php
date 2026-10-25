@@ -100,17 +100,6 @@ class SmsService
         app(ClinicAccessService::class)->assertWritable();
         $s = Setting::getSettings();
 
-        if (isset($s->sms_enabled) && !$s->sms_enabled) {
-            return ['success' => false, 'error' => 'SMS notifications are currently paused.'];
-        }
-
-        // Surface configuration problems to the caller now rather than failing silently in a worker.
-        try {
-            $credentials = app(SmsCredentialResolver::class)->resolve($s);
-        } catch (SmsNotConfiguredException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-
         $phone    = PhoneNumber::normalize($to);
         $segments = SmsSegments::count($message);
         $log      = [
@@ -121,6 +110,18 @@ class SmsService
             'message'      => $message,
             'segments'     => $segments,
         ];
+
+        // Every attempt is logged, including the ones refused here, so staff can see why a patient got nothing.
+        if (isset($s->sms_enabled) && !$s->sms_enabled) {
+            return $this->refused($log, 'skipped', 'SMS notifications are currently paused.');
+        }
+
+        // Surface configuration problems to the caller now rather than failing silently in a worker.
+        try {
+            $credentials = app(SmsCredentialResolver::class)->resolve($s);
+        } catch (SmsNotConfiguredException $e) {
+            return $this->refused($log, 'failed', $e->getMessage());
+        }
 
         if ($reason = $this->optOutReason($patientId, $templateKey)) {
             SmsLog::create($log + ['status' => 'skipped', 'success' => false, 'error' => $reason]);
@@ -152,7 +153,10 @@ class SmsService
             return ['success' => false, 'error' => $e->getMessage()];
         } catch (InsufficientSmsCreditsException $e) {
             $this->notifyCreditsExhausted($clinicId);
-            return ['success' => false, 'error' => $e->getMessage()];
+            $refused = $this->refused($log, 'failed', $e->getMessage());
+            if ($branchId) SmsLog::whereKey($refused['log_id'])->update(['branch_id' => $branchId]);
+
+            return $refused;
         }
         $limits->announce($taken);
 
@@ -163,6 +167,14 @@ class SmsService
         app(MessageDispatcher::class)->dispatch(new SendSmsMessage($log->id));
 
         return ['success' => true, 'queued' => true, 'log_id' => $log->id];
+    }
+
+    /** Log an SMS that was not sent (no credit used) and report why. */
+    private function refused(array $log, string $status, string $reason): array
+    {
+        $row = SmsLog::create(['status' => $status, 'success' => false, 'error' => $reason] + $log);
+
+        return ['success' => false, 'error' => $reason, 'log_id' => $row->id];
     }
 
     /** Tell clinic admins once a day per branch that the branch's SMS share is used up. */

@@ -356,12 +356,13 @@ class ReportsComponent extends Component
     {
         $base = fn () => $this->salesBaseQuery($from . ' 00:00:00', $to . ' 23:59:59');
 
+        // Bills count at what was charged; insurer shortfalls written off are a cost, as in the income statement.
         $agg = $base()
             ->selectRaw('
                 COUNT(*) as count,
-                COALESCE(SUM(total_amount), 0) as total_sales,
+                COALESCE(SUM(' . Sales::BILLED_SQL . '), 0) as total_sales,
                 COALESCE(SUM(profit), 0)       as profit,
-                COALESCE(AVG(total_amount), 0) as avg_transaction
+                COALESCE(AVG(' . Sales::BILLED_SQL . '), 0) as avg_transaction
             ')
             ->first();
 
@@ -395,13 +396,14 @@ class ReportsComponent extends Component
 
     /**
      * Insurer figures for the period, or null for a clinic that has never used insurance.
-     * Billed: the insurer's share of the bills in view (Net Revenue already includes it).
+     * Billed: what the bills in view first asked of insurers (Net Revenue already includes it),
+     * including what they later did not pay; moved to patients is the part of that the patients now owe.
      * Received / written off: insurer payments and shortfalls written off in the dates.
      * Owed now: what insurers still owe on every insured bill, whatever its date.
      */
     public function getInsuranceSummaryProperty(): ?array
     {
-        $billed = round((float) $this->salesBaseQuery()->sum('insurer_amount'), 2);
+        $billed = round((float) $this->salesBaseQuery()->sum(DB::raw(Sales::INSURER_BILLED_SQL)), 2);
         if ($billed <= 0 && !Insurer::exists()) {
             return null;
         }
@@ -411,6 +413,7 @@ class ReportsComponent extends Component
         return [
             'billed'     => $billed,
             'patient'    => round((float) $this->summary['total_sales'] - $billed, 2),
+            'toPatients' => round((float) $this->salesBaseQuery()->sum(DB::raw(Sales::MOVED_TO_PATIENT_SQL)), 2),
             'received'   => round((float) InsurerPayment::whereBetween('paid_on', [$this->fromDate, $this->toDate])->sum('amount'), 2),
             'writtenOff' => round((float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', $range)->sum('amount'), 2),
             'owedNow'    => round((float) Sales::awaitingInsurer()->sum(DB::raw(Sales::INSURER_OWED_SQL)), 2),
@@ -716,7 +719,7 @@ class ReportsComponent extends Component
 
         if ($this->chartPeriod === 'daily') {
             $rows = $this->salesBaseQuery($start, $end)
-                ->select(DB::raw('DATE(created_at) as period'), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
+                ->select(DB::raw('DATE(created_at) as period'), DB::raw('SUM(' . Sales::BILLED_SQL . ') as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get()
@@ -733,7 +736,7 @@ class ReportsComponent extends Component
 
         } elseif ($this->chartPeriod === 'weekly') {
             $rows = $this->salesBaseQuery($start, $end)
-                ->select(DB::raw('YEARWEEK(created_at, 3) as period'), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
+                ->select(DB::raw('YEARWEEK(created_at, 3) as period'), DB::raw('SUM(' . Sales::BILLED_SQL . ') as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get()
@@ -751,7 +754,7 @@ class ReportsComponent extends Component
 
         } elseif ($this->chartPeriod === 'monthly') {
             $rows = $this->salesBaseQuery($start, $end)
-                ->select(DB::raw("DATE_FORMAT(created_at,'%Y-%m') as period"), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
+                ->select(DB::raw("DATE_FORMAT(created_at,'%Y-%m') as period"), DB::raw('SUM(' . Sales::BILLED_SQL . ') as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get()
@@ -769,7 +772,7 @@ class ReportsComponent extends Component
         } else {
             // yearly
             $rows = $this->salesBaseQuery($start, $end)
-                ->select(DB::raw('YEAR(created_at) as period'), DB::raw('SUM(total_amount) as revenue'), DB::raw('SUM(profit) as profit'))
+                ->select(DB::raw('YEAR(created_at) as period'), DB::raw('SUM(' . Sales::BILLED_SQL . ') as revenue'), DB::raw('SUM(profit) as profit'))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get()

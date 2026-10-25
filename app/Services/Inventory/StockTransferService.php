@@ -42,6 +42,20 @@ class StockTransferService
                 if ($quantity <= 0) {
                     throw new RuntimeException('Every transfer quantity must be greater than zero.');
                 }
+                // Only stock on the shelf can move: not services or made-to-order items, nothing expired,
+                // and no more than this branch holds.
+                if ($product->made_to_order) {
+                    throw new RuntimeException($product->name . ' is not kept in stock, so it cannot be transferred.');
+                }
+                $inDateBatch = \App\Models\InventoryLot::withoutGlobalScopes()->where('product_id', $product->id)
+                    ->where('branch_id', $source->id)->where('quantity', '>', 0)->whereDate('expiry_date', '>=', today())->exists();
+                if ($product->isExpired() && !$inDateBatch) {
+                    throw new RuntimeException($product->name . ' has expired stock; take it off the shelf rather than transfer it.');
+                }
+                $available = $this->inventory->quantity($product, $source->id);
+                if ($quantity > $available) {
+                    throw new RuntimeException("Only {$available} of {$product->name} at {$source->name}, so {$quantity} cannot be transferred.");
+                }
                 $transfer->items()->create(['product_id' => $product->id, 'quantity' => $quantity]);
             }
 

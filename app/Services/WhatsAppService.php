@@ -45,10 +45,6 @@ class WhatsAppService
     ): array {
         app(ClinicAccessService::class)->assertWritable();
 
-        if ($error = $this->configurationError(Setting::getSettings())) {
-            return ['success' => false, 'error' => $error];
-        }
-
         $bodyParams = array_map('strval', array_values($bodyParams));
         $log = [
             'patient_id'   => $patientId,
@@ -57,6 +53,12 @@ class WhatsAppService
             'recipient'    => PhoneNumber::normalize($to),
             'message'      => "WA template:{$templateName} → " . implode('|', $bodyParams),
         ];
+
+        // A refused send is logged too, so staff can see why the patient got nothing.
+        if ($error = $this->configurationError(Setting::getSettings())) {
+            SmsLog::create($log + ['status' => 'failed', 'success' => false, 'error' => $error]);
+            return ['success' => false, 'error' => $error];
+        }
 
         if ($reason = $this->optOutReason($patientId, $templateKey)) {
             SmsLog::create($log + ['status' => 'skipped', 'success' => false, 'error' => $reason]);
@@ -113,6 +115,8 @@ class WhatsAppService
         app(ClinicAccessService::class)->assertWritable();
 
         if ($error = $this->configurationError(Setting::getSettings())) {
+            SmsLog::create(['patient_id' => $patientId, 'template_key' => 'test', 'channel' => 'whatsapp', 'recipient' => PhoneNumber::normalize($to),
+                'message' => $message, 'status' => 'failed', 'success' => false, 'error' => $error]);
             return ['success' => false, 'error' => $error];
         }
 
