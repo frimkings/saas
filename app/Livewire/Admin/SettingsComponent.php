@@ -29,6 +29,7 @@ class SettingsComponent extends Component
     protected function rules()
     {
         return [
+            'state.clinic_name'    => 'required|string|min:2|max:150',
             'state.clinic_address' => 'nullable|string|max:255',
             'state.clinic_contact' => 'nullable|string|max:50',
             'state.clinic_email'   => 'nullable|email|max:100',
@@ -71,6 +72,8 @@ class SettingsComponent extends Component
             // Store new logo
             $data['clinic_logo'] = $this->newLogo->store(\App\Support\Tenancy\TenantStorage::branding(), 'public');
         }
+
+        $this->renameClinic($setting, trim((string) $this->state['clinic_name']));
 
         $setting->update($data);
         Cache::forget('pos.settings');
@@ -151,6 +154,25 @@ class SettingsComponent extends Component
             }
         }
         $this->currentLogo = $setting->clinic_logo;
+    }
+
+    /**
+     * The name lives on the clinic (the settings row falls back to its own copy for legacy
+     * installs), so both are kept in step. The web address (slug) is left as it is.
+     */
+    private function renameClinic(Setting $setting, string $name): void
+    {
+        $old = (string) $setting->clinic_name;
+        if ($name === '' || $name === $old) {
+            return;
+        }
+
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        $clinic?->update(['name' => $name]);
+        $setting->forceFill(['clinic_name' => $name]);
+
+        \App\Models\AuditTrail::record('clinic.renamed', "Clinic renamed from \"{$old}\" to \"{$name}\"",
+            $clinic, ['name' => $old], ['name' => $name], null, true);
     }
 
     private function nullableValue($value): ?string

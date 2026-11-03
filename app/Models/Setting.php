@@ -219,6 +219,7 @@ class Setting extends Model
         return strcasecmp(trim((string) $value), $default) === 0;
     }
 
+    /** The logo's path on the public disk, or null when there is none or it looks unsafe. */
     public function logoPath(): ?string
     {
         if (!$this->clinic_logo) {
@@ -235,11 +236,14 @@ class Setting extends Model
             return null;
         }
 
-        $path = public_path('storage/' . ltrim($this->clinic_logo, '/'));
-
-        return file_exists($path) ? $path : null;
+        return ltrim($this->clinic_logo, '/');
     }
 
+    /**
+     * The logo embedded in printed documents (letters, receipts, reports). Read through the
+     * public disk, which is a bucket on the hosted app: the server's own folder has no logo
+     * there, so documents printed without one. Read once per request.
+     */
     public function logoDataUri(): ?string
     {
         $path = $this->logoPath();
@@ -248,14 +252,26 @@ class Setting extends Model
             return null;
         }
 
-        // Guard against encoding very large files (> 2 MB) which would OOM
-        if (filesize($path) > 2 * 1024 * 1024) {
-            return null;
-        }
+        return app(\App\Support\RequestMemo::class)->remember('logo:'.$path, function () use ($path) {
+            try {
+                $disk = \Illuminate\Support\Facades\Storage::disk('public');
+                // Guard against encoding very large files (> 2 MB) which would OOM
+                if (! $disk->exists($path) || $disk->size($path) > 2 * 1024 * 1024) {
+                    return null;
+                }
+                $contents = $disk->get($path);
+            } catch (\Throwable $e) {
+                report($e);
 
-        $finfo    = new \finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($path) ?: 'image/png';
+                return null;
+            }
+            if (! $contents) {
+                return null;
+            }
 
-        return 'data:' . $mimeType . ';base64,' . base64_encode(file_get_contents($path));
+            $mimeType = (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents) ?: 'image/png';
+
+            return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
+        });
     }
 }

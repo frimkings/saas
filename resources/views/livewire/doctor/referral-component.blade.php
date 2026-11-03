@@ -217,7 +217,12 @@
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {{ $current['chip'] }}"><i class="fas {{ $current['icon'] }}" aria-hidden="true"></i></span>
                 <div>
                     <h2 id="letter-dialog-title" class="!mb-0 text-base font-semibold text-slate-900">{{ $editingId ? 'Edit' : 'New' }} {{ $current['title'] }}</h2>
-                    <p class="!mb-0 text-xs text-slate-500">{{ $appSettings->clinic_name ?? \App\Models\Setting::DEFAULT_CLINIC_NAME }}</p>
+                    <p class="!mb-0 flex items-center gap-1.5 text-xs text-slate-500">
+                        @if($appSettings?->logoPath())
+                            <img src="{{ asset('storage/' . $appSettings->logoPath()) }}" alt="" class="h-4 w-auto max-w-[3rem] object-contain" onerror="this.remove()">
+                        @endif
+                        <span>{{ $appSettings->clinic_name ?? \App\Models\Setting::DEFAULT_CLINIC_NAME }}</span>
+                    </p>
                 </div>
             </div>
             <button type="button" wire:click="closeModal" class="flex h-8 w-8 items-center justify-center rounded-full text-xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label="Close dialog">&times;</button>

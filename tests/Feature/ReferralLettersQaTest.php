@@ -65,6 +65,22 @@ class ReferralLettersQaTest extends TestCase
         $this->assertNotNull($letter->fresh()->printed_at);
     }
 
+    public function test_every_letter_type_prints_the_clinic_logo_from_storage(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $this->ownerOn('clinic-pro');
+        $logo = 'clinics/abc/branding/logo.png';
+        \Illuminate\Support\Facades\Storage::disk('public')->put($logo, \Illuminate\Http\UploadedFile::fake()->image('logo.png', 60, 30)->getContent());
+        \App\Models\Setting::getSettings()->update(['clinic_logo' => $logo]);
+        $letter = $this->referral($this->patient());
+
+        foreach (['referral', 'medical_report', 'excuse_duty'] as $type) {
+            $letter->update(['letter_type' => $type]);
+            $this->get(route('doctor.referral.pdf', $letter))->assertOk()
+                ->assertSee('src="data:image/png;base64,', false)->assertDontSee('More Than Eye Care');
+        }
+    }
+
     public function test_excuse_duty_starts_on_the_visit_and_lasts_at_most_the_limit_and_reports_say_something(): void
     {
         $this->ownerOn('clinic-pro');

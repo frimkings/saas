@@ -79,11 +79,19 @@ class SettingsPersistenceTest extends TestCase
             ->assertDispatched('notify');
 
         $setting->refresh();
+        $slug = $setting->clinic->slug;
 
-        $this->assertSame($setting->clinic->name, $setting->clinic_name);
-        $this->assertNotSame('Vision Space Clinic', $setting->getRawOriginal('clinic_name'));
+        // The owner renames the clinic: the clinic and its settings both carry the new name,
+        // the web address stays, and the change is audited.
+        $this->assertSame('Vision Space Clinic', $setting->clinic->fresh()->name);
+        $this->assertSame('Vision Space Clinic', $setting->getRawOriginal('clinic_name'));
+        $this->assertSame($slug, $setting->clinic->fresh()->slug);
+        $this->assertDatabaseHas('audit_trails', ['event' => 'clinic.renamed', 'auditable_id' => $setting->clinic_id]);
         $this->assertSame('Accra Central', $setting->clinic_address);
         $this->assertSame('0598882009', $setting->clinic_contact);
         $this->assertSame('clinic@example.com', $setting->clinic_email);
+
+        Livewire::actingAs($admin)->test(SettingsComponent::class)
+            ->set('state.clinic_name', ' ')->call('updateSettings')->assertHasErrors('state.clinic_name');
     }
 }

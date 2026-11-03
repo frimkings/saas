@@ -18,7 +18,7 @@
             <div class="font-semibold mb-1">
                 <i class="fas fa-info-circle mr-2"></i>Complete your clinic profile:
             </div>
-            <div>Your clinic name is assigned during registration. Address, contact number, email, and logo are optional. Replace or clear any example details and save to finish setup.</div>
+            <div>Address, contact number, email, and logo are optional. Replace or clear any example details and save to finish setup.</div>
         </div>
     @endif
 
@@ -33,9 +33,10 @@
                     <form wire:submit="updateSettings">
                         {{-- Clinic Name --}}
                         <div class="mb-4">
-                            <label for="registered-clinic-name" class="text-sm font-semibold text-slate-500">REGISTERED CLINIC NAME</label>
-                            <input id="registered-clinic-name" type="text" value="{{ $setting->clinic_name }}" class="ui-input bg-slate-50 border-0" readonly>
-                            <small class="mt-1 block text-xs text-slate-500">Assigned during registration. Contact the developer to request a name change.</small>
+                            <label for="registered-clinic-name" class="text-sm font-semibold text-slate-500">CLINIC NAME</label>
+                            <input id="registered-clinic-name" type="text" wire:model.live.debounce.300ms="state.clinic_name" maxlength="150" class="ui-input bg-slate-50 border-0 @error('state.clinic_name') is-invalid @enderror" required>
+                            @error('state.clinic_name') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
+                            <small class="mt-1 block text-xs text-slate-500">Printed on letters, receipts and messages. Your sign-in web address does not change.</small>
                         </div>
 
                         {{-- Clinic Address --}}
@@ -118,7 +119,7 @@
                     </div>
 
                     {{-- Clinic Name Preview --}}
-                    <h4 class="text-teal-700 font-semibold mb-2">{{ $setting->clinic_name }}</h4>
+                    <h4 class="text-teal-700 font-semibold mb-2">{{ trim($state['clinic_name']) ?: $setting->clinic_name }}</h4>
                     @if (trim($state['clinic_address']))
                         <p class="text-slate-500 mb-1">{{ $state['clinic_address'] }}</p>
                     @endif

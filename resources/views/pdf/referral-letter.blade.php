@@ -126,11 +126,10 @@ html, body {
 
     {{-- ══════════════════ SHARED LETTERHEAD ══════════════════ --}}
     <div class="letterhead">
-        @if($settings->logoDataUri())
-            <img src="{{ $settings->logoDataUri() }}" class="lh-logo" alt="Clinic Logo">
+        @if($logo = $settings->logoDataUri())
+            <img src="{{ $logo }}" class="lh-logo" alt="Clinic Logo">
         @endif
         <div class="lh-org">{{ $settings->clinic_name }}</div>
-        <div class="lh-tagline">"More Than Eye Care"</div>
         <div class="lh-contact">
             {{ $settings->clinic_address }}
             @if($settings->clinic_contact) &nbsp;|&nbsp; Tel: {{ $settings->clinic_contact }} @endif
