@@ -232,6 +232,7 @@ class OpticalWorkflowTest extends TestCase
     {
         config(['tenancy.enabled' => true]);
         $user = User::factory()->create();
+        $user->assignRole(Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']));
         $this->tenant($user, 'partner-names');
         $this->actingAs($user);
         OpticalPartnerClinic::create(['name' => 'Westside Eye', 'is_active' => false]);
@@ -241,6 +242,30 @@ class OpticalWorkflowTest extends TestCase
             ->assertHasErrors(['name' => 'unique'])
             ->assertSee('A partner clinic with this name already exists (it may be archived).');
         $this->assertSame(1, OpticalPartnerClinic::count());
+    }
+
+    public function test_only_managers_add_change_or_archive_partner_clinics(): void
+    {
+        config(['tenancy.enabled' => true]);
+        \App\Support\OpticalAccess::installRoles();
+        $user = User::factory()->create();
+        $user->assignRole('Optical Assistant');
+        $this->tenant($user, 'partner-staff');
+        $this->actingAs($user);
+        $partner = OpticalPartnerClinic::create(['name' => 'Westside Eye', 'billing_terms' => 'pay_on_order', 'is_active' => true]);
+
+        // Staff see partners and start jobs for them, but the change buttons are not there.
+        Livewire::test(PartnerClinicsComponent::class)->call('openPartner', $partner->id)
+            ->assertSee('Westside Eye')->assertSee('New job')->assertSee('A manager adds and changes partner clinics.')
+            ->assertDontSee('+ Add partner clinic')->assertDontSee('Edit details')->assertDontSee('Archive partner')
+            ->assertDontSee('data-partner-form', false);
+
+        Livewire::test(PartnerClinicsComponent::class)->set('name', 'Sneaky Eye')->call('save')->assertForbidden();
+        Livewire::test(PartnerClinicsComponent::class)->set('editingId', $partner->id)->set('name', 'Westside Eye')
+            ->set('billingTerms', 'on_account')->call('save')->assertForbidden();
+        Livewire::test(PartnerClinicsComponent::class)->call('archive', $partner->id)->assertForbidden();
+        Livewire::test(PartnerClinicsComponent::class)->call('edit', $partner->id)->assertForbidden();
+        $this->assertSame(['pay_on_order', true, 1], [$partner->fresh()->billing_terms, $partner->fresh()->is_active, OpticalPartnerClinic::count()]);
     }
 
     public function test_manager_sets_service_price_and_catalogue_is_tenant_scoped(): void
@@ -2341,6 +2366,7 @@ class OpticalWorkflowTest extends TestCase
     {
         config(['tenancy.enabled' => true]);
         $user = User::factory()->create();
+        $user->assignRole(Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']));
         $this->tenant($user, 'optical-partner-form');
         $this->actingAs($user);
         $patient = Patient::createWithGeneratedPxNumber([

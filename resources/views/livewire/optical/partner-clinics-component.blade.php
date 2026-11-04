@@ -19,7 +19,7 @@
             <h1 class="text-xl font-bold text-slate-900">Partner Clinics</h1>
             <p class="ui-muted text-sm">Clinics that send you optical jobs: contacts, billing terms, work in progress and what they owe.</p>
         </div>
-        <button type="button" x-on:click="openLocal($wire, { editingId: null, name: '', contactPerson: '', phone: '', email: '', address: '', notificationPhone: '', billingTerms: 'pay_on_order', notifyVia: 'sms', isActive: true, viewPartnerId: null, showForm: true }, $root.querySelector('[data-partner-form]'))" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ Add partner clinic</button>
+        @if($canManage)<button type="button" x-on:click="openLocal($wire, { editingId: null, name: '', contactPerson: '', phone: '', email: '', address: '', notificationPhone: '', billingTerms: 'pay_on_order', notifyVia: 'sms', isActive: true, viewPartnerId: null, showForm: true }, $root.querySelector('[data-partner-form]'))" class="oo-btn primary" style="padding:9px 16px;font-size:13px">+ Add partner clinic</button>@else<span class="ui-muted text-sm">A manager adds and changes partner clinics.</span>@endif
     </div>
 
     <x-ui.flash />
@@ -129,16 +129,16 @@
                     @endforelse
                     @if($viewOrders->count() >= 8)<p style="margin:8px 0 0"><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['sourceFilter' => 'partner', 'partnerFilter' => $viewPartner->id]) }}">See all jobs →</a></p>@endif
                 </section>
-                <section class="oo-section" style="border-top:1px solid var(--clinic-line);padding-top:14px">
+                @if($canManage)<section class="oo-section" style="border-top:1px solid var(--clinic-line);padding-top:14px">
                     @if($viewPartner->is_active)
                         <button type="button" class="oo-btn danger" wire:click="archive({{ $viewPartner->id }})" wire:confirm="Archive {{ $viewPartner->name }}? It can't be picked for new orders; existing jobs and its account stay available.">Archive partner</button>
                     @else
                         <button type="button" class="oo-btn" wire:click="restore({{ $viewPartner->id }})">Restore for new orders</button>
                     @endif
-                </section>
+                </section>@endif
             </div>
             <footer class="oo-drawer-foot">
-                <button type="button" class="oo-btn" x-on:click="openLocal($wire, {{ \Illuminate\Support\Js::from(['editingId' => $viewPartner->id, 'name' => $viewPartner->name, 'contactPerson' => $viewPartner->contact_person ?? '', 'phone' => $viewPartner->phone ?? '', 'email' => $viewPartner->email ?? '', 'address' => $viewPartner->address ?? '', 'billingTerms' => $viewPartner->billing_terms, 'notificationPhone' => $viewPartner->notification_phone ?? '', 'notifyVia' => $viewPartner->notify_via ?: 'sms', 'isActive' => (bool) $viewPartner->is_active, 'showForm' => true]) }}, $root.querySelector('[data-partner-form]'))">Edit details</button>
+                @if($canManage)<button type="button" class="oo-btn" x-on:click="openLocal($wire, {{ \Illuminate\Support\Js::from(['editingId' => $viewPartner->id, 'name' => $viewPartner->name, 'contactPerson' => $viewPartner->contact_person ?? '', 'phone' => $viewPartner->phone ?? '', 'email' => $viewPartner->email ?? '', 'address' => $viewPartner->address ?? '', 'billingTerms' => $viewPartner->billing_terms, 'notificationPhone' => $viewPartner->notification_phone ?? '', 'notifyVia' => $viewPartner->notify_via ?: 'sms', 'isActive' => (bool) $viewPartner->is_active, 'showForm' => true]) }}, $root.querySelector('[data-partner-form]'))">Edit details</button>@endif
                 <a wire:navigate href="{{ route('optical.partners.statement', $viewPartner->id) }}" class="oo-btn">Account statement</a>
                 @if($viewPartner->is_active)<a wire:navigate href="{{ route('optical.orders.create', ['partner_id' => $viewPartner->id]) }}" class="oo-btn primary">New job</a>@endif
             </footer>
@@ -146,6 +146,7 @@
         </div>
     @endif
 
+    @if($canManage)
     {{-- ADD / EDIT PANEL: always in the page; Add and Edit open it in the browser (openLocal), only Save calls the server. --}}
     <div data-sheet data-keep data-partner-form x-show="$wire.showForm" x-cloak>
         <div class="oo-overlay" x-on:click="dismissLocal($el, $wire, $wire.editingId ? { showForm: false } : { showForm: false, viewPartnerId: null })" aria-hidden="true"></div>
@@ -187,4 +188,5 @@
             </footer>
         </aside>
     </div>
+    @endif
 </div>

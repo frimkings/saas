@@ -76,8 +76,15 @@ class PartnerClinicsComponent extends Component
         $this->resetErrorBag();
     }
 
+    /** Partners carry billing terms (credit on account), so only managers add, change or archive them. */
+    private function assertManager(): void
+    {
+        abort_unless(\App\Support\OpticalAccess::isManager(auth()->user()), 403);
+    }
+
     public function restore(int $id): void
     {
+        $this->assertManager();
         app(ClinicAccessService::class)->assertWritable('optical');
         $partner = OpticalPartnerClinic::findOrFail($id);
         $partner->is_active = true;
@@ -87,6 +94,7 @@ class PartnerClinicsComponent extends Component
 
     public function add(): void
     {
+        $this->assertManager();
         $this->reset(['editingId', 'name', 'contactPerson', 'phone', 'email', 'address', 'notificationPhone']);
         $this->billingTerms = 'pay_on_order';
         $this->notifyVia = 'sms';
@@ -98,6 +106,7 @@ class PartnerClinicsComponent extends Component
 
     public function edit(int $id): void
     {
+        $this->assertManager();
         $partner = OpticalPartnerClinic::findOrFail($id);
         $this->editingId = $partner->id;
         $this->name = $partner->name;
@@ -116,6 +125,7 @@ class PartnerClinicsComponent extends Component
 
     public function save(): void
     {
+        $this->assertManager();
         app(ClinicAccessService::class)->assertWritable('optical');
         // Check the name as it will be saved: " Westside " would pass the unique check, then hit the database's.
         $this->name = trim($this->name);
@@ -147,6 +157,7 @@ class PartnerClinicsComponent extends Component
 
     public function archive(int $id): void
     {
+        $this->assertManager();
         app(ClinicAccessService::class)->assertWritable('optical');
         $partner = OpticalPartnerClinic::findOrFail($id);
         $partner->is_active = false;
@@ -188,6 +199,7 @@ class PartnerClinicsComponent extends Component
                 'ready' => $jobs->flatten()->whereIn('status', ['Ready for Collection', 'Ready'])->count(),
             ],
             'viewPartner' => $view,
+            'canManage' => \App\Support\OpticalAccess::isManager(auth()->user()),
             'viewAging' => $view ? $accounts->aging($view) : [],
             'viewOrders' => $view ? \App\Models\LensOrder::where('partner_clinic_id', $view->id)->latest()->limit(8)->get() : collect(),
         ])->layout('layouts.optical');
