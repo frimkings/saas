@@ -271,13 +271,21 @@ class Setting extends Model
                 // A small file can still be thousands of pixels wide; the PDF engine then runs out of
                 // memory and the print is a blank 500. Shrink it once and keep the shrunk copy;
                 // a logo that can't be shrunk is tried again in an hour, not on every print.
-                $key = 'printable-logo:' . md5($path . ':' . $bytes);
-                $contents = \Illuminate\Support\Facades\Cache::get($key);
-                if ($contents === null) {
+                // Cached as base64: the database cache store on MySQL keeps raw bytes as text, which
+                // fails, and the failed query (with the whole image in it) jammed the log.
+                $key = 'printable-logo:v2:' . md5($path . ':' . $bytes);
+                $cached = \Illuminate\Support\Facades\Cache::get($key);
+                if ($cached === null) {
                     $contents = self::printableLogo($disk->get($path) ?: '', $why) ?? '';
-                    $contents === ''
-                        ? \Illuminate\Support\Facades\Cache::put($key, '', now()->addHour())
-                        : \Illuminate\Support\Facades\Cache::forever($key, $contents);
+                    try {
+                        $contents === ''
+                            ? \Illuminate\Support\Facades\Cache::put($key, '', now()->addHour())
+                            : \Illuminate\Support\Facades\Cache::forever($key, base64_encode($contents));
+                    } catch (\Throwable) {
+                        $why('the shrunk copy could not be cached; it is shrunk again on each print');
+                    }
+                } else {
+                    $contents = $cached === '' ? '' : (string) base64_decode($cached, true);
                 }
             } catch (\Throwable $e) {
                 report($e);

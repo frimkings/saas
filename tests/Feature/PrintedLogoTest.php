@@ -44,6 +44,23 @@ class PrintedLogoTest extends TestCase
         $this->assertStringContainsString('6236x5376 pixels, too large to shrink on the server', $reasons[0]);
     }
 
+    public function test_the_shrunk_logo_is_kept_in_the_database_cache_as_the_hosted_app_does(): void
+    {
+        config(['cache.default' => 'database']);
+        Storage::fake('public');
+        Storage::disk('public')->put('logos/logo.png', $this->png(1088, 609));
+        $this->ownerOn('clinic-starter');
+        $settings = Setting::getSettings();
+        $settings->update(['clinic_logo' => 'logos/logo.png']);
+
+        $first = $settings->logoDataUri();
+        app(\App\Support\RequestMemo::class)->forget('');
+        $this->assertSame($first, $settings->logoDataUri(), 'the second print reads the cached copy');
+        $this->assertStringStartsWith('data:image/png;base64,', $first);
+        [$width] = getimagesizefromstring(base64_decode(substr($first, strlen('data:image/png;base64,'))));
+        $this->assertSame(Setting::PRINT_LOGO_MAX_PX, $width);
+    }
+
     public function test_a_large_jpeg_is_shrunk_and_a_logo_that_cannot_be_used_says_why(): void
     {
         $image = imagecreatetruecolor(2400, 1000);
