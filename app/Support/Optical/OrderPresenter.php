@@ -69,4 +69,17 @@ class OrderPresenter
     {
         return $order->lensLines->where('source', 'special_order')->where('status', 'ordered');
     }
+
+    /**
+     * Where a special-order lens stands with the supplier: 'none' (only noted on the job), 'draft'
+     * (on a supplier order not sent yet) or 'ordered'. A line for the pair covers both eyes.
+     */
+    public static function supplierOrderState(LensOrder $order, string $eye): string
+    {
+        $statuses = $order->purchaseOrderLines
+            ->filter(fn ($line) => $line->purchaseOrder && in_array($line->eye, [null, '', $eye], true))
+            ->map(fn ($line) => $line->purchaseOrder->status)->reject(fn ($status) => $status === 'cancelled');
+
+        return $statuses->isEmpty() ? 'none' : ($statuses->every(fn ($status) => $status === 'draft') ? 'draft' : 'ordered');
+    }
 }

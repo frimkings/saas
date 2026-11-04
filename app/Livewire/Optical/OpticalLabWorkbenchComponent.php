@@ -81,7 +81,7 @@ class OpticalLabWorkbenchComponent extends Component
     public function benchQuery()
     {
         $query = $this->applyTypeAndSearch($this->stageQuery($this->stage))
-            ->with(['patient', 'refraction.consultation.patient', 'user', 'serviceLines', 'lensLines', 'partnerClinic']);
+            ->with(['patient', 'refraction.consultation.patient', 'user', 'serviceLines', 'lensLines', 'partnerClinic', 'purchaseOrderLines.purchaseOrder']);
 
         // Open work: most urgent pickup first (no date last). Finished work: newest first.
         return in_array($this->stage, ['active', 'queue', 'bench'], true)

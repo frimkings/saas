@@ -1740,7 +1740,7 @@ class OpticalWorkflowTest extends TestCase
 
         // The bench names each lens and can't start edging until both are in.
         $bench = Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)
-            ->assertSee('OD -13.00 / -0.50')->assertSee('OS -12.50 / +0.00')->assertSee('awaited from supplier')->assertSee('OD lens arrived');
+            ->assertSee('OD -13.00 / -0.50')->assertSee('OS -12.50 / +0.00')->assertSee('not ordered from a supplier yet')->assertSee('OD lens arrived');
         $this->expectsValidationOn(fn () => app(OpticalOrderWorkflowService::class)->transition($job->id, 'In Production'));
         Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->assertSee('Awaiting 2 lenses')
             ->call('openOrder', $job->id)->assertSee('not ordered from a supplier yet');
@@ -1750,8 +1750,10 @@ class OpticalWorkflowTest extends TestCase
         $purchasing = app(\App\Services\OpticalPurchasingService::class);
         $po = $purchasing->createDraft($supplier->id, [['lens_order_id' => $job->id, 'eye' => null, 'quantity' => 2, 'unit_cost' => 300, 'description' => 'Pair']]);
         Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)->assertSee('to Rx Lab, which has not been sent yet');
+        $bench->call('$refresh')->assertSee('on a supplier order not sent yet');
         $purchasing->place($po->id);
         Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)->assertSee('ordered from Rx Lab on '.now()->format('j M'));
+        $bench->call('$refresh')->assertSee('awaited from supplier');
         $this->assertSame(1, $attention->groups(\App\Services\Reminders\AttentionItems::OPTICAL)['lens_unordered']['items']->count());
 
         // One lens of the pair arrives: still waiting. Marked by hand, then the other: edging can start.

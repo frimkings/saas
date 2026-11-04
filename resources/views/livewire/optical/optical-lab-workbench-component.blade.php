@@ -72,8 +72,12 @@
                                 @if($lensSpec !== '')<span class="oo-sub">{{ $lensSpec }}</span>@endif
                                 @foreach($ord->lensLines as $lens)
                                     @php
+                                        // Noted on the job is not the same as ordered: Purchasing buys it.
+                                        $supplierState = $lens->source === 'special_order' && $lens->status === 'ordered' ? \App\Support\Optical\OrderPresenter::supplierOrderState($ord, $lens->eye) : null;
                                         $lensState = match (true) {
-                                            $lens->source === 'special_order' && $lens->status === 'ordered' => ['awaited from supplier', '#92400e'],
+                                            $supplierState === 'none' => ['not ordered from a supplier yet', '#b91c1c'],
+                                            $supplierState === 'draft' => ['on a supplier order not sent yet', '#b91c1c'],
+                                            $supplierState === 'ordered' => ['awaited from supplier', '#92400e'],
                                             $lens->source === 'special_order' && $lens->status === 'received' => ['arrived', '#047857'],
                                             $lens->status === 'held' => ['in stock, held', '#047857'],
                                             $lens->status === 'consumed' => ['taken from stock', '#475569'],
