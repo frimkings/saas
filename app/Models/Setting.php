@@ -269,9 +269,59 @@ class Setting extends Model
                 return null;
             }
 
+            // A small file can still be thousands of pixels wide; the PDF engine then runs out of
+            // memory and the print is a blank 500. Shrink it once and keep the shrunk copy.
+            $contents = \Illuminate\Support\Facades\Cache::rememberForever('printable-logo:' . md5($contents),
+                fn () => self::printableLogo($contents) ?? '');
+            if ($contents === '') {
+                return null;
+            }
+
             $mimeType = (new \finfo(FILEINFO_MIME_TYPE))->buffer($contents) ?: 'image/png';
 
             return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
         });
+    }
+
+    /** Largest side of a logo in printed documents; they show it well under 200px. */
+    public const PRINT_LOGO_MAX_PX = 600;
+
+    /** The logo as is when small (or not a bitmap, e.g. SVG), else a PNG at most PRINT_LOGO_MAX_PX a side; null if it can't be made printable. */
+    public static function printableLogo(string $contents): ?string
+    {
+        $size = @getimagesizefromstring($contents);
+        if (! $size || ($size[0] <= self::PRINT_LOGO_MAX_PX && $size[1] <= self::PRINT_LOGO_MAX_PX)) {
+            return $contents;
+        }
+        // Too big to even open safely, or no GD: print without a logo rather than fail.
+        if ($size[0] * $size[1] > 25_000_000 || ! function_exists('imagecreatefromstring')) {
+            return null;
+        }
+
+        // Opening it takes about 5 bytes a pixel; this runs once per logo (the result is cached).
+        $limit = ini_get('memory_limit');
+        if ($limit !== '-1' && ini_parse_quantity($limit) < 512 * 1024 * 1024) {
+            @ini_set('memory_limit', '512M');
+        }
+        $image = @imagecreatefromstring($contents);
+        if (! $image) {
+            @ini_set('memory_limit', $limit);
+
+            return null;
+        }
+        $scale = self::PRINT_LOGO_MAX_PX / max($size[0], $size[1]);
+        $small = imagecreatetruecolor(max(1, (int) round($size[0] * $scale)), max(1, (int) round($size[1] * $scale)));
+        imagealphablending($small, false);
+        imagesavealpha($small, true);
+        imagefill($small, 0, 0, imagecolorallocatealpha($small, 255, 255, 255, 127));
+        imagecopyresampled($small, $image, 0, 0, 0, 0, imagesx($small), imagesy($small), $size[0], $size[1]);
+        imagedestroy($image);
+
+        ob_start();
+        imagepng($small, null, 9);
+        imagedestroy($small);
+        @ini_set('memory_limit', $limit);
+
+        return ob_get_clean() ?: null;
     }
 }
