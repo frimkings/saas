@@ -320,11 +320,7 @@ class Setting extends Model
         // The PDF engine copies a JPEG in without opening its pixels, so a big one is still safe.
         $fallback = fn (string $reason) => $small && $size[2] === IMAGETYPE_JPEG ? $contents : $why($reason);
 
-        // Too big to even open safely, or no GD: print without a logo rather than fail.
-        // 50 MP covers camera and designer exports (one clinic's was 6236x5376).
-        if ($size[0] * $size[1] > 50_000_000) {
-            return $fallback("it is {$size[0]}x{$size[1]} pixels, too large to shrink");
-        }
+        // Too big to open safely (below), or no GD: print without a logo rather than fail.
         if (! function_exists('imagecreatefromstring')) {
             return $fallback('the server has no GD image library to shrink it');
         }
@@ -333,8 +329,20 @@ class Setting extends Model
         // this runs once per logo (the result is cached).
         $limit = ini_get('memory_limit');
         $needed = memory_get_usage() + $size[0] * $size[1] * 10 + 64 * 1024 * 1024;
+        // More than this (about 25 MP) risks the server itself running out of memory, for a logo.
+        // Uploads are capped at 2000px a side, so only logos saved before that get here.
+        if ($needed > 320 * 1024 * 1024) {
+            return $fallback("it is {$size[0]}x{$size[1]} pixels, too large to shrink on the server; upload a smaller logo");
+        }
         if ($limit !== '-1' && ini_parse_quantity($limit) < $needed) {
             @ini_set('memory_limit', (string) $needed);
+            // The host may lock the limit (php_admin_value); opening it anyway is a fatal error,
+            // a blank 500 on every print, since a crash is never cached.
+            if (ini_parse_quantity(ini_get('memory_limit')) < $needed) {
+                @ini_set('memory_limit', $limit);
+
+                return $fallback("it is {$size[0]}x{$size[1]} pixels and the server allows only {$limit} of memory to shrink it; upload a smaller logo");
+            }
         }
         $image = @imagecreatefromstring($contents);
         if (! $image) {

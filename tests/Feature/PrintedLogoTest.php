@@ -33,6 +33,17 @@ class PrintedLogoTest extends TestCase
         $this->assertSame([Setting::PRINT_LOGO_MAX_PX, 240], [$width, $height]);
     }
 
+    public function test_a_logo_too_large_to_open_on_the_server_is_left_off_with_the_reason_not_a_crash(): void
+    {
+        // Only the header is read to size it: a PNG that says it is 6236x5376 (clinic 15's), 3 MB.
+        $ihdr = 'IHDR' . pack('NNCCCCC', 6236, 5376, 8, 6, 0, 0, 0);
+        $png = "\x89PNG\r\n\x1a\n" . pack('N', 13) . $ihdr . pack('N', crc32($ihdr)) . str_repeat("\0", 3 * 1024 * 1024);
+        $reasons = [];
+
+        $this->assertNull(Setting::printableLogo($png, function ($reason) use (&$reasons) { $reasons[] = $reason; }));
+        $this->assertStringContainsString('6236x5376 pixels, too large to shrink on the server', $reasons[0]);
+    }
+
     public function test_a_large_jpeg_is_shrunk_and_a_logo_that_cannot_be_used_says_why(): void
     {
         $image = imagecreatetruecolor(2400, 1000);
