@@ -65,11 +65,11 @@
                         <div class="mb-4">
                             <label class="text-sm font-semibold text-slate-500">CLINIC LOGO</label>
                             <div class="block">
-                                <input type="file" data-max-kb="2048" wire:model.live="newLogo" class="block w-full text-sm @error('newLogo') is-invalid @enderror" id="customFile{{ $uploadInputKey }}" wire:key="clinic-logo-{{ $uploadInputKey }}">
+                                <input type="file" accept=".png,.jpg,.jpeg,.webp" data-max-kb="{{ \App\Livewire\Admin\SettingsComponent::LOGO_MAX_KB }}" wire:model.live="newLogo" class="block w-full text-sm @error('newLogo') is-invalid @enderror" id="customFile{{ $uploadInputKey }}" wire:key="clinic-logo-{{ $uploadInputKey }}">
                                 <label class="hidden" for="customFile{{ $uploadInputKey }}">{{ $newLogo ? $newLogo->getClientOriginalName() : 'Choose file...' }}</label>
                             </div>
                             @error('newLogo') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
-                            <small class="mt-1 block text-xs text-slate-500">Max size: 2MB. Recommended: PNG, transparent background.</small>
+                            <small class="mt-1 block text-xs text-slate-500">{{ \App\Livewire\Admin\SettingsComponent::LOGO_RULES }}</small>
                             <div wire:loading wire:target="newLogo" class="text-sky-700 text-sm mt-2">Uploading...</div>
                         </div>
 

@@ -33,9 +33,40 @@ class SettingsComponent extends Component
             'state.clinic_address' => 'nullable|string|max:255',
             'state.clinic_contact' => 'nullable|string|max:50',
             'state.clinic_email'   => 'nullable|email|max:100',
-            'newLogo'              => 'nullable|image|max:2048',
+            // Big enough to print sharp, small enough to load fast and fit in a PDF (see LOGO_RULES).
+            'newLogo'              => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:' . self::LOGO_MAX_KB,
+                'dimensions:min_width=' . self::LOGO_MIN_PX . ',min_height=' . self::LOGO_MIN_PX . ',max_width=' . self::LOGO_MAX_PX . ',max_height=' . self::LOGO_MAX_PX],
             'currency_symbol'      => ['required', 'string', 'max:10', \Illuminate\Validation\Rule::in(array_keys(\App\Models\Setting::CURRENCIES))],
         ];
+    }
+
+    public const LOGO_MAX_KB = 1024;
+    public const LOGO_MIN_PX = 100;
+    public const LOGO_MAX_PX = 2000;
+    /** Shown under the upload field and repeated in the error messages. */
+    public const LOGO_RULES = 'PNG, JPG or WebP, up to 1 MB, between 100 and 2000 pixels on each side. Best: a PNG with a transparent background, about 600 pixels wide.';
+
+    protected function messages()
+    {
+        return [
+            'newLogo.image' => 'The logo must be an image: ' . self::LOGO_RULES,
+            'newLogo.mimes' => 'The logo must be a PNG, JPG or WebP file.',
+            'newLogo.max' => 'The logo is over 1 MB. Save a smaller copy (about 600 pixels wide is plenty) and try again.',
+            'newLogo.dimensions' => 'The logo must be between 100 and 2000 pixels on each side. Resize it (about 600 pixels wide is plenty) and try again.',
+        ];
+    }
+
+    /** Say what is wrong with a logo as soon as it is chosen, not on save. */
+    public function updatedNewLogo(): void
+    {
+        try {
+            $this->validateOnly('newLogo');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Drop it, so the preview and Save don't use a file that was refused.
+            $this->newLogo = null;
+            $this->uploadInputKey++;
+            throw $e;
+        }
     }
 
     public function mount()
