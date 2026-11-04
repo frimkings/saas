@@ -899,8 +899,9 @@
         <div class="flex flex-wrap -mx-2">
             {{-- LEFT COLUMN: Compact Search Bar (25%) --}}
             <div class="w-full md:w-3/12 px-2">
-                {{-- No overflow-hidden here: the search results drop down outside the card. --}}
-                <div class="ui-panel sticky top-0" style="top: 10px;">
+                {{-- The search results drop down outside the card: .ui-panel clips (overflow hidden), so let it overflow,
+                     and lift the sticky card above the prescription table's sticky header beside it. --}}
+                <div class="ui-panel sticky top-0" style="top: 10px; overflow: visible; z-index: 30;">
                     <div class="ui-section-heading">
                         <h6 class="mb-0 font-semibold" style="font-size: 13px;">
                             <i class="fas fa-search"></i> Quick Add Product
