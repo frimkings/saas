@@ -1380,6 +1380,12 @@
                             <i class="fas fa-info-circle"></i>
                             <strong>Tip:</strong> Select a consultation from history to load or save refraction data.
                         </div>
+                    @elseif($refractionLockReason = $this->refractionLockReason)
+                        {{-- Said before anything is typed: saving would be refused (saveRefraction). --}}
+                        <div class="mb-3 rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900" role="status">
+                            <i class="fas fa-lock mr-1" aria-hidden="true"></i>
+                            <strong>View only.</strong> {{ $refractionLockReason }}
+                        </div>
                     @endif
 
                     <form wire:submit="saveRefraction" novalidate>
@@ -1406,7 +1412,9 @@
                             <button type="button" wire:click="cancelAndGoBack" class="ui-button ui-button-secondary px-6">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
-                            @if($consultationID)
+                            @if($consultationID && $this->refractionLockReason)
+                                <span class="ml-2 inline-flex items-center text-sm text-amber-800"><i class="fas fa-lock mr-1" aria-hidden="true"></i> Refraction locked</span>
+                            @elseif($consultationID)
                                 <button type="submit" class="ui-button ui-button-primary px-12" wire:loading.attr="disabled" wire:target="saveRefraction">
                                     <span wire:loading.remove wire:target="saveRefraction"><i class="fas fa-save"></i> Save Refraction</span>
                                     <span wire:loading wire:target="saveRefraction"><i class="fas fa-spinner fa-spin"></i> Saving...</span>

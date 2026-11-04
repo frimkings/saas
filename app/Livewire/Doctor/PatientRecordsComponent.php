@@ -297,6 +297,22 @@ public $isEditingAppointment = false;
         return 'Clinical fields are locked 24 hours after the consultation was created.';
     }
 
+    /** Why the refraction of this consultation cannot be saved, in the doctor's terms (null when it can). */
+    public function getRefractionLockReasonProperty(): ?string
+    {
+        if (!$this->consultationFieldsLocked) {
+            return null;
+        }
+
+        if ((int) $this->consultation->user_id !== (int) Auth::id()) {
+            $doctor = $this->consultation->user?->name;
+
+            return 'Only the doctor who created this consultation' . ($doctor ? ' (' . $doctor . ')' : '') . ' can edit its refraction.';
+        }
+
+        return 'This consultation is more than 24 hours old, so its refraction is locked. Start a new visit to record a new refraction.';
+    }
+
     public function getGroupedClinicalAddendaProperty()
     {
         if (!$this->consultation || !$this->consultation->relationLoaded('addenda')) {
@@ -2491,7 +2507,7 @@ public function deleteAppointment($appointmentId)
     public function saveRefraction()
     {
         if ($this->consultationFieldsLocked) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Only the doctor who created this consultation can edit refraction data.']);
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $this->refractionLockReason]);
             return;
         }
 
