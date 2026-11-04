@@ -42,7 +42,8 @@ class ReferralLettersQaTest extends TestCase
         $letter = $this->referral($this->patient());
         $owner = $this->signIn(\App\Models\User::role('Super Admin')->first());
 
-        Livewire::test(ReferralComponent::class)->call('openEdit', $letter->id)
+        // The letter dialog carries this clinic's own name, not the app-wide placeholder.
+        Livewire::test(ReferralComponent::class)->call('openEdit', $letter->id)->assertSee($this->clinic->name)->assertDontSee('Eye Clinic System')
             ->set('reasonForReferral', 'Raised IOP')->call('save')->assertHasNoErrors();
         $letter->refresh();
         $this->assertSame($doctor->id, (int) $letter->referred_by);

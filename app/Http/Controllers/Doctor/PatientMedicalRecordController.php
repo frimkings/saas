@@ -145,6 +145,8 @@ class PatientMedicalRecordController extends Controller
                 return $item->product && $item->product->isDrugCategory();
             })
             ->values();
+        // Drugs to buy at a pharmacy: listed first, they are what the pharmacy reads.
+        $outsideItems = $consultation->outsidePrescriptions()->withoutGlobalScope('branch')->orderBy('id')->get();
 
         $settings = Setting::getSettings();
         $patientName = Str::slug($consultation->patient->name ?? 'patient');
@@ -155,6 +157,7 @@ class PatientMedicalRecordController extends Controller
             'patient'      => $consultation->patient,
             'doctor'       => $consultation->doctor,
             'items'        => $items,
+            'outsideItems' => $outsideItems,
             'settings'     => $settings,
         ])->setPaper('a5', 'portrait');
 

@@ -111,6 +111,12 @@ class Consultations extends Model
         return $this->hasMany(Cart::class, 'consultation_id');
     }
 
+    /** Drugs prescribed for the patient to buy at a pharmacy. */
+    public function outsidePrescriptions()
+    {
+        return $this->hasMany(OutsidePrescription::class, 'consultation_id');
+    }
+
     public function documents()
     {
         return $this->hasMany(PatientDocument::class, 'consultation_id');

@@ -551,6 +551,40 @@
                     </div>
                 @endif
             </div>
+
+            {{-- Drugs doctors sent patients to buy at a pharmacy: what to start stocking (OutsidePrescription). --}}
+            @if($prescribedOutside->isNotEmpty())
+                <div class="ui-panel mt-4" aria-labelledby="prescribed-outside-title">
+                    <div class="ui-section-heading">
+                        <h6 class="mb-0 font-semibold" id="prescribed-outside-title">
+                            <i class="fa fa-store mr-1"></i> Prescribed but not in stock
+                        </h6>
+                        <small class="text-slate-500">Drugs doctors sent patients to buy at a pharmacy in the last 90 days. Most prescribed first.</small>
+                    </div>
+                    <div class="ui-table-wrap">
+                        <table class="ui-table text-sm">
+                            <thead><tr><th scope="col">Drug</th><th scope="col" class="text-right">Times prescribed</th><th scope="col" class="text-right">Patients</th><th scope="col">Last prescribed</th><th scope="col">In your product list</th></tr></thead>
+                            <tbody>
+                                @foreach($prescribedOutside as $row)
+                                    <tr wire:key="prescribed-outside-{{ md5($row->name_key) }}">
+                                        <td class="font-semibold">{{ $row->name }}</td>
+                                        <td class="text-right">{{ $row->times }}</td>
+                                        <td class="text-right">{{ $row->patients }}</td>
+                                        <td class="whitespace-nowrap">{{ \Illuminate\Support\Carbon::parse($row->last_at)->format('d M Y') }}</td>
+                                        <td>
+                                            @if($row->product)
+                                                <span class="{{ $row->product->canSupply() ? 'text-green-700' : 'text-red-700' }}">{{ $row->product->canSupply() ? $row->product->stockLabel() . ' now' : 'Yes, out of stock' }}</span>
+                                            @else
+                                                <span class="text-slate-500">Not stocked</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 

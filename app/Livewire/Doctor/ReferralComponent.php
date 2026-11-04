@@ -400,6 +400,8 @@ class ReferralComponent extends Component
         return view('livewire.doctor.referral-component', [
             'referrals' => $this->referrals,
             'diagnoses' => Diagnosis::orderBy('name')->get(['id', 'name']),
+            // This clinic's name and logo for the letter dialog: the app-wide share is made before the clinic is known.
+            'appSettings' => Setting::getSettings(),
         ])->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

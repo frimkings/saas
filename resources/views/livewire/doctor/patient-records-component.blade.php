@@ -107,8 +107,8 @@
             <button class="emr-tab {{ $activeTab === 'prescription' ? 'emr-tab--active' : '' }}"
                 wire:click.prevent="switchTab('prescription')">
                 <i class="fas fa-prescription"></i> Prescription
-                @if(count($productsList) > 0)
-                    <span class="emr-tab-badge emr-tab-badge--red">{{ count($productsList) }}</span>
+                @if(count($productsList) + count($outsideDrugs) > 0)
+                    <span class="emr-tab-badge emr-tab-badge--red">{{ count($productsList) + count($outsideDrugs) }}</span>
                 @endif
             </button>
             <button class="emr-tab {{ $activeTab === 'refraction' ? 'emr-tab--active' : '' }}"
@@ -935,20 +935,38 @@
                                                 </li>
                                             @endforeach
                                         </ul>
-                                    @else
+                                    @elseif(collect($outOfStockResults)->isEmpty())
                                         <div class="search-no-results">
                                             <p class="text-slate-500 mb-0 text-center py-2" style="font-size: 12px;">
-                                                <i class="fas fa-search"></i> No products found
+                                                <i class="fas fa-search"></i> No products in stock
                                             </p>
                                         </div>
                                     @endif
+                                    {{-- Not in stock: the patient buys it at a pharmacy (never billed here). --}}
+                                    <ul>
+                                        @foreach($outOfStockResults as $product)
+                                            <li class="list-group-item flex items-center justify-between gap-2 border-b border-slate-100 text-left hover:bg-amber-50"
+                                                wire:click="addOutsideDrug({{ $product->id }})" style="cursor: pointer;" wire:key="oos-{{ $product->id }}">
+                                                <div class="min-w-0 leading-tight">
+                                                    <span class="block truncate text-xs font-semibold text-slate-800" title="{{ $product->name }}">{{ $product->name }}</span>
+                                                    <span class="text-[11px] text-red-600">Out of stock</span>
+                                                </div>
+                                                <span class="shrink-0 whitespace-nowrap text-[11px] font-semibold text-amber-800">Buy outside</span>
+                                            </li>
+                                        @endforeach
+                                        <li class="list-group-item flex items-center gap-2 bg-slate-50 text-left hover:bg-amber-50"
+                                            wire:click="addOutsideDrug" style="cursor: pointer;">
+                                            <i class="fas fa-store text-amber-700" style="font-size: 11px;" aria-hidden="true"></i>
+                                            <span class="min-w-0 text-xs leading-tight text-slate-700">Prescribe "<span class="font-semibold">{{ \Illuminate\Support\Str::limit($productSearch, 40) }}</span>" to buy at a pharmacy</span>
+                                        </li>
+                                    </ul>
                                 </div>
                             @endif
                         </div>
 
                         {{-- Compact Hint --}}
                         <small class="text-slate-500 block text-center" style="font-size: 10px;">
-                            <i class="fas fa-lightbulb text-amber-600"></i> Search &amp; click to add product
+                            <i class="fas fa-lightbulb text-amber-600"></i> Search &amp; click to add product. Not in stock? Prescribe it to buy at a pharmacy.
                         </small>
                     </div>
                 </div>
@@ -1230,7 +1248,7 @@
                                     </tfoot>
                                 </table>
                             </div>
-                        @else
+                        @elseif(empty($outsideDrugs))
                             <div class="text-center py-4">
                                 <i class="fas fa-prescription-bottle fa-2x text-slate-500 mb-2"></i>
                                 <h6 class="text-slate-500 mb-1" style="font-size: 13px;">No prescription items yet</h6>
@@ -1240,13 +1258,92 @@
                     </div>
                 </div>
 
+                {{-- Drugs for the patient to buy at a pharmacy: not billed, not taken from stock (OutsidePrescription). --}}
+                @if(count($outsideDrugs) > 0)
+                    <div class="ui-panel mt-2">
+                        <div class="ui-section-heading">
+                            <h6 class="mb-0 font-semibold">
+                                <i class="fas fa-store"></i> To buy at a pharmacy
+                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 ml-2">{{ count($outsideDrugs) }}</span>
+                            </h6>
+                            <small class="text-slate-500">Printed on the prescription slip. Not billed here.</small>
+                        </div>
+                        <div class="ui-table-wrap">
+                            <table class="ui-table ui-table-sm mb-0" style="font-size: 12px;">
+                                <thead>
+                                    <tr>
+                                        <th width="3%" class="py-1">#</th>
+                                        <th width="32%" class="py-1">Drug</th>
+                                        <th width="18%" class="py-1">Eye</th>
+                                        <th width="22%" class="py-1">Frequency</th>
+                                        <th width="20%" class="py-1">Duration</th>
+                                        <th width="5%" class="py-1 text-center"><span class="sr-only">Remove</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($outsideDrugs as $index => $drug)
+                                        <tr wire:key="outside-drug-{{ $drug['id'] ?? 'new-' . $index }}-{{ $index }}">
+                                            <td class="text-center py-1 px-1 align-middle">{{ $index + 1 }}</td>
+                                            <td class="py-1 px-2 align-middle">
+                                                <strong class="block" style="font-size: 12px; line-height: 1.1;">{{ $drug['name'] }}</strong>
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 font-semibold bg-amber-50 text-amber-800" style="font-size: 9px;">{{ $drug['product_id'] ? 'Out of stock' : 'Not stocked' }} · buy outside</span>
+                                            </td>
+                                            <td class="py-1 px-1 align-middle">
+                                                <select wire:model="outsideDrugs.{{ $index }}.eye" class="ui-input ui-input-sm" style="min-width: 112px;" aria-label="Which eye for {{ $drug['name'] }}">
+                                                    <option value="">Not for the eye</option>
+                                                    @foreach(\App\Enums\EyeLaterality::cases() as $eye)
+                                                        <option value="{{ $eye->value }}">{{ $eye->label() }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </td>
+                                            <td class="py-1 px-1 align-middle">
+                                                <select wire:model="outsideDrugs.{{ $index }}.frequency" class="ui-input ui-input-sm" style="min-width: 110px;" aria-label="How often to take {{ $drug['name'] }}">
+                                                    <option value="">-- Select --</option>
+                                                    @foreach(\App\Enums\ProductFrequency::options() as $value => $label)
+                                                        <option value="{{ $value }}">{{ $label }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </td>
+                                            <td class="py-1 px-1 align-middle">
+                                                <div class="flex items-center" style="gap: 3px;">
+                                                    @if(($drug['duration_unit'] ?? 'days') !== 'until_finished')
+                                                        <input type="number" min="1" max="999" wire:model.blur="outsideDrugs.{{ $index }}.duration_value"
+                                                            class="ui-input ui-input-sm text-center" style="width: 48px;" aria-label="How long to take {{ $drug['name'] }}">
+                                                    @endif
+                                                    <select wire:model.live="outsideDrugs.{{ $index }}.duration_unit" class="ui-input ui-input-sm" style="min-width: 84px;" aria-label="Duration unit">
+                                                        <option value="days">Days</option>
+                                                        <option value="weeks">Weeks</option>
+                                                        <option value="months">Months</option>
+                                                        <option value="until_finished">Until finished</option>
+                                                    </select>
+                                                </div>
+                                            </td>
+                                            <td class="text-center py-1 px-1 align-middle">
+                                                <button type="button" wire:click="removeOutsideDrug({{ $index }})" class="ui-button ui-button-sm ui-button-danger py-0 px-1" title="Remove {{ $drug['name'] }}" aria-label="Remove {{ $drug['name'] }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- Compact Action Buttons --}}
-                @if(count($productsList) > 0)
-                    <div class="mt-2 flex justify-between items-center bg-white p-2 border border-slate-200 rounded-md shadow-xs">
+                @if(count($productsList) > 0 || count($outsideDrugs) > 0)
+                    <div class="mt-2 flex justify-between items-center gap-2 bg-white p-2 border border-slate-200 rounded-md shadow-xs">
                         <button wire:click="clearPrescription" wire:confirm="Clear all prescription items?"
                             class="ui-button ui-button-sm ui-button-danger font-semibold">
                             <i class="fas fa-trash mr-1"></i> Clear Unsaved Items
                         </button>
+                        @if($consultationID && collect($outsideDrugs)->contains(fn ($d) => !empty($d['id'])))
+                            <a href="{{ route('doctor.prescription.print', $consultationID) }}" target="_blank" rel="noopener"
+                                class="ui-button ui-button-sm ui-button-secondary ml-auto">
+                                <i class="fas fa-print mr-1"></i> Print slip
+                            </a>
+                        @endif
                         <button wire:click="savePrescription" class="ui-button ui-button-sm ui-button-primary px-6 font-semibold shadow-xs"
                             wire:loading.attr="disabled">
                             <span wire:loading.remove wire:target="savePrescription">

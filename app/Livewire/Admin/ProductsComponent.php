@@ -800,6 +800,24 @@ class ProductsComponent extends Component
         }
     }
 
+    /**
+     * Drugs this branch's doctors prescribed to buy at a pharmacy in the last 90 days, grouped by name
+     * (case-insensitive), most prescribed first: a list of what to start stocking.
+     */
+    private function prescribedOutside(): \Illuminate\Support\Collection
+    {
+        $rows = \App\Models\OutsidePrescription::query()
+            ->where('created_at', '>=', now()->subDays(90))
+            ->selectRaw('LOWER(name) as name_key, MAX(name) as name, COUNT(*) as times, COUNT(DISTINCT patient_id) as patients, MAX(created_at) as last_at, MAX(product_id) as product_id')
+            ->groupByRaw('LOWER(name)')
+            ->orderByDesc('times')->orderByDesc('last_at')
+            ->limit(20)
+            ->get();
+        $products = Product::whereIn('id', $rows->pluck('product_id')->filter())->get()->keyBy('id');
+
+        return $rows->each(fn ($row) => $row->setRelation('product', $products->get($row->product_id)));
+    }
+
     public function render()
     {
         $products = $this->getFilteredQuery()->paginate(10);
@@ -826,8 +844,9 @@ class ProductsComponent extends Component
 
         // Drug names from the clinic's previous software are matched to products on a page of their own (owners only).
         $hasLegacyMedications = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) && \App\Models\PatientLegacyMedication::query()->exists();
+        $prescribedOutside = $this->prescribedOutside();
 
-        return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions', 'hasLegacyMedications'))
+        return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions', 'hasLegacyMedications', 'prescribedOutside'))
             ->layout('layouts.admin.admin-layout');
     }
 }

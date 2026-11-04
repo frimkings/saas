@@ -126,6 +126,14 @@
             font-size: 8px;
         }
 
+        .section-title {
+            color: #0b5ed7;
+            font-size: 9px;
+            font-weight: 700;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+
         .empty {
             border: 1px dashed #cbd5e1;
             color: #64748b;
@@ -211,8 +219,8 @@
                 </span>
             </td>
             <td>
-                <span class="label">Date</span>
-                <span class="value">{{ optional($consultation->created_at)->format('M d, Y h:i A') }}</span>
+                <span class="label">Date / Ref</span>
+                <span class="value">{{ optional($consultation->created_at)->format('M d, Y h:i A') }} · RX-{{ $consultation->id }}</span>
             </td>
         </tr>
         <tr>
@@ -229,9 +237,41 @@
 
   
 
-    @if($items->isEmpty())
+    @php($outsideItems = $outsideItems ?? collect())
+    @if($items->isEmpty() && $outsideItems->isEmpty())
         <div class="empty">No drug items were recorded for this consultation.</div>
-    @else
+    @endif
+
+    @if($outsideItems->isNotEmpty())
+        <div class="section-title">To buy at a pharmacy</div>
+        <table class="rx-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">#</th>
+                    <th style="width: 44%;">Drug</th>
+                    <th style="width: 14%;">Eye</th>
+                    <th style="width: 20%;">Frequency</th>
+                    <th style="width: 17%;">Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($outsideItems as $index => $item)
+                    <tr>
+                        <td>{{ $index + 1 }}</td>
+                        <td><div class="drug-name">{{ $item->name }}</div></td>
+                        <td>{{ $item->eye ? strtoupper($item->eye) : '-' }}</td>
+                        <td>{{ $item->frequency ?: '-' }}</td>
+                        <td>{{ $item->durationLabel() ?? '-' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
+    @if($items->isNotEmpty())
+        @if($outsideItems->isNotEmpty())
+            <div class="section-title">Given at the clinic</div>
+        @endif
         <table class="rx-table">
             <thead>
                 <tr>
@@ -246,7 +286,7 @@
             <tbody>
                 @foreach($items as $index => $item)
                     <tr>
-                        <td>{{ $index + 1 }}</td>
+                        <td>{{ $outsideItems->count() + $index + 1 }}</td>
                         <td>
                             <div class="drug-name">{{ $item->product->name ?? 'Unknown drug' }}</div>
                             @if(!empty($item->product->batch_number))

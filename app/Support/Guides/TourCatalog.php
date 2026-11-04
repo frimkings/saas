@@ -28,7 +28,7 @@ final class TourCatalog
         'clinic.registry' => 1,
         'clinic.clearance' => 1,
         'clinic.pos' => 2,
-        'clinic.queue' => 1,
+        'clinic.queue' => 2,
         'clinic.sales' => 3,
         'clinic.day-close' => 2,
         'clinic.cash-book' => 1,
@@ -251,7 +251,7 @@ final class TourCatalog
         return ['key' => 'clinic.queue', 'title' => 'Patient queue', 'steps' => [
             ['title' => 'Your patients for today', 'body' => 'Patients who have been cleared at the front desk and are waiting to be seen. The list refreshes by itself every 30 seconds.'],
             ['target' => 'queue-filters', 'title' => 'Waiting or seen', 'body' => 'Find a patient by name or folder, and switch between those still waiting and those you have seen.'],
-            ['target' => 'queue-list', 'title' => 'See a patient', 'body' => 'Open a patient to record the consultation, refraction and prescription. Medicines you prescribe wait for the patient at the pharmacy counter.'],
+            ['target' => 'queue-list', 'title' => 'See a patient', 'body' => 'Open a patient to record the consultation, refraction and prescription. Medicines you prescribe wait for the patient at the pharmacy counter. A drug you do not stock, or that is out of stock, can be prescribed to buy at a pharmacy: it prints on the prescription slip and is not billed here.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

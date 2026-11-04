@@ -84,10 +84,14 @@ class PatientRecordsComponent extends Component
     public $refractionLensProductId = null;
     public $productPrice;
     public $productsList = [];
-    
+    /** Drugs for the patient to buy at a pharmacy (OutsidePrescription): never billed or taken from stock. */
+    public $outsideDrugs = [];
+
     // Product search (INLINE SEARCH)
     public $productSearch = '';
     public $searchResults = [];
+    /** Drugs in the product list that match the search but are out of stock: offered to buy outside. */
+    public $outOfStockResults = [];
     public $selectedProduct = null;
     public $diagnosisSearch = '';
     public $selectedDiagnoses = [];
@@ -388,6 +392,7 @@ public $isEditingAppointment = false;
         $this->clinicalAddendum = '';
         $this->resetValidation();
         $this->productsList = [];
+        $this->outsideDrugs = [];
         $this->refractionLensProductId = null;
         $this->resetProductForm();
         $this->showAppointmentSection = false;
@@ -406,6 +411,7 @@ public $isEditingAppointment = false;
         $this->productPrice = null;
         $this->productSearch = '';
         $this->searchResults = [];
+        $this->outOfStockResults = [];
         $this->selectedProduct = null;
         $this->editingFrequencyIndex = null;
         $this->resetValidation(['selectedProductId', 'productQuantity', 'productPrice']);
@@ -780,9 +786,95 @@ public function deleteAppointment($appointmentId)
                 ->orderBy('name')
                 ->limit(25)
                 ->get();
+            $this->outOfStockResults = Product::query()
+                ->inActiveCategory()
+                ->select(['id', 'category_id', 'name', 'selling_price'])
+                // The drug categories, as Product::isDrugCategory() reads them.
+                ->whereHas('category', fn ($c) => $c->where(fn ($q) => $q->where('type', 'drug')->orWhereIn('name', ['Drug', 'Drugs', 'Medication', 'Medications'])))
+                ->where('name', 'like', '%' . addcslashes($term, '%_\\') . '%')
+                ->stocked()->where('quantity', '<=', 0)
+                ->orderBy('name')
+                ->limit(5)
+                ->get();
         } else {
             $this->searchResults = [];
+            $this->outOfStockResults = [];
         }
+    }
+
+    /**
+     * Puts a drug on the prescription for the patient to buy at a pharmacy: an out-of-stock product
+     * (by id) or, with no id, the name typed in the search. It is not billed or taken from stock.
+     */
+    public function addOutsideDrug(?int $productId = null): void
+    {
+        $product = $productId ? Product::find($productId) : null;
+        $name = trim($product?->name ?? Str::squish((string) $this->productSearch));
+        if ($name === '' || mb_strlen($name) < 2) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Type the drug name first.']);
+            return;
+        }
+        $name = mb_substr($name, 0, 200);
+
+        if (collect($this->outsideDrugs)->contains(fn ($d) => mb_strtolower($d['name']) === mb_strtolower($name))) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $name . ' is already on the list to buy outside.']);
+            return;
+        }
+
+        $this->outsideDrugs[] = [
+            'id' => null, 'product_id' => $product?->id, 'name' => $name,
+            'eye' => 'Both Eyes', 'frequency' => null, 'duration_value' => null, 'duration_unit' => 'days',
+        ];
+        $this->productSearch = '';
+        $this->searchResults = [];
+        $this->outOfStockResults = [];
+    }
+
+    public function removeOutsideDrug(int $index): void
+    {
+        unset($this->outsideDrugs[$index]);
+        $this->outsideDrugs = array_values($this->outsideDrugs);
+    }
+
+    private function loadOutsideDrugs(): void
+    {
+        $this->outsideDrugs = $this->consultationID
+            ? \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('consultation_id', $this->consultationID)
+                ->where('patient_id', $this->patient->id)->orderBy('id')->get()
+                ->map(fn ($rx) => $rx->only(['id', 'product_id', 'name', 'eye', 'frequency', 'duration_value', 'duration_unit']))
+                ->all()
+            : [];
+    }
+
+    /** Writes the outside drugs to the consultation: updates kept rows, adds new ones, deletes the removed. */
+    private function syncOutsideDrugs(Consultations $consultation): void
+    {
+        $existing = \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('consultation_id', $consultation->id)->get()->keyBy('id');
+        $kept = [];
+
+        foreach ($this->outsideDrugs as $index => $drug) {
+            $values = [
+                'name' => mb_substr(trim($drug['name']), 0, 200),
+                'eye' => $drug['eye'] ?: null,
+                'frequency' => $drug['frequency'] ?: null,
+                'duration_value' => ($drug['duration_unit'] ?? null) === 'until_finished' ? null : ((int) ($drug['duration_value'] ?? 0) ?: null),
+                'duration_unit' => $drug['duration_unit'] ?: null,
+            ];
+            $row = !empty($drug['id']) ? $existing->get($drug['id']) : null;
+            if ($row) {
+                $row->update($values);
+            } else {
+                $row = \App\Models\OutsidePrescription::create($values + [
+                    'patient_id' => $consultation->patient_id, 'consultation_id' => $consultation->id,
+                    'product_id' => $drug['product_id'] ?? null, 'prescribed_by' => Auth::id(),
+                ]);
+                $this->outsideDrugs[$index]['id'] = $row->id;
+            }
+            $kept[] = $row->id;
+        }
+
+        \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('consultation_id', $consultation->id)
+            ->whereNotIn('id', $kept)->delete();
     }
 
     public function selectProduct($productId)
@@ -870,6 +962,17 @@ public function deleteAppointment($appointmentId)
                 'branch' => $branchId && $cart->branch_id && (int) $cart->branch_id !== (int) $branchId ? $cart->branch?->name : null,
             ]);
 
+        $outside = \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('patient_id', $this->patient->id)
+            ->when($this->consultationID, fn ($q) => $q->where('consultation_id', '!=', $this->consultationID))
+            ->with('branch:id,name')->latest()->limit(100)->get()
+            ->map(fn ($rx) => [
+                'key' => 'outside-' . $rx->id, 'source' => 'outside', 'id' => $rx->id, 'date' => $rx->created_at,
+                'item' => $rx->name, 'quantity' => null,
+                'directions' => implode(' · ', array_filter([$rx->eye, $rx->frequency, $this->durationLabel($rx->duration_value, $rx->duration_unit)])),
+                'product_id' => $rx->product_id, 'previous_software' => false, 'outside' => true,
+                'branch' => $branchId && (int) $rx->branch_id !== (int) $branchId ? $rx->branch?->name : null,
+            ]);
+
         $legacy = PatientLegacyMedication::where('patient_id', $this->patient->id)->orderByDesc('prescribed_on')->orderByDesc('id')->limit(100)->get();
         $products = \App\Support\LegacyMedicationProducts::forNames($legacy->pluck('item'));
         $previous = $legacy->map(fn ($med) => [
@@ -878,7 +981,7 @@ public function deleteAppointment($appointmentId)
             'product_id' => $products[\App\Support\LegacyMedicationProducts::key($med->item)] ?? null, 'previous_software' => true, 'branch' => null,
         ]);
 
-        return $own->concat($previous)->sortByDesc(fn ($m) => $m['date']?->timestamp ?? 0)->values();
+        return $own->concat($outside)->concat($previous)->sortByDesc(fn ($m) => $m['date']?->timestamp ?? 0)->values();
     }
 
     /** This patient's cart items in every branch of the clinic. */
@@ -897,7 +1000,11 @@ public function deleteAppointment($appointmentId)
     /** "Add again": puts an earlier medication back on this prescription, with its eye, frequency and duration when it was prescribed here. */
     public function repeatMedication(string $source, int $id): void
     {
-        $entry = $this->previousMedications->firstWhere('key', ($source === 'cart' ? 'cart-' : 'legacy-') . $id);
+        $entry = $this->previousMedications->firstWhere('key', match ($source) { 'cart' => 'cart-', 'outside' => 'outside-', default => 'legacy-' } . $id);
+        if ($entry && $source === 'outside') {
+            $this->repeatOutsideDrug($entry, $id);
+            return;
+        }
         if (!$entry || !$entry['product_id']) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'That medication is not in your product list. Search for an alternative.']);
             return;
@@ -916,6 +1023,37 @@ public function deleteAppointment($appointmentId)
             $this->productsList[$index]['duration_unit'] = $cart->duration_unit ?: 'days';
         }
         $this->dispatch('notify', ...['type' => 'success', 'message' => $entry['item'] . ' added. Check the details before saving.']);
+    }
+
+    /** "Add again" for a drug bought outside: dispensed here when it is now in stock, else on the list to buy outside again. */
+    private function repeatOutsideDrug(array $entry, int $id): void
+    {
+        $rx = \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('patient_id', $this->patient->id)->find($id);
+        if (!$rx) return;
+        $dosing = ['eye' => $rx->eye, 'frequency' => $rx->frequency, 'duration_value' => $rx->duration_value, 'duration_unit' => $rx->duration_unit ?: 'days'];
+
+        $product = $rx->product_id ? Product::with('category')->find($rx->product_id) : null;
+        if ($product && $product->canSupply() && $product->inActiveCategory()) {
+            $count = count($this->productsList);
+            $this->selectProduct($product->id);
+            if (count($this->productsList) > $count) {
+                $index = array_key_last($this->productsList);
+                if ($this->productsList[$index]['is_drug'] ?? false) {
+                    $this->productsList[$index] = array_merge($this->productsList[$index], $dosing, ['eye' => $rx->eye ?: 'Both Eyes']);
+                }
+                $this->dispatch('notify', ...['type' => 'success', 'message' => $rx->name . ' is in stock now, so it was added to dispense here. Check the details before saving.']);
+            }
+            return;
+        }
+
+        $count = count($this->outsideDrugs);
+        $this->productSearch = $rx->name;
+        $this->addOutsideDrug($product?->id);
+        if (count($this->outsideDrugs) > $count) {
+            $index = array_key_last($this->outsideDrugs);
+            $this->outsideDrugs[$index] = array_merge($this->outsideDrugs[$index], $dosing);
+            $this->dispatch('notify', ...['type' => 'success', 'message' => $entry['item'] . ' added to buy outside. Check the details before saving.']);
+        }
     }
 
     public function clearProductSelection()
@@ -1539,7 +1677,8 @@ public function deleteAppointment($appointmentId)
         $this->productsList = array_values(
             array_filter($this->productsList, fn($item) => $this->isLockedPrescriptionItem($item))
         );
-        
+        $this->outsideDrugs = [];
+
         $this->resetProductForm();
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Prescription cleared (dispensed items kept)']);
     }
@@ -1551,7 +1690,7 @@ public function deleteAppointment($appointmentId)
             return;
         }
 
-        if (empty($this->productsList)) {
+        if (empty($this->productsList) && empty($this->outsideDrugs)) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Please add at least one product to the prescription']);
             return;
         }
@@ -1563,6 +1702,15 @@ public function deleteAppointment($appointmentId)
         DB::beginTransaction();
         try {
             $consultation = Consultations::where('patient_id', $this->patient->id)->findOrFail($this->consultationID);
+            $this->syncOutsideDrugs($consultation);
+
+            // Only outside drugs on screen: leave the consultation's cart items as they are.
+            if (empty($this->productsList)) {
+                DB::commit();
+                $this->loadOutsideDrugs();
+                $this->dispatch('notify', ...['type' => 'success', 'message' => 'Prescription saved. Print the slip for the drugs to buy outside.']);
+                return;
+            }
 
             $existingCartIds = Cart::where('consultation_id', $this->consultationID)->pluck('id')->toArray();
             $updatedCartIds = [];
@@ -1626,22 +1774,25 @@ public function deleteAppointment($appointmentId)
                 'Updated prescription for Consultation #' . $consultation->id,
                 $consultation,
                 [],
-                ['items' => count($this->productsList), 'total' => $this->calculateTotal()],
+                ['items' => count($this->productsList), 'outside_items' => count($this->outsideDrugs), 'total' => $this->calculateTotal()],
                 $this->patient->id
             );
 
             DB::commit();
 
             $this->reloadProductsListFromDatabase();
+            $outsideCount = count($this->outsideDrugs);
 
             $dispensedCount = collect($this->productsList)->where('is_dispensed', true)->count();
             $msg = $dispensedCount > 0
                 ? 'Prescription saved. ' . $dispensedCount . ' item(s) already dispensed by pharmacy.'
                 : 'Prescription saved successfully to Consultation #' . $this->consultationID;
+            if ($outsideCount > 0) $msg .= ' ' . $outsideCount . ' to buy outside: print the slip.';
             $this->dispatch('notify', ...['type' => 'success', 'message' => $msg]);
 
             $this->resetProductForm();
-            $this->activeTab = 'refraction';
+            // With drugs to buy outside the doctor stays here to print the slip; otherwise on to refraction.
+            if ($outsideCount === 0) $this->activeTab = 'refraction';
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1654,6 +1805,7 @@ public function deleteAppointment($appointmentId)
         if (!$this->consultationID) {
             return;
         }
+        $this->loadOutsideDrugs();
 
         $consultation = Consultations::with('cartItems.product.category', 'user', 'patient')
             ->where('patient_id', $this->patient->id)
@@ -1826,6 +1978,7 @@ public function deleteAppointment($appointmentId)
                 'is_refunded' => isset($editRefundedCartIds[$cartItem->id]),
             ];
         })->toArray();
+        $this->loadOutsideDrugs();
 
         $this->selectedDiagnoses = $this->consultation->diagnoses->map(function($diag) {
             return [
@@ -1916,6 +2069,20 @@ public function deleteAppointment($appointmentId)
                     $this->dispatch('notify', ...['type' => 'error', 'message' => 'Please set eye, frequency, and a valid treatment duration for all drug prescription items']);
                     return false;
                 }
+            }
+        }
+
+        // Drugs bought outside: eye is optional (tablets, capsules), frequency and duration are not.
+        foreach ($this->outsideDrugs as $drug) {
+            $durationValue = filter_var($drug['duration_value'] ?? null, FILTER_VALIDATE_INT);
+            $durationUnit = $drug['duration_unit'] ?? null;
+            $durationIsValid = $durationUnit === 'until_finished'
+                || ($durationValue !== false && $durationValue >= 1 && $durationValue <= 999 && in_array($durationUnit, ['days', 'weeks', 'months'], true));
+            $eyeIsValid = empty($drug['eye']) || \App\Enums\EyeLaterality::tryFrom($drug['eye']);
+
+            if (trim((string) ($drug['name'] ?? '')) === '' || empty($drug['frequency']) || !$durationIsValid || !$eyeIsValid) {
+                $this->dispatch('notify', ...['type' => 'error', 'message' => 'Set the frequency and how long to take it for each drug to buy outside: ' . ($drug['name'] ?? '')]);
+                return false;
             }
         }
 
@@ -2064,6 +2231,7 @@ public function deleteAppointment($appointmentId)
             }
 
             $consultation->update(['prescribed_products' => $this->productsList]);
+            $this->syncOutsideDrugs($consultation);
 
             $this->clearance->update(['doctor_status' => true]);
 
@@ -2088,6 +2256,8 @@ public function deleteAppointment($appointmentId)
             $this->resetForm();
             $this->state = array_merge($this->state, $typedRefraction);
             $this->consultationID = $savedConsultationId;  // preserve so Prescription tab works
+            // Show the saved items: an empty list here made the next prescription save delete them.
+            $this->reloadProductsListFromDatabase();
             $this->activeTab = 'prescription';
 
         } catch (\Exception $e) {
@@ -2189,6 +2359,7 @@ public function deleteAppointment($appointmentId)
             $this->consultation->update([
                 'prescribed_products' => $this->productsList,
             ]);
+            $this->syncOutsideDrugs($this->consultation);
 
             AuditTrail::record(
                 'consultation.updated',
@@ -2214,6 +2385,7 @@ public function deleteAppointment($appointmentId)
             $this->resetForm();
             $this->state = array_merge($this->state, $typedRefraction);
             $this->consultationID = $savedConsultationId;  // preserve so Prescription tab works
+            $this->reloadProductsListFromDatabase();
             $this->activeTab = 'prescription';
 
         } catch (\Exception $e) {
