@@ -134,6 +134,21 @@ class Refractions extends Model
         return $this->belongsTo(User::class, 'dispensing_authorized_by');
     }
 
+    /** Changes made after the author's first 24 hours, or by someone else, newest first. */
+    public function corrections()
+    {
+        return $this->hasMany(RefractionCorrection::class, 'refraction_id')->latest('id');
+    }
+
+    /** The author may change it freely for this long; after that, and for anyone else, a change is a correction. */
+    public const FREE_EDIT_HOURS = 24;
+
+    public function editableFreelyBy(?int $userId): bool
+    {
+        return $userId && (int) $this->user_id === $userId
+            && $this->created_at && $this->created_at->gt(now()->subHours(self::FREE_EDIT_HOURS));
+    }
+
     
     public function user()
     {

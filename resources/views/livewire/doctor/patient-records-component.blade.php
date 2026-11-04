@@ -1380,16 +1380,35 @@
                             <i class="fas fa-info-circle"></i>
                             <strong>Tip:</strong> Select a consultation from history to load or save refraction data.
                         </div>
-                    @elseif($refractionLockReason = $this->refractionLockReason)
-                        {{-- Said before anything is typed: saving would be refused (saveRefraction). --}}
-                        <div class="mb-3 rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900" role="status">
-                            <i class="fas fa-lock mr-1" aria-hidden="true"></i>
-                            <strong>View only.</strong> {{ $refractionLockReason }}
-                        </div>
+                    @else
+                        {{-- Said before anything is typed (PatientRecordsComponent::getRefractionModeProperty). --}}
+                        @php($refractionMode = $this->refractionMode)
+                        @if($refractionMode === 'locked')
+                            <div class="mb-3 rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900" role="status">
+                                <i class="fas fa-lock mr-1" aria-hidden="true"></i>
+                                <strong>View only.</strong> A spectacle order was made from this refraction, so it can no longer be changed. Use a clinical addendum for later findings.
+                            </div>
+                        @elseif($refractionMode === 'correction')
+                            <div class="mb-3 rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900" role="status">
+                                <i class="fas fa-pen mr-1" aria-hidden="true"></i>
+                                <strong>Changes are saved as a correction.</strong> {{ $this->refractionAuthorLine }}
+                                Give the reason below; the earlier values are kept in the history.
+                            </div>
+                        @endif
                     @endif
 
                     <form wire:submit="saveRefraction" novalidate>
                         @include('livewire.doctor.partials.structured-refraction-fields')
+
+                        @if($consultationID && ($refractionMode ?? null) === 'correction')
+                            <div class="mb-3">
+                                <label for="refraction-correction-reason" class="mb-1 block text-sm font-semibold text-slate-700">Reason for the correction <span class="text-red-600">*</span></label>
+                                <textarea id="refraction-correction-reason" wire:model="refractionCorrectionReason" rows="2" maxlength="1000"
+                                    class="ui-input {{ $errors->has('refractionCorrectionReason') ? 'border-red-500' : '' }}"
+                                    placeholder="OD cylinder entered as -0.50, measured -0.75"></textarea>
+                                @error('refractionCorrectionReason')<p class="mt-1 text-xs text-red-700">{{ $message }}</p>@enderror
+                            </div>
+                        @endif
 
                         @if($errors->any())
                             <div class="rounded-lg border px-3 py-2 text-sm border-red-200 bg-red-50 text-red-800" role="alert">
@@ -1412,11 +1431,11 @@
                             <button type="button" wire:click="cancelAndGoBack" class="ui-button ui-button-secondary px-6">
                                 <i class="fas fa-times"></i> Cancel
                             </button>
-                            @if($consultationID && $this->refractionLockReason)
+                            @if($consultationID && ($refractionMode ?? null) === 'locked')
                                 <span class="ml-2 inline-flex items-center text-sm text-amber-800"><i class="fas fa-lock mr-1" aria-hidden="true"></i> Refraction locked</span>
                             @elseif($consultationID)
                                 <button type="submit" class="ui-button ui-button-primary px-12" wire:loading.attr="disabled" wire:target="saveRefraction">
-                                    <span wire:loading.remove wire:target="saveRefraction"><i class="fas fa-save"></i> Save Refraction</span>
+                                    <span wire:loading.remove wire:target="saveRefraction"><i class="fas fa-save"></i> {{ ($refractionMode ?? null) === 'correction' ? 'Save correction' : 'Save Refraction' }}</span>
                                     <span wire:loading wire:target="saveRefraction"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
                                 </button>
                             @else
@@ -1426,6 +1445,25 @@
                             @endif
                         </div>
                     </form>
+
+                    {{-- Earlier corrections of this refraction (RefractionCorrection), newest first. --}}
+                    @if($consultationID && ($corrections = $this->refractionCorrections)->isNotEmpty())
+                        <div class="ui-panel mt-4" aria-labelledby="refraction-corrections-title">
+                            <div class="ui-section-heading">
+                                <h6 class="mb-0 font-semibold" id="refraction-corrections-title"><i class="fas fa-history"></i> Correction history</h6>
+                                <small class="text-slate-500">{{ $this->refractionAuthorLine }}</small>
+                            </div>
+                            <ul class="divide-y divide-slate-100">
+                                @foreach($corrections as $correction)
+                                    <li class="px-5 py-3 text-sm" wire:key="refraction-correction-{{ $correction->id }}">
+                                        <div class="font-semibold text-slate-800">{{ $correction->created_at->format('d M Y, h:i A') }} · {{ $correction->user?->name ?? 'Former staff member' }}</div>
+                                        <div class="text-slate-700">Reason: {{ $correction->reason }}</div>
+                                        <div class="text-slate-500">{{ implode(' · ', $correction->changes()) }}</div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                 </div>
             @endif
 

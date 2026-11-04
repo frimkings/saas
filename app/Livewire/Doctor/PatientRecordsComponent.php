@@ -113,6 +113,8 @@ class PatientRecordsComponent extends Component
     public $refractionnotes;
     public $checkRefraction;
     public string $refractionSection = 'objective';
+    /** Why a saved refraction is being changed, when the change is a correction (refractionMode). */
+    public string $refractionCorrectionReason = '';
     /** The consultation whose refraction is in the form (null before one is chosen). */
     #[\Livewire\Attributes\Locked]
     public ?int $refractionLoadedFor = null;
@@ -297,20 +299,44 @@ public $isEditingAppointment = false;
         return 'Clinical fields are locked 24 hours after the consultation was created.';
     }
 
-    /** Why the refraction of this consultation cannot be saved, in the doctor's terms (null when it can). */
-    public function getRefractionLockReasonProperty(): ?string
+    /** The refraction saved on the open consultation, if any. */
+    private function savedRefraction(): ?Refractions
     {
-        if (!$this->consultationFieldsLocked) {
-            return null;
-        }
+        return $this->consultationID
+            ? Refractions::with('user:id,name')->where('consultation_id', $this->consultationID)->first()
+            : null;
+    }
 
-        if ((int) $this->consultation->user_id !== (int) Auth::id()) {
-            $doctor = $this->consultation->user?->name;
+    /**
+     * How the open consultation's refraction can be saved: 'new' (none yet: anyone recording it, under their
+     * name), 'edit' (its author, within Refractions::FREE_EDIT_HOURS), 'correction' (anyone else, or later:
+     * needs a reason and keeps the old values) or 'locked' (a spectacle order was made from it).
+     */
+    public function getRefractionModeProperty(): ?string
+    {
+        if (!$this->consultationID) return null;
+        $refraction = $this->savedRefraction();
+        if (!$refraction) return 'new';
+        if (LensOrder::withTrashed()->where('refraction_id', $refraction->id)->exists()) return 'locked';
 
-            return 'Only the doctor who created this consultation' . ($doctor ? ' (' . $doctor . ')' : '') . ' can edit its refraction.';
-        }
+        return $refraction->editableFreelyBy(Auth::id()) ? 'edit' : 'correction';
+    }
 
-        return 'This consultation is more than 24 hours old, so its refraction is locked. Start a new visit to record a new refraction.';
+    /** Earlier corrections of the open consultation's refraction, newest first. */
+    public function getRefractionCorrectionsProperty(): \Illuminate\Support\Collection
+    {
+        $refraction = $this->savedRefraction();
+
+        return $refraction ? $refraction->corrections()->with('user:id,name')->get() : collect();
+    }
+
+    /** Who saved the refraction and when, for the correction note. */
+    public function getRefractionAuthorLineProperty(): ?string
+    {
+        $refraction = $this->savedRefraction();
+        if (!$refraction) return null;
+
+        return 'Saved by ' . ($refraction->user?->name ?? 'a former staff member') . ' on ' . $refraction->created_at?->format('d M Y, h:i A') . '.';
     }
 
     public function getGroupedClinicalAddendaProperty()
@@ -2485,6 +2511,7 @@ public function deleteAppointment($appointmentId)
         $this->consultationID = $consultation->id;
         $this->consultation = $consultation;
         $this->refractionSection = 'objective';
+        $this->refractionCorrectionReason = '';
 
         // Refraction typed but not saved yet stays when the doctor returns to this visit's refraction
         // (e.g. after saving the consultation); a different visit, or one already refracted, loads its own.
@@ -2506,9 +2533,23 @@ public function deleteAppointment($appointmentId)
 
     public function saveRefraction()
     {
-        if ($this->consultationFieldsLocked) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => $this->refractionLockReason]);
+        $mode = $this->refractionMode;
+        if ($mode === 'locked') {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'This prescription is locked because a spectacle order has already been created. Use a clinical addendum for later findings.']);
             return;
+        }
+
+        try {
+            $this->validate([
+                'refractionCorrectionReason' => $mode === 'correction' ? 'required|string|min:5|max:1000' : 'nullable',
+            ], [
+                'refractionCorrectionReason.required' => 'Say why the refraction is being corrected.',
+                'refractionCorrectionReason.min' => 'Say why the refraction is being corrected (a few words at least).',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->refractionSection = 'dispensing';
+            $this->dispatch('focus-refraction-error', field: 'refractionCorrectionReason');
+            throw $e;
         }
 
         try {
@@ -2595,9 +2636,18 @@ public function deleteAppointment($appointmentId)
                 return;
             }
 
+            // Re-checked under the lock: the author's 24 hours may have run out since the page loaded.
+            $isCorrection = $existingRefraction && !$existingRefraction->editableFreelyBy(Auth::id());
+            if ($isCorrection && trim((string) $this->refractionCorrectionReason) === '') {
+                DB::rollBack();
+                $this->addError('refractionCorrectionReason', 'Say why the refraction is being corrected.');
+                return;
+            }
+
             $refractionData = [
                 'consultation_id' => $this->consultationID,
-                'user_id' => Auth::id(),
+                // The refraction keeps whoever recorded it; later changes are corrections under their own name.
+                'user_id' => $existingRefraction?->user_id ?? Auth::id(),
                 'pd' => $this->state['pd'] ?? null,
                 'lensType' => $this->state['lensType'] ?? null,
                 'objective_method' => $this->state['objective_method'] ?? null,
@@ -2636,23 +2686,50 @@ public function deleteAppointment($appointmentId)
                 'refractionnotes' => $this->state['refractionnotes'] ?? null,
             ];
 
+            $before = $existingRefraction ? clone $existingRefraction : null;
             $savedRefraction = Refractions::updateOrCreate(
                 ['consultation_id' => $this->consultationID],
                 $refractionData
             );
+            $savedRefraction->refresh();
 
-            AuditTrail::record(
-                ($refractionData['dispensing_required'] ? 'refraction.dispensing_authorized' : 'refraction.saved'),
-                ($refractionData['dispensing_required'] ? 'Authorized spectacle dispensing for ' : 'Saved refraction for ') . $this->patient->name,
-                $savedRefraction,
-                $existingRefraction?->toArray() ?? [],
-                $savedRefraction->fresh()->toArray(),
-                $this->patient->id
-            );
+            if ($isCorrection) {
+                // What the clinician typed, compared as stored (casts applied); the legacy text columns follow from them.
+                $fields = array_keys(\App\Models\RefractionCorrection::LABELS);
+                $changed = collect($fields)->filter(fn ($f) => (string) $before->getAttribute($f) !== (string) $savedRefraction->getAttribute($f))->values();
+                if ($changed->isEmpty()) {
+                    DB::rollBack();
+                    $this->dispatch('notify', ...['type' => 'info', 'message' => 'Nothing was changed, so no correction was saved.']);
+                    return;
+                }
+                $correction = \App\Models\RefractionCorrection::create([
+                    'refraction_id' => $savedRefraction->id, 'user_id' => Auth::id(), 'reason' => trim($this->refractionCorrectionReason),
+                    'old_values' => $changed->mapWithKeys(fn ($f) => [$f => $before->getAttribute($f)])->all(),
+                    'new_values' => $changed->mapWithKeys(fn ($f) => [$f => $savedRefraction->getAttribute($f)])->all(),
+                ]);
+                AuditTrail::record(
+                    'refraction.corrected',
+                    'Corrected refraction for ' . $this->patient->name . ': ' . Str::limit($correction->reason, 150),
+                    $savedRefraction,
+                    $correction->old_values,
+                    $correction->new_values + ['reason' => $correction->reason],
+                    $this->patient->id
+                );
+            } else {
+                AuditTrail::record(
+                    ($refractionData['dispensing_required'] ? 'refraction.dispensing_authorized' : 'refraction.saved'),
+                    ($refractionData['dispensing_required'] ? 'Authorized spectacle dispensing for ' : 'Saved refraction for ') . $this->patient->name,
+                    $savedRefraction,
+                    $before?->toArray() ?? [],
+                    $savedRefraction->toArray(),
+                    $this->patient->id
+                );
+            }
 
             DB::commit();
 
-            $this->dispatch('notify', ...['type' => 'success', 'message' => 'Refraction data saved successfully']);
+            $this->refractionCorrectionReason = '';
+            $this->dispatch('notify', ...['type' => 'success', 'message' => $isCorrection ? 'Refraction corrected. The earlier values are kept in its history.' : 'Refraction data saved successfully']);
             $this->dispatch('refraction-form-clean');
             $this->activeTab = 'history';
         } catch (\Exception $e) {
