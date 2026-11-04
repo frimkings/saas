@@ -36,10 +36,7 @@
             <label class="oo-f"><span>Created by</span>
                 <select wire:model.live="creatorFilter" class="ui-input text-sm"><option value="">All staff</option>@foreach($creators as $creator)<option value="{{ $creator->id }}">{{ $creator->name }}</option>@endforeach</select>
             </label>
-            <div class="oo-presets">
-                
-                @if($narrowed || $statusFilter)<button type="button" class="oo-link" style="color:#b91c1c" wire:click="clearFilters">Clear all</button>@endif
-            </div>
+            @if($narrowed || $statusFilter)<div class="oo-presets"><button type="button" class="oo-link" style="color:#b91c1c" wire:click="clearFilters">Clear all</button></div>@endif
         </div>
         <div class="oo-chips" data-tour="opt-order-status" style="padding:12px 16px;border-bottom:1px solid var(--clinic-line)" role="group" aria-label="Filter by status">
             @foreach(\App\Livewire\Optical\OpticalOrdersComponent::FILTERS as $key => $label)

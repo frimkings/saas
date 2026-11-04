@@ -180,6 +180,9 @@ class AttentionItems
         return Cache::remember(TenantCache::key('attention-counts-' . $line, true), 120, function () use ($line) {
             $groups = $this->groups($line);
             $n = fn (string $rule) => isset($groups[$rule]) ? $groups[$rule]['items']->count() : 0;
+            // A late job whose lenses are not bought yet is one job, not two.
+            $problemOrders = collect(['order_late', 'order_uncollected', 'lens_unordered'])
+                ->flatMap(fn ($rule) => isset($groups[$rule]) ? $groups[$rule]['items']->pluck('id') : [])->unique()->count();
 
             return [
                 'appointments' => $n('appt_soon') + $n('appt_missed'),
@@ -190,7 +193,7 @@ class AttentionItems
                 'lens_unordered' => $n('lens_unordered'),
                 'uncollected'  => $n('order_uncollected'),
                 // Badge: problems, not things merely coming up.
-                'orders'       => $n('order_late') + $n('order_uncollected') + $n('lens_unordered'),
+                'orders'       => $problemOrders,
                 'stock_expired'  => $n('stock_expired'),
                 'stock_expiring' => $n('stock_expiring_soon') + $n('stock_expiring'),
                 'stale'        => $this->staleQuery($line)->count(),

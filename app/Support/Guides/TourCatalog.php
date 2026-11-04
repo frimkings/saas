@@ -152,7 +152,7 @@ final class TourCatalog
             ['target' => 'opt-source', 'title' => 'Who the job is for', 'body' => 'A patient of this clinic, a partner clinic\'s customer, or someone walking in. Partner work can be billed to the partner.'],
             ['target' => 'opt-work-type', 'title' => 'Glasses or a service', 'body' => 'Prescription glasses go through lenses and frame; a service job (a repair, say) goes straight to its price.'],
             ['title' => 'Lenses from stock or special order', 'body' => 'On the next step, enter the prescription and the app finds lenses in stock that match. If there are none, it is a special order: you enter the price and the owner is told once it is paid.'],
-            ['target' => 'opt-quote', 'title' => 'Not ready to order?', 'body' => 'Save it as a quotation at any step. It keeps its prices and turns into an order when the customer pays a deposit.'],
+            ['target' => 'opt-quote', 'title' => 'Not ready to order?', 'body' => 'Save it as a quotation once the prescription is in (for a service job, once the services are picked). It keeps its prices and turns into an order when the customer pays a deposit.'],
             ['target' => 'opt-next', 'title' => 'Next', 'body' => 'Each step is checked before you move on, so nothing is missed.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];

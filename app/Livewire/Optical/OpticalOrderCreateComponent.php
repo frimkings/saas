@@ -184,10 +184,37 @@ class OpticalOrderCreateComponent extends Component
 
     public function nextStepWithRequester(array $requester): void
     {
+        $this->applyRequester($requester);
+        $this->nextStep();
+    }
+
+    /** Step 1's fields stay in the browser until Next; changing the work type sends them early so the service list can show. */
+    public function syncRequester(array $requester): void
+    {
+        $this->applyRequester($requester);
+        $this->resetValidation();
+    }
+
+    public function saveQuotationWithRequester(array $requester)
+    {
+        $this->applyRequester($requester);
+        if ($this->needsRx()) {
+            throw ValidationException::withMessages(['quotation' => 'Enter the prescription and lenses on step 2 first, then save the quotation.']);
+        }
+        return $this->saveAsQuotation();
+    }
+
+    private function applyRequester(array $requester): void
+    {
         // A missing or odd value keeps the form's own choice; the step's validation then names the field, rather than a bare 422 page.
         $source = (string) ($requester['order_source'] ?? '');
         if (! in_array($source, ['in_clinic', 'partner', 'walk_in'], true)) $source = $this->order_source;
 
+        // Switched away from a patient in the browser: their prescription is not this customer's.
+        if ($source !== 'in_clinic' && $this->patient_id) {
+            $this->patient_id = null;
+            $this->clearPrescription();
+        }
         $this->order_source = $source;
         $this->work_type = in_array(($requester['work_type'] ?? ''), ['prescription', 'service'], true)
             ? $requester['work_type'] : 'prescription';
@@ -205,7 +232,6 @@ class OpticalOrderCreateComponent extends Component
         $this->customer_name = trim((string) ($requester['customer_name'] ?? ''));
         $this->customer_phone = trim((string) ($requester['customer_phone'] ?? ''));
         $this->reference = trim((string) ($requester['reference'] ?? ''));
-        $this->nextStep();
     }
 
     #[On('optical-order-source-changed')]
@@ -1170,15 +1196,8 @@ class OpticalOrderCreateComponent extends Component
                         ->orWhere('pxnumber', 'like', $term);
                 })->orderBy('name')->limit(10)->get()
                 : collect(),
-            'partners' => OpticalPartnerClinic::where('is_active', true)
-                    ->when(strlen(trim($this->customerSearch)) > 0, function ($query) {
-                        $term = '%'.trim($this->customerSearch).'%';
-                        $query->where(function ($match) use ($term) {
-                            $match->where('name', 'like', $term)
-                                ->orWhere('phone', 'like', $term)
-                                ->orWhere('contact_person', 'like', $term);
-                        });
-                    })->orderBy('name')->limit(10)->get(),
+            // Every active partner: the picker filters them in the browser.
+            'partners' => OpticalPartnerClinic::where('is_active', true)->orderBy('name')->get(),
             'prescriptions' => $this->patient_id ? OpticalPrescription::where('patient_id', $this->patient_id)->latest()->get() : collect(),
             'clinicRefractions' => $this->patient_id && ! \App\Support\OpticalMode::opticalOnly()
                 ? Refractions::whereHas('consultation', fn ($q) => $q->where('patient_id', $this->patient_id))

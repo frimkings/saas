@@ -20,7 +20,8 @@
             </span>
         </div>
     </div>
-    @if($errors->any())
+    {{-- Step 1 shows its message beside the fields. --}}
+    @if($errors->any() && $currentStep !== 1)
         <div class="ui-panel p-3 text-red-700" role="alert">{{ $errors->first() }}</div>
     @endif
 
@@ -38,7 +39,8 @@
             ];
         @endphp
         @foreach($steps as $stepNum => $stepLabel)
-            <button wire:click="setStep({{ $stepNum }})" type="button" 
+            {{-- Going forward is the Next button, so what is typed on this step goes with it. --}}
+            <button @if($stepNum === $nextStep && $stepNum > $currentStep) onclick="document.querySelector('[data-tour=opt-next]')?.click()" @else wire:click="setStep({{ $stepNum }})" @endif type="button"
                 wire:loading.attr="disabled"
                 @disabled($stepNum > $currentStep && $stepNum !== $nextStep)
                 class="py-2.5 px-2 rounded-lg border transition-all flex items-center justify-center font-semibold text-[11px] {{ $currentStep === $stepNum ? 'bg-teal-600 text-white border-teal-700 shadow-sm font-bold' : ($currentStep > $stepNum ? 'bg-emerald-700 text-white border-emerald-800 font-semibold' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200') }}">
@@ -48,7 +50,8 @@
     </div>
 
     <!-- Main Card Body -->
-    <div class="ui-panel bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+    {{-- requester(): step 1's fields as typed, for calls made before Next. --}}
+    <div class="ui-panel bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6" x-data="{ requester() { const value = id => document.getElementById(id)?.value || ''; return { order_source: value('order-source'), work_type: value('order-work-type'), bill_to: value('order-bill-to') || 'customer', partner_id: value('selected-partner-id') || null, customer_name: value('order-customer-name'), customer_phone: value('order-customer-phone'), reference: value('order-reference') }; } }">
         
         <!-- STEP 1: CUSTOMER -->
         @if($currentStep === 1)
@@ -101,16 +104,16 @@
                 </div>
                 <div class="md:col-span-6" data-tour="opt-work-type">
                     <label for="order-work-type" class="block text-xs font-bold text-slate-700 mb-1">Work type *</label>
-                    <select id="order-work-type" class="ui-input w-full text-xs bg-white">
-                        <option value="prescription">Prescription glasses / lenses</option>
-                        <option value="service">Optical service job</option>
+                    <select id="order-work-type" x-on:change="$wire.syncRequester(requester())" class="ui-input w-full text-xs bg-white">
+                        <option value="prescription" @selected($work_type === 'prescription')>Prescription glasses / lenses</option>
+                        <option value="service" @selected($work_type === 'service')>Optical service job</option>
                     </select>
                 </div>
                 <div id="partner-billing-panel" class="md:col-span-3" style="{{ $order_source === 'partner' ? '' : 'display:none' }}">
                     <label for="order-bill-to" class="block text-xs font-bold text-slate-700 mb-1">Bill to *</label>
                     <select id="order-bill-to" onchange="const customer=this.value==='customer'; document.getElementById('requester-name-label').textContent=customer?'Customer / wearer name *':'Wearer name (optional)';" class="ui-input w-full text-xs bg-white">
-                        <option value="customer">Customer</option>
-                        <option value="partner">Partner / referring clinic</option>
+                        <option value="customer" @selected($bill_to === 'customer')>Customer</option>
+                        <option value="partner" @selected($bill_to === 'partner')>Partner / referring clinic</option>
                     </select>
                 </div>
 
@@ -652,7 +655,7 @@
         <!-- Wizard navigation: stays at the bottom of the screen while the step scrolls. -->
         <div class="sticky bottom-0 z-20 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-slate-200 bg-white/95 px-6 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] backdrop-blur">
             <button type="button" wire:click="prevStep" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
-                class="ui-button bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs px-4 py-2 border border-slate-300 rounded-lg shadow-sm"
+                class="ui-button bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs px-4 py-2 border border-slate-300 rounded-lg shadow-sm {{ $currentStep === 1 ? 'invisible' : '' }}"
                 {{ $currentStep === 1 ? 'disabled' : '' }}>
                 <span wire:loading.remove wire:target="prevStep">← Back: {{ $steps[$previousStep] ?? 'Previous' }}</span>
                 <span wire:loading wire:target="prevStep">Loading…</span>
@@ -664,10 +667,11 @@
                     @if($runningTotal > 0)<span class="text-xs text-slate-600">Total <strong class="font-mono text-slate-900">{{ currency() }} {{ number_format($runningTotal, 2) }}</strong></span>@endif
                 @endif
                 @unless($remakeOfId)
-                <button type="button" data-tour="opt-quote" wire:click="saveAsQuotation" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
+                {{-- On step 1 the typed customer goes with it. --}}
+                <button type="button" data-tour="opt-quote" @if($currentStep === 1) x-on:click="$wire.saveQuotationWithRequester(requester())" @else wire:click="saveAsQuotation" @endif wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                     class="ui-button bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs px-4 py-2 rounded-lg border border-slate-300 shadow-sm">
-                    <span wire:loading.remove wire:target="saveAsQuotation">{{ $editingQuotationId ? 'Update Quotation' : 'Save as Quotation' }}</span>
-                    <span wire:loading wire:target="saveAsQuotation">Saving…</span>
+                    <span wire:loading.remove wire:target="saveAsQuotation,saveQuotationWithRequester">{{ $editingQuotationId ? 'Update Quotation' : 'Save as Quotation' }}</span>
+                    <span wire:loading wire:target="saveAsQuotation,saveQuotationWithRequester">Saving…</span>
                 </button>
                 @endunless
 

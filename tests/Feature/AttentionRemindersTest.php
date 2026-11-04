@@ -107,6 +107,19 @@ class AttentionRemindersTest extends TestCase
         $this->assertSame(0, app(AttentionItems::class)->counts('clinic')['orders']);
     }
 
+    public function test_orders_badge_counts_a_late_job_with_lenses_to_buy_once(): void
+    {
+        $both = $this->opticalOrder('Pending', '2026-10-01');
+        $both->update(['work_type' => 'prescription', 'lens_supply_source' => 'outside']);
+        $this->opticalOrder('Pending', '2026-09-30')->update(['work_type' => 'service']); // late only
+
+        $counts = app(AttentionItems::class)->counts('optical');
+
+        $this->assertSame(2, $counts['order_late']);
+        $this->assertSame(1, $counts['lens_unordered']);
+        $this->assertSame(2, $counts['orders']);
+    }
+
     public function test_thresholds_come_from_the_clinic_settings(): void
     {
         $this->clinicOrder('In Lab', '2026-10-04');

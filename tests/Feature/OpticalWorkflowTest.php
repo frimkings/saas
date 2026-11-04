@@ -185,6 +185,64 @@ class OpticalWorkflowTest extends TestCase
             ->call('nextStep')->assertSet('currentStep', 2)->assertHasNoErrors();
     }
 
+    public function test_step_one_keeps_its_choices_and_sends_what_is_typed(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $this->tenant($user, 'step-one');
+        $this->actingAs($user);
+        $patient = Patient::createWithGeneratedPxNumber([
+            'user_id' => $user->id, 'name' => 'Clinic Patient', 'contact' => '0240000666', 'gender' => 'Other',
+        ]);
+        $cleaning = $this->pricedService('cleaning', 25);
+        foreach (range(1, 12) as $n) OpticalPartnerClinic::create(['name' => sprintf('Partner %02d', $n), 'is_active' => true]);
+        $walkIn = ['order_source' => 'walk_in', 'work_type' => 'service', 'bill_to' => 'customer', 'customer_name' => 'Kofi Walk-in', 'customer_phone' => '0240000555', 'reference' => ''];
+
+        // Choosing a service job shows its services at once; back on step 1 the dropdown still says so.
+        $wizard = Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('syncRequester', $walkIn)
+            ->assertSet('work_type', 'service')->assertSee('Services on this job')
+            ->call('toggleService', $cleaning->id)
+            ->call('nextStepWithRequester', $walkIn)->assertHasNoErrors()->assertSet('currentStep', 4)
+            ->call('prevStep')->assertSet('currentStep', 1);
+        $this->assertMatchesRegularExpression('/<option value="service"\s+selected/', $wizard->html());
+
+        // Partner work billed to the partner shows that, and every partner is listed.
+        $partner = Livewire::test(OpticalOrderCreateComponent::class)->call('changeOrderSource', 'partner');
+        $this->assertMatchesRegularExpression('/<option value="partner"\s+selected>Partner \/ referring clinic/', $partner->html());
+        $partner->assertSee('Partner 12');
+
+        // A patient picked, then the source switched to walk-in in the browser: their prescription does not follow.
+        Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('choosePatient', $patient->id)->set('rx_od_sph', '+1.00')
+            ->call('syncRequester', ['work_type' => 'prescription'] + $walkIn)
+            ->assertSet('patient_id', null)->assertSet('rx_od_sph', '');
+
+        // Save as Quotation on step 1 takes the typed customer; glasses need the prescription first.
+        Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('saveQuotationWithRequester', ['work_type' => 'prescription'] + $walkIn)
+            ->assertHasErrors('quotation');
+        Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('syncRequester', $walkIn)->call('toggleService', $cleaning->id)
+            ->call('saveQuotationWithRequester', $walkIn)->assertHasNoErrors()->assertRedirect(route('optical.orders'));
+        $this->assertSame('Kofi Walk-in', LensOrder::where('status', 'Quotation')->sole()->customer_name);
+    }
+
+    public function test_partner_name_with_stray_spaces_is_a_duplicate_not_an_error_page(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        $this->tenant($user, 'partner-names');
+        $this->actingAs($user);
+        OpticalPartnerClinic::create(['name' => 'Westside Eye', 'is_active' => false]);
+
+        Livewire::test(PartnerClinicsComponent::class)->call('add')
+            ->set('name', '  Westside Eye ')->call('save')
+            ->assertHasErrors(['name' => 'unique'])
+            ->assertSee('A partner clinic with this name already exists (it may be archived).');
+        $this->assertSame(1, OpticalPartnerClinic::count());
+    }
+
     public function test_manager_sets_service_price_and_catalogue_is_tenant_scoped(): void
     {
         config(['tenancy.enabled' => true]);
