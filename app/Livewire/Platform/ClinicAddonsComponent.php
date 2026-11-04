@@ -103,6 +103,7 @@ class ClinicAddonsComponent extends Component
             'active' => $active,
             'requests' => ClinicAddonRequest::with('requester')->where('clinic_id', $clinic->id)->where('status', 'pending')->oldest()->get(),
             'prorata' => fn (float $price) => $addons->prorata($clinic, $price),
+            'needsAttendance' => fn (string $feature) => $addons->needsAttendanceFirst($clinic, $feature),
         ]);
     }
 

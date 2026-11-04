@@ -70,6 +70,14 @@ class ClinicAddonService
         return $subscription !== null && PlanProduct::allows($subscription->feature_snapshot, $feature);
     }
 
+    /** A part of attendance for a clinic without attendance itself: it would be paid for and do nothing. */
+    public function needsAttendanceFirst(Clinic $clinic, string $feature): bool
+    {
+        return in_array($feature, PlanProduct::ATTENDANCE_PARTS, true)
+            && ! $this->planIncludes($clinic, \App\Support\Feature::ATTENDANCE)
+            && ! in_array(\App\Support\Feature::ATTENDANCE, app(AttendanceSizing::class)->features($clinic->id), true);
+    }
+
     /** What adding it now would charge straight away: [amount, days, period days], or null if nothing. */
     public function prorata(Clinic $clinic, float $monthlyPrice): ?array
     {
@@ -101,6 +109,7 @@ class ClinicAddonService
         if (in_array($feature, self::NOT_SOLD, true)) throw ValidationException::withMessages(['addon' => $feature === \App\Support\Feature::ATTENDANCE
             ? 'Attendance is priced by staff size now: set it under "Attendance by staff size".' : 'Packs of extra staff are no longer sold: move the clinic up a staff size instead.']);
         if ($this->planIncludes($clinic, $feature)) throw ValidationException::withMessages(['addon' => 'The clinic\'s plan already includes this.']);
+        if ($this->needsAttendanceFirst($clinic, $feature)) throw ValidationException::withMessages(['addon' => 'This clinic has no attendance yet: set it under "Attendance by staff size" first.']);
         if (in_array($feature, app(AttendanceSizing::class)->features($clinic->id), true)) throw ValidationException::withMessages(['addon' => 'The clinic\'s attendance package already includes this.']);
         if (in_array($feature, $this->activeFeatures($clinic->id), true)) throw ValidationException::withMessages(['addon' => 'The clinic already has this add-on.']);
         if ($monthlyPrice < 0) throw ValidationException::withMessages(['addon' => 'The price can\'t be negative.']);
@@ -240,6 +249,7 @@ class ClinicAddonService
         if ($this->planIncludes($clinic, $feature) || in_array($feature, $this->activeFeatures($clinic->id), true)) {
             throw ValidationException::withMessages(['addon' => 'You already have this.']);
         }
+        if ($this->needsAttendanceFirst($clinic, $feature)) throw ValidationException::withMessages(['addon' => 'This needs staff attendance, which your plan doesn\'t have yet.']);
         if (ClinicAddonRequest::where('clinic_id', $clinic->id)->where('feature', $feature)->where('status', 'pending')->exists()) {
             throw ValidationException::withMessages(['addon' => 'You have already asked for this; it is waiting for the platform.']);
         }

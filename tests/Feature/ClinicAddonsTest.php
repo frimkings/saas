@@ -233,4 +233,37 @@ class ClinicAddonsTest extends TestCase
         $subscription->update(['plan_snapshot' => ['storage_limit_mb' => null] + $subscription->plan_snapshot]);
         $this->assertNull($quota->storageLimitMb($clinic->fresh()));
     }
+
+    public function test_parts_of_attendance_need_attendance_itself_before_they_can_be_added_or_asked_for(): void
+    {
+        // A plan of the new kind (parts chosen) without attendance, like Clinic Pro.
+        [$clinic, , $owner] = $this->clinic(features: ['clinical', Feature::ATTENDANCE_PARTS_CHOSEN]);
+        $addons = app(ClinicAddonService::class);
+
+        try {
+            $addons->add($clinic, Feature::ATTENDANCE_SHIFTS, 100, null, null);
+            $this->fail('Shifts without attendance should be refused.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertSame('This clinic has no attendance yet: set it under "Attendance by staff size" first.', $e->errors()['addon'][0]);
+        }
+        try {
+            $addons->request($clinic, Feature::ATTENDANCE_TRENDS, null, $owner);
+            $this->fail('Trends without attendance should not be asked for.');
+        } catch (\Illuminate\Validation\ValidationException) {
+        }
+        $this->assertSame(0, ClinicAddon::count());
+
+        Livewire::actingAs($this->platformAdmin())->test(PlatformSide::class, ['clinicId' => $clinic->id])
+            ->assertSee('Needs attendance first: set it under "Attendance by staff size".', false);
+
+        // A part bought before this check shows that it isn't working.
+        ClinicAddon::create(['clinic_id' => $clinic->id, 'feature' => Feature::ATTENDANCE_TRENDS, 'monthly_price' => 100, 'quantity' => 1, 'currency' => 'GHS', 'starts_at' => now()]);
+        $addons->forget($clinic->id);
+        Livewire::actingAs($this->platformAdmin())->test(PlatformSide::class, ['clinicId' => $clinic->id])
+            ->assertSee('Not working: the clinic has no attendance.');
+
+        // Once attendance is there, parts can be added.
+        app(\App\Services\AttendanceSizing::class)->set($clinic, 'basic', 10, null, null, null);
+        $this->assertFalse($addons->needsAttendanceFirst($clinic, Feature::ATTENDANCE_PAYROLL));
+    }
 }

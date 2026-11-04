@@ -49,7 +49,7 @@ class ClinicAddonsComponent extends Component
         $clinic = app(TenantContext::class)->requireClinic();
         $active = ClinicAddon::where('clinic_id', $clinic->id)->activeAt()->orderBy('starts_at')->get();
         $pending = ClinicAddonRequest::where('clinic_id', $clinic->id)->where('status', 'pending')->pluck('feature')->all();
-        $offers = $addons->catalogue($clinic)->filter(fn ($offer) => $offer['offered']
+        $offers = $addons->catalogue($clinic)->filter(fn ($offer) => $offer['offered'] && ! $addons->needsAttendanceFirst($clinic, $offer['feature'])
             && ! $addons->planIncludes($clinic, $offer['feature']) && ! $active->contains('feature', $offer['feature']));
 
         // What else an add-on needs on this plan, said before the clinic asks for it.

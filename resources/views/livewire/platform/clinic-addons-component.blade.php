@@ -39,6 +39,7 @@
                     @elseif($addon)
                         <td>
                             <span class="ui-badge ui-badge--good">Add-on</span>
+                            @if($needsAttendance($feature))<div class="ui-error">Not working: the clinic has no attendance. Set it under "Attendance by staff size", or cancel this.</div>@endif
                             <div class="ui-muted">Since {{ $addon->starts_at->format('j M Y') }}@if($addon->ends_at) · ends {{ $addon->ends_at->format('j M Y') }}@endif</div>
                         </td>
                         <td>{{ (float) $addon->monthly_price > 0 ? $addon->currency . ' ' . number_format((float) $addon->monthly_price, 2) : 'Free' }}</td>
@@ -56,6 +57,9 @@
                             @endunless
                             @error("newPrice.$addon->id")<small class="ui-error">{{ $message }}</small>@enderror
                         </td>
+                    @elseif($needsAttendance($feature))
+                        <td class="ui-muted">Not added</td><td class="ui-muted">—</td>
+                        <td class="ui-muted" style="font-size:12px">Needs attendance first: set it under "Attendance by staff size".</td>
                     @else
                         @php($typed = $price[$feature] ?? null)
                         @php($charge = is_numeric($typed ?? $offer['price']) ? $prorata((float) ($typed ?? $offer['price'])) : null)
