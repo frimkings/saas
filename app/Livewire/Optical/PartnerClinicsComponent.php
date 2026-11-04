@@ -117,6 +117,8 @@ class PartnerClinicsComponent extends Component
     public function save(): void
     {
         app(ClinicAccessService::class)->assertWritable('optical');
+        // Check the name as it will be saved: " Westside " would pass the unique check, then hit the database's.
+        $this->name = trim($this->name);
         $this->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('optical_partner_clinics', 'name')
                 ->where('clinic_id', app(TenantContext::class)->clinicId())->ignore($this->editingId)],
@@ -128,7 +130,7 @@ class PartnerClinicsComponent extends Component
             'notificationPhone' => 'nullable|string|max:50',
             'notifyVia' => 'required|in:'.implode(',', array_keys(OpticalPartnerClinic::NOTIFY_VIA)),
             'isActive' => 'boolean',
-        ]);
+        ], ['name.unique' => 'A partner clinic with this name already exists (it may be archived).']);
         $partner = $this->editingId ? OpticalPartnerClinic::findOrFail($this->editingId) : new OpticalPartnerClinic();
         $partner->fill([
             'name' => trim($this->name), 'contact_person' => trim($this->contactPerson) ?: null,
