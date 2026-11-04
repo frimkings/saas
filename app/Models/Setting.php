@@ -321,17 +321,20 @@ class Setting extends Model
         $fallback = fn (string $reason) => $small && $size[2] === IMAGETYPE_JPEG ? $contents : $why($reason);
 
         // Too big to even open safely, or no GD: print without a logo rather than fail.
-        if ($size[0] * $size[1] > 25_000_000) {
+        // 50 MP covers camera and designer exports (one clinic's was 6236x5376).
+        if ($size[0] * $size[1] > 50_000_000) {
             return $fallback("it is {$size[0]}x{$size[1]} pixels, too large to shrink");
         }
         if (! function_exists('imagecreatefromstring')) {
             return $fallback('the server has no GD image library to shrink it');
         }
 
-        // Opening it takes about 5 bytes a pixel; this runs once per logo (the result is cached).
+        // Opening it takes up to about 8 bytes a pixel on top of what the request already uses;
+        // this runs once per logo (the result is cached).
         $limit = ini_get('memory_limit');
-        if ($limit !== '-1' && ini_parse_quantity($limit) < 512 * 1024 * 1024) {
-            @ini_set('memory_limit', '512M');
+        $needed = memory_get_usage() + $size[0] * $size[1] * 10 + 64 * 1024 * 1024;
+        if ($limit !== '-1' && ini_parse_quantity($limit) < $needed) {
+            @ini_set('memory_limit', (string) $needed);
         }
         $image = @imagecreatefromstring($contents);
         if (! $image) {
