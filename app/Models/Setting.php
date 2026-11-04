@@ -253,26 +253,37 @@ class Setting extends Model
         }
 
         return app(\App\Support\RequestMemo::class)->remember('logo:'.$path, function () use ($path) {
+            $why = fn (string $reason) => \Illuminate\Support\Facades\Log::warning('Clinic logo left off a printed document: ' . $reason, ['clinic_id' => $this->clinic_id, 'path' => $path]);
             try {
                 $disk = \Illuminate\Support\Facades\Storage::disk('public');
-                // Guard against encoding very large files (> 2 MB) which would OOM
-                if (! $disk->exists($path) || $disk->size($path) > 2 * 1024 * 1024) {
+                if (! $disk->exists($path)) {
+                    $why('the file is not in storage (upload it again on Settings)');
+
                     return null;
                 }
-                $contents = $disk->get($path);
+                $bytes = $disk->size($path);
+                if ($bytes > 10 * 1024 * 1024) {
+                    $why("the file is {$bytes} bytes, over 10 MB");
+
+                    return null;
+                }
+
+                // A small file can still be thousands of pixels wide; the PDF engine then runs out of
+                // memory and the print is a blank 500. Shrink it once and keep the shrunk copy;
+                // a logo that can't be shrunk is tried again in an hour, not on every print.
+                $key = 'printable-logo:' . md5($path . ':' . $bytes);
+                $contents = \Illuminate\Support\Facades\Cache::get($key);
+                if ($contents === null) {
+                    $contents = self::printableLogo($disk->get($path) ?: '', $why) ?? '';
+                    $contents === ''
+                        ? \Illuminate\Support\Facades\Cache::put($key, '', now()->addHour())
+                        : \Illuminate\Support\Facades\Cache::forever($key, $contents);
+                }
             } catch (\Throwable $e) {
                 report($e);
 
                 return null;
             }
-            if (! $contents) {
-                return null;
-            }
-
-            // A small file can still be thousands of pixels wide; the PDF engine then runs out of
-            // memory and the print is a blank 500. Shrink it once and keep the shrunk copy.
-            $contents = \Illuminate\Support\Facades\Cache::rememberForever('printable-logo:' . md5($contents),
-                fn () => self::printableLogo($contents) ?? '');
             if ($contents === '') {
                 return null;
             }
@@ -286,16 +297,35 @@ class Setting extends Model
     /** Largest side of a logo in printed documents; they show it well under 200px. */
     public const PRINT_LOGO_MAX_PX = 600;
 
-    /** The logo as is when small (or not a bitmap, e.g. SVG), else a PNG at most PRINT_LOGO_MAX_PX a side; null if it can't be made printable. */
-    public static function printableLogo(string $contents): ?string
+    /**
+     * The logo as is when small (or not a bitmap, e.g. SVG), else a PNG at most PRINT_LOGO_MAX_PX a side;
+     * null if it can't be made printable, with the reason passed to $why.
+     */
+    public static function printableLogo(string $contents, ?\Closure $why = null): ?string
     {
+        $why ??= fn () => null;
+        $small = strlen($contents) <= 2 * 1024 * 1024;
+        if ($contents === '') {
+            $why('the file is empty');
+
+            return null;
+        }
         $size = @getimagesizefromstring($contents);
-        if (! $size || ($size[0] <= self::PRINT_LOGO_MAX_PX && $size[1] <= self::PRINT_LOGO_MAX_PX)) {
+        if (! $size) {
+            return $small ? $contents : null;
+        }
+        if ($small && $size[0] <= self::PRINT_LOGO_MAX_PX && $size[1] <= self::PRINT_LOGO_MAX_PX) {
             return $contents;
         }
+        // The PDF engine copies a JPEG in without opening its pixels, so a big one is still safe.
+        $fallback = fn (string $reason) => $small && $size[2] === IMAGETYPE_JPEG ? $contents : $why($reason);
+
         // Too big to even open safely, or no GD: print without a logo rather than fail.
-        if ($size[0] * $size[1] > 25_000_000 || ! function_exists('imagecreatefromstring')) {
-            return null;
+        if ($size[0] * $size[1] > 25_000_000) {
+            return $fallback("it is {$size[0]}x{$size[1]} pixels, too large to shrink");
+        }
+        if (! function_exists('imagecreatefromstring')) {
+            return $fallback('the server has no GD image library to shrink it');
         }
 
         // Opening it takes about 5 bytes a pixel; this runs once per logo (the result is cached).
@@ -307,7 +337,7 @@ class Setting extends Model
         if (! $image) {
             @ini_set('memory_limit', $limit);
 
-            return null;
+            return $fallback('GD could not open it (' . image_type_to_mime_type($size[2]) . ", {$size[0]}x{$size[1]})");
         }
         $scale = self::PRINT_LOGO_MAX_PX / max($size[0], $size[1]);
         $small = imagecreatetruecolor(max(1, (int) round($size[0] * $scale)), max(1, (int) round($size[1] * $scale)));

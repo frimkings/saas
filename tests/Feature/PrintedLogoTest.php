@@ -33,6 +33,23 @@ class PrintedLogoTest extends TestCase
         $this->assertSame([Setting::PRINT_LOGO_MAX_PX, 240], [$width, $height]);
     }
 
+    public function test_a_large_jpeg_is_shrunk_and_a_logo_that_cannot_be_used_says_why(): void
+    {
+        $image = imagecreatetruecolor(2400, 1000);
+        ob_start();
+        imagejpeg($image);
+        [$width] = getimagesizefromstring(Setting::printableLogo(ob_get_clean()));
+        $this->assertSame(Setting::PRINT_LOGO_MAX_PX, $width);
+
+        Storage::fake('public');
+        \Illuminate\Support\Facades\Log::spy();
+        $this->ownerOn('clinic-starter');
+        $settings = Setting::getSettings();
+        $settings->update(['clinic_logo' => 'logos/gone.png']);
+        $this->assertNull($settings->logoDataUri());
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'not in storage'));
+    }
+
     public function test_the_prescription_slip_prints_with_a_large_logo(): void
     {
         Storage::fake('public');
