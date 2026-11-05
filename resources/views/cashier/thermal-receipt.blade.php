@@ -85,7 +85,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($sale->items as $item)
+            @foreach($sale->items->reject->is_empty_line as $item)
                 <tr>
                     <td class="col-item">{{ $item->display_product_name }}</td>
                     <td class="col-qty">{{ $item->shown_quantity }}</td>

@@ -122,7 +122,7 @@
                                     <div class="discount">{{ (float) $sale->discount_amount > 0 ? number_format($sale->discount_amount, 2) : '' }}</div>
                                     <div class="discount-note">{{ (float) $sale->discount_amount > 0 ? trim(($sale->discount_type === 'percentage' ? rtrim(rtrim(number_format((float) $sale->discount_value, 2), '0'), '.').'%' : '').($sale->approvedBy ? ' · approved by '.$sale->approvedBy->name : ''), ' ·') : '' }}</div>
                                     <div class="items">
-                                        @foreach($sale->items as $item)
+                                        @foreach($sale->items->reject->is_empty_line as $item)
                                             <div class="item">
                                                 <span class="product-name">{{ $item->display_product_name }}{{ $item->is_on_hold ? ' (on hold until paid)' : '' }}</span>
                                                 <span class="quantity">{{ $item->shown_quantity }}</span>

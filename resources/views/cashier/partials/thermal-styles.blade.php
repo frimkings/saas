@@ -98,9 +98,11 @@
             width: 11%;
         }
 
+        /* Amounts stay on one line (GH₵ 1,300.00); the item name gives way instead. */
         .col-price,
         .col-total {
             text-align: right;
+            white-space: nowrap;
             width: 21%;
         }
 

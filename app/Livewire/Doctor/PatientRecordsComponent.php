@@ -1690,6 +1690,17 @@ public function deleteAppointment($appointmentId)
         }
     }
 
+    /** A line is never saved at 0 or blank: it would go through the till and print as 0 on the receipt. */
+    private function normalizeProductQuantities(): void
+    {
+        foreach ($this->productsList as $index => $item) {
+            if ((int) ($item['quantity'] ?? 0) < 1 && ! $this->isLockedPrescriptionItem($item)) {
+                $this->productsList[$index]['quantity'] = 1;
+                $this->productsList[$index]['total'] = (float) ($item['price'] ?? 0);
+            }
+        }
+    }
+
     public function updateProductQuantity($index, $newQuantity)
     {
         if (!isset($this->productsList[$index])) {
@@ -1707,7 +1718,8 @@ public function deleteAppointment($appointmentId)
 
         if ($newQuantity > $availableQuantity) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => "Only {$availableQuantity} units available in stock"]);
-            return;
+            // The box already holds what was typed (0, blank, too many): put back a quantity that can be sold.
+            $newQuantity = max(1, min($availableQuantity, (int) ($this->productsList[$index]['total'] / max(0.01, (float) $this->productsList[$index]['price']))));
         }
 
         $this->productsList[$index]['quantity'] = $newQuantity;
@@ -1727,6 +1739,7 @@ public function deleteAppointment($appointmentId)
 
     public function savePrescription()
     {
+        $this->normalizeProductQuantities();
         if (!$this->consultationID) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Please create or select a consultation first before saving prescription']);
             return;
@@ -2189,6 +2202,7 @@ public function deleteAppointment($appointmentId)
     
     public function createConsultation()
     {
+        $this->normalizeProductQuantities();
         $validatedData = $this->validateConsultation();
 
         if (!$this->validatePrescriptionItems()) {
@@ -2311,6 +2325,7 @@ public function deleteAppointment($appointmentId)
 
     public function updateConsultation()
     {
+        $this->normalizeProductQuantities();
         if ($this->consultationFieldsLocked) {
             $this->addClinicalAddendum();
             return;

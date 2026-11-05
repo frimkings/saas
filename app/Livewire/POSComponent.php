@@ -242,6 +242,7 @@ class POSComponent extends Component
             $pendingCarts = Cart::with(['product', 'patient', 'dispensedBy'])
                 ->where('purchased', false)
                 ->where('status', 'pending')
+                ->where('quantity', '>', 0) // a line left at 0 is not for sale
                 ->whereNotNull('consultation_id')
                 ->where('consultation_id', '!=', 0)
                 ->orderBy('created_at', 'desc')
@@ -1780,7 +1781,8 @@ class POSComponent extends Component
         $this->cart = [];
         if ($items->isNotEmpty()) {
             foreach ($items as $item) {
-                if ($item->product && $item->product->canSupply((int) $item->quantity)) {
+                // A doctor's line left at quantity 0 is not loaded: it would be sold as 0 and print on the receipt.
+                if ($item->product && (int) $item->quantity > 0 && $item->product->canSupply((int) $item->quantity)) {
                     $fromPrescription = !empty($item->consultation_id) && $item->consultation_id != 0;
                     $categoryName     = strtolower($item->product->category->name ?? '');
                     $this->cart['cart_' . $item->id] = [
@@ -2241,6 +2243,9 @@ class POSComponent extends Component
                 $productId = $this->getCartItemProductId($cartKey, $cartItem);
                 $product   = $products[$productId];
                 $qty       = is_array($cartItem) ? $cartItem['quantity'] : $cartItem;
+                if ((int) $qty < 1) {
+                    continue; // nothing sold on this line
+                }
                 $frequency = is_array($cartItem) ? ($cartItem['frequency'] ?? null) : null;
                 $durationValue = is_array($cartItem) ? ($cartItem['duration_value'] ?? null) : null;
                 $durationUnit = is_array($cartItem) ? ($cartItem['duration_unit'] ?? null) : null;
@@ -2475,7 +2480,7 @@ class POSComponent extends Component
                     'pxnumber' => $saleData->patient->pxnumber ?? 'N/A',
                 ] : null,
                 'customer_name'  => $saleData->customer_display_name,
-                'items' => $saleData->items->map(function ($item) {
+                'items' => $saleData->items->reject->is_empty_line->values()->map(function ($item) {
                     return [
                         'name'          => $item->product->name ?? 'N/A',
                         'quantity'      => $item->dispensed_quantity,

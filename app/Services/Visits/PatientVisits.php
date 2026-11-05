@@ -63,7 +63,7 @@ class PatientVisits
         $live = $sales->where('is_refunded', false);
         $sections = [];
         foreach ($live as $sale) {
-            foreach ($sale->items as $item) {
+            foreach ($sale->items->reject->is_empty_line as $item) {
                 $sections[$this->section($item)][] = [
                     'name'     => $item->display_product_name,
                     'quantity' => max((int) $item->dispensed_quantity, (int) $item->prescribed_quantity) - (int) $item->refunded_quantity,

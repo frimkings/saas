@@ -137,6 +137,15 @@ class SaleItem extends Model
         return $this->is_on_hold ? (int) $this->prescribed_quantity : (int) $this->dispensed_quantity;
     }
 
+    /**
+     * Nothing was sold on this line: a doctor's item left at quantity 0 that went through the
+     * till. Kept in the records, but left off receipts and lists.
+     */
+    public function getIsEmptyLineAttribute(): bool
+    {
+        return $this->shown_quantity === 0 && (int) $this->refunded_quantity === 0 && (float) $this->subtotal == 0.0;
+    }
+
     /** Line amount to show: an on-hold item is still part of the sale's total. */
     public function getShownSubtotalAttribute(): float
     {

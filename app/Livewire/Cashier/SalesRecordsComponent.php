@@ -238,7 +238,7 @@ class SalesRecordsComponent extends Component
                 'user' => $sale->user ? [
                     'name' => $sale->user->name,
                 ] : null,
-                'items' => $sale->items->map(function($item) {
+                'items' => $sale->items->reject->is_empty_line->values()->map(function($item) {
                     return [
                         'quantity' => $item->shown_quantity,
                         'selling_price' => $item->selling_price,

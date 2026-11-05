@@ -18,7 +18,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($sale->items as $item)
+            @foreach($sale->items->reject->is_empty_line as $item)
                 <tr>
                     <td style="vertical-align:top; overflow-wrap:anywhere;">{{ $item->display_product_name }}</td>
                     <td style="text-align:center;">{{ $item->quantity }}</td>
