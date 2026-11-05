@@ -96,6 +96,46 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SUBSCRIPTION_CHANGE_SCHEDULED', 'clinic_id' => $clinic->id]);
     }
 
+    public function test_an_upgrade_during_a_trial_applies_at_once_and_the_trial_stays(): void
+    {
+        $clinic = $this->clinic();
+        $trialEnds = now()->addDays(3)->startOfMinute();
+        $clinic->currentSubscription->update(['status' => 'trial', 'trial_ends_at' => $trialEnds, 'current_period_ends_at' => $trialEnds]);
+
+        // Moving up (or anything during a trial) defaults to "Immediately".
+        $this->panel($clinic)->call('setPanelTab', 'plan')
+            ->set('panelPlanId', $this->pro->id)->assertSet('panelTiming', 'immediate')
+            ->set('panelReason', 'Needs insurance billing')->call('panelChangePlan')->assertHasNoErrors();
+
+        $now = $clinic->fresh()->currentSubscription;
+        $this->assertSame($this->pro->id, $now->subscription_plan_id, 'the new plan applies now');
+        $this->assertSame('trial', $now->status, 'still a trial, not a paid month');
+        $this->assertTrue($trialEnds->equalTo($now->trial_ends_at));
+    }
+
+    public function test_a_downgrade_waits_for_the_period_end_and_can_be_applied_now_or_cancelled(): void
+    {
+        $clinic = $this->clinic();
+        $clinic->currentSubscription->update(['subscription_plan_id' => $this->pro->id]);
+
+        $panel = $this->panel($clinic)->call('setPanelTab', 'plan')
+            ->set('panelPlanId', $this->basic->id)->assertSet('panelTiming', 'period_end')
+            ->set('panelReason', 'Closing the second branch')->call('panelChangePlan')->assertHasNoErrors()
+            ->assertSee('Waiting:')->assertSee('Until then the clinic keeps Pro');
+        $this->assertSame($this->pro->id, $clinic->fresh()->currentSubscription->subscription_plan_id);
+
+        $change = \App\Models\SubscriptionChange::where('clinic_id', $clinic->id)->sole();
+        $panel->call('panelCancelChange', $change->id);
+        $this->assertSame('cancelled', $change->fresh()->status);
+
+        $panel->set('panelPlanId', $this->basic->id)->set('panelReason', 'Closing the second branch')->call('panelChangePlan');
+        $waiting = \App\Models\SubscriptionChange::where('clinic_id', $clinic->id)->where('status', 'scheduled')->sole();
+        $panel->call('panelApplyChangeNow', $waiting->id);
+        $now = $clinic->fresh()->currentSubscription;
+        $this->assertSame([$this->basic->id, 'active'], [$now->subscription_plan_id, $now->status]);
+        $this->assertSame('applied', $waiting->fresh()->status);
+    }
+
     public function test_renew_issues_one_invoice_and_paying_it_extends_the_subscription(): void
     {
         $clinic = $this->clinic();

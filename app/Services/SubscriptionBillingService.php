@@ -136,7 +136,12 @@ class SubscriptionBillingService
             $change=SubscriptionChange::query()->lockForUpdate()->findOrFail($change->id);
             if($change->status==='applied')return $change->subscription;
             $old=$change->subscription;$plan=$change->toPlan;
-            $new=ClinicSubscription::create(['clinic_id'=>$old->clinic_id,'subscription_plan_id'=>$plan->id,'status'=>'active','renewal_mode'=>$old->renewal_mode,'billing_interval'=>$change->billing_interval,'branch_limit_override'=>$old->branch_limit_override,'change_reason'=>$change->reason,'current_period_starts_at'=>$change->effective_at,'current_period_ends_at'=>$change->billing_interval==='yearly'?$change->effective_at->copy()->addYear():$change->effective_at->copy()->addMonth()]);
+            // A clinic on trial stays on trial, to the same end date: changing its plan is not a payment,
+            // so it must not turn the trial into a paid month.
+            $period=$old->status==='trial'
+                ?['status'=>'trial','trial_ends_at'=>$old->trial_ends_at,'current_period_starts_at'=>$old->current_period_starts_at,'current_period_ends_at'=>$old->current_period_ends_at??$old->trial_ends_at]
+                :['status'=>'active','current_period_starts_at'=>$change->effective_at,'current_period_ends_at'=>$change->billing_interval==='yearly'?$change->effective_at->copy()->addYear():$change->effective_at->copy()->addMonth()];
+            $new=ClinicSubscription::create(['clinic_id'=>$old->clinic_id,'subscription_plan_id'=>$plan->id,'renewal_mode'=>$old->renewal_mode,'billing_interval'=>$change->billing_interval,'branch_limit_override'=>$old->branch_limit_override,'change_reason'=>$change->reason]+$period);
             $change->update(['status'=>'applied','applied_at'=>now()]);return $new;
         });
     }

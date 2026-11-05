@@ -113,6 +113,39 @@ class PlatformDashboardComponent extends Component
         return app(\App\Services\PlanChangeImpact::class)->for($clinic, $plan, $this->panelTiming === 'immediate');
     }
 
+    /**
+     * When the plan picked should take effect, unless the operator changes it: at once for a clinic
+     * on trial (there is no paid period to finish) or for a dearer plan; a cheaper plan waits for
+     * the end of the period already paid for. Defaulting to the period end left upgrades unapplied.
+     */
+    public function updatedPanelPlanId($planId): void
+    {
+        $current = $this->selectedClinicId ? Clinic::find($this->selectedClinicId)?->currentSubscription : null;
+        $plan = $planId ? SubscriptionPlan::find($planId) : null;
+        if (! $current || ! $plan) return;
+
+        $upgrade = (float) $plan->base_price >= (float) ($current->plan?->base_price ?? 0);
+        $this->panelTiming = $current->status === 'trial' || $upgrade ? 'immediate' : 'period_end';
+    }
+
+    /** A waiting plan change, applied now instead of at the end of the period. */
+    public function panelApplyChangeNow(int $changeId): void
+    {
+        $change = \App\Models\SubscriptionChange::where('clinic_id', $this->selectedClinicId)->where('status', 'scheduled')->findOrFail($changeId);
+        $change->update(['effective_at' => now(), 'timing' => 'immediate']);
+        app(SubscriptionBillingService::class)->applyChange($change);
+        app(PlatformAuditService::class)->record('SUBSCRIPTION_CHANGE_APPLIED_EARLY', $change->clinic_id, [], ['change_id' => $change->id, 'to_plan_id' => $change->to_plan_id], 'Applied now from the clinic panel');
+        session()->flash('panel_message', 'Plan changed to '.$change->toPlan->name.'.');
+    }
+
+    public function panelCancelChange(int $changeId): void
+    {
+        $change = \App\Models\SubscriptionChange::where('clinic_id', $this->selectedClinicId)->where('status', 'scheduled')->findOrFail($changeId);
+        $change->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+        app(PlatformAuditService::class)->record('SUBSCRIPTION_CHANGE_CANCELLED', $change->clinic_id, [], ['change_id' => $change->id, 'to_plan_id' => $change->to_plan_id], 'Cancelled from the clinic panel');
+        session()->flash('panel_message', 'Plan change cancelled. The clinic stays on '.$change->fromPlan->name.'.');
+    }
+
     public function panelChangePlan(){
         $d=$this->validate(['panelPlanId'=>'required|exists:subscription_plans,id','panelInterval'=>'required|in:monthly,yearly','panelTiming'=>'required|in:immediate,period_end','panelReason'=>'required|min:5|max:500'],[],['panelPlanId'=>'plan','panelReason'=>'reason']);
         $clinic=Clinic::findOrFail($this->selectedClinicId);$current=$clinic->currentSubscription;
@@ -120,7 +153,7 @@ class PlatformDashboardComponent extends Component
         $change=app(SubscriptionBillingService::class)->scheduleChange($current,SubscriptionPlan::findOrFail($d['panelPlanId']),$d['panelInterval'],$d['panelTiming'],$d['panelReason'],auth()->id());
         app(PlatformAuditService::class)->record('SUBSCRIPTION_CHANGE_SCHEDULED',$clinic->id,[],['change_id'=>$change->id,'to_plan_id'=>$d['panelPlanId'],'timing'=>$d['panelTiming']],$d['panelReason']);
         $this->reset('panelPlanId','panelReason');
-        session()->flash('panel_message',$d['panelTiming']==='immediate'?'Plan changed.':'Plan change scheduled for the end of the current period.');
+        session()->flash('panel_message',$d['panelTiming']==='immediate'?'Plan changed. Its features apply now.':'Plan change scheduled for '.$change->effective_at->format('d M Y').'. Until then the clinic keeps its current plan and features.');
     }
 
     // Renewal goes through the normal billing flow: a renewal invoice, and optionally its payment,
