@@ -33,6 +33,22 @@ class ClinicSubscriptionPortalTest extends TestCase
         $this->assertDatabaseHas('subscription_change_requests',['clinic_id'=>$data['clinic']->id,'requested_plan_id'=>$upgrade->id,'status'=>'pending']);
     }
 
+    public function test_a_second_request_while_one_waits_is_explained_not_a_422_and_the_first_can_be_withdrawn(): void
+    {
+        config(['tenancy.enabled'=>true]);$data=$this->setupClinic();$upgrade=SubscriptionPlan::create(['name'=>'Pro','code'=>'pro','base_price'=>199,'billing_interval'=>'monthly']);
+        app(TenantContext::class)->set($data['user'],$data['clinic'],$data['branch'],[$data['branch']->id]);
+        $page=Livewire::actingAs($data['user'])->test(ClinicSubscriptionPortalComponent::class)->set('requestedPlanId',$upgrade->id)->call('requestPlanChange')->assertHasNoErrors()
+            ->assertSee('Waiting for the platform:')->assertSee('you asked for Pro')->assertDontSee('Submit request');
+
+        // The form is hidden while it waits; sending again anyway gets a message, not an error page.
+        $page->set('requestedPlanId',$upgrade->id)->call('requestPlanChange')->assertHasErrors('requestedPlanId');
+        $this->assertSame(1,\App\Models\SubscriptionChangeRequest::where('clinic_id',$data['clinic']->id)->count());
+
+        $request=\App\Models\SubscriptionChangeRequest::where('clinic_id',$data['clinic']->id)->sole();
+        $page->call('withdrawPlanRequest',$request->id)->assertSee('Submit request');
+        $this->assertSame('withdrawn',$request->fresh()->status);
+    }
+
     public function test_invoice_download_does_not_allow_cross_clinic_access(): void
     {
         config(['tenancy.enabled'=>true]);$first=$this->setupClinic('first');$second=$this->setupClinic('second');

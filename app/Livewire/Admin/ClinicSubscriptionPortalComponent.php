@@ -38,10 +38,21 @@ class ClinicSubscriptionPortalComponent extends Component
     {
         $data=$this->validate(['requestedPlanId'=>'required|exists:subscription_plans,id','requestedInterval'=>'required|in:monthly,yearly','requestMessage'=>'nullable|max:1000']);
         $clinic=app(TenantContext::class)->requireClinic();$subscription=app(SubscriptionService::class)->current($clinic);
-        abort_if(SubscriptionChangeRequest::where('clinic_id',$clinic->id)->where('status','pending')->exists(),422,'A subscription change request is already awaiting review.');
+        // One request at a time: said on the form, not a 422 error page.
+        if(SubscriptionChangeRequest::where('clinic_id',$clinic->id)->where('status','pending')->exists()){$this->addError('requestedPlanId','A plan change request is already waiting for the platform. Withdraw it first to ask for a different plan.');return;}
         $request=SubscriptionChangeRequest::create(['clinic_id'=>$clinic->id,'current_subscription_id'=>$subscription?->id,'requested_plan_id'=>$data['requestedPlanId'],'billing_interval'=>$data['requestedInterval'],'message'=>$data['requestMessage']?:null,'requested_by'=>auth()->id()]);
         app(\App\Services\PlatformRequestAlerts::class)->planChangeRequested($request);
         $this->reset(['requestedPlanId','requestMessage']);session()->flash('subscription_message','Your request was submitted to the platform administrator.');
+    }
+
+    /** The clinic takes back its waiting plan request, e.g. to ask for a different plan. */
+    public function withdrawPlanRequest(int $id): void
+    {
+        $clinic=app(TenantContext::class)->requireClinic();
+        $request=SubscriptionChangeRequest::where('clinic_id',$clinic->id)->where('status','pending')->find($id);
+        if(!$request){session()->flash('subscription_message','That request has already been answered.');return;}
+        $request->update(['status'=>'withdrawn','reviewed_at'=>now(),'review_notes'=>'Withdrawn by the clinic.']);
+        session()->flash('subscription_message','Your plan change request was withdrawn.');
     }
 
     public function render()
