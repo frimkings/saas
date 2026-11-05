@@ -175,6 +175,36 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertSame('trial', $clinic->fresh()->currentSubscription->status);
     }
 
+    public function test_an_upgrade_mid_period_keeps_the_paid_dates_and_charges_only_the_difference(): void
+    {
+        $clinic = $this->clinic();
+        $start = now()->subDays(10)->startOfDay();
+        $end = now()->addDays(20)->endOfDay();
+        $clinic->currentSubscription->update(['current_period_starts_at' => $start, 'current_period_ends_at' => $end]);
+        $request = \App\Models\SubscriptionChangeRequest::create(['clinic_id' => $clinic->id, 'current_subscription_id' => $clinic->currentSubscription->id,
+            'requested_plan_id' => $this->pro->id, 'billing_interval' => 'monthly', 'requested_by' => $this->developer->id]);
+
+        $this->panel($clinic)->call('setPanelTab', 'plan')
+            ->set('panelPlanId', $this->pro->id)->assertSet('panelTiming', 'immediate')
+            ->set('panelReason', 'Needs insurance billing')->call('panelChangePlan')->assertHasNoErrors();
+
+        $now = $clinic->fresh()->currentSubscription;
+        $this->assertSame([$this->pro->id, 'active'], [$now->subscription_plan_id, $now->status]);
+        $this->assertSame([$start->toDateString(), $end->toDateString()], [$now->current_period_starts_at->toDateString(), $now->current_period_ends_at->toDateString()], 'the paid dates stay');
+
+        // 150 a month more, for the days left of the period already paid.
+        $charge = PlatformInvoice::where('clinic_id', $clinic->id)->sole();
+        $this->assertSame([$start->toDateString(), $end->toDateString()], [$now->current_period_starts_at->toDateString(), $charge->period_end->toDateString()]);
+        $this->assertEqualsWithDelta(150 * 21 / 31, (float) $charge->total, 6);
+        $this->assertStringContainsString('Upgrade to Pro', $charge->lines()->value('description'));
+
+        // The next renewal starts after the paid period, at the new plan's price.
+        $renewal = app(\App\Services\SubscriptionBillingService::class)->invoiceFor($now);
+        $this->assertSame([$end->copy()->addDay()->toDateString(), 250.0], [$renewal->period_start->toDateString(), (float) $renewal->total]);
+
+        $this->assertSame(['approved', 'Applied now.'], [$request->fresh()->status, $request->fresh()->review_notes], 'the clinic is no longer told it is waiting');
+    }
+
     public function test_renew_issues_one_invoice_and_paying_it_extends_the_subscription(): void
     {
         $clinic = $this->clinic();

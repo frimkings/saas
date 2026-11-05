@@ -138,10 +138,24 @@ class SubscriptionBillingService
             $old=$change->subscription;$plan=$change->toPlan;
             // A clinic on trial stays on trial, to the same end date: changing its plan is not a payment,
             // so it must not turn the trial into a paid month.
-            $period=$old->status==='trial'
-                ?['status'=>'trial','trial_ends_at'=>$old->trial_ends_at,'current_period_starts_at'=>$old->current_period_starts_at,'current_period_ends_at'=>$old->current_period_ends_at??$old->trial_ends_at]
-                :['status'=>'active','current_period_starts_at'=>$change->effective_at,'current_period_ends_at'=>$change->billing_interval==='yearly'?$change->effective_at->copy()->addYear():$change->effective_at->copy()->addMonth()];
+            // Part-way through a paid period (an upgrade applied now) the dates already paid for are kept, and
+            // only the difference for the days left is charged; starting a new month then left the paid one
+            // unused and gave the dearer plan free until the next renewal.
+            $midPeriod=in_array($old->status,['active','overdue'],true)&&$old->current_period_ends_at&&$old->current_period_ends_at->gt($change->effective_at);
+            $period=match(true){
+                $old->status==='trial'=>['status'=>'trial','trial_ends_at'=>$old->trial_ends_at,'current_period_starts_at'=>$old->current_period_starts_at,'current_period_ends_at'=>$old->current_period_ends_at??$old->trial_ends_at],
+                $midPeriod=>['status'=>$old->status,'current_period_starts_at'=>$old->current_period_starts_at,'current_period_ends_at'=>$old->current_period_ends_at],
+                default=>['status'=>'active','current_period_starts_at'=>$change->effective_at,'current_period_ends_at'=>$change->billing_interval==='yearly'?$change->effective_at->copy()->addYear():$change->effective_at->copy()->addMonth()],
+            };
             $new=ClinicSubscription::create(['clinic_id'=>$old->clinic_id,'subscription_plan_id'=>$plan->id,'renewal_mode'=>$old->renewal_mode,'billing_interval'=>$change->billing_interval,'branch_limit_override'=>$old->branch_limit_override,'change_reason'=>$change->reason]+$period);
+            if($midPeriod){
+                $difference=round((float)$plan->base_price-(float)data_get($old->pricing_snapshot,'base_price',$old->plan?->base_price??0),2);
+                if($difference>0)app(\App\Services\ClinicAddonService::class)->chargeRestOfPeriod($new->clinic,$difference,
+                    "Upgrade to {$plan->name}: difference from ".($old->plan?->name??'the previous plan'),"Plan change #{$change->id}: the difference for the rest of the period already paid.");
+            }
+            // The clinic's request for this plan is answered by the change itself.
+            \App\Models\SubscriptionChangeRequest::where('clinic_id',$old->clinic_id)->where('status','pending')->where('requested_plan_id',$plan->id)
+                ->update(['status'=>'approved','reviewed_by'=>$change->requested_by,'reviewed_at'=>now(),'review_notes'=>'Applied now.']);
             $change->update(['status'=>'applied','applied_at'=>now()]);return $new;
         });
     }
