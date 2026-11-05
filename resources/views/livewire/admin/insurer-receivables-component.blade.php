@@ -1,12 +1,14 @@
 <div class="clinic-ui ui-page">
   {{-- Page Header --}}
-  <x-ui.page-header title="Receivables" description="What each insurer still owes the clinic." />
+  <x-ui.page-header title="Receivables" description="What each insurer still owes the clinic.">
+    <x-guide-tour page="clinic.receivables" />
+  </x-ui.page-header>
 
   <div class="content">
     <div class="w-full">
 
       {{-- Aging by insurer --}}
-      <div class="ui-panel">
+      <div class="ui-panel" data-tour="rcv-aging">
         <div class="ui-section-heading">
           <h3 class="font-semibold mb-0">Owed by insurer</h3>
         </div>
@@ -64,7 +66,7 @@
       </div>
 
       {{-- Bills --}}
-      <div class="ui-panel">
+      <div class="ui-panel" data-tour="rcv-bills">
         <div class="ui-section-heading" style="gap:8px;">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="inline-flex flex-wrap gap-1">

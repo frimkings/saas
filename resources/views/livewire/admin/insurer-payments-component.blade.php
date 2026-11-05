@@ -1,6 +1,8 @@
 <div class="clinic-ui ui-page">
   {{-- Page Header --}}
-  <x-ui.page-header title="Insurer Payments" description="Money received from insurers and the claims it pays." />
+  <x-ui.page-header title="Insurer Payments" description="Money received from insurers and the claims it pays.">
+    <x-guide-tour page="clinic.insurer-payments" />
+  </x-ui.page-header>
 
   <div class="content">
     <div class="w-full">
@@ -15,7 +17,7 @@
               @endforeach
             </select>
             <div class="ml-auto">
-              <button wire:click="openForm('{{ $insurerFilter }}')" class="ui-button ui-button-primary ui-button-sm">
+              <button wire:click="openForm('{{ $insurerFilter }}')" class="ui-button ui-button-primary ui-button-sm" data-tour="pay-record">
                 <i class="fas fa-plus mr-1"></i>Record payment
               </button>
             </div>
@@ -23,7 +25,7 @@
         </div>
 
         <div class="">
-          <div class="ui-table-wrap">
+          <div class="ui-table-wrap" data-tour="pay-list">
             <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>

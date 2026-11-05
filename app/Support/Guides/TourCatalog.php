@@ -33,6 +33,10 @@ final class TourCatalog
         'clinic.day-close' => 2,
         'clinic.cash-book' => 1,
         'clinic.settings' => 1,
+        'clinic.insurers' => 1,
+        'clinic.claims' => 1,
+        'clinic.receivables' => 1,
+        'clinic.insurer-payments' => 1,
         'platform.dashboard' => 1,
         'platform.clinics' => 1,
         'platform.plans' => 1,
@@ -73,6 +77,10 @@ final class TourCatalog
             'clinic.day-close' => self::clinicDayClose($context),
             'clinic.cash-book' => self::clinicCashBook($context),
             'clinic.settings' => self::clinicSettings(),
+            'clinic.insurers' => self::clinicInsurers(),
+            'clinic.claims' => self::clinicClaims(),
+            'clinic.receivables' => self::clinicReceivables(),
+            'clinic.insurer-payments' => self::clinicInsurerPayments(),
             default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
         if (! $tour) return null;
@@ -281,6 +289,50 @@ final class TourCatalog
             ['target' => 'day-close-payments', 'title' => 'Wrong method?', 'body' => 'A payment entered as cash that was really MoMo? Ask for a correction here; the owner approves it. To cancel a sale entered by mistake, request a void from Sales Records.'],
             ['target' => 'day-close-blockers', 'title' => 'Waiting for a decision', 'body' => 'A void or correction still waiting holds the day open until the owner decides.'],
             ['target' => 'day-close-submit', 'title' => 'Close', 'body' => 'The tiles at the top show what the drawer should hold, what you counted and the difference. Here, enter what you bank or hand over (the suggestion leaves the float in the drawer), add a note for any difference, and close the day.'.($owner ? ' Only you can reopen a closed day.' : ' Only the owner can reopen it.')],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicInsurers(): array
+    {
+        return ['key' => 'clinic.insurers', 'title' => 'Insurers', 'steps' => [
+            ['title' => 'The schemes you bill', 'body' => 'Add each insurer once. A patient linked to one has the insurer\'s share of every bill set aside: the patient pays only their part, and a claim is started for the rest.'],
+            ['target' => 'ins-add', 'title' => 'Add an insurer', 'body' => 'Its name, scheme (NHIS, private or corporate) and contact. Choose what happens when it pays less than claimed: bill the patient the difference, or write it off. And whether a patient may pay the difference between your price and the insurer\'s tariff.'],
+            ['target' => 'ins-coverage', 'title' => 'What it covers', 'body' => 'Set the share it pays for each category (consultations, drugs, frames...), and change it for single products. Anything without a rule is the patient\'s to pay.'],
+            ['target' => 'ins-filters', 'title' => 'Find an insurer', 'body' => 'By name or code, or show one scheme.'],
+            ['target' => 'ins-list', 'title' => 'Your insurers', 'body' => 'Edit one, see how many claims it has, or make it inactive when you stop working with it; its history stays.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicClaims(): array
+    {
+        return ['key' => 'clinic.claims', 'title' => 'Insurance claims', 'steps' => [
+            ['title' => 'From draft to paid', 'body' => 'A bill with an insurer share starts a draft claim by itself. Here you send it, record the insurer\'s answer, and see it paid.'],
+            ['target' => 'clm-stats', 'title' => 'Where things stand', 'body' => 'Claims still to send, those awaiting the insurer, what has been approved and what is still owed. Pre-auth pending shows patients waiting for the insurer\'s go-ahead.'],
+            ['target' => 'clm-tabs', 'title' => 'By stage', 'body' => 'Draft, submitted, approved, part approved, rejected and paid.'],
+            ['target' => 'clm-filters', 'title' => 'Find and export', 'body' => 'Search by patient or patient number, pick an insurer, export the list for the insurer, or add a claim by hand.'],
+            ['target' => 'clm-list', 'title' => 'Move a claim on', 'body' => 'Submit it, then approve, part approve or reject it as the insurer answers. A shortfall is billed to the patient or written off, as set for the insurer. A claim is marked paid when you record the insurer\'s payment.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicReceivables(): array
+    {
+        return ['key' => 'clinic.receivables', 'title' => 'Receivables', 'steps' => [
+            ['title' => 'What insurers owe you', 'body' => 'Every bill whose insurer share has not been paid yet.'],
+            ['target' => 'rcv-aging', 'title' => 'Owed by insurer', 'body' => 'Each insurer\'s total, split by how long it has been waiting. Chase the ones over 60 and 90 days first.'],
+            ['target' => 'rcv-bills', 'title' => 'Bill by bill', 'body' => 'The bills still awaiting payment, and those the insurer rejected, so the patient can be asked to pay. Search by patient, ID or bill number.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicInsurerPayments(): array
+    {
+        return ['key' => 'clinic.insurer-payments', 'title' => 'Insurer payments', 'steps' => [
+            ['title' => 'Money from insurers', 'body' => 'Insurers usually pay several claims at once, weeks later. Record each payment here so the money and the claims agree.'],
+            ['target' => 'pay-record', 'title' => 'Record a payment', 'body' => 'Pick the insurer, the amount, date and reference, then share it across the claims it pays. Each claim it covers is marked paid; a claim paid short follows the insurer\'s shortfall setting.'],
+            ['target' => 'pay-list', 'title' => 'Payments received', 'body' => 'Every payment and how many claims it paid. Open one to see them.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

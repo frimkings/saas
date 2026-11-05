@@ -1,13 +1,15 @@
 <div class="clinic-ui ui-page">
   {{-- Page Header --}}
-  <x-ui.page-header title="Insurers" description="The schemes you bill, what each covers and how shortfalls are handled." />
+  <x-ui.page-header title="Insurers" description="The schemes you bill, what each covers and how shortfalls are handled.">
+    <x-guide-tour page="clinic.insurers" />
+  </x-ui.page-header>
 
   <div class="content">
     <div class="w-full">
 
       {{-- Filters + Actions --}}
       <div class="ui-panel">
-        <div class="ui-section-heading" style="gap:8px;">
+        <div class="ui-section-heading" style="gap:8px;" data-tour="ins-filters">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="flex items-stretch" style="max-width:260px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
@@ -20,7 +22,7 @@
               <option value="Corporate">Corporate</option>
             </select>
             <div class="ml-auto">
-              <button wire:click="openCreate" class="ui-button ui-button-primary ui-button-sm">
+              <button wire:click="openCreate" class="ui-button ui-button-primary ui-button-sm" data-tour="ins-add">
                 <i class="fas fa-plus mr-1"></i>Add Insurer
               </button>
             </div>
@@ -28,7 +30,7 @@
         </div>
 
         <div class="">
-          <div class="ui-table-wrap">
+          <div class="ui-table-wrap" data-tour="ins-list">
             <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>
@@ -36,7 +38,7 @@
                   <th>Code</th>
                   <th>Scheme</th>
                   <th>Contact</th>
-                  <th class="text-center">Coverage</th>
+                  <th class="text-center" data-tour="ins-coverage">Coverage</th>
                   <th class="text-center">Claims</th>
                   <th class="text-center">Status</th>
                   <th class="text-center">Actions</th>

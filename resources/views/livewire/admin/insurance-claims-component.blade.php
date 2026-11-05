@@ -1,13 +1,15 @@
 <div class="clinic-ui ui-page" data-livewire-root>
 <div>
   {{-- Page Header --}}
-  <x-ui.page-header title="Insurance Claims" description="Claims sent to insurers, from draft to paid." />
+  <x-ui.page-header title="Insurance Claims" description="Claims sent to insurers, from draft to paid.">
+    <x-guide-tour page="clinic.claims" />
+  </x-ui.page-header>
 
   <div class="content">
     <div class="w-full">
 
       {{-- Stats Row --}}
-      <div class="ui-tiles ui-tiles--auto mb-4">
+      <div class="ui-tiles ui-tiles--auto mb-4" data-tour="clm-stats">
         <div>
           <div class="ui-tile"><span class="ui-tile__label"><i class="fas fa-file-alt" aria-hidden="true"></i>Pending Submission</span><span class="ui-tile__value">{{ $draftCount }}</span></div>
         </div>
@@ -29,7 +31,7 @@
       <div class="ui-panel">
 
         {{-- Tabs --}}
-        <div class="ui-section-heading !p-0 !border-b-0">
+        <div class="ui-section-heading !p-0 !border-b-0" data-tour="clm-tabs">
           <ul class="flex flex-wrap border-b border-slate-200" style="flex-wrap:nowrap; overflow-x:auto;">
             @foreach(['all' => 'All', 'draft' => 'Draft', 'submitted' => 'Submitted', 'approved' => 'Approved', 'partially_approved' => 'Part. Approved', 'rejected' => 'Rejected', 'paid' => 'Paid'] as $tab => $label)
             <li class="">
@@ -43,7 +45,7 @@
         </div>
 
         {{-- Filters --}}
-        <div class="ui-section-heading" style="gap:8px; border-top: 1px solid #dee2e6;">
+        <div class="ui-section-heading" style="gap:8px; border-top: 1px solid #dee2e6;" data-tour="clm-filters">
           <div class="flex items-center flex-wrap w-full" style="gap:8px;">
             <div class="flex items-stretch" style="max-width:240px;">
               <div class="flex"><span class="flex items-center border border-slate-300 bg-slate-50 px-2 text-sm text-slate-600"><i class="fas fa-search"></i></span></div>
@@ -75,7 +77,7 @@
         </div>
 
         <div class="">
-          <div class="ui-table-wrap">
+          <div class="ui-table-wrap" data-tour="clm-list">
             <table class="ui-table ui-table-sm mb-0">
               <thead class="">
                 <tr>
