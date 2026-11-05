@@ -61,6 +61,27 @@
                             <small class="mt-1 block text-xs text-slate-500">Leave blank if the clinic does not use an email address.</small>
                         </div>
 
+                        {{-- Patient number initials --}}
+                        @if ($activeClinic)
+                            <div class="mb-4" data-tour="settings-patient-prefix">
+                                <label for="settings-patient-prefix" class="text-sm font-semibold text-slate-500">PATIENT NUMBER INITIALS</label>
+                                <input id="settings-patient-prefix" type="text" maxlength="3" wire:model.live.debounce.300ms="patient_prefix"
+                                    class="ui-input !w-24 bg-slate-50 border-0 uppercase @error('patient_prefix') is-invalid @enderror"
+                                    placeholder="e.g. VS" @disabled($prefixLocked)>
+                                @error('patient_prefix') <span class="block text-red-700 text-sm">{{ $message }}</span> @enderror
+                                <small class="mt-1 block text-xs text-slate-500">
+                                    @if ($prefixLocked)
+                                        New patients are numbered like {{ \Illuminate\Support\Str::replaceLast('-001', '-042', $nextPatientNumber) }}: initials, year and month, then that month's count.
+                                        The initials can't change now that numbers have been given out.
+                                    @else
+                                        2 or 3 letters. The first new patient this month will be <span class="font-semibold text-slate-700">{{ $nextPatientNumber }}</span>
+                                        (initials, year and month, then that month's count). They can't change once a number has been given out.
+                                    @endif
+                                    Patients registered before keep their numbers.
+                                </small>
+                            </div>
+                        @endif
+
                         {{-- Logo Upload --}}
                         <div class="mb-4">
                             <label class="text-sm font-semibold text-slate-500">CLINIC LOGO</label>

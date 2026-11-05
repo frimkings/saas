@@ -52,7 +52,7 @@ class PatientRegistryWorkflowTest extends TestCase
         $patient = Patient::where('contact', '0244000111')->firstOrFail();
         $this->assertSame($clinic->id, $patient->clinic_id);
         $this->assertSame($branch->id, $patient->home_branch_id);
-        $this->assertStringStartsWith('PX-', $patient->pxnumber);
+        $this->assertMatchesRegularExpression('/^[A-Z]{2,3}-\d{4}-\d{3,}$/', $patient->pxnumber);
     }
 
     public function test_forged_cross_clinic_patient_id_cannot_be_edited(): void

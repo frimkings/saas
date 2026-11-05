@@ -27,7 +27,7 @@ class PatientNumberAllocationTest extends TestCase
         $second = Patient::createWithGeneratedPxNumber($attributes);
 
         $this->assertNotSame($first->pxnumber, $second->pxnumber);
-        $this->assertMatchesRegularExpression('/^PX-[A-F0-9]{10}-\d{2}$/', $first->pxnumber);
+        $this->assertMatchesRegularExpression('/^[A-Z]{2,3}-' . now()->format('ym') . '-\d{3}$/', $first->pxnumber);
         $this->assertDatabaseHas('patients', ['pxnumber' => $first->pxnumber]);
         $this->assertDatabaseHas('patients', ['pxnumber' => $second->pxnumber]);
     }

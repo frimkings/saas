@@ -62,26 +62,44 @@ class Patient extends Model
         });
     }
 
+    /**
+     * Registers the patient with the clinic's next number: initials, year and month, then that
+     * month's count, e.g. VS-2611-042 (3 digits, 4 past 999). The month's counter row is locked
+     * until the patient is saved, so numbers are never shared and never skipped. Earlier
+     * patients keep the numbers they had (PX-..., or one brought from other software).
+     */
     public static function createWithGeneratedPxNumber(array $attributes): self
     {
         unset($attributes['pxnumber']);
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
-            $attributes['pxnumber'] = 'PX-' . strtoupper(bin2hex(random_bytes(5))) . '-' . now()->format('y');
+        $context = app(TenantContext::class);
+        $clinic = $context->clinic() ?? (isset($attributes['clinic_id']) ? Clinic::find($attributes['clinic_id']) : null);
+        $period = now()->format('ym');
 
-            try {
-                return static::create($attributes);
-            } catch (QueryException $exception) {
-                $isPxNumberCollision = in_array((int) ($exception->errorInfo[1] ?? 0), [19, 1062], true)
-                    && str_contains(strtolower($exception->getMessage()), 'pxnumber');
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($attributes, $clinic, $period) {
+            $counters = \Illuminate\Support\Facades\DB::table('patient_number_counters');
+            $key = ['clinic_id' => $clinic?->id ?? 0, 'period' => $period];
+            $counters->insertOrIgnore($key + ['last_number' => 0, 'created_at' => now(), 'updated_at' => now()]);
+            $number = (int) (clone $counters)->where($key)->lockForUpdate()->value('last_number');
 
-                if (! $isPxNumberCollision) {
-                    throw $exception;
-                }
+            $prefix = $clinic?->patientPrefix() ?? 'PX';
+            // Keep the initials the first number used, even if the clinic is renamed later.
+            if ($clinic && ! $clinic->patient_prefix) {
+                $clinic->forceFill(['patient_prefix' => $prefix])->saveQuietly();
             }
-        }
 
-        throw new \RuntimeException('Unable to allocate a unique patient number. Please try again.');
+            // Skip any number already held, e.g. one brought in from other software.
+            do {
+                $number++;
+                $pxnumber = $prefix . '-' . $period . '-' . str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+                $taken = static::withoutGlobalScopes()->withTrashed()->where('pxnumber', $pxnumber)
+                    ->where('clinic_id', $clinic?->id ?? $attributes['clinic_id'] ?? null)->exists();
+            } while ($taken);
+
+            (clone $counters)->where($key)->update(['last_number' => $number, 'updated_at' => now()]);
+
+            return static::create($attributes + ['pxnumber' => $pxnumber]);
+        });
     }
 
     protected $casts = [

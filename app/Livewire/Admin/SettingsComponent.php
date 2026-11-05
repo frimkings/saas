@@ -25,6 +25,8 @@ class SettingsComponent extends Component
     public $missingSetupFields = [];
     public string $va_notation      = '6m';
     public string $currency_symbol  = 'GH₵';
+    /** Initials patient numbers start with (VS-2611-042); fixed once a number is given out. */
+    public string $patient_prefix   = '';
 
     protected function rules()
     {
@@ -36,6 +38,7 @@ class SettingsComponent extends Component
             // Big enough to print sharp, small enough to load fast and fit in a PDF (see LOGO_RULES).
             'newLogo'              => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:' . self::LOGO_MAX_KB,
                 'dimensions:min_width=' . self::LOGO_MIN_PX . ',min_height=' . self::LOGO_MIN_PX . ',max_width=' . self::LOGO_MAX_PX . ',max_height=' . self::LOGO_MAX_PX],
+            'patient_prefix'       => [$this->clinic() ? 'required' : 'nullable', 'regex:/^[A-Za-z]{2,3}$/'],
             'currency_symbol'      => ['required', 'string', 'max:10', \Illuminate\Validation\Rule::in(array_keys(\App\Models\Setting::CURRENCIES))],
         ];
     }
@@ -49,6 +52,8 @@ class SettingsComponent extends Component
     protected function messages()
     {
         return [
+            'patient_prefix.required' => 'Give the clinic 2 or 3 letters for its patient numbers, e.g. VS.',
+            'patient_prefix.regex' => 'Use 2 or 3 letters only, e.g. VS.',
             'newLogo.image' => 'The logo must be an image: ' . self::LOGO_RULES,
             'newLogo.mimes' => 'The logo must be a PNG, JPG or WebP file.',
             'newLogo.max' => 'The logo is over 1 MB. Save a smaller copy (about 600 pixels wide is plenty) and try again.',
@@ -105,6 +110,7 @@ class SettingsComponent extends Component
         }
 
         $this->renameClinic($setting, trim((string) $this->state['clinic_name']));
+        $this->savePatientPrefix();
 
         $setting->update($data);
         Cache::forget('pos.settings');
@@ -185,6 +191,27 @@ class SettingsComponent extends Component
             }
         }
         $this->currentLogo = $setting->clinic_logo;
+        $this->patient_prefix = $this->clinic()?->patientPrefix() ?? '';
+    }
+
+    private function clinic(): ?\App\Models\Clinic
+    {
+        return app(\App\Support\Tenancy\TenantContext::class)->clinic();
+    }
+
+    /** Saved only until the first number in the new format is given out; after that it stays. */
+    private function savePatientPrefix(): void
+    {
+        $clinic = $this->clinic();
+        $prefix = strtoupper(trim($this->patient_prefix));
+        if (! $clinic || $clinic->patientPrefixLocked() || $prefix === $clinic->patient_prefix) {
+            return;
+        }
+
+        $old = $clinic->patient_prefix;
+        $clinic->update(['patient_prefix' => $prefix]);
+        \App\Models\AuditTrail::record('clinic.patient_prefix', "Patient number initials set to {$prefix}",
+            $clinic, ['patient_prefix' => $old], ['patient_prefix' => $prefix], null, true);
     }
 
     /**
@@ -218,6 +245,8 @@ class SettingsComponent extends Component
         return view('livewire.admin.settings-component', [
             'setting' => Setting::getSettings(),
             'activeClinic' => app(\App\Support\Tenancy\TenantContext::class)->clinic(),
+            'prefixLocked' => (bool) $this->clinic()?->patientPrefixLocked(),
+            'nextPatientNumber' => strtoupper($this->patient_prefix ?: 'PX') . '-' . now()->format('ym') . '-001',
         ])->layout('layouts.admin.admin-layout');
     }
 }

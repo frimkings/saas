@@ -64,7 +64,7 @@ class PatientTenancyTest extends TestCase
 
         $this->assertSame($clinic->id, $patient->clinic_id);
         $this->assertSame($branch->id, $patient->home_branch_id);
-        $this->assertStringStartsWith('PX-', $patient->pxnumber);
+        $this->assertMatchesRegularExpression('/^[A-Z]{2,3}-\d{4}-\d{3,}$/', $patient->pxnumber);
     }
 
     public function test_http_document_route_cannot_resolve_a_record_from_another_clinic(): void
