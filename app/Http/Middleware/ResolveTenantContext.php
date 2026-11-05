@@ -56,6 +56,10 @@ class ResolveTenantContext
         [$branch, $branches] = $this->resolveBranch($request, $clinic);
         abort_unless($branch, 403, 'You do not have access to an active branch for this clinic.');
 
+        if ($stale = $this->refuseStalePage($request, $clinic, $branch, $clinics, $branches)) {
+            return $stale;
+        }
+
         $this->context->set($user, $clinic, $branch, $branches->pluck('id')->map(static fn ($id) => (int) $id)->all());
         // The navbar's clinic/branch switcher lists these; save it querying them again.
         $this->context->setAvailable($clinics, $branches->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values());
@@ -64,6 +68,39 @@ class ResolveTenantContext
         $request->session()->put(config('tenancy.session_keys.branch'), $branch->id);
 
         return $next($request);
+    }
+
+    /**
+     * Every tab shares one session. A page opened in one business or branch, then used after a switch in
+     * another tab, would save into the new one; its stamp (layouts/partials/tenant-guard) says where it was
+     * opened, and a change from a page that no longer matches is refused. Requests without a stamp (older
+     * pages, scripts) and the switchers themselves pass.
+     */
+    private function refuseStalePage(Request $request, Clinic $clinic, Branch $branch, $clinics, $branches): ?Response
+    {
+        if ($request->isMethodSafe() || $request->routeIs('tenant.*', 'logout')) {
+            return null;
+        }
+        $stamp = (string) ($request->header('X-Tenant-Context') ?: $request->input('_tenant_context', ''));
+        if (! preg_match('/^(\d+):(\d+)$/', $stamp, $m) || ((int) $m[1] === (int) $clinic->id && (int) $m[2] === (int) $branch->id)) {
+            return null;
+        }
+
+        // Name only places this user belongs to.
+        if ((int) $m[1] !== (int) $clinic->id) {
+            $was = $clinics->firstWhere('id', (int) $m[1])?->name ?? 'another business';
+            $now = $clinic->name;
+        } else {
+            $was = 'the '.($branches->firstWhere('id', (int) $m[2])?->name ?? 'other').' branch';
+            $now = 'the '.$branch->name.' branch';
+        }
+        $message = "This page was opened in {$was}, but you have since switched to {$now} in another tab. Nothing was saved. Reload to carry on in {$now}, or switch back first.";
+
+        if ($request->hasHeader('X-Livewire') || $request->expectsJson()) {
+            return response()->json(['message' => $message, 'stale_tenant' => true], 409);
+        }
+
+        return redirect()->back()->withInput($request->except(['password', 'password_confirmation', '_token', '_tenant_context']))->with('error', $message);
     }
 
     /** The selected (or default) clinic and all of the user's active clinics, default first. */
