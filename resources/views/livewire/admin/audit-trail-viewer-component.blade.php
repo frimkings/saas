@@ -85,7 +85,7 @@
                                 </td>
                                 <td>
                                     <div>{{ $audit->user->name ?? 'System' }}</div>
-                                    <small class="text-slate-500">{{ $audit->patient ? $audit->patient->name.' | '.$audit->patient->pxnumber : 'No patient' }}</small>
+                                    @if($audit->patient)<small class="text-slate-500">{{ $audit->patient->name.' | '.$audit->patient->pxnumber }}</small>@endif
                                 </td>
                                 <td><code>{{ $audit->ip_address }}</code></td>
                                 <td class="text-right">{{ $audit->created_at->format('M d, Y h:i A') }}</td>

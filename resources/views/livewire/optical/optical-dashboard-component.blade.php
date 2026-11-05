@@ -36,7 +36,6 @@
         <div class="ui-panel ui-stat">
             <div class="flex items-center justify-between">
                 <span class="ui-muted font-medium uppercase tracking-wider text-xs">Today's Orders</span>
-                <span class="ui-badge">Active</span>
             </div>
             <div class="ui-value">{{ $todaysOrdersCount }}</div>
             <p class="ui-muted">New spectacle orders created today</p>
@@ -45,7 +44,6 @@
         <div class="ui-panel ui-stat">
             <div class="flex items-center justify-between">
                 <span class="ui-muted font-medium uppercase tracking-wider text-xs">Ready for Collection</span>
-                <span class="ui-badge" style="background:#fff3d7; color:#795616;">{{ $readyCount }}</span>
             </div>
             <div class="ui-value text-amber-800">{{ $readyCount }}</div>
             <p class="ui-muted">Orders awaiting patient pickup</p>

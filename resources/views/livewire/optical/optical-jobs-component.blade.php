@@ -35,7 +35,7 @@
                                 $phone = $order->isPartnerJob() ? $order->partnerClinic?->messagingPhone() : $order->display_customer_phone;
                             @endphp
                             <tr wire:key="job-{{ $order->id }}" class="align-top">
-                                <td class="p-3 text-xs font-mono"><button type="button" wire:click="openOrder({{ $order->id }})" class="text-teal-800 underline">{{ $order->order_id }}</button></td>
+                                <td class="p-3 text-xs font-mono whitespace-nowrap"><button type="button" wire:click="openOrder({{ $order->id }})" class="text-teal-800 underline">{{ $order->order_id }}</button></td>
                                 <td class="p-3 text-xs">{{ $order->display_customer_name }}@if($phone)<span class="block text-slate-500">{{ $phone }}</span>@endif</td>
                                 <td class="p-3 text-xs">{{ \App\Support\Optical\OrderPresenter::badge($order->status)[0] }}@if($order->labSupplier)<span class="block text-slate-500">{{ $order->labSupplier->name }}</span>@endif</td>
                                 <td class="p-3 text-xs">

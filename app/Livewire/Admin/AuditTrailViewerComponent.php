@@ -137,7 +137,8 @@ class AuditTrailViewerComponent extends Component
             $changes[] = $label . ': ' . $this->formatAuditValue($newValue, $key);
         }
 
-        return array_slice($changes, 0, 8);
+        // A field copied into the details (brand and details.brand) would read twice.
+        return array_slice(array_values(array_unique($changes)), 0, 8);
     }
 
     private function flattenAuditValues(array $values, string $prefix = ''): array
@@ -146,6 +147,11 @@ class AuditTrailViewerComponent extends Component
 
         foreach ($values as $key => $value) {
             $path = $prefix ? $prefix . '.' . $key : (string) $key;
+
+            // Some models keep a JSON column as text ("details"); show its fields, not the raw JSON.
+            if (is_string($value) && in_array(substr(ltrim($value), 0, 1), ['{', '['], true) && is_array($decoded = json_decode($value, true))) {
+                $value = $decoded;
+            }
 
             if (is_array($value) && !$this->isListArray($value)) {
                 $flat += $this->flattenAuditValues($value, $path);

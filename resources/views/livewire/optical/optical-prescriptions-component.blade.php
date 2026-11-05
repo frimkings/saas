@@ -71,7 +71,7 @@
             @endforeach
         </div>
         <div class="overflow-x-auto">
-            <table class="oo-table rx-table w-full" style="min-width:980px">
+            <table class="oo-table rx-table w-full" style="min-width:1140px">
                 <colgroup><col class="c-rx"><col class="c-cust"><col class="c-src"><col class="c-by"><col class="c-eye"><col class="c-eye"><col class="c-act"></colgroup>
                 <thead><tr><th>Rx</th><th>Customer</th><th>Source</th><th>Prescriber</th><th>Right (OD)</th><th>Left (OS)</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
