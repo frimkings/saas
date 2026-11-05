@@ -60,7 +60,7 @@ class PatientNumberFormatTest extends TestCase
         $this->ownerOn('clinic-starter');
 
         $page = Livewire::test(SettingsComponent::class)
-            ->assertSet('patient_prefix', 'BE')->assertSee('BE-2611-001')
+            ->assertSet('patient_prefix', 'BE')->assertSee('BE-2611-001')->assertSeeHtml('data-tour="settings-patient-prefix"')
             ->set('patient_prefix', 'b1')->call('updateSettings')->assertHasErrors('patient_prefix')
             ->set('patient_prefix', 'bec')->call('updateSettings')->assertHasNoErrors();
         $this->assertSame('BEC', $this->clinic->fresh()->patient_prefix);

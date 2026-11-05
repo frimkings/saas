@@ -29,7 +29,7 @@ final class ClinicSetup
         $owner = (bool) $user?->hasRole('Super Admin');
         $settings = $owner ? route('admin.settings') : null;
         $steps = array_values(array_filter([
-            ['key' => 'details', 'title' => 'Your clinic\'s details', 'body' => 'Address, phone number, email and logo. They go on receipts, reports and the texts patients get.',
+            ['key' => 'details', 'title' => 'Your clinic\'s details', 'body' => 'Address, phone number, email and logo, and the initials patient numbers start with (VS-2611-042). They go on receipts, reports and the texts patients get. Set the initials before your first patient: they can\'t change after.',
                 'done' => ! Setting::getSettings()->needsSetup(), 'url' => $settings, 'button' => 'Settings'],
             ['key' => 'products', 'title' => 'Add what you charge for', 'body' => 'Consultation fees, drugs, drops and other items, each in a category with its price and stock.',
                 'done' => Product::query()->exists(), 'url' => route('admin.product'), 'button' => 'Products'],

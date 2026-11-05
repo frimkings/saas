@@ -4,7 +4,8 @@
             <h2 class="text-base font-semibold text-slate-900">Clinic profile &amp; branding</h2>
             <p class="ui-muted">Manage the details displayed on clinic documents</p>
         </div>
-        <div class="inline-flex flex-wrap gap-1 shadow-sm">
+        <div class="inline-flex flex-wrap items-center gap-1">
+            <x-guide-tour page="clinic.settings" />
             <button type="button" wire:click="discardChanges" class="ui-button ui-button-secondary">
                 <i class="fas fa-undo mr-1"></i> Discard Changes
             </button>
@@ -25,7 +26,7 @@
     <div class="flex flex-wrap -mx-2">
         {{-- Settings Form --}}
         <div class="w-full md:w-6/12 px-2">
-            <div class="ui-panel mb-6">
+            <div class="ui-panel mb-6" data-tour="settings-details">
                 <div class="ui-section-heading">
                     <h5 class="mb-0 font-semibold"><i class="fas fa-cogs mr-2"></i> Clinic Information</h5>
                 </div>
@@ -83,7 +84,7 @@
                         @endif
 
                         {{-- Logo Upload --}}
-                        <div class="mb-4">
+                        <div class="mb-4" data-tour="settings-logo">
                             <label class="text-sm font-semibold text-slate-500">CLINIC LOGO</label>
                             <div class="block">
                                 <input type="file" accept=".png,.jpg,.jpeg,.webp" data-max-kb="{{ \App\Livewire\Admin\SettingsComponent::LOGO_MAX_KB }}" wire:model.live="newLogo" class="block w-full text-sm @error('newLogo') is-invalid @enderror" id="customFile{{ $uploadInputKey }}" wire:key="clinic-logo-{{ $uploadInputKey }}">

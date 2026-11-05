@@ -25,13 +25,14 @@ final class TourCatalog
         'optical.catalogue' => 1,
         'optical.pos' => 1,
         'clinic.dashboard' => 4,
-        'clinic.registry' => 1,
+        'clinic.registry' => 2,
         'clinic.clearance' => 1,
         'clinic.pos' => 2,
         'clinic.queue' => 2,
         'clinic.sales' => 3,
         'clinic.day-close' => 2,
         'clinic.cash-book' => 1,
+        'clinic.settings' => 1,
         'platform.dashboard' => 1,
         'platform.clinics' => 1,
         'platform.plans' => 1,
@@ -71,6 +72,7 @@ final class TourCatalog
             'clinic.sales' => self::clinicSales($context),
             'clinic.day-close' => self::clinicDayClose($context),
             'clinic.cash-book' => self::clinicCashBook($context),
+            'clinic.settings' => self::clinicSettings(),
             default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
         if (! $tour) return null;
@@ -215,9 +217,9 @@ final class TourCatalog
     {
         return ['key' => 'clinic.registry', 'title' => 'Registry Hub', 'steps' => [
             ['title' => 'Where every visit starts', 'body' => 'Register new patients, update their details, and send them on to clearance and the doctor.'],
-            ['target' => 'reg-form', 'title' => 'Register a patient', 'body' => 'Start typing the name: if the patient is already registered they show up, so you never make the same person twice. Choose cash or insurance, then save.'],
+            ['target' => 'reg-form', 'title' => 'Register a patient', 'body' => 'Start typing the name: if the patient is already registered they show up, so you never make the same person twice. Choose cash or insurance, then save. Each new patient gets a short number such as VS-2611-042: the clinic\'s initials, the year and month, then that month\'s count.'],
             ['target' => 'reg-import', 'title' => 'Bring in an old list', 'body' => 'Moving from paper or another system? Import patients from a CSV file.'],
-            ['target' => 'reg-search', 'title' => 'Find a patient', 'body' => 'By name or PX number, or show only one insurer\'s patients.'],
+            ['target' => 'reg-search', 'title' => 'Find a patient', 'body' => 'By name or patient number (new ones like VS-2611-042, or an older PX-... number), or show only one insurer\'s patients.'],
             ['target' => 'reg-list', 'title' => 'Open a record', 'body' => 'Edit a patient\'s details, or call or WhatsApp them, from their row. Tick several to act on them together.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
@@ -279,6 +281,17 @@ final class TourCatalog
             ['target' => 'day-close-payments', 'title' => 'Wrong method?', 'body' => 'A payment entered as cash that was really MoMo? Ask for a correction here; the owner approves it. To cancel a sale entered by mistake, request a void from Sales Records.'],
             ['target' => 'day-close-blockers', 'title' => 'Waiting for a decision', 'body' => 'A void or correction still waiting holds the day open until the owner decides.'],
             ['target' => 'day-close-submit', 'title' => 'Close', 'body' => 'The tiles at the top show what the drawer should hold, what you counted and the difference. Here, enter what you bank or hand over (the suggestion leaves the float in the drawer), add a note for any difference, and close the day.'.($owner ? ' Only you can reopen a closed day.' : ' Only the owner can reopen it.')],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    private static function clinicSettings(): array
+    {
+        return ['key' => 'clinic.settings', 'title' => 'Clinic settings', 'steps' => [
+            ['title' => 'Your clinic on paper', 'body' => 'The name, address, contact details and logo here go on receipts, prescriptions, letters and reports.'],
+            ['target' => 'settings-details', 'title' => 'Clinic information', 'body' => 'Change any detail and press Save. A field left blank is simply left off documents.'],
+            ['target' => 'settings-patient-prefix', 'title' => 'Patient number initials', 'body' => 'New patients are numbered with these 2 or 3 letters, the year and month, then that month\'s count, e.g. VS-2611-042. Set them before registering your first patient: once a number is given out they can\'t change. Patients registered before keep their numbers.'],
+            ['target' => 'settings-logo', 'title' => 'Your logo', 'body' => 'A PNG, JPG or WebP up to 1 MB, between 100 and 2000 pixels a side. A PNG with a transparent background, about 600 pixels wide, prints best.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }
