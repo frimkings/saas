@@ -312,7 +312,7 @@ class Cart extends Model
      */
     public function getAgeInDaysAttribute()
     {
-        return $this->created_at->diffInDays(now());
+        return (int) $this->created_at->diffInDays(now());
     }
 
     /* ==========================================
