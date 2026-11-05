@@ -47,7 +47,8 @@ class ClinicAccessService
             $subscription = app(SubscriptionService::class)->current($clinic);
             if (!$subscription) return null;
             $expiry = $subscription->status === 'trial' ? $subscription->trial_ends_at : $subscription->current_period_ends_at;
-            return in_array($subscription->status, ['suspended', 'cancelled'], true)
+            $trialEnded = $subscription->status === 'trial' && $expiry && $expiry->lte(now());
+            return $trialEnded || in_array($subscription->status, ['suspended', 'cancelled'], true)
                 ? AccessStage::locked($expiry, true)
                 : AccessStage::forExpiry($expiry, true);
         }

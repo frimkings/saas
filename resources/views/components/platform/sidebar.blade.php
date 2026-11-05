@@ -3,6 +3,10 @@
     $pendingSms = \App\Models\Setting::withoutGlobalScopes()->where('sms_sender_id_status', 'pending')->count()
         + \App\Models\PlatformInvoice::where('source', 'sms_bundle')->whereIn('status', ['unpaid', 'partial'])->count();
     $newPricing = \App\Models\PricingRequest::where('status', 'new')->count();
+    // Clinic requests only the platform can act on: plan changes and approvals under Billing, add-ons on a clinic's Plan tab.
+    $waitingBilling = \App\Models\SubscriptionChangeRequest::where('status', 'pending')->count()
+        + \App\Models\SubscriptionApprovalRequest::where('status', 'pending')->count();
+    $waitingAddons = \App\Models\ClinicAddonRequest::where('status', 'pending')->count();
     $smsLow = (bool) (app(\App\Services\Messaging\PlatformSmsBalance::class)->last()['low'] ?? false);
     $tabs = ['dashboard' => '▥ Dashboard', 'clinics' => '✚ Clinics Directory', 'plans' => '◆ Subscription Plans', 'billing' => '▤ Invoices & Billing',
         'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
@@ -26,7 +30,7 @@
     <div class="ps-brand">◉ Platform Admin<small>EyeClinic SaaS Control</small></div>
     <nav class="ps-nav" data-tour="pf-nav">
         @foreach($tabs as $key => $label)
-            <a data-tour="nav-{{ $key }}" href="{{ route('platform.dashboard', $key === 'dashboard' ? [] : ['tab' => $key]) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'clinics' && $overlimit)<span class="ps-badge">{{ $overlimit }}</span>@endif</a>
+            <a data-tour="nav-{{ $key }}" href="{{ route('platform.dashboard', $key === 'dashboard' ? [] : ['tab' => $key]) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'clinics' && $overlimit)<span class="ps-badge">{{ $overlimit }}</span>@endif@if($key === 'clinics' && $waitingAddons)<span class="ps-badge" title="Add-on requests waiting">{{ $waitingAddons }}</span>@endif @if($key === 'billing' && $waitingBilling)<span class="ps-badge" title="Plan requests and approvals waiting">{{ $waitingBilling }}</span>@endif</a>
         @endforeach
         @foreach($pages as $key => [$route, $label])
             <a data-tour="nav-{{ $key }}" href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'pricing' && $newPricing)<span class="ps-badge">{{ $newPricing }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>

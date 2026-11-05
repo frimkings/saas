@@ -48,6 +48,8 @@ class SubscriptionService
         $subscription = $this->current($clinic);
         if (! $subscription) return ['allowed'=>false,'read_only'=>true,'status'=>'missing','reason'=>'No subscription is assigned.'];
         $status = $subscription->status;
+        // An ended trial is suspended at once, before the hourly status check catches up.
+        if ($status === 'trial' && $subscription->trial_ends_at && $subscription->trial_ends_at->lte(now())) $status = 'suspended';
         if (in_array($status, ['suspended','cancelled'], true)) return ['allowed'=>false,'read_only'=>true,'status'=>$status,'reason'=>'The clinic subscription is not operational.'];
         $end = $status === 'trial' ? $subscription->trial_ends_at : $subscription->current_period_ends_at;
         if (in_array($status, ['trial', 'active', 'overdue'], true) && ($status === 'overdue' || ($end && $end->lte(now())))) {

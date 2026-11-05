@@ -94,7 +94,9 @@ class OwnerAlerts
         $this->notice($request->clinic, 'plan_request_' . $request->status, 'plan_request:' . $request->id . ':' . $request->status,
             $approved ? 'Your plan change was approved' : 'Your plan change was not approved',
             $approved
-                ? 'Your request to change plan was approved. The new plan starts at the end of your current billing period.'
+                ? ($request->review_notes === 'Applied now.'
+                    ? 'Your request to change plan was approved. The new plan and its features apply now.'
+                    : 'Your request to change plan was approved. The new plan starts at the end of your current billing period.')
                 : 'Your request to change plan was not approved. Your current plan continues unchanged.',
             array_filter([
                 'Requested plan' => $request->requestedPlan?->name,

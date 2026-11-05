@@ -6,6 +6,9 @@ return [
     // Expiry flow (hosted subscriptions and offline licenses), in whole days after the expiry moment:
     // grace: everything still works; payment due: staff see "payment not made" and admins only the
     // renewal page; after that: staff see "contact support" while admins can still renew.
+    // Every trial lasts this many days, whatever the plan says; when it ends the clinic is
+    // suspended (no grace or read-only stage) until it is moved to a paid subscription.
+    'trial_days' => (int) env('SUBSCRIPTION_TRIAL_DAYS', 2),
     'grace_days' => (int) env('SUBSCRIPTION_GRACE_DAYS', 1),
     'payment_due_days' => (int) env('SUBSCRIPTION_PAYMENT_DUE_DAYS', 1),
     // Every staff member sees a renewal banner from this many days before expiry.

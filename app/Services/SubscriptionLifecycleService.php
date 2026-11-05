@@ -47,8 +47,9 @@ class SubscriptionLifecycleService
             return $restrictedAt->copy()->addDays(config('subscriptions.restriction_days', 7))->lte($at)
                 ? 'suspended' : 'restricted';
         }
-        if ($subscription->status === 'trial' && $subscription->trial_ends_at?->gt($at)) {
-            return 'trial';
+        if ($subscription->status === 'trial') {
+            // A trial that has ended suspends the clinic: there is no paid period to give grace on.
+            return ! $subscription->trial_ends_at || $subscription->trial_ends_at->gt($at) ? 'trial' : 'suspended';
         }
         if ($subscription->status === 'active' && (! $subscription->current_period_ends_at || $subscription->current_period_ends_at->gt($at))) {
             return 'active';

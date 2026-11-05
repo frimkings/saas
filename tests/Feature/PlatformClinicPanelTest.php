@@ -136,6 +136,45 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertSame('applied', $waiting->fresh()->status);
     }
 
+    public function test_a_clinics_plan_request_shows_as_waiting_and_approving_it_during_a_trial_applies_now(): void
+    {
+        $clinic = $this->clinic();
+        $clinic->currentSubscription->update(['status' => 'trial', 'trial_ends_at' => now()->addDays(2)]);
+        $request = \App\Models\SubscriptionChangeRequest::create(['clinic_id' => $clinic->id, 'current_subscription_id' => $clinic->currentSubscription->id,
+            'requested_plan_id' => $this->pro->id, 'billing_interval' => 'monthly', 'requested_by' => $this->developer->id]);
+
+        // The developer sees it without opening Billing: a count on the menu and a note on the dashboard.
+        Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
+            ->assertSee('Waiting for you:')->assertSee('Panel Clinic asked for Pro')->assertSeeHtml('title="Plan requests and approvals waiting">1</span>')
+            ->call('reviewPlanRequest', $request->id, true);
+
+        $now = $clinic->fresh()->currentSubscription;
+        $this->assertSame([$this->pro->id, 'trial'], [$now->subscription_plan_id, $now->status], 'applied now, still on trial');
+        $this->assertSame('Applied now.', $request->fresh()->review_notes);
+    }
+
+    public function test_the_developer_backdates_a_paid_period_and_reopens_an_ended_trial(): void
+    {
+        $clinic = $this->clinic();
+        $panel = $this->panel($clinic)->call('setPanelTab', 'plan')->assertSee('Adjust dates');
+
+        // Paid on 1 Oct for a month: recorded as that period, which has now ended.
+        $panel->set('adjStatus', 'active')->set('adjStart', now()->subMonths(2)->toDateString())->set('adjEnd', now()->subMonth()->toDateString())
+            ->call('panelAdjustDates')->assertHasErrors('adjReason')
+            ->set('adjReason', 'Paid by MoMo two months ago')->call('panelAdjustDates')->assertHasNoErrors();
+        $sub = $clinic->fresh()->currentSubscription;
+        $this->assertSame(now()->subMonths(2)->toDateString(), $sub->current_period_starts_at->toDateString());
+        $this->assertNotSame('active', $sub->status, 'a period that has ended is not active');
+        $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SUBSCRIPTION_DATES_ADJUSTED', 'clinic_id' => $clinic->id, 'reason' => 'Paid by MoMo two months ago']);
+
+        // A trial that ended (suspended) is given three more days: it opens again.
+        $sub->update(['status' => 'suspended', 'trial_ends_at' => now()->subDay()]);
+        $panel->set('adjStatus', 'trial')->set('adjTrialEnds', now()->addDays(3)->toDateString())
+            ->set('adjStart', now()->subDays(3)->toDateString())->set('adjEnd', now()->addDays(3)->toDateString())
+            ->set('adjReason', 'Owner asked for more time')->call('panelAdjustDates')->assertHasNoErrors();
+        $this->assertSame('trial', $clinic->fresh()->currentSubscription->status);
+    }
+
     public function test_renew_issues_one_invoice_and_paying_it_extends_the_subscription(): void
     {
         $clinic = $this->clinic();

@@ -47,7 +47,7 @@ class PlatformRequestAlerts
                 'Message' => $request->message,
                 'Asked by' => $by ? "{$by->name} ({$by->email})" : null,
             ]),
-            'Review request', route('platform.dashboard', ['tab' => 'billing']));
+            'Review request', route('platform.dashboard', ['tab' => 'billing', 'section' => 'approvals']));
     }
 
     public function smsBundleOrdered(PlatformInvoice $invoice): void
