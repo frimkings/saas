@@ -99,6 +99,34 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $form->assertSet('showForm', false);
     }
 
+    public function test_a_supplier_sheet_with_two_diameters_is_received_one_grid_at_a_time(): void
+    {
+        $this->manager('two-diameters');
+        $t = fn (string $ref, string $text) => '<c r="'.$ref.'" t="inlineStr"><is><t>'.$text.'</t></is></c>';
+        $v = fn (string $ref, string $value) => '<c r="'.$ref.'"><v>'.$value.'</v></c>';
+        // Minus SPH at 70 mm in B-D, plus SPH at 65 mm in F-H, with formatting to column HT.
+        $upload = $this->workbook('1.56 BLUE BLOCK SV',
+            '<row r="1">'.$t('B1', '1.56 BLUE BLOCK SV HMC').'<c r="HT1" s="2"/></row>'
+            .'<row r="8">'.$t('B8', 'SPH').$t('C8', '70MM CYL(-)').$t('F8', 'SPH').$t('G8', '65MM CYL(-)').'</row>'
+            .'<row r="9">'.$t('B9', '(-)').$v('C9', '0').$v('D9', '0.25').$t('F9', '(+)').$v('G9', '0').$v('H9', '0.25').'</row>'
+            .'<row r="10">'.$v('B10', '1').$v('C10', '3').$v('F10', '1').$v('G10', '2').$v('H10', '1').'</row>');
+
+        $form = Livewire::test(OpticalStockManagementComponent::class)->call('openReceipt')
+            ->set('stockType', 'lens')->set('entryMode', 'bulk')->set('newManufacturer', 'Supplier')->call('addManufacturer')
+            ->set('excelFile', $upload)->assertHasNoErrors()
+            ->assertSet('excelLayout', 'template')->assertSet('lensDesign', 'Single Vision')->assertSet('lensCoating', 'BlueCut')
+            ->assertSet('excelGrids.0.name', 'Minus SPH (C9:D9), 70 mm')->assertSet('excelGrids.1.name', 'Plus SPH (G9:H9), 65 mm')
+            ->assertSee('Grid to import')
+            ->call('previewExcel')->assertHasErrors('excelGrid');
+
+        // The plus grid: its diameter comes with it, and only its quantities are read.
+        $form->set('excelGrid', '9:6')->assertSet('lensDiameter', '65')
+            ->call('previewExcel')->assertHasNoErrors()->assertSet('excelPreview.sourceTotal', 3)
+            ->assertSet('excelPreview.quantities.64.0', 4)->assertSet('excelPreview.quantities.64.1', 2);
+        $form->set('excelGrid', '9:2')->assertSet('lensDiameter', '70')
+            ->call('previewExcel')->assertHasNoErrors()->assertSet('excelPreview.sourceTotal', 3)->assertSet('excelPreview.quantities.56.0', 6);
+    }
+
     public function test_eye_choice_follows_the_quantity_unit_for_eye_specific_lenses(): void
     {
         $this->manager('eye-unit-sync');

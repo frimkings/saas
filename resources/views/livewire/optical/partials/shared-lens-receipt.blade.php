@@ -83,6 +83,11 @@
                     <label class="text-xs">Power heading row<input autocomplete="off" type="number" min="1" wire:model.live.debounce.400ms="excelHeaderRow" class="ui-input w-full"></label>
                     <label class="text-xs">SPH column (A=1, B=2)<input autocomplete="off" type="number" min="1" wire:model.live.debounce.400ms="excelSphereColumn" class="ui-input w-full"></label>
                     @endif
+                    @if($excelLayout === 'template' && $excelGrids)
+                    <label class="text-xs sm:col-span-3">Grid to import *<select wire:model.live="excelGrid" class="ui-input w-full"><option value="">Choose a grid</option>@foreach($excelGrids as $grid)<option value="{{ $grid['key'] }}">{{ $grid['name'] }}</option>@endforeach</select>
+                        <span class="block text-slate-500">This sheet has grids for different lens diameters. Import one, apply it, then import the sheet again for the other.</span>
+                        @error('excelGrid')<span class="block text-red-600">{{ $message }}</span>@enderror</label>
+                    @endif
                 </div>
                 <button type="button" wire:click="previewExcel" wire:loading.attr="disabled" class="ui-button">Preview import</button>
             @endif

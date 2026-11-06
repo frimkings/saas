@@ -27,6 +27,91 @@ class OpticalLensExcelImportTest extends TestCase
         $this->assertSame(10, $service->previewTemplate($sheet, $spec['design'], $spec['unit'])['total']);
     }
 
+    public function test_a_supplier_sheet_with_minus_and_plus_grids_side_by_side_is_read_one_grid_at_a_time(): void
+    {
+        $service = new OpticalLensExcelImportService();
+        // Shaped like a supplier order form: title in B1, diameters above each grid, unsigned CYL,
+        // a legend far to the right, subtotal rows and notes under the plus grid.
+        $sheet = ['name' => '1.56 PHOTO GREY BLUE BLOCK SV H', 'rows' => [
+            1 => [2 => '1.56 PHOTO GREY BLUE BLOCK SV HMC'],
+            8 => [2 => 'SPH', 3 => '70MM        CYL(-)', 12 => 'SPH', 13 => '65MM        CYL(-)', 53 => '*'],
+            9 => [2 => '(-)', 3 => '0.00', 4 => '0.25', 5 => '0.5', 12 => '(+)', 13 => '0.00', 14 => '0.25', 15 => '0.5', 53 => '1.499', 54 => 'White/Clear'],
+            10 => [2 => '0.00', 3 => '200', 4 => '20', 12 => '0.00', 53 => '1.56'],
+            11 => [2 => '0.25', 3 => '30', 5 => '4', 12 => '0.25', 13 => '40', 14 => '30', 15 => '35'],
+            12 => [2 => '0.5', 3 => '10', 12 => 'S.T', 13 => '=FORMULA'],
+            13 => [2 => '0.75', 13 => '注：以下是小计，不是订单数量'],
+            14 => [2 => 'S.T', 3 => '=FORMULA', 13 => 'TOTAL:', 15 => '=FORMULA'],
+        ], 'cached' => []];
+
+        // The first grid's diameter is the starting point; choosing a grid sets its own.
+        $this->assertSame(['design' => 'Single Vision', 'index' => '1.56', 'diameter' => '70'], $service->specifications($sheet));
+        $this->assertTrue($service->needsGridChoice($sheet));
+        $this->assertSame([['key' => '9:2', 'name' => 'Minus SPH (C9:E9), 70 mm', 'diameter' => '70'], ['key' => '9:12', 'name' => 'Plus SPH (M9:O9), 65 mm', 'diameter' => '65']], $service->templateGrids($sheet));
+        try {
+            $service->previewTemplate($sheet, 'Single Vision', 'pairs');
+            $this->fail('Grids of different diameters must be imported one at a time.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('grids for different lens diameters', $e->errors()['excelFile'][0]);
+        }
+
+        // Minus grid: unsigned SPH under "(-)" and unsigned CYL are both minus.
+        $minus = $service->previewTemplate($sheet, 'Single Vision', 'pairs', '9:2');
+        $this->assertSame(264, $minus['sourceTotal']);
+        $this->assertSame(['-0.25', '-0.50'], [$minus['lines'][2]['sphere'], $minus['lines'][3]['power']]);
+        $this->assertContains('CYL headings written without a minus sign were read as minus CYL.', $minus['warnings']);
+        // Plus grid: ends at its S.T row, so the note and TOTAL below it are not read.
+        $plus = $service->previewTemplate($sheet, 'Single Vision', 'pairs', '9:12');
+        $this->assertSame(105, $plus['sourceTotal']);
+        $this->assertSame('+0.25', $plus['lines'][0]['sphere']);
+    }
+
+    public function test_a_supplier_multifocal_sheet_reads_its_plus_and_minus_grids_and_full_title(): void
+    {
+        $service = new OpticalLensExcelImportService();
+        $heading = [2 => "SPH    \n       ADD", 3 => '+1.00', 4 => '+1.25', 5 => '+1.50'];
+        $sheet = ['name' => 'F3 1.56 PHOTO GREY BLUE BLOCK F', 'rows' => [
+            1 => [2 => 'F3 1.56 PHOTO GREY BLUE BLOCK FLAT TOP HMC UV 415'],
+            7 => $heading, 8 => [2 => '0.00', 3 => '15', 4 => '20'], 9 => [2 => '+0.25', 5 => '5'],
+            10 => [3 => '=FORMULA', 4 => '=FORMULA', 5 => '=FORMULA'],
+            12 => $heading, 13 => [2 => '0.00'], 14 => [2 => '-0.25', 4 => '3'],
+        ], 'cached' => []];
+        // The sheet name is cut at 31 characters; the title in B1 says it is a flat-top bifocal.
+        $this->assertSame(['design' => 'Bifocal', 'form' => 'Flat top', 'index' => '1.56'], $service->specifications($sheet));
+        $this->assertFalse($service->needsGridChoice($sheet));
+        $preview = $service->previewTemplate($sheet, 'Bifocal', 'pairs');
+        $this->assertSame(43, $preview['sourceTotal']);
+        $this->assertSame([40, 3], $preview['sectionTotals']);
+        // "PROGRESSIVE 14mm" is the corridor, not the diameter.
+        $this->assertArrayNotHasKey('diameter', $service->specifications(['name' => 'X', 'rows' => [1 => [2 => '1.56 PHOTO GREY PROGRESSIVE 14mm HMC']]]));
+    }
+
+    public function test_formatting_far_outside_the_grid_does_not_make_a_sheet_too_large(): void
+    {
+        $service = new OpticalLensExcelImportService();
+        $path = tempnam(sys_get_temp_dir(), 'wide_');
+        $zip = new \ZipArchive();
+        $zip->open($path, \ZipArchive::OVERWRITE);
+        $zip->addFromString('xl/workbook.xml', '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Wide" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+        // HT1 has only a style (borders): Excel keeps such cells far to the right.
+        $cells = fn (string $extra) => '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>SPH</t></is></c><c r="B1"><v>0</v></c>'.$extra.'</row></sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $cells('<c r="HT1" s="3"/>'));
+        $zip->close();
+        try {
+            $this->assertSame('SPH', $service->read($path)[0]['rows'][1][1]);
+            // A value out there still counts, and the message says where.
+            $zip->open($path);
+            $zip->addFromString('xl/worksheets/sheet1.xml', $cells('<c r="HT1"><v>5</v></c>'));
+            $zip->close();
+            try {
+                $service->read($path);
+                $this->fail('A value beyond column 100 should be refused.');
+            } catch (ValidationException $e) {
+                $this->assertStringContainsString('Cell HT1 in "Wide" holds something', $e->errors()['excelFile'][0]);
+            }
+        } finally { unlink($path); }
+    }
+
     public function test_st_pat_workbook_sections_and_actual_totals(): void
     {
         $service = new OpticalLensExcelImportService();

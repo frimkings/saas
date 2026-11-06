@@ -28,16 +28,22 @@ class OpticalLensExcelImportService
             if (is_numeric($specs['index'])) $specs['index'] = number_format((float) $specs['index'], 2, '.', '');
             return $specs + $this->eyeFromTitle($sheet['name']);
         }
-        $title = strtoupper(trim($sheet['name']));
-        $text = $title.' '.implode(' ', array_merge(...array_values(array_slice($sheet['rows'], 0, 5, true))));
+        // Excel cuts worksheet names at 31 characters, so the full title in the first rows counts too
+        // ("...BLUE BLOCK F" is "...BLUE BLOCK FLAT TOP HMC" in its first row).
+        $text = strtoupper(trim($sheet['name']).' '.implode(' ', array_merge(...array_values(array_slice($sheet['rows'], 0, 5, true)))));
         $specs = [];
-        if (str_contains($title, 'PROGRESSIVE')) $specs['design'] = 'Progressive';
-        elseif (str_contains($title, 'BIFOCAL')) $specs['design'] = 'Bifocal';
-        elseif (str_contains($title, 'BLUE BLOCK')) $specs['design'] = 'Single Vision';
-        if (str_contains($title, 'PHOTOGRAY')) $specs['coating'] = 'Photo Gray';
-        elseif (str_contains($title, 'BLUE BLOCK')) $specs['coating'] = 'BlueCut';
+        if (str_contains($text, 'PROGRESSIVE')) $specs['design'] = 'Progressive';
+        elseif (preg_match('/BIFOCAL|FLAT\s*-?\s*TOP|\bD-?SEG\b|\bKRYPTOK\b/', $text)) $specs['design'] = 'Bifocal';
+        elseif (preg_match('/\bSV\b|SINGLE\s*VISION|BLUE BLOCK/', $text)) $specs['design'] = 'Single Vision';
+        if (($specs['design'] ?? '') === 'Bifocal' && preg_match('/FLAT\s*-?\s*TOP/', $text)) $specs['form'] = 'Flat top';
+        // One treatment per lens: a photochromic blue-blocking lens is left for staff to choose.
+        $photo = (bool) preg_match('/PHOTO\s*GR[AE]Y/', $text);
+        $blue = str_contains($text, 'BLUE BLOCK');
+        if ($photo && ! $blue) $specs['coating'] = 'Photo Gray';
+        elseif ($blue && ! $photo) $specs['coating'] = 'BlueCut';
         if (preg_match('/\b(1\.50|1\.56|1\.60|1\.61|1\.67|1\.74)\b/', $text, $m)) $specs['index'] = $m[1];
-        if (preg_match('/\b(\d{2})\s*mm\b/i', $text, $m)) $specs['diameter'] = $m[1];
+        // A diameter is 40 mm or more; "PROGRESSIVE 14mm" is the corridor length.
+        if (preg_match_all('/\b(\d{2,3})\s*mm\b/i', $text, $all)) foreach ($all[1] as $mm) if ((int) $mm >= 40) { $specs['diameter'] = $mm; break; }
         return $specs + $this->eyeFromTitle($sheet['name']);
     }
 
@@ -58,84 +64,188 @@ class OpticalLensExcelImportService
         return is_numeric($value) ? (float) $value : null;
     }
 
-    public function previewTemplate(array $sheet, string $design, string $unit): array
+    /**
+     * The power grids that start on one worksheet row: a label cell (SPH, +, -, (+), (-), or empty in
+     * column A) followed by at least two power headings. Suppliers often put two grids side by side,
+     * such as minus SPH on the left and plus SPH on the right, each under its own diameter.
+     *
+     * @return array<int, array{label: int, marker: string, headings: array<int, float>}> keyed by label column
+     */
+    private function gridHeadings(array $cells): array
+    {
+        $blocks = [];
+        foreach ($cells as $col => $value) {
+            // "SPH/CYL", "SPH ADD" on two lines, "(-)": letters and signs only.
+            $marker = preg_replace('/[^A-Z+\-]/', '', strtoupper((string) $value));
+            $named = $this->powerNumber($value) === null && in_array($marker, ['+', '-', 'SPH', 'SPHCYL', 'SPHADD', 'CYLSPH', 'ADDSPH'], true);
+            // Column A may be left empty above the sphere labels (the app's own template does this).
+            if (! $named && ! ($col === 1 && $value === '')) continue;
+            // $end: the grid's last column. An empty heading just before a "FINAL" or "Total" cell is
+            // still inside the grid, so quantities under it are reported rather than skipped.
+            $headings = []; $gap = 0; $end = null;
+            for ($c = $col + 1; $c <= $col + 40; $c++) {
+                $text = (string) ($cells[$c] ?? '');
+                if ($text === '') { if (++$gap > 1) break; continue; }
+                $power = preg_match('/total|final/i', $text) ? null : $this->powerNumber($text);
+                if ($power === null) { $end = $gap ? $c - 1 : null; break; }
+                $headings[$c] = $power; $gap = 0;
+            }
+            if (count($headings) >= 2) $blocks[$col] = ['label' => $col, 'marker' => $marker, 'headings' => $headings, 'end' => max($end ?? 0, array_key_last($headings))];
+        }
+        if (! isset($cells[1]) && ! $blocks) {
+            // Column A missing entirely: same as an empty label cell there.
+            $probe = $this->gridHeadings([1 => ''] + $cells);
+            if (isset($probe[1])) $blocks[1] = $probe[1];
+        }
+        return $blocks;
+    }
+
+    /**
+     * The grids that start on this row, given the label columns of the grids already open above it. A grid
+     * whose sphere labels are in another column leaves column A empty on its data rows, so an "empty column A"
+     * grid only starts a new section when no grid is open or the open grid is the one labelled in column A.
+     */
+    private function headingsUnder(array $cells, array $openLabelColumns): array
+    {
+        $found = $this->gridHeadings($cells);
+        if (isset($found[1]) && $found[1]['marker'] === '' && $openLabelColumns && ! in_array(1, $openLabelColumns, true)) unset($found[1]);
+        return $found;
+    }
+
+    /** "70" from a heading such as "70MM CYL(-)" just above a grid; lens diameters are 40 mm or more. */
+    private function gridDiameter(array $rows, int $headerRow, array $grid): ?string
+    {
+        for ($row = $headerRow - 1; $row >= max(1, $headerRow - 3); $row--) {
+            foreach (array_keys($grid['headings']) as $col) {
+                if (preg_match('/\b(\d{2,3})\s*mm\b/i', (string) ($rows[$row][$col] ?? ''), $m) && (int) $m[1] >= 40) return $m[1];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Every grid on the sheet, for choosing one when they are for different lenses (diameters).
+     *
+     * @return array<int, array{key: string, name: string, diameter: ?string}>
+     */
+    public function templateGrids(array $sheet): array
+    {
+        $grids = []; $open = [];
+        foreach ($sheet['rows'] as $row => $cells) {
+            $found = $this->headingsUnder($cells, $open);
+            if (! $found) continue;
+            $open = array_keys($found);
+            foreach ($found as $col => $grid) {
+                $first = array_key_first($grid['headings']); $last = array_key_last($grid['headings']);
+                $side = $grid['marker'] === '-' ? 'Minus SPH' : ($grid['marker'] === '+' ? 'Plus SPH' : 'Grid');
+                $diameter = $this->gridDiameter($sheet['rows'], $row, $grid);
+                $grids[] = ['key' => "$row:$col", 'name' => $side.' ('.$this->cellRef($row, $first).':'.$this->cellRef($row, $last).')'.($diameter ? ", $diameter mm" : ''), 'diameter' => $diameter];
+            }
+        }
+        return $grids;
+    }
+
+    /** True when the sheet's grids state more than one diameter, so one must be imported at a time. */
+    public function needsGridChoice(array $sheet): bool
+    {
+        return count(array_unique(array_filter(array_column($this->templateGrids($sheet), 'diameter')))) > 1;
+    }
+
+    public function previewTemplate(array $sheet, string $design, string $unit, ?string $grid = null): array
     {
         if (! in_array($unit, ['pieces', 'pairs'], true)) $this->fail('Choose whether the workbook quantities are pieces or pairs.');
         $detected = $this->specifications($sheet);
         if (isset($detected['design']) && $detected['design'] !== $design) $this->fail('The selected lens design does not match this worksheet.');
-        $columns = []; $quantities = []; $lines = []; $seen = []; $section = 0; $sign = 1;
-        $warnings = []; $sectionTotals = []; $rawTotal = 0; $invalid = []; $blank = []; $unheaded = []; $odd = []; $halves = 0;
+        $grids = $this->templateGrids($sheet);
+        if ($grid === null && $this->needsGridChoice($sheet)) {
+            $this->fail('This worksheet has grids for different lens diameters ('.implode('; ', array_column($grids, 'name')).'). Choose one grid to import, then import the other as its own delivery.');
+        }
+        if ($grid !== null && ! in_array($grid, array_column($grids, 'key'), true)) $this->fail('Choose one of the grids on this worksheet.');
+        $quantities = []; $lines = []; $section = 0; $active = [];
+        $warnings = []; $sectionTotals = []; $rawTotal = 0; $invalid = []; $unheaded = []; $odd = []; $halves = 0;
         // A single vision pair is two interchangeable lenses of one power. A progressive or
         // bifocal pair is one right and one left lens, so its grid cells keep the pair count
         // and receiving adds that many lenses to each eye.
         $perEye = $unit === 'pairs' && \App\Support\LensDesign::isEyeSpecific($design);
         foreach ($sheet['rows'] as $row => $cells) {
-            $label = trim($cells[1] ?? '');
-            $marker = preg_replace('/[\s()]/', '', $label);
-            $candidate = [];
-            if (in_array(strtoupper($marker), ['', '+', '-', 'SPH', 'SPH/CYL', 'SPH/ADD'], true)) {
-                foreach ($cells as $col => $value) {
-                    if ($col <= 1 || $value === '' || preg_match('/total|final/i', $value)) continue;
-                    $power = $this->powerNumber($value);
-                    if ($power !== null) $candidate[$col] = $power;
+            $found = $this->headingsUnder($cells, array_keys($active));
+            if ($found) {
+                $active = [];
+                foreach ($found as $col => $block) {
+                    if ($grid !== null && $grid !== "$row:$col") continue;
+                    $section++; $columns = []; $bad = [];
+                    $headings = $block['headings'];
+                    // "CYL(-)" grids often write their CYL powers without the minus sign.
+                    $unsigned = $design === 'Single Vision' && collect($headings)->every(fn ($p) => $p >= 0) && collect($headings)->contains(fn ($p) => $p > 0);
+                    if ($unsigned) { $headings = array_map(fn ($p) => -$p, $headings); $warnings['unsigned'] = 'CYL headings written without a minus sign were read as minus CYL.'; }
+                    foreach ($headings as $col2 => $power) {
+                        if (! $this->validHeading($power, $design)) { $bad[] = $col2; continue; }
+                        if (in_array($power, $columns, true)) $this->fail("Duplicate power heading in row $row.");
+                        $columns[$col2] = $power;
+                    }
+                    if ($bad) {
+                        $shown = array_map(function ($col2) use ($row, $cells, $columns, $design) {
+                            $expected = $this->expectedHeading($columns, $col2, $design);
+                            return $this->cellRef($row, $col2).' shows "'.$cells[$col2].'"'.($expected ? ", expected $expected" : '');
+                        }, $bad);
+                        $this->fail("Invalid power heading in worksheet row $row: ".implode('; ', $shown).'. '
+                            .($design === 'Single Vision' ? 'CYL headings run from 0.00 to -6.00' : 'ADD headings run from +0.25 to +4.00')
+                            .' in 0.25 steps. Quantities may have been typed over the headings; restore them and upload again.');
+                    }
+                    // Empty heading cells inside the grid; quantities under them would otherwise be skipped.
+                    $blank = [];
+                    for ($c = array_key_first($block['headings']) + 1; $c <= $block['end']; $c++) {
+                        if (($cells[$c] ?? '') === '') $blank[$c] = [$this->cellRef($row, $c), $this->expectedHeading($columns, $c, $design)];
+                    }
+                    $sectionTotals[$section] = 0;
+                    $active[$col] = ['columns' => $columns, 'blank' => $blank, 'seen' => [], 'section' => $section, 'sign' => $block['marker'] === '-' ? -1 : 1];
                 }
-            }
-            if (count($candidate) >= 2) {
-                $section++; $columns = []; $seen = []; $blank = []; $bad = []; $sign = $marker === '-' ? -1 : 1;
-                foreach ($candidate as $col => $power) {
-                    if (! $this->validHeading($power, $design)) { $bad[] = $col; continue; }
-                    if (in_array($power, $columns, true)) $this->fail("Duplicate power heading in row $row.");
-                    $columns[$col] = $power;
-                }
-                if ($bad) {
-                    $shown = array_map(function ($col) use ($row, $cells, $columns, $design) {
-                        $expected = $this->expectedHeading($columns, $col, $design);
-                        return $this->cellRef($row, $col).' shows "'.$cells[$col].'"'.($expected ? ", expected $expected" : '');
-                    }, $bad);
-                    $this->fail("Invalid power heading in worksheet row $row: ".implode('; ', $shown).'. '
-                        .($design === 'Single Vision' ? 'CYL headings run from 0.00 to -6.00' : 'ADD headings run from +0.25 to +4.00')
-                        .' in 0.25 steps. Quantities may have been typed over the headings; restore them and upload again.');
-                }
-                // Empty heading cells inside the grid; quantities under them would otherwise be skipped.
-                $last = max(array_keys(array_filter($cells, fn ($value) => $value !== '')));
-                for ($col = 2; $col < $last; $col++) if (($cells[$col] ?? '') === '') $blank[$col] = [$this->cellRef($row, $col), $this->expectedHeading($columns, $col, $design)];
-                $sectionTotals[$section] = 0;
                 continue;
             }
-            if (! $columns) continue;
-            if (preg_match('/^sub\s*t|total|^sph|^s\.?c\.?$/i', $label)) continue;
-            if ($label === '' && collect($columns)->keys()->every(fn ($col) => ($cells[$col] ?? '') === '' || preg_match('/total|final/i', $cells[$col] ?? ''))) continue;
-            $sphere = $this->powerNumber($label);
-            if ($sphere === null) $this->fail("Invalid sphere in row $row. Check the selected worksheet.");
-            if ($sign < 0 && ! str_starts_with(ltrim($label), '+')) $sphere = -abs($sphere);
-            if ($sphere < -15 || $sphere > 15 || abs($sphere * 4 - round($sphere * 4)) > .00001) $this->fail("Invalid sphere in row $row.");
-            $r = (int) round(($sphere + 15) * 4);
-            if (isset($seen[$r])) $this->fail("Repeated sphere within the same section at row $row.");
-            $seen[$r] = true;
-            foreach ($blank as $col => [$headerRef, $expected]) {
-                if (($this->number($cells[$col] ?? '') ?? 0) <= 0) continue;
-                $unheaded[$headerRef]['expected'] = $expected;
-                $unheaded[$headerRef]['cells'][] = $this->cellRef($row, $col);
-            }
-            foreach ($columns as $col => $power) {
-                $value = $cells[$col] ?? '';
-                if ($value === '') continue;
-                $cell = $this->cellQuantity($value, $unit, $perEye);
-                if ($cell === null) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
-                [$pieces, $quantity, $half] = $cell;
-                if ($quantity == 0) continue;
-                $c = $design === 'Single Vision' ? (int) round(-$power * 4) : (int) round(($power - .25) * 4);
-                if ($half) $halves++;
-                if ($half && $perEye) $odd["$r:$c"] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'row' => $row];
-                if (isset($quantities[$r][$c])) {
-                    if ($r !== 60) $this->fail("Duplicate non-zero sphere/power across sections at row $row.");
-                    $warnings['plano'] = 'Plus-zero and minus-zero quantities are combined into one 0.00 stock balance.';
+            foreach ($active as $labelColumn => &$open) {
+                $label = trim($cells[$labelColumn] ?? '');
+                $columns = $open['columns'];
+                // A subtotal or total row closes its grid; notes below it are not quantities.
+                if (preg_match('/^sub\s*t|total|^s\.?[ct]\.?$/i', $label)) { $open['closed'] = true; continue; }
+                if (! empty($open['closed']) || preg_match('/^sph/i', $label)) continue;
+                $values = array_map(fn ($col) => $cells[$col] ?? '', array_keys($columns));
+                if ($label === '' && collect($values)->every(fn ($v) => $v === '' || $v === '=FORMULA' || preg_match('/total|final/i', $v))) {
+                    if (collect($values)->contains('=FORMULA')) $open['closed'] = true;
+                    continue;
                 }
-                $quantities[$r][$c] = ($quantities[$r][$c] ?? 0) + $pieces;
-                if ($quantities[$r][$c] > 100000) $this->fail('A power exceeds the maximum receipt quantity of 100000 pieces.');
-                $rawTotal += $quantity; $sectionTotals[$section] += $quantity;
-                $lines[] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'quantity' => $pieces, 'source_quantity' => $this->tidy($quantity), 'half' => $half, 'row' => $row];
+                $sphere = $this->powerNumber($label);
+                if ($sphere === null) $this->fail("Invalid sphere in row $row (".$this->cellRef($row, $labelColumn).'). Check the selected worksheet.');
+                if ($open['sign'] < 0 && ! str_starts_with(ltrim($label), '+')) $sphere = -abs($sphere);
+                if ($sphere < -15 || $sphere > 15 || abs($sphere * 4 - round($sphere * 4)) > .00001) $this->fail("Invalid sphere in row $row.");
+                $r = (int) round(($sphere + 15) * 4);
+                if (isset($open['seen'][$r])) $this->fail("Repeated sphere within the same section at row $row.");
+                $open['seen'][$r] = true;
+                foreach ($open['blank'] as $col => [$headerRef, $expected]) {
+                    if (($this->number($cells[$col] ?? '') ?? 0) <= 0) continue;
+                    $unheaded[$headerRef]['expected'] = $expected;
+                    $unheaded[$headerRef]['cells'][] = $this->cellRef($row, $col);
+                }
+                foreach ($columns as $col => $power) {
+                    $value = $cells[$col] ?? '';
+                    if ($value === '') continue;
+                    $cell = $this->cellQuantity($value, $unit, $perEye);
+                    if ($cell === null) { $invalid[] = $this->cellRef($row, $col).' ("'.$value.'")'; continue; }
+                    [$pieces, $quantity, $half] = $cell;
+                    if ($quantity == 0) continue;
+                    $c = $design === 'Single Vision' ? (int) round(-$power * 4) : (int) round(($power - .25) * 4);
+                    if ($half) $halves++;
+                    if ($half && $perEye) $odd["$r:$c"] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'row' => $row];
+                    if (isset($quantities[$r][$c])) {
+                        if ($r !== 60) $this->fail("Duplicate non-zero sphere/power across sections at row $row.");
+                        $warnings['plano'] = 'Plus-zero and minus-zero quantities are combined into one 0.00 stock balance.';
+                    }
+                    $quantities[$r][$c] = ($quantities[$r][$c] ?? 0) + $pieces;
+                    if ($quantities[$r][$c] > 100000) $this->fail('A power exceeds the maximum receipt quantity of 100000 pieces.');
+                    $rawTotal += $quantity; $sectionTotals[$open['section']] += $quantity;
+                    $lines[] = ['sphere' => sprintf('%+.2f', $sphere ?: 0), 'power' => sprintf('%+.2f', $power), 'quantity' => $pieces, 'source_quantity' => $this->tidy($quantity), 'half' => $half, 'row' => $row];
+                }
             }
+            unset($open);
         }
         if ($unheaded) {
             $shown = [];
@@ -149,6 +259,8 @@ class OpticalLensExcelImportService
         if (! $lines) $this->fail('No quantities found. Use the ST PAT layout or switch to manual header selection.');
         foreach ($sheet['rows'] as $row => $cells) foreach ($cells as $col => $value) {
             $declared = null;
+            // A sheet total covers every grid; with one grid chosen it can't be compared.
+            if ($grid !== null && ! preg_match('/\bpairs\b/i', $value)) continue;
             if (preg_match('/total\s*=\s*(\d+)/i', $value, $m)) $declared = (int) $m[1];
             if ($col > 11 && preg_match('/^total$/i', $value)) $declared = $sheet['cached'][$row][$col + 1] ?? $cells[$col + 1] ?? null;
             if (is_numeric($declared) && (float) $declared != $rawTotal) $warnings[] = "Worksheet summary at row $row shows $declared; quantity cells total $rawTotal. The import uses the quantity cells.";
@@ -269,8 +381,12 @@ class OpticalLensExcelImportService
                     if (! preg_match('/^([A-Z]+)([0-9]+)$/', (string) $cell['r'], $match)) continue;
                     $col = 0;
                     foreach (str_split($match[1]) as $letter) $col = $col * 26 + ord($letter) - 64;
-                    if ((int) $match[2] > 2000 || $col > 100) $this->fail('Use a worksheet with at most 2,000 rows and 100 columns.');
                     $data = $cell->children('http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+                    // A cell with only formatting (borders, colour) holds nothing to read. Excel often keeps such
+                    // cells far to the right or below the sheet, so they must not count towards its size.
+                    $empty = ! isset($data->v) && ! isset($data->f) && ! isset($data->is);
+                    if ($empty && ((int) $match[2] > 2000 || $col > 100)) continue;
+                    if ((int) $match[2] > 2000 || $col > 100) $this->fail('Use a worksheet with at most 2,000 rows and 100 columns. Cell '.$match[0].' in "'.$sheet['name'].'" holds something; clear it or move the lens grid nearer the top left.');
                     $value = (string) $data->v;
                     if (isset($data->f)) { $cached[(int) $match[2]][$col] = $value; $value = '=FORMULA'; }
                     elseif ((string) $cell['t'] === 's') $value = $strings[(int) $value] ?? '';

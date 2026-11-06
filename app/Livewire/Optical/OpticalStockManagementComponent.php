@@ -18,6 +18,11 @@ class OpticalStockManagementComponent extends Component
     public int $excelSheet = 0;
     public string $excelLayout = 'manual';
     public string $excelUnit = '';
+    /** "row:column" of the grid to import, when a worksheet has grids for different diameters */
+    public string $excelGrid = '';
+    /** [key, name, diameter] of each grid on the worksheet, shown when one must be chosen */
+    #[\Livewire\Attributes\Locked]
+    public array $excelGrids = [];
     public bool $excelWarningsAccepted = false;
     public bool $templateGrid = true;
     public string $bulkSection = 'positive';
@@ -64,15 +69,39 @@ class OpticalStockManagementComponent extends Component
     {
         $specs = app(\App\Services\OpticalLensExcelImportService::class)->specifications($sheet);
         $this->excelLayout = isset($specs['design']) ? 'template' : 'manual';
-        foreach (['range' => 'lensRange', 'design' => 'lensDesign', 'coating' => 'lensCoating', 'index' => 'lensIndex', 'diameter' => 'lensDiameter', 'eye' => 'lensEye'] as $key => $property) {
+        foreach (['range' => 'lensRange', 'design' => 'lensDesign', 'form' => 'lensForm', 'coating' => 'lensCoating', 'index' => 'lensIndex', 'diameter' => 'lensDiameter', 'eye' => 'lensEye'] as $key => $property) {
             if (isset($specs[$key])) $this->$property = $specs[$key];
         }
+        // Grids for different diameters (minus 70 mm beside plus 65 mm, say) are imported one at a time.
+        $service = app(\App\Services\OpticalLensExcelImportService::class);
+        $this->excelGrids = $this->excelLayout === 'template' && $service->needsGridChoice($sheet) ? $service->templateGrids($sheet) : [];
+        $this->excelGrid = '';
         $this->excelPreview = [];
         $this->excelWarningsAccepted = false;
         // Manufacturer lens orders are in pairs unless the workbook states otherwise. A
         // progressive/bifocal sheet titled for one eye holds that eye's individual lenses.
         $this->excelUnit = ($specs['unit'] ?? '') ?: (in_array($specs['eye'] ?? '', ['R', 'L'], true) ? 'pieces' : 'pairs');
         if (\App\Support\LensDesign::isEyeSpecific($this->lensDesign)) $this->syncEyeToUnit();
+    }
+
+    /** Switching to the lens order grid layout looks for grids of different diameters on the sheet. */
+    public function updatedExcelLayout(): void
+    {
+        $this->excelPreview = [];
+        $this->excelGrid = '';
+        $this->excelGrids = [];
+        if ($this->excelLayout !== 'template' || ! $this->excelFile) return;
+        $service = app(\App\Services\OpticalLensExcelImportService::class);
+        $sheet = $service->readUpload($this->excelFile)[$this->excelSheet] ?? null;
+        if ($sheet && $service->needsGridChoice($sheet)) $this->excelGrids = $service->templateGrids($sheet);
+    }
+
+    /** The chosen grid's diameter, when its heading states one. */
+    public function updatedExcelGrid(): void
+    {
+        $this->excelPreview = [];
+        $grid = collect($this->excelGrids)->firstWhere('key', $this->excelGrid);
+        if ($grid && $grid['diameter']) $this->lensDiameter = $grid['diameter'];
     }
     /** @var array<string, string> "row:column" => R or L, chosen for each odd lens in the preview */
     public array $oddEyes = [];
@@ -85,7 +114,7 @@ class OpticalStockManagementComponent extends Component
     {
         $this->assertManager();
         if (! $this->excelOriginalSpecs) {
-            foreach (['lensRange', 'lensDesign', 'lensCoating', 'lensIndex', 'lensDiameter', 'lensEye', 'unitCost', 'unitPrice'] as $field) $this->excelOriginalSpecs[$field] = $this->$field;
+            foreach (['lensRange', 'lensDesign', 'lensForm', 'lensCoating', 'lensIndex', 'lensDiameter', 'lensEye', 'unitCost', 'unitPrice'] as $field) $this->excelOriginalSpecs[$field] = $this->$field;
         }
         $this->excelPreview = [];
         $this->excelSheets = [];
@@ -111,7 +140,8 @@ class OpticalStockManagementComponent extends Component
         $sheets = $service->readUpload($this->excelFile);
         abort_unless(isset($sheets[$this->excelSheet]), 422);
         if ($this->excelLayout === 'template') {
-            $this->excelPreview = $service->previewTemplate($sheets[$this->excelSheet], $this->lensDesign, $this->excelUnit);
+            if ($this->excelGrids && $this->excelGrid === '') { $this->addError('excelGrid', 'Choose which grid to import.'); return; }
+            $this->excelPreview = $service->previewTemplate($sheets[$this->excelSheet], $this->lensDesign, $this->excelUnit, $this->excelGrids ? $this->excelGrid : null);
         } else {
             // Eye-specific pairs keep the pair count per cell: one right and one left lens each.
             $this->excelPreview = $service->preview($sheets[$this->excelSheet]['rows'], $this->excelHeaderRow, $this->excelSphereColumn, $this->lensDesign,
@@ -149,7 +179,7 @@ class OpticalStockManagementComponent extends Component
         $this->bulkPrices = [];
         $this->bulkStart = (string) (-15 + min(array_keys($this->bulkQuantities)) / 4);
         $this->entryMode = 'bulk';
-        $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs']);
+        $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs', 'excelGrids', 'excelGrid']);
     }
 
     /** Set every odd lens in the preview to one eye. */
@@ -172,7 +202,7 @@ class OpticalStockManagementComponent extends Component
     {
         $this->oddEyes = [];
         foreach ($this->excelOriginalSpecs as $field => $value) $this->$field = $value;
-        $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs']);
+        $this->reset(['excelFile', 'excelPreview', 'excelSheets', 'excelOriginalSpecs', 'excelGrids', 'excelGrid']);
         $this->resetValidation();
     }
 
