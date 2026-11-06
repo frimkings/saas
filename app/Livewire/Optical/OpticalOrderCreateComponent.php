@@ -1196,6 +1196,8 @@ class OpticalOrderCreateComponent extends Component
                         ->orWhere('pxnumber', 'like', $term);
                 })->orderBy('name')->limit(10)->get()
                 : collect(),
+            // The special-order tour tells managers how to order the lens themselves.
+            'specialTourContext' => ['buyer' => (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])],
             // Every active partner: the picker filters them in the browser.
             'partners' => OpticalPartnerClinic::where('is_active', true)->orderBy('name')->get(),
             'prescriptions' => $this->patient_id ? OpticalPrescription::where('patient_id', $this->patient_id)->latest()->get() : collect(),

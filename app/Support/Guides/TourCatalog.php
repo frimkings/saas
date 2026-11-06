@@ -21,6 +21,7 @@ final class TourCatalog
         'optical.dashboard' => 1,
         'optical.orders' => 1,
         'optical.order-create' => 1,
+        'optical.special-order' => 1,
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 1,
@@ -65,6 +66,7 @@ final class TourCatalog
             'optical.dashboard' => self::opticalDashboard($context),
             'optical.orders' => self::opticalOrders(),
             'optical.order-create' => self::opticalOrderCreate(),
+            'optical.special-order' => self::opticalSpecialOrder($context),
             'optical.lab' => self::opticalLab(),
             'optical.catalogue' => self::opticalCatalogue($context),
             'optical.pos' => self::opticalPos(),
@@ -165,6 +167,25 @@ final class TourCatalog
             ['target' => 'opt-quote', 'title' => 'Not ready to order?', 'body' => 'Save it as a quotation once the prescription is in (for a service job, once the services are picked). It keeps its prices and turns into an order when the customer pays a deposit.'],
             ['target' => 'opt-next', 'title' => 'Next', 'body' => 'Each step is checked before you move on, so nothing is missed.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    /**
+     * New order, the moment a lens has to be bought in: from pricing it to glazing. Starts by itself the first
+     * time a special order appears on the lens step (one eye or both); the "Special orders" button repeats it.
+     */
+    private static function opticalSpecialOrder(array $c): array
+    {
+        $buyer = $c['buyer'] ?? false;
+
+        return ['key' => 'optical.special-order', 'title' => 'Special orders', 'steps' => [
+            ['title' => 'This lens has to be bought in', 'body' => 'There is no lens in stock for this prescription, so it is a special order: the shop buys it from a supplier for this customer. Here is what happens from now until the glasses are made. It takes half a minute.'],
+            ['target' => 'opt-so-price', 'title' => 'Price it', 'body' => 'Enter what the customer pays for the lens. The catalogue price is shown when there is one. A price you type for a power with no catalogue price is emailed to the owner, to check it covers what the supplier charges.'],
+            ['target' => 'opt-so-both', 'title' => 'One from stock, one bought in?', 'body' => 'For a bifocal or progressive pair, labs usually advise making both eyes together so they match. Special-order both eyes does that, and the stock lens stays on the shelf.'],
+            ['target' => 'opt-so-wait', 'title' => 'The job waits for the lens', 'body' => 'You can place the order and take the deposit now, but glazing cannot start until the lens arrives. When the supplier\'s delivery time is known it shows here: allow for it in the pickup date.'],
+            ['title' => 'After you place the order', 'body' => 'Once it is paid (or billed to a partner on account), the owner is told the lens needs buying. A quotation orders nothing. Until it is on a supplier order, the job shows in Needs attention and in Purchasing under Special-order lenses'.($buyer ? ': tick it there, choose the supplier and create the supplier order.' : ', where a manager orders it from the supplier.')],
+            ['title' => 'When the lens arrives', 'body' => 'Receiving the supplier order marks the lens as arrived on the job. A lens that came another way can be marked arrived on the order or on the Lab Workbench. The job then goes to glazing as usual.'],
+            ['target' => 'opt-so-replay', 'title' => 'That is it', 'body' => 'See this again at any time from here.'],
         ]];
     }
 

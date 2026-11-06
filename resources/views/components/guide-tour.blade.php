@@ -6,8 +6,10 @@
         <x-guide-tour page="attendance" :context="['manager' => $manager]" />
 
     :auto="false" never starts it by itself (the page is empty, say); the button still does.
+    A tour for one moment on a page (a special order, say) sits beside that part: give it its own label and
+    replay name, and :when-shown="true" so it waits until that part is on the screen before starting itself.
 --}}
-@props(['page', 'context' => [], 'auto' => true])
+@props(['page', 'context' => [], 'auto' => true, 'label' => 'Tour', 'replay' => 'tour-replay', 'whenShown' => false])
 @php
     $tour = auth()->check() ? \App\Support\Guides\TourCatalog::tour($page, $context) : null;
 @endphp
@@ -16,6 +18,7 @@
         $tourConfig = [
             'steps' => $tour['steps'],
             'auto' => $auto && ! \App\Support\Guides\Guides::seen($tour['key'], $tour['version']),
+            'whenShown' => (bool) $whenShown,
             'url' => route('guides.record', $tour['key']),
             'csrf' => csrf_token(),
         ];
@@ -38,8 +41,8 @@
         </style>
     @endonce
     <span wire:ignore x-data="guideTour(@js($tourConfig))" style="display:contents">
-        <button type="button" data-tour="tour-replay" x-on:click="start()" title="Take a tour of this page"
-                {{ $attributes->merge(['class' => 'ui-button ui-button-secondary']) }}><i class="fas fa-question-circle" aria-hidden="true"></i>Tour</button>
+        <button type="button" data-tour="{{ $replay }}" x-on:click="start()" title="{{ $label === 'Tour' ? 'Take a tour of this page' : $label }}"
+                {{ $attributes->merge(['class' => 'ui-button ui-button-secondary']) }}><i class="fas fa-question-circle" aria-hidden="true"></i>{{ $label }}</button>
         <template x-teleport="body">
             <div class="gt-root" x-show="open" style="display:none" x-bind:class="hole ? '' : 'gt-dim'" x-on:keydown.escape.window="open && skip()">
                 <div class="gt-hole" x-show="hole" x-bind:style="hole"></div>

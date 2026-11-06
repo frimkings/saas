@@ -2196,6 +2196,42 @@ class OpticalWorkflowTest extends TestCase
         $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Single Vision|Gold'])->assertSet('wantedLens', '');
     }
 
+    public function test_a_special_order_on_the_lens_step_comes_with_its_own_tour(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        [$clinic] = $this->tenant($user, 'special-order-tour');
+        $this->actingAs($user);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Esi', 'contact' => '0240000777', 'gender' => 'Other']);
+        app(\App\Services\OpticalLensReceivingService::class)->receiveMany([[
+            'specs' => ['range' => 'CANADA', 'design' => 'Progressive', 'index' => '1.56', 'coating' => 'Photo AR', 'diameter' => 65, 'sphere' => '-1.00', 'power' => '1.50', 'eye' => 'R'],
+            'quantity' => 4, 'details' => ['unit_cost' => 20, 'unit_price' => 50, 'supplier' => 'Lab'],
+        ]]);
+        $rx = ['od' => ['sph' => '-1.00', 'add' => '1.50'], 'os' => ['sph' => '-2.00', 'cyl' => '-3.00', 'axis' => '180', 'add' => '2.50']];
+
+        // Special order chosen for both eyes: the tour sits beside its price (shown only once that is picked).
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2)
+            ->assertSeeHtml('data-tour="opt-so-replay"')->assertSee('Special orders')->assertSeeHtml('data-tour="opt-so-price"');
+        // One eye in stock, the other bought in: the tour comes with that eye's price, the wait and the mixed pair.
+        $form->call('checkLensAvailabilityFromClient', $rx + ['wanted' => 'Progressive|Photo AR'])->assertSet('lensAvailability.status', 'partial');
+        $html = $form->html();
+        $this->assertSame(2, substr_count($html, 'data-tour="opt-so-replay"'));
+        foreach (['opt-so-price', 'opt-so-wait', 'opt-so-both'] as $part) $this->assertStringContainsString('data-tour="'.$part.'"', $html);
+        $this->assertMatchesRegularExpression('/whenShown.{1,8}:true/', $html);
+
+        // The steps point at those parts; only a manager is told to make the supplier order.
+        $staff = \App\Support\Guides\TourCatalog::tour('optical.special-order', ['buyer' => false]);
+        $this->assertSame(['opt-so-price', 'opt-so-both', 'opt-so-wait', 'opt-so-replay'], array_values(array_filter(array_column($staff['steps'], 'target'))));
+        $this->assertStringContainsString('where a manager orders it', collect($staff['steps'])->pluck('body')->implode(' '));
+        $this->assertStringContainsString('create the supplier order', collect(\App\Support\Guides\TourCatalog::tour('optical.special-order', ['buyer' => true])['steps'])->pluck('body')->implode(' '));
+
+        // Seen once, it does not start by itself again.
+        $this->post(route('guides.record', 'optical.special-order'), ['status' => 'done'])->assertNoContent();
+        $this->assertTrue(\App\Support\Guides\Guides::seen('optical.special-order', 1));
+        $later = Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2)->html();
+        $this->assertMatchesRegularExpression('/This lens has to be bought in.*?auto.{1,8}:false/s', $later);
+    }
+
     public function test_half_pair_special_order_eye_is_priced_by_staff_and_the_owner_is_told(): void
     {
         config(['tenancy.enabled' => true]);

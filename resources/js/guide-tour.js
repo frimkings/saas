@@ -67,10 +67,15 @@ window.guideTour = (config) => ({
 
     init() {
         this.onMove = () => this.place();
+        // The same tour can sit in two places (two ways of showing one moment); once done, neither starts again.
+        window.addEventListener('guide-tour:finished', (event) => { if (event.detail === config.url) config.auto = false; });
         if (! config.auto) return;
         let tries = 0;
+        // A tour for one part of the page waits until that part (and so its button) is on the screen.
+        const shown = () => ! config.whenShown || [...this.$el.children].some((el) => el.getBoundingClientRect().width > 0);
         const begin = () => {
-            if (this.open || ! config.auto) return;
+            if (this.open || ! config.auto || ! this.$el.isConnected) return;
+            if (! shown()) return setTimeout(begin, 800);
             if (busy() && tries++ < 120) return setTimeout(begin, 1000);
             this.start();
         };
@@ -140,6 +145,7 @@ window.guideTour = (config) => ({
         window.removeEventListener('scroll', this.onMove, true);
         if (! config.url) return;
         config.auto = false;
+        window.dispatchEvent(new CustomEvent('guide-tour:finished', { detail: config.url }));
         fetch(config.url, {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': config.csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' },

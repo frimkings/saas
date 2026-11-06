@@ -373,7 +373,7 @@
                                                     @if(! empty($availability['reason']))<span class="text-amber-800">{{ $availability['reason'] }}</span>
                                                     @elseif(($availability['list_price'] ?? null) === null)<span class="text-amber-800">No price for this power</span>
                                                     @else<span class="text-slate-500">Catalogue {{ currency() }} {{ number_format($availability['list_price'], 2) }}</span>@endif
-                                                    <label class="ml-auto flex items-center gap-1.5">
+                                                    <label class="ml-auto flex items-center gap-1.5" data-tour="opt-so-price">
                                                         <span class="font-semibold">Price {{ currency() }}</span>
                                                         <input type="number" min="0" step="0.01" wire:model.blur="specialPrices.{{ $eye }}" placeholder="Required" aria-label="{{ strtoupper($eye) }} special-order lens price"
                                                             class="ui-input !w-28 !py-1 !text-right font-mono text-xs @error('specialPrices.'.$eye) border-red-500 @enderror">
@@ -386,13 +386,15 @@
                                             @error('specialPrices.'.$eye)<p class="text-red-600">{{ $message }}</p>@enderror
                                         @endforeach
                                         @if($ordered->isNotEmpty())
+                                            <div class="flex flex-wrap items-start gap-2"><div class="min-w-0 flex-1 space-y-1" data-tour="opt-so-wait">
                                             <p class="text-slate-500">Glazing waits until the {{ $ordered->map(fn ($eye) => strtoupper($eye))->implode(' and ') }} lens arrives and is marked received.@if(collect($eyes)->contains(fn ($e) => ($e['source'] ?? '') === 'special_order' && ($e['list_price'] ?? null) === null)) A price entered by hand is emailed to the owner.@endif</p>
                                             @if($leadTimeNote !== '')<p class="font-semibold text-slate-700"><i class="fas fa-calendar-day mr-1 text-slate-400" aria-hidden="true"></i>{{ $leadTimeNote }}</p>@endif
+                                            </div><x-guide-tour page="optical.special-order" :context="$specialTourContext" label="Special orders" replay="opt-so-replay" :when-shown="true" class="!py-1 !text-xs" /></div>
                                         @else
                                             <p class="text-slate-500">Both lenses held for this order when it is placed; taken from stock when glazing starts.</p>
                                         @endif
                                         @if($mixedMultifocal)
-                                            <div class="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-900" role="note">
+                                            <div class="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-900" role="note" data-tour="opt-so-both">
                                                 <span class="flex-1"><strong>Mixed pair:</strong> one stock {{ strtolower($option['lens_type']) }} lens and one made by the supplier. Labs usually advise making both eyes together so the two lenses match.</span>
                                                 <button type="button" x-on:click="fulfilment = 'external'" wire:click="specialOrderBothEyes" class="ui-button ui-button-secondary !py-1 text-xs">Special-order both eyes</button>
                                             </div>
@@ -409,7 +411,8 @@
                     @error('stock_lens_key')<p class="text-xs text-red-600">Select one stocked lens option.</p>@enderror
                     @error('measurements')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
-                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm">@if($specialOrderLens !== '')<p class="mb-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">Both eyes will be special-ordered as <strong>{{ $specialOrderLens }}</strong>. The stock lens stays on the shelf.@if($leadTimeNote !== '') {{ $leadTimeNote }}@endif</p>@endif<label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
+                <div x-show="fulfilment === 'external'" x-cloak class="max-w-sm space-y-2">@if($specialOrderLens !== '')<p class="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">Both eyes will be special-ordered as <strong>{{ $specialOrderLens }}</strong>. The stock lens stays on the shelf.</p>@endif<div data-tour="opt-so-price"><label for="special-order-lens-price" class="block text-xs font-bold text-slate-700 mb-1">Special-order price for both lenses ({{ currency() }})</label><input autocomplete="off" id="special-order-lens-price" type="number" min="0" step="0.01" value="{{ $lens_price }}" class="ui-input w-full !py-2 text-xs font-mono"></div>
+                    <div class="flex flex-wrap items-start gap-2"><div class="min-w-0 flex-1 space-y-1 text-xs" data-tour="opt-so-wait"><p class="text-slate-500">Both lenses are bought from a supplier. Glazing waits until they arrive and are marked received.</p>@if($leadTimeNote !== '')<p class="font-semibold text-slate-700"><i class="fas fa-calendar-day mr-1 text-slate-400" aria-hidden="true"></i>{{ $leadTimeNote }}</p>@endif</div><x-guide-tour page="optical.special-order" :context="$specialTourContext" label="Special orders" replay="opt-so-replay" :when-shown="true" class="!py-1 !text-xs" /></div></div>
                 <p x-show="fulfilment === 'customer'" x-cloak class="text-xs text-slate-600">No lens charge. Fitting or glazing fees can be added in Pricing.</p>
                 @error('lens_stock')<p class="text-xs text-red-600" role="alert">{{ $message }}</p>@enderror
             </div>
