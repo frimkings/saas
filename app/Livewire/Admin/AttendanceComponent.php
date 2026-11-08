@@ -86,6 +86,14 @@ class AttendanceComponent extends Component
     public string $phoneRadius = '150';
     public string $phoneUserId = '';
 
+    // Clock-in emails: the owner chooses whether, how often and to whom. The owner only.
+    public bool $showPunchEmails = false;
+    public bool $punchEmailsOn = false;
+    public string $punchEmailMode = 'each';
+    public string $punchEmailWhen = 'all';
+    public string $punchEmailTo = '';
+    public bool $punchEmailStaff = true;
+
     // Payroll for the days on show: how each person is paid and the branch's pay rules. The owner only.
     public bool $showPayroll = false;
     /** Staff id => ['type' => '' | 'monthly' | 'hourly', 'rate' => string]. */
@@ -1021,6 +1029,71 @@ class AttendanceComponent extends Component
         $this->dispatch('notify', type: 'success', message: $this->phoneOn ? 'Staff can now clock in from their phones at the branch.' : 'Phone clock-in is off.');
     }
 
+    public function openPunchEmails(): void
+    {
+        $this->authorizePunchEmails();
+        $settings = AttendanceSetting::current();
+        $this->punchEmailsOn = (bool) $settings->punch_emails;
+        $this->punchEmailMode = $settings->punch_email_mode ?: 'each';
+        $this->punchEmailWhen = $settings->punch_email_when ?: 'all';
+        $this->punchEmailTo = implode(', ', (array) $settings->punch_email_to);
+        $this->punchEmailStaff = (bool) ($settings->punch_email_staff ?? true);
+        $this->resetValidation();
+        $this->showPunchEmails = true;
+    }
+
+    public function savePunchEmails(): void
+    {
+        $this->authorizePunchEmails();
+        $this->validate([
+            'punchEmailMode' => 'required|in:'.implode(',', array_keys(AttendanceSetting::PUNCH_EMAIL_MODES)),
+            'punchEmailWhen' => 'required|in:'.implode(',', array_keys(AttendanceSetting::PUNCH_EMAIL_WHEN)),
+        ]);
+        $addresses = array_values(array_unique(array_filter(array_map(fn ($address) => strtolower(trim($address)), preg_split('/[\s,;]+/', $this->punchEmailTo) ?: []))));
+        $wrong = array_filter($addresses, fn ($address) => ! filter_var($address, FILTER_VALIDATE_EMAIL));
+        if ($wrong) {
+            $this->addError('punchEmailTo', 'Not an email address: '.implode(', ', $wrong).'.');
+
+            return;
+        }
+        if (count($addresses) > \App\Services\Attendance\AttendancePunchEmails::MAX_EXTRA) {
+            $this->addError('punchEmailTo', 'Up to '.\App\Services\Attendance\AttendancePunchEmails::MAX_EXTRA.' extra addresses.');
+
+            return;
+        }
+        $settings = AttendanceSetting::current();
+        $settings->fill([
+            'punch_emails' => $this->punchEmailsOn,
+            // The evening summary starts from the day they are switched on.
+            'punch_emails_since' => $this->punchEmailsOn ? ($settings->punch_emails ? $settings->punch_emails_since : CarbonImmutable::now($this->timezone())->format('Y-m-d')) : null,
+            'punch_email_mode' => $this->punchEmailMode,
+            'punch_email_when' => $this->punchEmailWhen,
+            'punch_email_to' => $addresses ?: null,
+            'punch_email_staff' => $this->punchEmailStaff,
+        ])->save();
+        $this->punchEmailTo = implode(', ', $addresses);
+        $this->showPunchEmails = false;
+        $this->dispatch('notify', type: 'success', message: $this->punchEmailsOn ? 'Clock-in emails are on.' : 'Clock-in emails are off.');
+    }
+
+    /** For the Clock-in emails window: where the owner's copy goes, and who has no email to be sent theirs. */
+    private function punchEmailFacts(): array
+    {
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        $followed = AttendanceStaff::query()->where('is_tracked', true)->orderBy('name')->get(['id', 'name', 'user_id']);
+        $emails = User::query()->whereIn('id', $followed->pluck('user_id')->filter())->pluck('email', 'id');
+        $without = $followed->filter(fn ($staff) => ! filter_var($emails[$staff->user_id] ?? null, FILTER_VALIDATE_EMAIL))->pluck('name');
+
+        return ['owner' => $clinic ? \App\Services\OwnerMailer::ownerEmail($clinic) : null, 'followed' => $followed->count(), 'without' => $without];
+    }
+
+    /** Who gets clock-in emails is the owner's choice. */
+    private function authorizePunchEmails(): void
+    {
+        $this->authorizeAccess();
+        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can change clock-in emails.');
+    }
+
     /** Someone with a user account but not on a terminal: follow them so they can clock in by phone. */
     public function addPhonePerson(): void
     {
@@ -1287,6 +1360,7 @@ class AttendanceComponent extends Component
             'shiftCodes' => collect(\App\Support\ShiftCodes::for($shiftList))->keyBy('name')->all(),
             'report' => $report,
             'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
+            'punchEmailFacts' => $this->showPunchEmails ? $this->punchEmailFacts() : null,
             // Payroll gets its own button once anyone has been given a salary or an hourly rate.
             'paysStaff' => AttendanceStaff::query()->whereNotNull('pay_type')->exists(),
             'payroll' => $payroll,

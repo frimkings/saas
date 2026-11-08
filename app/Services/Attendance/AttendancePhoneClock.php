@@ -49,6 +49,7 @@ class AttendancePhoneClock
         $punch = AttendancePunch::create(['attendance_staff_id' => $staff->id, 'punched_at' => $now->format('Y-m-d H:i:00'), 'source' => 'phone',
             'latitude' => round($latitude, 7), 'longitude' => round($longitude, 7), 'accuracy' => $accuracy === null ? null : (int) round($accuracy), 'distance' => $distance,
             'created_by' => auth()->id()]);
+        app(AttendancePunchEmails::class)->punched($staff, $punch->punched_at->format('Y-m-d H:i:s'), 'Phone, '.self::metres($distance).' from the branch');
 
         return ['ok' => true, 'message' => 'Punched at '.$now->format('g:i A').', '.self::metres($distance).' from the branch.', 'punch' => $punch];
     }

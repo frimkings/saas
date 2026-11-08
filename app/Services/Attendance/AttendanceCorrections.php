@@ -38,6 +38,7 @@ class AttendanceCorrections
             if (! $replaces) {
                 AuditTrail::record('attendance.punch_added', "Added a punch for {$staff->name} at ".$at->format('j M Y, g:i A').": {$reason}",
                     $punch, [], ['punched_at' => $at->format('Y-m-d H:i'), 'reason' => $reason], null, true);
+                app(AttendancePunchEmails::class)->corrected($staff, 'a punch added at '.$at->format('g:i A, D j M'), $reason);
             }
 
             return $punch;
@@ -51,6 +52,9 @@ class AttendanceCorrections
         if ($audit) {
             AuditTrail::record('attendance.punch_removed', 'Removed the '.$punch->punched_at->format('j M Y, g:i A')." punch of {$punch->staff?->name}: {$reason}",
                 $punch, ['punched_at' => $punch->punched_at->format('Y-m-d H:i'), 'source' => $punch->source], ['reason' => $reason], null, true);
+            if ($punch->staff) {
+                app(AttendancePunchEmails::class)->corrected($punch->staff, 'the '.$punch->punched_at->format('g:i A, D j M').' punch removed', $reason);
+            }
         }
     }
 
@@ -67,6 +71,7 @@ class AttendanceCorrections
             $new = $this->add($punch->staff, $to, $reason, $now, $punch);
             AuditTrail::record('attendance.punch_changed', "Changed a punch of {$punch->staff->name} from ".$punch->punched_at->format('j M Y, g:i A').' to '.$to->format('g:i A').": {$reason}",
                 $new, ['punched_at' => $punch->punched_at->format('Y-m-d H:i')], ['punched_at' => $to->format('Y-m-d H:i'), 'reason' => $reason], null, true);
+            app(AttendancePunchEmails::class)->corrected($punch->staff, 'the '.$punch->punched_at->format('g:i A, D j M').' punch changed to '.$to->format('g:i A'), $reason);
 
             return $new;
         });

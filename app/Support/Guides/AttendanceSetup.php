@@ -43,6 +43,8 @@ final class AttendanceSetup
             $parts['leave'] ? ['key' => 'leave', 'title' => 'Leave types and allowances', 'body' => 'Annual, sick and others, with days allowed each year.', 'done' => AttendanceLeaveType::query()->exists(), 'action' => 'openLeaveTypes', 'button' => 'Leave types'] : null,
             $parts['payroll'] && $canPay ? ['key' => 'pay', 'title' => 'Pay rates', 'body' => 'A salary or hourly rate per person, for the payroll sheet.', 'done' => AttendanceStaff::query()->whereNotNull('pay_type')->exists(), 'action' => 'openPayroll', 'button' => 'Pay'] : null,
             $parts['phone'] ? ['key' => 'phone', 'title' => 'Phone clock-in', 'body' => 'Mark the branch on the map so staff can clock in from their phones when they are there.', 'done' => (bool) ($settings?->phone_clock_in), 'action' => 'openPhone', 'button' => 'Phone clock-in'] : null,
+            $canPay ? ['key' => 'punch_emails', 'title' => 'Clock-in emails', 'body' => 'Be emailed as staff clock in or out, or once in the evening, and send each person their own times.',
+                'done' => (bool) ($settings?->punch_emails), 'action' => 'openPunchEmails', 'button' => 'Clock-in emails'] : null,
             $parts['hospital'] ? ['key' => 'departments', 'title' => 'Departments and their heads', 'body' => 'Heads see and approve for their own people.', 'done' => AttendanceDepartment::query()->exists(), 'action' => null, 'button' => null, 'url' => route('admin.attendance.departments')] : null,
         ]));
         $done = count(array_filter($steps, fn ($step) => $step['done']));

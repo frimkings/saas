@@ -57,6 +57,8 @@ class AttendanceDemoTest extends TestCase
         }
         $this->assertTrue(AttendanceLeave::query()->whereNotNull('from_time')->exists(), 'Part-day leave.');
         $this->assertTrue((bool) AttendanceSetting::current()->phone_clock_in);
+        // Clock-in emails on, as an evening summary, without emailing the made-up staff.
+        $this->assertSame([true, 'daily', false], [AttendanceSetting::current()->punch_emails, AttendanceSetting::current()->punch_email_mode, AttendanceSetting::current()->punch_email_staff]);
         // No punches on the national holiday for most office staff.
         $office = AttendanceStaff::query()->where('department', 'Administration')->pluck('id');
         $this->assertLessThan($office->count(), AttendancePunch::query()->whereIn('attendance_staff_id', $office)->whereDate('punched_at', '2026-09-21')->distinct()->count('attendance_staff_id'));

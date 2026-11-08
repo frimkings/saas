@@ -7,6 +7,7 @@ use App\Models\AttendanceDevice;
 use App\Models\AttendanceStaff;
 use App\Models\User;
 use App\Services\Attendance\AttendanceImportService;
+use App\Services\Attendance\AttendancePunchEmails;
 use App\Services\Attendance\HikvisionEventReader;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class AttendancePushController extends Controller
 {
     private const KEEP_UNREAD = 200;
 
-    public function __invoke(Request $request, string $token, HikvisionEventReader $reader, AttendanceImportService $accounts): Response
+    public function __invoke(Request $request, string $token, HikvisionEventReader $reader, AttendanceImportService $accounts, AttendancePunchEmails $emails): Response
     {
         $device = AttendanceDevice::withoutGlobalScopes()->where('token', $token)->where('is_active', true)->first();
         abort_unless($device, 404);
@@ -46,7 +47,11 @@ class AttendancePushController extends Controller
                 'terminal_status' => $punch['status'], 'method' => $punch['method'], 'attendance_device_id' => $device->id,
             ]);
             $stored += $new;
-            if (! $new && ($punch['status'] || $punch['method'])) {
+            if ($new) {
+                // Clock-in emails, when the owner has them on: sent after the terminal has its answer.
+                $emails->punched($staff, $punch['time'], $device->name.' terminal');
+            }
+            if (! $new &&($punch['status'] || $punch['method'])) {
                 // Held from before these were kept: fill them in when the terminal replays its history.
                 DB::table('attendance_punches')->where('attendance_staff_id', $staff->id)->where('punched_at', $punch['time'])
                     ->update(['terminal_status' => $punch['status'], 'method' => $punch['method']]);

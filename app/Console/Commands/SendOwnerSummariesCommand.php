@@ -11,7 +11,8 @@ use Illuminate\Console\Command;
 /**
  * Runs hourly. From 10 AM clinic time, sends each clinic owner the morning alerts and the
  * sales summaries their plan includes, if they haven't gone yet today. Every hour, it also
- * tells the owner about an attendance terminal that has stopped sending.
+ * tells the owner about an attendance terminal that has stopped sending, and from 8 PM sends the
+ * day's clock-in summary where the owner asked for one.
  */
 class SendOwnerSummariesCommand extends Command
 {
@@ -34,6 +35,9 @@ class SendOwnerSummariesCommand extends Command
                 }
                 if ($heads = $summaries->sendToDepartmentHeads($clinic)) {
                     $this->line("{$clinic->name}: {$heads} department head email(s)");
+                }
+                if ($clockIns = app(\App\Services\Attendance\AttendancePunchEmails::class)->sendSummaries($clinic)) {
+                    $this->line("{$clinic->name}: {$clockIns} clock-in summary email(s)");
                 }
             } catch (\Throwable $e) {
                 report($e);

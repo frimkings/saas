@@ -15,7 +15,7 @@ namespace App\Support\Guides;
 final class TourCatalog
 {
     public const VERSIONS = [
-        'attendance.manager' => 2,
+        'attendance.manager' => 3,
         'attendance.head' => 2,
         'attendance.staff' => 1,
         'optical.dashboard' => 1,
@@ -105,7 +105,7 @@ final class TourCatalog
             ['target' => 'att-people', 'title' => 'One person, day by day', 'body' => 'Click a name to see their days, punches and leave. Someone forgot to punch out? Use Correct on that day and give a reason; every correction is kept in the audit trail.'],
             ['target' => 'att-exports', 'title' => 'Take it away', 'body' => 'Download the days on show as a spreadsheet (CSV) or a PDF to print or send.'],
             ['target' => 'att-tab-requests', 'title' => 'Requests', 'body' => 'Leave that staff ask for'.(($extras['overtime'] ?? false) ? ', and overtime waiting for approval,' : '').' comes here, with a count on the tab. You get an email too.'],
-            ['target' => 'att-setup', 'title' => 'Set up', 'body' => 'Things you set once: working hours and grace minutes, holidays, terminals'.(($extras['shifts'] ?? false) ? ', shifts (each with its own code and colour for the roster)' : '').(($extras['leave'] ?? false) ? ', leave types' : '').(($extras['phone'] ?? false) ? ', phone clock-in' : '').'. Buttons for the features you start using, such as a roster, then appear up here too.'],
+            ['target' => 'att-setup', 'title' => 'Set up', 'body' => 'Things you set once: working hours and grace minutes, holidays, terminals'.(($extras['shifts'] ?? false) ? ', shifts (each with its own code and colour for the roster)' : '').(($extras['leave'] ?? false) ? ', leave types' : '').(($extras['phone'] ?? false) ? ', phone clock-in' : '').(($c['owner'] ?? false) ? ', and clock-in emails (to you, and to each person, as they clock in or out, or as a summary in the evening)' : '').'. Buttons for the features you start using, such as a roster, then appear up here too.'],
             ['target' => 'att-upload', 'title' => 'No live connection?', 'body' => 'If the terminal is not sending punches over the internet, export its Attendance Record report to a USB drive and upload the .xls file here.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];

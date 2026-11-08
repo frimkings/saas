@@ -308,6 +308,12 @@ class SeedAttendanceDemoCommand extends Command
         $settings->phone_clock_in_since ??= $now->subDays(10)->format('Y-m-d');
         $settings->min_rest_hours ??= 11;
         $settings->max_nights_in_row ??= 3;
+        // Clock-in emails as a hospital would have them: one evening summary of who was late or left early.
+        // Staff are not emailed: the demo people's addresses are made up.
+        if (! $settings->punch_emails_since) {
+            $settings->fill(['punch_emails' => true, 'punch_emails_since' => $now->subDays(10)->format('Y-m-d'), 'punch_email_mode' => 'daily',
+                'punch_email_when' => 'late_early', 'punch_email_staff' => false]);
+        }
         $settings->save();
         foreach (self::PATTERNS as $name => $days) {
             AttendancePattern::query()->updateOrCreate(['name' => $name], ['days' => array_map(fn ($shift) => $shift ? $shifts[$shift]->id : 0, $days)]);

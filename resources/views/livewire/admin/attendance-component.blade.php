@@ -16,7 +16,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 {{-- Each of these appears once the branch uses it, so a small clinic sees a short page. --}}
-                <x-guide-tour page="attendance" :context="['manager' => $manager, 'extras' => $extras, 'board' => (bool) $board, 'departments' => $departments->pluck('id')->all()]" :auto="$hasData" />
+                <x-guide-tour page="attendance" :context="['manager' => $manager, 'owner' => $canPay, 'extras' => $extras, 'board' => (bool) $board, 'departments' => $departments->pluck('id')->all()]" :auto="$hasData" />
                 @if($shifts->isNotEmpty() && $extras['shifts'])<a data-tour="att-roster" class="ui-button ui-button-secondary" href="{{ route('admin.attendance.roster-page', array_filter(['department' => $department, 'date' => $last->format('Y-m-d')])) }}" target="_blank" rel="noopener"><i class="fas fa-table" aria-hidden="true"></i>Roster</a>@endif
                 @if($overtime && $extras['overtime'])<button type="button" class="ui-button ui-button-secondary" wire:click="$set('showOvertime', true)"><i class="fas fa-hourglass-half" aria-hidden="true"></i>Overtime</button>@endif
                 @if($canPay && $paysStaff && $extras['payroll'])<button type="button" class="ui-button ui-button-secondary" wire:click="openPayroll"><i class="fas fa-money-bill-wave" aria-hidden="true"></i>Payroll</button>@endif
@@ -32,6 +32,7 @@
                             ["\$set('showHolidays', true)", 'fa-calendar-day', 'Holidays'],
                             ["\$set('showDevices', true)", 'fa-fingerprint', 'Terminals'],
                             ['openPhone', 'fa-mobile-alt', 'Phone clock-in', $extras['phone']],
+                            ['openPunchEmails', 'fa-envelope', 'Clock-in emails', $canPay],
                             ['openStaffImport', 'fa-file-import', 'Bring in a staff list', $hospital],
                             ['openPayroll', 'fa-money-bill-wave', 'Pay', $canPay && ! $paysStaff && $extras['payroll']],
                             ["\$set('showMore', true)", 'fa-plus-circle', 'More attendance features', (bool) $locked],
@@ -767,6 +768,47 @@
         </x-ui.modal>
     @endif
 
+
+    @if($showPunchEmails && $punchEmailFacts)
+        <x-ui.modal title="Clock-in emails" state="showPunchEmails">
+            <form wire:submit="savePunchEmails" class="space-y-4 p-4">
+                <p class="!mb-0 text-sm text-slate-600">Get an email when staff clock in or out on a terminal or their phone, with the time, whether they were late, and where they punched.
+                    Your copy goes to <strong>{{ $punchEmailFacts['owner'] ?? 'the owner email (none set yet: add it under Subscription → Billing profile)' }}</strong>.</p>
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model.live="punchEmailsOn"> Send clock-in emails</label>
+                <fieldset class="space-y-3" @disabled(! $punchEmailsOn)>
+                    <div>
+                        <p class="!mb-1 text-xs font-semibold text-slate-600">How often</p>
+                        @foreach(\App\Models\AttendanceSetting::PUNCH_EMAIL_MODES as $value => $label)
+                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="radio" wire:model="punchEmailMode" value="{{ $value }}"> {{ $label }}</label>
+                        @endforeach
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">The summary goes at 8 PM and lists each person's first in and last out.</p>
+                    </div>
+                    <div>
+                        <p class="!mb-1 text-xs font-semibold text-slate-600">Which ones</p>
+                        @foreach(\App\Models\AttendanceSetting::PUNCH_EMAIL_WHEN as $value => $label)
+                            <label class="flex items-center gap-2 text-sm text-slate-700"><input type="radio" wire:model="punchEmailWhen" value="{{ $value }}"> {{ $label }}</label>
+                        @endforeach
+                    </div>
+                    <div>
+                        <label for="punch-email-to" class="mb-1 block text-xs font-semibold text-slate-600">Also send to (optional)</label>
+                        <input id="punch-email-to" type="text" class="ui-input !w-full" wire:model="punchEmailTo" placeholder="manager@example.com, hr@example.com">
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">Up to {{ \App\Services\Attendance\AttendancePunchEmails::MAX_EXTRA }} addresses, separated by commas.</p>
+                        @error('punchEmailTo')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="punchEmailStaff"> Also email each person their own clock-in and clock-out times</label>
+                        <p class="!mb-0 mt-1 text-xs text-slate-500">They are also told when a manager corrects one of their punches, with the reason.
+                            @if($punchEmailFacts['without']->isNotEmpty())
+                                {{ $punchEmailFacts['without']->count() }} of {{ $punchEmailFacts['followed'] }} followed staff have no email, so they get none: {{ $punchEmailFacts['without']->take(10)->implode(', ') }}{{ $punchEmailFacts['without']->count() > 10 ? ' and '.($punchEmailFacts['without']->count() - 10).' more' : '' }}. Link them to a user account with an email.
+                            @endif
+                        </p>
+                    </div>
+                </fieldset>
+                <p class="!mb-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Only punches as they happen are emailed. When a terminal comes back after being cut off, what it kept is not emailed (more than {{ \App\Services\Attendance\AttendancePunchEmails::FRESH_MINUTES }} minutes old), and an uploaded report never sends any.</p>
+                <div class="flex justify-end"><x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePunchEmails">Save</x-ui.button></div>
+            </form>
+        </x-ui.modal>
+    @endif
 
     @if($showStaffImport)
         <x-ui.modal title="Bring in a staff list" state="showStaffImport">
