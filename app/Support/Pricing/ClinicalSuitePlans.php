@@ -78,6 +78,8 @@ class ClinicalSuitePlans
         Feature::SPECTACLES_PRO => 30, Feature::PATIENT_LEDGER => 15, Feature::APPROVALS => 30,
         Feature::INSURANCE => 50, Feature::AUDIT_TRAIL => 25,
         Feature::SCAN_STORAGE_PACK => 20,
+        // Add-on only: clinics that run diagnostic scans for referrals
+        Feature::DIAGNOSTIC_SCANS => 30,
     ];
 
     /** The stored feature list for one of the plans. */
