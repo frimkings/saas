@@ -194,16 +194,30 @@ class Product extends Model
         return $query->where('made_to_order', false);
     }
 
+    /**
+     * The category of the hidden service products diagnostic scans are sold as (one per scan,
+     * see App\Services\Scans\ScanCatalogue). They are sold only from the Scan Desk, never at the
+     * till, prescribed, or listed with the clinic's products.
+     */
+    public const SCAN_CATEGORY_TYPE = 'diagnostic_scan';
+
     /** Products whose category is switched on: an inactive category's products are not sold or prescribed. */
     public function scopeInActiveCategory($query)
     {
         return $query->where(fn ($q) => $q->whereNull('category_id')
-            ->orWhereHas('category', fn ($c) => $c->where('is_active', true)));
+            ->orWhereHas('category', fn ($c) => $c->where('is_active', true)->where('type', '!=', self::SCAN_CATEGORY_TYPE)));
     }
 
     public function inActiveCategory(): bool
     {
-        return !$this->category || (bool) ($this->category->is_active ?? true);
+        return !$this->category || ((bool) ($this->category->is_active ?? true) && $this->category->type !== self::SCAN_CATEGORY_TYPE);
+    }
+
+    /** Everything but the hidden diagnostic scan products. */
+    public function scopeNotScans($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull('category_id')
+            ->orWhereHas('category', fn ($c) => $c->where('type', '!=', self::SCAN_CATEGORY_TYPE)));
     }
 
     public const DEFAULT_REORDER_LEVEL = 10;

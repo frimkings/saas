@@ -11,6 +11,17 @@ class Sales extends Model
 {
     use SoftDeletes, BelongsToBranch;
 
+    protected static function booted(): void
+    {
+        // A scan bill that becomes fully paid, or is refunded, changes what its referrer earns.
+        static::saved(function (self $sale): void {
+            if (($sale->business_line ?? 'clinic') !== 'clinic' || ! $sale->patient_id) return;
+            if ($sale->wasRecentlyCreated || $sale->wasChanged(['payment_status', 'is_refunded'])) {
+                app(\App\Services\Scans\ScanCommissionService::class)->syncForSale($sale);
+            }
+        });
+    }
+
 
 protected $fillable = [
     'business_line',

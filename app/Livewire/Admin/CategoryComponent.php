@@ -183,6 +183,8 @@ class CategoryComponent extends Component
                 'products as in_stock_products_count' => fn ($query) => $query->where('quantity', '>', 0),
                 'products as low_stock_products_count' => fn ($query) => $query->lowStock(),
             ])
+            // The diagnostic scans category belongs to the Scan Desk, not the clinic's stock.
+            ->where('type', '!=', \App\Models\Product::SCAN_CATEGORY_TYPE)
             ->when($this->searchTerm, function ($query) {
                 $query->where(function ($searchQuery) {
                     $searchQuery->where('name', 'like', '%' . $this->searchTerm . '%')

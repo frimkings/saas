@@ -45,8 +45,11 @@ class LicenseService
         // trials name none and include both. Other free features are always available.
         $allowed = !$feature || (in_array($feature, \App\Support\PlanProduct::PRODUCT_KEYS, true)
             ? (!\App\Support\PlanProduct::isProductAware($features) || in_array($feature, $features, true))
-            : (in_array('*', $features, true) || in_array($feature, $features, true)
-                || !in_array($feature, config('license.pro_features', []), true)));
+            : (in_array($feature, \App\Support\PlanProduct::EXPLICIT_ONLY, true)
+                // Only a key that names it; trials and "everything" keys leave it out.
+                ? \App\Support\PlanProduct::allows($features, $feature)
+                : (in_array('*', $features, true) || in_array($feature, $features, true)
+                    || !in_array($feature, config('license.pro_features', []), true))));
         // With no clinic resolved, getSettings() returns unsaved platform defaults; never insert those.
         if ($setting->exists && !$rollback && $setting->license_last_seen !== now()->toDateString()) {
             $setting->license_last_seen = now()->toDateString();

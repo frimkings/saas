@@ -61,6 +61,10 @@ class SubscriptionService
         // Plus the clinic's add-ons (a list that already means "everything" needs none).
         if (! empty($features) && ! in_array('*', $features, true)) {
             $features = array_values(array_unique([...$features, ...app(ClinicAddonService::class)->activeFeatures($clinic->id)]));
+        } elseif ($feature && in_array($feature, \App\Support\PlanProduct::EXPLICIT_ONLY, true)) {
+            // "Everything" leaves these out; only a bought add-on brings one.
+            $bought = array_intersect(app(ClinicAddonService::class)->activeFeatures($clinic->id), \App\Support\PlanProduct::EXPLICIT_ONLY);
+            $features = array_values(array_unique([...($features ?: ['*']), ...$bought]));
         }
         $allowed = ! $feature || \App\Support\PlanProduct::allows($features, $feature);
         return ['allowed'=>$allowed,'read_only'=>$readOnly,'status'=>$status,'reason'=>$allowed?null:'This feature is not included in your subscription.'];

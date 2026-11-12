@@ -699,7 +699,8 @@ class ProductsComponent extends Component
     private function getFilteredQuery()
     {
         $search = $this->searchTerm;
-        $query = Product::query()->with('category');
+        // Scans are sold as hidden products from the Scan Desk; they are not the clinic's stock.
+        $query = Product::query()->with('category')->notScans();
 
         // Apply search
         if ($search) {
@@ -822,14 +823,15 @@ class ProductsComponent extends Component
     {
         $products = $this->getFilteredQuery()->paginate(10);
         // New and edited products go into a switched-on category (or keep the one they are in).
-        $categories = Category::where(fn ($q) => $q->where('is_active', true)->orWhere('id', $this->state['category_id'] ?? 0))->orderBy('name')->get();
+        $categories = Category::where(fn ($q) => $q->where('is_active', true)->orWhere('id', $this->state['category_id'] ?? 0))
+            ->where('type', '!=', Product::SCAN_CATEGORY_TYPE)->orderBy('name')->get();
         $lensOptions = LensOption::orderByRaw("CASE family WHEN 'Single Vision' THEN 1 WHEN 'Bifocal' THEN 2 WHEN 'Progressive' THEN 3 ELSE 4 END")
             ->orderBy('display_name')
             ->get();
         
         $today = Carbon::today();
         $fourMonths = Carbon::today()->addMonths(4);
-        $allProducts = Product::selectRaw("
+        $allProducts = Product::notScans()->selectRaw("
             COUNT(*) as total,
             SUM(CASE WHEN made_to_order = 0 AND DATE(expiry_date) >= ? AND DATE(expiry_date) <= ? THEN 1 ELSE 0 END) as expiring,
             SUM(CASE WHEN made_to_order = 0 AND DATE(expiry_date) < ? THEN 1 ELSE 0 END) as expired

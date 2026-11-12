@@ -171,5 +171,13 @@ class SaleItem extends Model
                 $saleItem->subtotal = $saleItem->dispensed_quantity * $saleItem->selling_price;
             }
         });
+
+        // A refunded scan stops earning its referrer commission.
+        static::updated(function ($saleItem) {
+            if ($saleItem->product_id && $saleItem->wasChanged('refunded_quantity') && $saleItem->sale_id) {
+                $sale = Sales::withoutGlobalScope('branch')->find($saleItem->sale_id);
+                if ($sale) app(\App\Services\Scans\ScanCommissionService::class)->syncForSale($sale);
+            }
+        });
     }
 }

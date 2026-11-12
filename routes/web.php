@@ -194,6 +194,8 @@ Route::get('cashier/dashboard', CashierDashboardComponent::class)->name('cashier
 Route::get('cashier/seller-desk', POSComponent::class)->name('cashier.seller-desk');
 Route::get('cashier/day-close', \App\Livewire\Admin\DayCloseComponent::class)->name('admin.day-close')->middleware('feature:cash_book')->middleware('role:Cashier|Manager|Super Admin');
 Route::get('cashier/outstanding-balances', OutstandingBalancesComponent::class)->name('cashier.outstanding-balances')->middleware('feature-or-leftover:outstanding_balances');
+// Diagnostic scans: catalogue, partner clinics (and later the scan desk and commissions). Opticians don't sell scans.
+Route::get('front-desk/scans', \App\Livewire\Scans\DiagnosticScansComponent::class)->name('frontdesk.scans')->middleware(['role:Secretary|Cashier|Manager|Super Admin', 'feature:diagnostic_scans']);
 Route::get('/livewire/ajax-patients', [POSComponent::class, 'getPatientsJson']);
 Route::get('/cashier/sales-records', SalesRecordsComponent::class)->name('cashier.sales-records');
 Route::get('/cashier/refund-logs', RefundLogsComponent::class)->name('refunds.logs');

@@ -25,7 +25,7 @@ class PricingCatalogue
 
     /** How the page groups the features, in order; anything unlisted goes under "More". */
     public const GROUPS = [
-        'Front desk' => [Feature::APPOINTMENTS, Feature::NEEDS_ATTENTION, Feature::DISCOUNTS, Feature::OUTSTANDING_BALANCES, Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS, Feature::SALES_EXPORT],
+        'Front desk' => [Feature::APPOINTMENTS, Feature::NEEDS_ATTENTION, Feature::DISCOUNTS, Feature::OUTSTANDING_BALANCES, Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS, Feature::SALES_EXPORT, Feature::DIAGNOSTIC_SCANS],
         'Clinical' => [Feature::REFERRALS, Feature::CLINICAL_DOCUMENTS, Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS],
         'Stock' => [Feature::INVENTORY, Feature::INVENTORY_ALERTS, Feature::PRODUCT_IMPORT, Feature::PURCHASING],
         'Money' => [Feature::SALES_REPORTS_MONTH, Feature::SALES_REPORTS, Feature::EXPENSE_TRACKING, Feature::CASH_BOOK, Feature::PATIENT_LEDGER, Feature::ADVANCED_REPORTS, Feature::INSURANCE, Feature::APPROVALS],

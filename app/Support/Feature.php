@@ -70,6 +70,11 @@ class Feature
     const CUSTOM_ROLES         = 'custom_roles';         // roles and permissions editor
     const PRIORITY_SUPPORT     = 'priority_support';     // support requests answered first (a service, no screen)
     const GUIDED_ONBOARDING    = 'guided_onboarding';    // set-up and data import done with the clinic (a service)
+    // Diagnostic scans (OCT, VFT, fundus…): scan catalogue, partner clinics that refer patients,
+    // and referral commissions, under Front Desk. Only scan centres want it, so it is never part of
+    // an "everything" plan: a clinic has it only when its plan names it or it buys the add-on
+    // (PlanProduct::EXPLICIT_ONLY). Not REFERRALS, which is the outgoing referral letters.
+    const DIAGNOSTIC_SCANS     = 'diagnostic_scans';
     // On every plan saved since the tiers. A list without it (older plans, offline keys) has every tier feature.
     const CLINIC_TIERS_CHOSEN  = 'clinic_tiers_chosen';
 }

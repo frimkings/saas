@@ -51,6 +51,13 @@ class PlanProduct
     /** Sold only as add-ons, never ticked on a plan. */
     public const ADDON_ONLY = [Feature::ATTENDANCE_STAFF_PACK, Feature::SCAN_STORAGE_PACK];
 
+    /**
+     * Features only some clinics want: never included by '*' or a legacy "everything" list. A
+     * clinic has one only when its plan names it or it bought the add-on. They can be ticked on a
+     * plan, unlike ADDON_ONLY packs.
+     */
+    public const EXPLICIT_ONLY = [Feature::DIAGNOSTIC_SCANS];
+
     /** How many staff a pack holds until the platform says otherwise. */
     public const STAFF_PACK_SIZE = 50;
 
@@ -98,6 +105,7 @@ class PlanProduct
         Feature::ATTENDANCE_HOSPITAL => ['Attendance: hospital tools (departments, cover, rotation, swaps)', null],
         Feature::ATTENDANCE_STAFF_PACK => ['Attendance: extra staff (packs)', null],
         Feature::SCAN_STORAGE_PACK => ['Scans & attachments: storage (packs)', self::CLINIC],
+        Feature::DIAGNOSTIC_SCANS => ['Diagnostic scans & referral commissions', self::CLINIC],
         Feature::SMS_CAMPAIGNS => ['SMS reminders & campaigns', null],
         Feature::APPROVALS => ['Approval workflows', null],
         Feature::AUDIT_TRAIL => ['Audit trail & login history', null],
@@ -186,7 +194,9 @@ class PlanProduct
         // Only the attendance product narrows the list here; the screens leave clinic-only extras off an optical plan.
         $extras = array_values(array_intersect(array_keys($product === self::ATTENDANCE ? self::extrasFor($product) : self::EXTRAS), $extras));
         $markers = [Feature::ATTENDANCE_PARTS_CHOSEN, ...(in_array($product, [self::CLINIC, self::BOTH], true) ? [Feature::CLINIC_TIERS_CHOSEN] : [])];
-        return array_values(array_unique(array_merge(self::keys($product), $allExtras ? ['*'] : $extras, $markers)));
+        // '*' leaves out the explicit-only features, so a ticked one is kept by name.
+        $chosen = $allExtras ? ['*', ...array_intersect($extras, self::EXPLICIT_ONLY)] : $extras;
+        return array_values(array_unique(array_merge(self::keys($product), $chosen, $markers)));
     }
 
     /** Whether the list names its products (new plans) or is a legacy "everything" list. */
@@ -218,6 +228,11 @@ class PlanProduct
             return is_array($features) && in_array($feature, $features, true)
                 && ($feature !== Feature::ATTENDANCE_STAFF_PACK || self::allows($features, Feature::ATTENDANCE));
         }
+        if (in_array($feature, self::EXPLICIT_ONLY, true)) {
+            // Named on the plan (or added by an add-on), and on a product it belongs to.
+            return is_array($features) && in_array($feature, $features, true)
+                && (! self::isProductAware($features) || in_array(Feature::CLINICAL, $features, true));
+        }
         if (empty($features)) return true;
         if (in_array($feature, self::ATTENDANCE_PARTS, true)) {
             // A part needs attendance itself; a list from before the split has every part.
@@ -241,7 +256,9 @@ class PlanProduct
     public static function extrasOf(?array $features): array
     {
         $possible = array_keys(self::isProductAware($features) ? self::extrasFor(self::productOf($features)) : self::EXTRAS);
-        if (empty($features) || in_array('*', $features, true)) return $possible;
+        if (empty($features) || in_array('*', $features, true)) {
+            return array_values(array_filter($possible, fn ($key) => ! in_array($key, self::EXPLICIT_ONLY, true) || in_array($key, $features ?? [], true)));
+        }
         // A plan from before attendance was split: its attendance had every part, and keeps them when edited.
         if (! in_array(Feature::ATTENDANCE_PARTS_CHOSEN, $features, true) && self::allows($features, Feature::ATTENDANCE)) {
             $features = [...$features, ...self::ATTENDANCE_PARTS];

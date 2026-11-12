@@ -38,6 +38,7 @@ final class TourCatalog
         'clinic.claims' => 1,
         'clinic.receivables' => 1,
         'clinic.insurer-payments' => 1,
+        'clinic.scans' => 1,
         'platform.dashboard' => 1,
         'platform.clinics' => 1,
         'platform.plans' => 1,
@@ -83,6 +84,7 @@ final class TourCatalog
             'clinic.claims' => self::clinicClaims(),
             'clinic.receivables' => self::clinicReceivables(),
             'clinic.insurer-payments' => self::clinicInsurerPayments(),
+            'clinic.scans' => self::clinicScans($context),
             default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
         if (! $tour) return null;
@@ -365,6 +367,27 @@ final class TourCatalog
             ['target' => 'settings-details', 'title' => 'Clinic information', 'body' => 'Change any detail and press Save. A field left blank is simply left off documents.'],
             ['target' => 'settings-patient-prefix', 'title' => 'Patient number initials', 'body' => 'New patients are numbered with these 2 or 3 letters, the year and month, then that month\'s count, e.g. VS-2611-042. Set them before registering your first patient: once a number is given out they can\'t change. Patients registered before keep their numbers.'],
             ['target' => 'settings-logo', 'title' => 'Your logo', 'body' => 'A PNG, JPG or WebP up to 1 MB, between 100 and 2000 pixels a side. A PNG with a transparent background, about 600 pixels wide, prints best.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
+    /** Front Desk → Diagnostic Scans. Managers also hear about prices, partners' payout details and commissions. */
+    private static function clinicScans(array $c): array
+    {
+        $manager = (bool) ($c['manager'] ?? false);
+
+        return ['key' => 'clinic.scans', 'title' => 'Diagnostic Scans', 'steps' => [
+            ['title' => 'Diagnostic scans', 'body' => 'OCT, visual fields, fundus photos and your other scans: register the patient, take the payment, and follow each scan to its report. Patients sent by partner clinics or your own doctors are tracked so the referrer earns their commission.'],
+            ['target' => 'scan-desk-tiles', 'title' => 'What needs doing', 'body' => 'Orders still to bill, scans still to do and reports still to write.'],
+            ['target' => 'scan-new-order', 'title' => 'A new scan order', 'body' => 'Find the patient or register them, say who referred them, ask whether they agree to share their results with that clinic, and add the scans. Then take the payment: in full, or part now and the rest on Outstanding Balances.'],
+            ['target' => 'scan-stages', 'title' => 'Work lists', 'body' => 'To bill, to scan and to report. Open an order to take its payment or mark it scanned and reported.'],
+            ['target' => 'scan-tab-catalogue', 'title' => 'Scan catalogue', 'body' => $manager
+                ? 'The scans you offer, their price (per eye or per scan) and the commission a referrer earns on each.'
+                : 'The scans you offer and their price. A manager sets them.'],
+            ['target' => 'scan-tab-partners', 'title' => 'Partner clinics', 'body' => $manager
+                ? 'Clinics that send you patients: their code for referral slips, their doctors, how results reach them, and any commission agreed with one clinic.'
+                : 'Clinics that send you patients, with their code and doctors. A manager adds them.'],
+            $manager ? ['target' => 'scan-tab-commissions', 'title' => 'Commissions', 'body' => 'What each partner clinic and doctor is owed once their patients\' bills are paid in full. Pay it from here; each payout is recorded as an expense, so the cash book balances.'] : null,
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

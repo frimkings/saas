@@ -85,6 +85,7 @@ class ClinicNavigation
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records'],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],
                 ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => $has(Feature::CASH_BOOK) && (bool) auth()->user()?->hasAnyRole(['Cashier', 'Manager', 'Super Admin'])],
+                ['label' => 'Diagnostic Scans', 'route' => 'frontdesk.scans', 'show' => $has(Feature::DIAGNOSTIC_SCANS)],
             ]],
         ]);
     }
@@ -149,6 +150,7 @@ class ClinicNavigation
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records', 'active' => ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],
+                ['label' => 'Diagnostic Scans', 'route' => 'frontdesk.scans', 'show' => $has(Feature::DIAGNOSTIC_SCANS)],
             ]];
             $doctorPages = (bool) $user?->hasAnyRole(['Doctor', 'Super Admin']);
             $menu[] = ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
