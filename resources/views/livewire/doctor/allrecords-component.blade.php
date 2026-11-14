@@ -413,8 +413,8 @@
                                         <div class="font-semibold text-slate-900" style="line-height:1.3;">
                                             {{ $patient?->name ?? '—' }}
                                         </div>
-                                        <div class="flex items-center mt-1" style="gap:6px;">
-                                            <code class="text-slate-500" style="font-size:.72rem; background:#f8f9fa; padding:1px 5px; border-radius:4px;">
+                                        <div class="flex flex-wrap items-center mt-1" style="gap:2px 6px;">
+                                            <code class="text-slate-500" style="font-size:.72rem; background:#f8f9fa; padding:1px 5px; border-radius:4px; white-space:nowrap;">
                                                 {{ $patient?->pxnumber ?? '—' }}
                                             </code>
                                             @if($patient?->contact)

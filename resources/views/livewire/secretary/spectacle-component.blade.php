@@ -2135,10 +2135,13 @@ window.addEventListener('auto-print-job-card', function () {
     setTimeout(function () {
         printThermalJobCard();
 
-        // Close the Livewire preview (find component via the rendered element's wire:id)
-        var el = document.querySelector('[wire\\:id]');
+        // Close the Livewire preview on the spectacles component itself (the
+        // first [wire:id] on the page is a layout component, e.g. the header).
+        var card = document.getElementById('spectacle-job-preview-print');
+        var el = card ? card.closest('[wire\\:id]') : null;
         if (el && window.Livewire) {
-            Livewire.find(el.getAttribute('wire:id')).call('closePrintPreview');
+            var cmp = Livewire.find(el.getAttribute('wire:id'));
+            if (cmp) cmp.call('closePrintPreview');
         }
     }, 80);
 });
