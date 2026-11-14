@@ -240,6 +240,7 @@ class ScanDeskComponent extends Component
             foreach ($e->errors() as $field => $messages) $this->addError($field, $messages[0]);
             return;
         }
+        $this->dispatch('scan-order-step')->to(ScanResultsComponent::class);
         session()->flash('success', $sale->payment_status === 'paid'
             ? 'Paid in full. The patient can go for the scan.'
             : 'Part payment recorded; the balance is on Outstanding Balances. The patient can go for the scan.');
@@ -277,8 +278,15 @@ class ScanDeskComponent extends Component
             $action(app(ScanOrderService::class), $this->order());
         } catch (ValidationException $e) {
             foreach ($e->errors() as $field => $messages) $this->addError($field, $messages[0]);
+            return;
         }
+        // The results panel is its own component: tell it the order moved on.
+        $this->dispatch('scan-order-step')->to(ScanResultsComponent::class);
     }
+
+    /** The results panel changed the order (files, consent, sent): show it fresh. */
+    #[\Livewire\Attributes\On('scan-order-changed')]
+    public function orderChanged(): void {}
 
     // --- Render ----------------------------------------------------------------------------
 

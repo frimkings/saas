@@ -1,6 +1,7 @@
 <div class="clinic-ui ui-page space-y-5">
     @include('livewire.optical.partials.order-ui')
     <style>
+        .oo-note.green{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
         .ds-tabs{display:flex;gap:4px;border-bottom:1px solid var(--clinic-line);overflow-x:auto;overflow-y:hidden}
         .ds-tab{border:0;background:none;padding:10px 14px;font-size:13px;font-weight:700;color:var(--clinic-muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
         .ds-tab:hover{color:var(--clinic-ink)}
@@ -34,6 +35,8 @@
         <livewire:scans.scan-partners-component wire:key="ds-tab-partners" />
     @elseif($tab === 'commissions')
         <livewire:scans.scan-commissions-component wire:key="ds-tab-commissions" />
+    @elseif($tab === 'reports')
+        <livewire:scans.scan-reports-component wire:key="ds-tab-reports" />
     @elseif($tab === 'catalogue')
         <livewire:scans.scan-catalogue-component wire:key="ds-tab-catalogue" />
     @else

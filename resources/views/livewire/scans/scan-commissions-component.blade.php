@@ -18,7 +18,7 @@
                     @forelse($owed as $row)
                         <tr wire:key="owed-{{ $row['type'] }}-{{ $row['id'] }}" wire:click="openPayee('{{ $row['type'] }}', {{ $row['id'] }})">
                             <td><b>{{ $row['name'] }}</b>@if($row['code']) <span class="oo-id">{{ $row['code'] }}</span>@endif</td>
-                            <td><span class="oo-badge {{ $row['type'] === 'partner' ? 'oo-b-teal' : 'oo-b-purple' }}">{{ $row['type'] === 'partner' ? 'Partner clinic' : 'Our doctor' }}</span></td>
+                            <td><span class="oo-badge {{ $row['type'] === 'partner' ? 'oo-b-teal' : 'oo-b-purple' }}">{{ $row['type'] === 'partner' ? 'Partner clinic' : 'Our doctor' }}</span>@if($row['type'] === 'staff' && in_array($row['id'], $onPayroll, true))<span class="oo-sub">Paid with salary</span>@endif</td>
                             <td>{{ $row['count'] }}</td>
                             <td>{{ \Illuminate\Support\Carbon::parse($row['oldest'])->format('d M Y') }}</td>
                             <td class="oo-num"><b style="color:{{ $row['amount'] > 0 ? '#b91c1c' : 'inherit' }}">{{ currency() }} {{ number_format($row['amount'], 2) }}</b></td>
@@ -32,6 +32,41 @@
         </div>
     </section>
 
+    @if($payrollOn)
+        <section class="ui-panel bg-white" data-tour="scan-commission-payroll">
+            <div class="flex flex-wrap items-center justify-between gap-2" style="padding:14px 16px;border-bottom:1px solid var(--clinic-line)">
+                <div><h2 class="text-sm font-bold m-0">Our doctors: paid with salary</h2>
+                    <p class="ds-hint m-0">Doctors followed in Attendance get their scan commission in the month's payroll (Attendance &rarr; Payroll, "Scan commission"). After paying salaries, settle the month here so it is not paid twice.</p></div>
+                <label class="ds-field" style="min-width:170px"><span>Month</span><select wire:model.live="settleMonth" class="ui-input">@foreach($months as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select></label>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="oo-table w-full" style="min-width:640px">
+                    <thead><tr><th>Doctor</th><th>Lines</th><th class="oo-num">Paid by voucher</th><th class="oo-num">Settled with payroll</th><th class="oo-num">Still to settle</th></tr></thead>
+                    <tbody>
+                        @forelse($payrollMonth as $doc)
+                            <tr wire:key="pm-{{ $doc['id'] }}" style="cursor:default">
+                                <td><b>{{ $doc['name'] }}</b>@unless($doc['on_payroll'])<span class="oo-sub">Not followed in Attendance: pay by voucher</span>@endunless</td>
+                                <td>{{ $doc['lines'] }}</td>
+                                <td class="oo-num">{{ $doc['by_voucher'] ? number_format($doc['by_voucher'], 2) : '–' }}</td>
+                                <td class="oo-num">{{ $doc['settled'] ? number_format($doc['settled'], 2) : '–' }}</td>
+                                <td class="oo-num"><b style="color:{{ $doc['on_payroll'] && $doc['unsettled'] ? '#b91c1c' : 'inherit' }}">{{ $doc['unsettled'] ? number_format($doc['unsettled'], 2) : '–' }}</b></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="ui-empty"><p class="ui-muted text-sm">No commission for our doctors in {{ $months[$settleMonth] ?? 'this month' }}.</p></td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @php $toSettle = round((float) $payrollMonth->where('on_payroll', true)->sum('unsettled'), 2); $settleCount = $payrollMonth->where('on_payroll', true)->where('unsettled', '!=', 0)->count(); @endphp
+            <div class="flex flex-wrap items-center justify-end gap-3" style="padding:12px 16px">
+                @error('settleMonth')<span class="ds-err">{{ $message }}</span>@enderror
+                <button type="button" class="oo-btn primary" wire:click="settlePayroll" @disabled($settleCount === 0) wire:loading.attr="disabled" wire:target="settlePayroll"
+                    wire:confirm="Mark {{ $months[$settleMonth] ?? '' }} scan commission as paid with salaries? {{ currency() }} {{ number_format($toSettle, 2) }} for {{ $settleCount }} {{ \Illuminate\Support\Str::plural('doctor', $settleCount) }}. Do this after paying the month's payroll.">
+                    Settle {{ $months[$settleMonth] ?? '' }} through payroll &middot; {{ currency() }} {{ number_format($toSettle, 2) }}</button>
+            </div>
+        </section>
+    @endif
+
     <section class="ui-panel bg-white">
         <div style="padding:14px 16px;border-bottom:1px solid var(--clinic-line)"><h2 class="text-sm font-bold m-0">Recent payouts</h2></div>
         <div class="overflow-x-auto">
@@ -44,7 +79,7 @@
                             <td><span class="oo-id">{{ $payout->voucher_number }}</span><span class="oo-sub">{{ $payout->route === 'payroll' ? 'Through payroll' : 'Voucher' }}</span></td>
                             <td><b>{{ $payout->payeeName() }}</b>@if($payout->reference)<span class="oo-sub">Ref {{ $payout->reference }}</span>@endif</td>
                             <td>{{ $payout->commissions_count }}<span class="oo-sub">up to {{ $payout->period_to?->format('d M') }}</span></td>
-                            <td>{{ $methods[$payout->payment_method] ?? ($payout->payment_method ?: '—') }}</td>
+                            <td>{{ $payout->route === 'payroll' ? 'With salary' : ($methods[$payout->payment_method] ?? ($payout->payment_method ?: '—')) }}</td>
                             <td>{{ $payout->paid_at->format('d M Y, H:i') }}<span class="oo-sub">{{ $payout->payer?->name }}</span></td>
                             <td class="oo-num"><b>{{ currency() }} {{ number_format($payout->amount, 2) }}</b></td>
                         </tr>
@@ -104,7 +139,7 @@
                             <div><span>Owed in all</span><b>{{ currency() }} {{ number_format((float) $lines->sum('amount'), 2) }}</b></div>
                         </div>
                         @error('payAmount')<div class="oo-note red mt-2.5">{{ $message }}</div>@enderror
-                        <p class="ds-hint" style="margin:8px 0 0">Recorded as a "{{ \App\Services\Scans\ScanCommissionService::EXPENSE_CATEGORY }}" expense{{ $payMethod === 'cash' ? ', taken from the till' : '' }}.@if($payeeType === 'staff') Doctors can also be paid with their salary once payroll settles commission.@endif</p>
+                        <p class="ds-hint" style="margin:8px 0 0">Recorded as a "{{ \App\Services\Scans\ScanCommissionService::EXPENSE_CATEGORY }}" expense{{ $payMethod === 'cash' ? ', taken from the till' : '' }}.@if($payeeType === 'staff' && in_array($payeeId, $onPayroll, true)) This doctor is on payroll: their commission is in the month's payroll, so pay by voucher only if it is not paid there.@endif</p>
                     </section>
                 @endif
             </div>

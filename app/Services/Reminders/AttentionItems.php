@@ -11,6 +11,7 @@ use App\Models\LensOrder;
 use App\Models\OpticalProductStock;
 use App\Models\OpticalStockLot;
 use App\Models\Product;
+use App\Models\ScanOrder;
 use App\Models\Setting;
 use App\Models\Stock;
 use App\Services\Inventory\BranchInventoryService;
@@ -32,6 +33,8 @@ use Illuminate\Support\Facades\DB;
  *  - order_due:           spectacles promised today or within a few days, not yet ready
  *  - order_late:          spectacles past their promised date, not yet ready
  *  - order_uncollected:   glasses ready for a few days and not collected
+ *  - scan_unreported:     Diagnostic Scans add-on: scans paid SCAN_REPORT_DAYS days ago or more, not yet reported
+ *  - scan_unsent:         Diagnostic Scans add-on: results reported a few hours ago, patient agreed, not sent to the partner
  *  - stock_expired:       stock past its expiry date still on the shelf (stays until a Super Admin removes it)
  *  - stock_expiring_soon: stock expiring within 30 days
  *  - stock_expiring:      stock expiring within the clinic's window (3 months by default)
@@ -56,6 +59,8 @@ class AttentionItems
         'lens_unordered'      => ['Special-order lenses not yet ordered', 'Put them on a supplier order in Purchasing, or the job cannot be made.', 'lens_order'],
         'order_due'           => ['Spectacles due soon', 'Check they will be ready on time.', 'lens_order'],
         'order_uncollected'   => ['Ready, not collected', 'Call the patient to come in.', 'lens_order'],
+        'scan_unreported'     => ['Paid scans not yet reported', 'Do the scan or finish the report, then add the result on the Scan Desk.', 'scan_order'],
+        'scan_unsent'         => ['Scan results not sent to the referrer', 'The patient agreed to share them. Send them from the Scan Desk.', 'scan_order'],
         'stock_expired'       => ['Expired stock', 'Take it off the shelf now. A Super Admin removes it from stock.', 'stock'],
         'stock_expiring_soon' => ['Expiring within 30 days', 'Use or sell these first, or return them to the supplier.', 'stock'],
         'stock_expiring'      => ['Expiring soon', 'Plan to use or sell these before they expire.', 'stock'],
@@ -77,6 +82,12 @@ class AttentionItems
     private const MISSED_AFTER_MINUTES = 30;
 
     private const PER_GROUP = 50;
+
+    /** Diagnostic scans: paid this many days ago and still not reported. */
+    public const SCAN_REPORT_DAYS = 2;
+
+    /** Diagnostic scans: reported this many hours ago and not yet sent to the referring clinic. */
+    public const SCAN_SEND_HOURS = 4;
 
     /** The clinic's thresholds, with sane bounds. */
     public static function thresholds(): array
@@ -154,6 +165,16 @@ class AttentionItems
                 })->values();
         }
 
+        if ($line === self::CLINIC && \App\Services\LicenseService::has(\App\Support\Feature::DIAGNOSTIC_SCANS)) {
+            $scans = fn () => ScanOrder::with(['patient:id,name,contact', 'items:id,scan_order_id,scan_name,eye', 'partner:id,name']);
+            $groups['scan_unreported'] = $scans()->whereNotNull('sale_id')->whereIn('status', ['registered', 'scanned'])
+                ->where('checked_out_at', '<=', $now->copy()->subDays(self::SCAN_REPORT_DAYS))->orderBy('checked_out_at')->limit(self::PER_GROUP)->get()
+                ->map(fn ($o) => $this->scanItem($o, 'scan_unreported', 'Paid '.$this->daysAgo($o->checked_out_at).' ago · '.($o->status === 'scanned' ? 'scanned, report not done' : 'not scanned yet')));
+            $groups['scan_unsent'] = $scans()->where('source', 'partner')->where('share_consent', true)->where('status', 'reported')
+                ->where('reported_at', '<=', $now->copy()->subHours(self::SCAN_SEND_HOURS))->orderBy('reported_at')->limit(self::PER_GROUP)->get()
+                ->map(fn ($o) => $this->scanItem($o, 'scan_unsent', 'Reported '.$o->reported_at->format('j M, H:i').' · for '.($o->partner?->name ?? 'the referring clinic')));
+        }
+
         foreach ($this->stockItems($line)->groupBy('rule') as $rule => $items) {
             $groups[$rule] = $items->take(self::PER_GROUP)->values();
         }
@@ -194,6 +215,7 @@ class AttentionItems
                 'uncollected'  => $n('order_uncollected'),
                 // Badge: problems, not things merely coming up.
                 'orders'       => $problemOrders,
+                'scans'        => $n('scan_unreported') + $n('scan_unsent'),
                 'stock_expired'  => $n('stock_expired'),
                 'stock_expiring' => $n('stock_expiring_soon') + $n('stock_expiring'),
                 'stale'        => $this->staleQuery($line)->count(),
@@ -362,12 +384,13 @@ class AttentionItems
     {
         abort_unless(isset(self::RULES[$rule]) && in_array($action, [AttentionAction::DONE, AttentionAction::SNOOZED], true), 422);
         $type = self::RULES[$rule][2] === 'stock' ? $type : self::RULES[$rule][2];
-        abort_unless($type && ($type !== 'stock' && in_array($type, ['appointment', 'lens_order', ...self::STOCK_TYPES], true)), 422);
+        abort_unless($type && ($type !== 'stock' && in_array($type, ['appointment', 'lens_order', 'scan_order', ...self::STOCK_TYPES], true)), 422);
         // Expired stock stays on the list until it is removed from stock.
         abort_if($rule === 'stock_expired' && $action === AttentionAction::DONE, 422);
         $subject = match ($type) {
             'appointment'   => Appointments::findOrFail($subjectId),
             'lens_order'    => LensOrder::findOrFail($subjectId),
+            'scan_order'    => ScanOrder::findOrFail($subjectId),
             'inventory_lot' => InventoryLot::findOrFail($subjectId),
             'product'       => Product::findOrFail($subjectId),
             'optical_lot'   => OpticalStockLot::findOrFail($subjectId),
@@ -522,6 +545,17 @@ class AttentionItems
             'detail' => $detail,
             'phone' => $o->display_customer_phone,
             'url' => $o->refraction_id ? route('secretary.spectacles') : route('optical.orders'),
+        ];
+    }
+
+    private function scanItem(ScanOrder $o, string $rule, string $detail): array
+    {
+        return [
+            'rule' => $rule, 'type' => 'scan_order', 'id' => $o->id,
+            'title' => ($o->patient?->name ?? 'Patient') . ' · ' . $o->order_number,
+            'detail' => $detail . ' · ' . $o->items->map->label()->implode(', '),
+            'phone' => $rule === 'scan_unsent' ? null : $o->patient?->contact,
+            'url' => route('frontdesk.scans'),
         ];
     }
 

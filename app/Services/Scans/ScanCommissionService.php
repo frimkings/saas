@@ -2,6 +2,7 @@
 
 namespace App\Services\Scans;
 
+use App\Models\AttendanceStaff;
 use App\Models\AuditTrail;
 use App\Models\DiagnosticScan;
 use App\Models\Expense;
@@ -15,6 +16,9 @@ use App\Models\ScanOrderItem;
 use App\Models\ScanPartnerClinic;
 use App\Models\ScanPartnerRate;
 use App\Models\User;
+use App\Services\LicenseService;
+use App\Support\Feature;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -171,5 +175,123 @@ class ScanCommissionService
 
             return $payout;
         });
+    }
+
+    // --- Our doctors, paid with their salary ---------------------------------------------------
+
+    /** Whether the clinic runs payroll from attendance, so doctors' commission goes there. */
+    public function payrollOn(): bool
+    {
+        return LicenseService::has(Feature::ATTENDANCE_PAYROLL);
+    }
+
+    /** Users followed in attendance (any branch): their commission is settled with payroll. */
+    public function payrollUserIds(): array
+    {
+        if (! $this->payrollOn()) return [];
+
+        return AttendanceStaff::withoutGlobalScope('branch')->where('is_tracked', true)->whereNotNull('user_id')
+            ->pluck('user_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * What goes in payroll for these people for these days: commission earned in the days that is
+     * still unpaid, or was settled through payroll. Paid by voucher = already paid, so left out.
+     * Corrections fall in the month of the refund and lower that month's figure.
+     *
+     * @return array<int, float> userId => amount
+     */
+    public function forPayroll(array $userIds, CarbonInterface $first, CarbonInterface $last): array
+    {
+        if ($userIds === []) return [];
+
+        return ScanCommission::where('payee_type', 'staff')->whereIn('user_id', $userIds)
+            ->whereBetween('earned_on', [$first->toDateString(), $last->toDateString()])
+            ->where(fn ($q) => $q->where('status', 'accrued')
+                ->orWhere(fn ($paid) => $paid->where('status', 'paid')->whereHas('payout', fn ($payout) => $payout->where('route', 'payroll'))))
+            ->selectRaw('user_id, SUM(amount) as amount')->groupBy('user_id')->pluck('amount', 'user_id')
+            ->map(fn ($amount) => round((float) $amount, 2))->all();
+    }
+
+    /**
+     * One month of doctors' commission, per doctor: 'name', 'on_payroll', 'unsettled' (accrued),
+     * 'settled' (paid through payroll), 'lines'.
+     */
+    public function payrollMonth(string $month): Collection
+    {
+        [$first, $last] = $this->monthBounds($month);
+        $onPayroll = $this->payrollUserIds();
+        $rows = ScanCommission::where('payee_type', 'staff')->where('status', '!=', 'void')
+            ->whereBetween('earned_on', [$first->toDateString(), $last->toDateString()])
+            ->with('payout:id,route')->get(['id', 'user_id', 'amount', 'status', 'scan_commission_payout_id']);
+        $users = User::whereIn('id', $rows->pluck('user_id')->unique())->get(['id', 'name'])->keyBy('id');
+
+        return $rows->groupBy('user_id')->map(fn ($lines, $userId) => [
+            'id' => (int) $userId,
+            'name' => $users[$userId]->name ?? 'Doctor',
+            'on_payroll' => in_array((int) $userId, $onPayroll, true),
+            'unsettled' => round((float) $lines->where('status', 'accrued')->sum('amount'), 2),
+            'settled' => round((float) $lines->filter(fn ($line) => $line->status === 'paid' && $line->payout?->route === 'payroll')->sum('amount'), 2),
+            'by_voucher' => round((float) $lines->filter(fn ($line) => $line->status === 'paid' && $line->payout?->route !== 'payroll')->sum('amount'), 2),
+            'lines' => $lines->count(),
+        ])->sortBy('name')->values();
+    }
+
+    /**
+     * After running a month's payroll: mark each doctor's unpaid commission earned that month as
+     * paid with their salary, one payroll payout per doctor, so it can't be paid twice. No expense:
+     * the salary payment carries it. A negative month (refunds) is settled too: it lowers their pay.
+     *
+     * @return Collection<ScanCommissionPayout>
+     */
+    public function settleThroughPayroll(string $month): Collection
+    {
+        [$first, $last] = $this->monthBounds($month);
+        if ($first->isFuture()) {
+            throw ValidationException::withMessages(['settleMonth' => 'That month has not started yet.']);
+        }
+        $userIds = $this->payrollUserIds();
+        if ($userIds === []) {
+            throw ValidationException::withMessages(['settleMonth' => $this->payrollOn()
+                ? 'None of the doctors is followed in Attendance, so none is paid through payroll. Pay them by voucher.'
+                : 'Payroll from attendance is not part of the clinic plan. Pay doctors by voucher.']);
+        }
+
+        return DB::transaction(function () use ($first, $last, $userIds) {
+            $rows = ScanCommission::where('payee_type', 'staff')->whereIn('user_id', $userIds)->where('status', 'accrued')
+                ->whereBetween('earned_on', [$first->toDateString(), $last->toDateString()])->lockForUpdate()->get();
+            if ($rows->isEmpty()) {
+                throw ValidationException::withMessages(['settleMonth' => 'Nothing is left to settle for '.$first->format('F Y').'.']);
+            }
+            $label = $first->format('F Y');
+            $periodTo = $last->isFuture() ? now()->toDateString() : $last->toDateString();
+            $names = User::whereIn('id', $rows->pluck('user_id'))->pluck('name', 'id');
+
+            return $rows->groupBy('user_id')->map(function ($lines, $userId) use ($label, $periodTo, $names) {
+                $amount = round((float) $lines->sum('amount'), 2);
+                $payout = ScanCommissionPayout::create([
+                    'voucher_number' => ScanCommissionPayout::nextNumber(), 'payee_type' => 'staff', 'user_id' => (int) $userId,
+                    'route' => 'payroll', 'period_to' => $periodTo, 'amount' => $amount, 'payment_method' => null,
+                    'reference' => "Payroll {$label}", 'notes' => null, 'expense_id' => null, 'paid_by' => Auth::id(), 'paid_at' => now(),
+                ]);
+                ScanCommission::whereIn('id', $lines->pluck('id'))->update(['status' => 'paid', 'scan_commission_payout_id' => $payout->id, 'updated_at' => now()]);
+                AuditTrail::record('scans.commission_payroll', 'Settled '.($names[$userId] ?? 'doctor')."'s scan commission for {$label} through payroll: "
+                    .currency().' '.number_format($amount, 2)." ({$payout->voucher_number}, {$lines->count()} lines)",
+                    $payout, [], ['amount' => $amount, 'lines' => $lines->count(), 'month' => $label], null, true);
+
+                return $payout;
+            })->values();
+        });
+    }
+
+    /** First and last day of a 'Y-m' month. */
+    private function monthBounds(string $month): array
+    {
+        if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+            throw ValidationException::withMessages(['settleMonth' => 'Choose a month.']);
+        }
+        $first = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfDay();
+
+        return [$first, $first->copy()->endOfMonth()->startOfDay()];
     }
 }

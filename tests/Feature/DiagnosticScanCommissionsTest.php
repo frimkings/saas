@@ -222,7 +222,7 @@ class DiagnosticScanCommissionsTest extends TestCase
         foreach ([true, false] as $manager) {
             $tour = TourCatalog::tour('clinic.scans', ['manager' => $manager]);
             $this->assertNotNull($tour);
-            $this->assertSame(1, $tour['version']);
+            $this->assertSame(2, $tour['version']);
             $this->assertSame($manager, collect($tour['steps'])->contains('target', 'scan-tab-commissions'));
         }
         Livewire::test(DiagnosticScansComponent::class)->assertSeeHtml('data-tour="tour-replay"')

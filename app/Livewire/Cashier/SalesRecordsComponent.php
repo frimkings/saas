@@ -21,6 +21,8 @@ class SalesRecordsComponent extends Component
     public $fromDate;
     public $toDate;
     public $filterRefunded = null;
+    /** Diagnostic Scans add-on: '' every sale, 'only' scan sales (from the Scan Desk), 'exclude' the rest. */
+    public string $scanFilter = '';
     public $sortColumn = 'created_at';
     public $sortDirection = 'desc';
 
@@ -48,6 +50,7 @@ class SalesRecordsComponent extends Component
         'fromDate' => ['except' => ''],
         'toDate' => ['except' => ''],
         'filterRefunded' => ['except' => null],
+        'scanFilter' => ['except' => ''],
         'page' => ['except' => 1],
     ];
 
@@ -79,6 +82,28 @@ class SalesRecordsComponent extends Component
         $this->resetPage();
     }
 
+    public function updatedScanFilter()
+    {
+        $this->normalizeFilters();
+        $this->resetPage();
+    }
+
+    /** Whether to offer the scans filter: clinic sales, and the add-on on or scan sales on record. */
+    public function scansFilterShown(): bool
+    {
+        return $this->businessLine === 'clinic'
+            && (\App\Services\LicenseService::has(\App\Support\Feature::DIAGNOSTIC_SCANS) || \App\Models\ScanOrder::whereNotNull('sale_id')->exists());
+    }
+
+    /** Keep to scan sales, or leave them out (a scan order's sale holds only its scans). */
+    private function scanScope($query)
+    {
+        if ($this->scanFilter === '') return $query;
+        $scanSales = \App\Models\ScanOrder::withTrashed()->whereNotNull('sale_id')->select('sale_id');
+
+        return $this->scanFilter === 'only' ? $query->whereIn('id', $scanSales) : $query->whereNotIn('id', $scanSales);
+    }
+
     public function updatedFilterRefunded()
     {
         $this->normalizeFilters();
@@ -96,6 +121,10 @@ class SalesRecordsComponent extends Component
 
         $this->fromDate = $this->normalizeDate($this->fromDate);
         $this->toDate = $this->normalizeDate($this->toDate);
+
+        if (! in_array($this->scanFilter, ['', 'only', 'exclude'], true) || $this->businessLine !== 'clinic') {
+            $this->scanFilter = '';
+        }
 
         if ($this->filterRefunded === '' || $this->filterRefunded === 'null') {
             $this->filterRefunded = null;
@@ -164,7 +193,7 @@ class SalesRecordsComponent extends Component
 
     public function resetFilters()
     {
-        $this->reset(['searchTerm', 'filterRefunded', 'sortColumn', 'sortDirection']);
+        $this->reset(['searchTerm', 'filterRefunded', 'scanFilter', 'sortColumn', 'sortDirection']);
         $this->fromDate = Carbon::today()->format('Y-m-d');
         $this->toDate = Carbon::today()->format('Y-m-d');
         $this->resetPage();
@@ -278,6 +307,7 @@ class SalesRecordsComponent extends Component
             ->where('business_line', $this->businessLine)
             ->with(['patient:id,name', 'user:id,name', 'approvedBy:id,name'])
             ->whereBetween('created_at', [$fromDate, $toDate]);
+        $this->scanScope($query);
 
         if ($this->filterRefunded !== null) {
             $query->where('is_refunded', $this->filterRefunded);
@@ -561,6 +591,7 @@ class SalesRecordsComponent extends Component
                 'pendingRefundLog:id,sale_id,status',
             ])
             ->whereBetween('created_at', [$fromDate, $toDate]);
+        $this->scanScope($query);
 
         if ($this->filterRefunded !== null) {
             $query->where('is_refunded', $this->filterRefunded);
@@ -576,19 +607,18 @@ class SalesRecordsComponent extends Component
             });
         }
 
-        $totalSales = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])
-            ->where('is_refunded', false)
-            ->sum('total_amount');
+        // The totals follow the scans filter too.
+        $inRange = fn () => $this->scanScope(Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate]));
+        $totalSales = $inRange()->where('is_refunded', false)->sum('total_amount');
 
-        $totalDiscounts = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])
-            ->where('is_refunded', false)->sum('discount_amount');
+        $totalDiscounts = $inRange()->where('is_refunded', false)->sum('discount_amount');
 
-        $totalReceipts = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])->count();
-        $refundCount = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])->where('is_refunded', true)->count();
-        $refundTotal = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])->where('is_refunded', true)->sum('total_amount');
+        $totalReceipts = $inRange()->count();
+        $refundCount = $inRange()->where('is_refunded', true)->count();
+        $refundTotal = $inRange()->where('is_refunded', true)->sum('total_amount');
 
         if (!empty($this->searchTerm)) {
-            $totalSales = Sales::where('business_line', $this->businessLine)->whereBetween('created_at', [$fromDate, $toDate])
+            $totalSales = $inRange()
                 ->where('is_refunded', false)
                 ->where(function($q) {
                     $q->where('transaction_id', 'like', '%' . $this->searchTerm . '%')
@@ -618,6 +648,9 @@ class SalesRecordsComponent extends Component
             'totalDiscounts' => (float) $totalDiscounts,
             'refundCount' => $refundCount,
             'refundTotal' => $refundTotal,
+            'showScanFilter' => $this->scansFilterShown(),
+            // Scan sales are tagged with their Scan Desk order.
+            'scanOrders' => $this->businessLine === 'clinic' ? \App\Models\ScanOrder::withTrashed()->whereIn('sale_id', $sales->pluck('id'))->pluck('order_number', 'sale_id') : collect(),
             // Payments brought over from the clinic's previous software have a page of their own (owners only).
             'hasLegacyPayments' => $this->businessLine === 'clinic' && auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])
                 && \App\Models\PatientLegacyPayment::query()->exists(),

@@ -69,8 +69,8 @@
             $pay = $viewOrder->paymentState();
             $billed = (bool) $viewOrder->sale_id;
             $owed = $billed ? max(0, (float) $viewOrder->sale->total_amount - (float) $viewOrder->sale->amount_paid - (float) $viewOrder->sale->insurer_amount) : (float) $viewOrder->total_amount;
-            $flow = ['billed' => 'Billed', 'scanned' => 'Scanned', 'reported' => 'Reported'];
-            $reached = ['billed' => $billed, 'scanned' => in_array($viewOrder->status, ['scanned', 'reported', 'sent'], true), 'reported' => in_array($viewOrder->status, ['reported', 'sent'], true)];
+            $flow = ['billed' => 'Billed', 'scanned' => 'Scanned', 'reported' => 'Reported'] + ($viewOrder->source === 'partner' && $viewOrder->share_consent ? ['sent' => 'Sent to referrer'] : []);
+            $reached = ['billed' => $billed, 'scanned' => in_array($viewOrder->status, ['scanned', 'reported', 'sent'], true), 'reported' => in_array($viewOrder->status, ['reported', 'sent'], true), 'sent' => $viewOrder->status === 'sent'];
             $next = $viewOrder->status === 'cancelled' ? null : collect($reached)->search(false);
         @endphp
         <div class="oo-overlay" wire:click="closeOrder" aria-hidden="true"></div>
@@ -122,6 +122,7 @@
                         <dt>Registered</dt><dd>{{ $viewOrder->created_at?->format('d M Y, H:i') }} by {{ $viewOrder->creator?->name ?? '—' }}</dd>
                         @if($viewOrder->scanned_at)<dt>Scanned</dt><dd>{{ $viewOrder->scanned_at->format('d M Y, H:i') }}</dd>@endif
                         @if($viewOrder->reported_at)<dt>Reported</dt><dd>{{ $viewOrder->reported_at->format('d M Y, H:i') }}</dd>@endif
+                        @if($viewOrder->results_sent_at)<dt>Results sent</dt><dd>{{ $viewOrder->results_sent_at->format('d M Y, H:i') }}</dd>@endif
                     </dl>
                 </section>
 
@@ -155,6 +156,8 @@
                         </form>
                     @endif
                 </section>
+
+                <livewire:scans.scan-results-component :order-id="$viewOrder->id" :key="'sr-'.$viewOrder->id" />
 
                 @if(! $billed && $viewOrder->status !== 'cancelled')
                     <section class="oo-section" style="border-top:1px solid var(--clinic-line);padding-top:14px">

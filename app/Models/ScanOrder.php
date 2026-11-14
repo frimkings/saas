@@ -21,7 +21,7 @@ class ScanOrder extends Model
 
     protected $fillable = ['order_number', 'patient_id', 'source', 'scan_partner_clinic_id', 'scan_partner_doctor_id', 'referrer_note',
         'ordered_by', 'consultation_id', 'sale_id', 'status', 'total_amount', 'share_consent', 'consent_by', 'consent_at', 'checked_out_at',
-        'scanned_at', 'scanned_by', 'reported_at', 'reported_by', 'results_sent_at', 'cancelled_at', 'cancel_reason', 'notes', 'created_by'];
+        'scanned_at', 'scanned_by', 'reported_at', 'reported_by', 'results_sent_at', 'results_sent_via', 'results_sent_by', 'cancelled_at', 'cancel_reason', 'notes', 'created_by'];
 
     protected $casts = [
         'total_amount' => 'decimal:2', 'share_consent' => 'boolean', 'consent_at' => 'datetime', 'checked_out_at' => 'datetime',
@@ -56,6 +56,23 @@ class ScanOrder extends Model
     public function items()
     {
         return $this->hasMany(ScanOrderItem::class);
+    }
+
+    /** Result files (OCT prints, field plots, fundus photos): patient documents tied to this order. */
+    public function documents()
+    {
+        return $this->hasMany(PatientDocument::class)->orderBy('id');
+    }
+
+    public function sender()
+    {
+        return $this->belongsTo(User::class, 'results_sent_by');
+    }
+
+    /** Partner orders whose patient agreed, once reported: results may go to the referring clinic. */
+    public function canShareResults(): bool
+    {
+        return $this->source === 'partner' && $this->share_consent && in_array($this->status, ['reported', 'sent'], true);
     }
 
     public function creator()

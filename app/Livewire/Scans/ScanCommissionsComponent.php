@@ -15,7 +15,8 @@ use Livewire\Component;
 /**
  * Diagnostic Scans → Commissions (managers): what each partner clinic and doctor is owed for
  * referred scans, and paying it out by voucher. Each payout is also an expense, so the cash book
- * and the day close balance.
+ * and the day close balance. Our doctors on attendance payroll are paid with their salary instead:
+ * the month is settled here once payroll is run.
  */
 class ScanCommissionsComponent extends Component
 {
@@ -27,9 +28,30 @@ class ScanCommissionsComponent extends Component
     public string $payReference = '';
     public string $payNotes = '';
 
+    /** 'Y-m': the month whose doctors' commission is settled with payroll. */
+    public string $settleMonth = '';
+
     public function mount(): void
     {
         abort_unless(DiagnosticScansComponent::canManage(), 403);
+        $this->settleMonth = now()->subMonthNoOverflow()->format('Y-m');
+    }
+
+    /** After the month's payroll is run: mark doctors' commission for it paid with their salary. */
+    public function settlePayroll(): void
+    {
+        abort_unless(DiagnosticScansComponent::canManage(), 403);
+        app(ClinicAccessService::class)->assertWritable(Feature::DIAGNOSTIC_SCANS);
+        $this->resetErrorBag();
+        try {
+            $payouts = app(ScanCommissionService::class)->settleThroughPayroll($this->settleMonth);
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) $this->addError($field, $messages[0]);
+            return;
+        }
+        $month = Carbon::createFromFormat('Y-m-d', $this->settleMonth.'-01')->format('F Y');
+        session()->flash('success', "{$month} scan commission settled through payroll for {$payouts->count()} "
+            .\Illuminate\Support\Str::plural('doctor', $payouts->count()).': '.currency().' '.number_format((float) $payouts->sum('amount'), 2).'.');
     }
 
     public function openPayee(string $type, int $id): void
@@ -91,6 +113,10 @@ class ScanCommissionsComponent extends Component
         $payable = round((float) $lines->filter(fn ($line) => $line->earned_on->toDateString() <= $upTo)->sum('amount'), 2);
 
         $monthStart = now()->startOfMonth();
+        $payrollOn = $service->payrollOn();
+        $onPayroll = $payrollOn ? $service->payrollUserIds() : [];
+        $months = collect(range(0, 11))->mapWithKeys(fn ($back) => [now()->startOfMonth()->subMonthsNoOverflow($back)->format('Y-m') => now()->startOfMonth()->subMonthsNoOverflow($back)->format('F Y')]);
+        if (! $months->has($this->settleMonth)) $this->settleMonth = now()->subMonthNoOverflow()->format('Y-m');
 
         return view('livewire.scans.scan-commissions-component', [
             'owed' => $owed,
@@ -104,6 +130,10 @@ class ScanCommissionsComponent extends Component
             'lines' => $lines,
             'payable' => $payable,
             'methods' => Expense::PAYMENT_METHODS,
+            'payrollOn' => $payrollOn,
+            'onPayroll' => $onPayroll,
+            'months' => $months,
+            'payrollMonth' => $payrollOn ? $service->payrollMonth($this->settleMonth) : collect(),
             'payouts' => ScanCommissionPayout::withoutGlobalScope('branch')->with(['partner:id,name,code', 'user:id,name', 'payer:id,name'])
                 ->withCount('commissions')->latest('paid_at')->limit(15)->get(),
         ]);

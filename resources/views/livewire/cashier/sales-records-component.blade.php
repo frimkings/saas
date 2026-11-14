@@ -11,7 +11,7 @@
             <h1>{{ ucfirst($businessLine) }} sales records</h1>
             <p class="ui-muted">Viewing records for period: {{ $fromDate }} to {{ $toDate }}</p>
             <div class="mt-2 flex flex-wrap gap-2">
-                <x-guide-tour page="clinic.sales" :context="['previous' => $hasLegacyPayments]" />
+                <x-guide-tour page="clinic.sales" :context="['previous' => $hasLegacyPayments, 'scans' => $showScanFilter]" />
                 @if($hasLegacyPayments)<x-ui.button :href="route('admin.sales-records.previous')" data-tour="sales-previous">Previous software payments</x-ui.button>@endif
             </div>
         </div>
@@ -23,13 +23,13 @@
                 </div>
             @endif
             <div class="rounded-xl bg-teal-700 px-6 py-2 text-white">
-                <p class="text-xs font-semibold uppercase tracking-wide text-teal-100">Total sales (not refunded)</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-teal-100">Total sales (not refunded){{ ['only' => ' · scans only', 'exclude' => ' · without scans'][$scanFilter] ?? '' }}</p>
                 <p class="text-xl font-semibold">{{ currency() }} {{ number_format($totalSales, 2) }}</p>
             </div>
         </div>
     </div>
 
-    <div class="ui-panel grid items-end gap-2 px-6 py-6 sm:grid-cols-2 lg:grid-cols-[3fr_3fr_4fr_2fr]" data-tour="sales-filters">
+    <div class="ui-panel grid items-end gap-2 px-6 py-6 sm:grid-cols-2 {{ $showScanFilter ? 'lg:grid-cols-[3fr_3fr_2fr_4fr_2fr]' : 'lg:grid-cols-[3fr_3fr_4fr_2fr]' }}" data-tour="sales-filters">
         <div>
             <label for="sales-search" class="{{ $label }}">Live search</label>
             <input id="sales-search" wire:model.live.debounce.300ms="searchTerm" type="search" class="ui-input" placeholder="Name or TXN ID">
@@ -38,6 +38,16 @@
             <span class="{{ $label }}">Date range</span>
             <x-date-range from="fromDate" to="toDate" presets="finance" />
         </div>
+        @if($showScanFilter)
+            <div data-tour="sales-scan-filter">
+                <label for="sales-scan-filter" class="{{ $label }}">Diagnostic scans</label>
+                <select id="sales-scan-filter" wire:model.live="scanFilter" class="ui-input">
+                    <option value="">All sales</option>
+                    <option value="only">Scans only</option>
+                    <option value="exclude">Without scans</option>
+                </select>
+            </div>
+        @endif
         <div>
             <span class="{{ $label }}">Status &amp; export</span>
             <div class="flex gap-1">
@@ -71,6 +81,7 @@
                             <td>
                                 <span class="block font-semibold">{{ $sale->created_at->format('M d, Y') }}</span>
                                 <span class="font-mono text-xs text-teal-800">{{ $sale->transaction_id }}</span>
+                                @if(isset($scanOrders[$sale->id]))<span class="{{ $chip }} ml-1 bg-sky-100 text-sky-800" title="Diagnostic scan sale, Scan Desk order {{ $scanOrders[$sale->id] }}">Scan · {{ $scanOrders[$sale->id] }}</span>@endif
                             </td>
                             <td>
                                 <span class="block font-semibold">{{ $sale->customer_display_name }}</span>

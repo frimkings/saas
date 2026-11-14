@@ -263,8 +263,8 @@ but not sent (with consent), commission accrued and unpaid past month end.
 | 1 ✅ | Feature key + add-on registration, menu, migrations (catalogue, partners, partner doctors, partner rates), **Catalogue** and **Partner Clinics** tabs | Manager can maintain scans and partners behind the add-on |
 | 2 ✅ | **Scan Desk**: orders, quick-register, hidden service product per scan (`diagnostic_scans.product_id`, kept out of POS search and the Products page), checkout through existing sales, status tracking | Referred and self-referred scans can be sold and tracked |
 | 3 ✅ | Commission accrual/void hooks, **Commissions** tab, partner payout + expense | Partner commissions accrue, reverse on refund, and are paid out with a voucher |
-| 4 | Internal orders from consultation + payroll integration | Doctors earn commission that appears in the payroll CSV and is settled monthly |
-| 5 | Results upload + consented sharing, Reports, Needs Attention items | Full loop and reporting |
+| 4 ✅ | Internal orders from consultation + payroll integration | Doctors earn commission that appears in the payroll CSV and is settled monthly |
+| 5 ✅ | Results upload + consented sharing, Reports, Needs Attention items | Full loop and reporting |
 
 Each phase ships with feature tests (tenancy isolation, add-on gating, accrual idempotency,
 refund voiding, payroll totals), following the existing `tests/Feature` style.
@@ -302,6 +302,61 @@ refund voiding, payroll totals), following the existing `tests/Feature` style.
 - **Commissions tab** is managers only (hidden, and `setTab` refused, for other roles).
 - **Tour** `clinic.scans` (v1) on the page; manager-only step for Commissions.
 - Payouts can't be cancelled yet; a wrong payout is corrected by hand (expense + note).
+
+## 10c. As built in phase 4
+
+- **Ordering from the consultation**: `Scans\ConsultationScansComponent`, a "Diagnostic Scans" panel in
+  the consultation tab (above Upcoming Appointment), for Doctor / Super Admin when the add-on is on.
+  The doctor ticks scans (eye for per-eye scans) and an optional note for the scan room; the order is
+  created as `internal`, `ordered_by` = the doctor, `consultation_id` when the consultation is saved,
+  and waits at the Scan Desk "To bill". The panel lists the patient's scan orders of the last 90 days
+  with payment and work status. The ordering doctor (or the owner) can withdraw an order until it is
+  billed. Everything in the panel is `type="button"`, so it never submits the consultation form.
+- **Payroll**: `AttendancePayroll::for()` adds `scan_commission` per person (by `attendance_staff.user_id`)
+  and includes it in `gross`; a person with no pay set but with commission gets gross = commission. The
+  payroll window and CSV show a "Scan commission" column only when someone has some.
+  What counts for a period (`ScanCommissionService::forPayroll`): rows earned in the days that are
+  accrued, or paid through a payroll payout. Rows paid by voucher are left out (already paid).
+  Corrections fall in the month of the refund and lower that month.
+- **Settling** (`settleThroughPayroll('Y-m')`), Commissions tab → "Our doctors: paid with salary":
+  per month, per doctor followed in Attendance, accrued rows earned that month become paid on one
+  `route = payroll` payout (`COM-` number, reference "Payroll October 2026", no expense: the salary
+  payment carries it). Refused for a future month, when nothing is left, or when no doctor is followed
+  in Attendance / the plan has no attendance payroll. Doctors not followed are marked "pay by voucher".
+- Line labels now read "OCT Macula (OD)" / "(both eyes)".
+- Tour `clinic.scans` v2 mentions consultation orders and payroll settlement.
+
+## 10d. As built in phase 5
+
+- **Results** (`Scans\ScanResultsComponent`, inside the Scan Desk order): PDF/JPG/PNG files, once the
+  order is billed. Each is a `patient_documents` row with `scan_order_id` (migration
+  2026_11_14_000001), the order's `consultation_id`, type OCT / visual field / fundus photo / other,
+  so it also shows in the patient's Clinical Documents. The storage allowance is checked. Marking
+  reported does not require a file (clinics that hand over printed reports), but sending does.
+- **Consent**: set on the order at registration; "The patient agrees now" records it later
+  (`consent_by`/`consent_at`, audited).
+- **Sending** (`ScanResultsService::send`): partner order, consent, status reported/sent, at least one
+  file. The message carries a signed link (`scan-results.show`, 14 days, no sign-in) to a page listing
+  the order's files, each opened through its own signed link. The page is `noindex`, `no-referrer`, and
+  answers 404 if consent is withdrawn. Channels: WhatsApp (wa.me link from staff's phone, recorded),
+  SMS (SmsService, uses credit), email (OwnerNoticeMail with the clinic's email as reply-to), or copy
+  the link. Order → `sent`, `results_sent_at/_via/_by`, audit `scans.results_sent`. Resending is allowed.
+- **Reports tab** (`Scans\ScanReportsComponent`, managers; `App\Services\Scans\ScanReports`): any dates
+  (presets), orders counted on their registration day, cancelled left out. Totals; referrals by
+  partner (orders, patients, scans, billed, paid, commission); by source; by scan (with the split by
+  source); top referring doctors (partner doctors and ours); turnaround (paid → reported, reported →
+  sent, average hours); partners with no referral in 60 days. CSV download `frontdesk.scans.report`.
+  No PDF yet.
+- **Needs Attention** (clinic list, add-on on): `scan_unreported` (paid 2+ days ago, not reported) and
+  `scan_unsent` (reported 4+ hours ago, patient agreed, not sent). Subject type `scan_order`; done /
+  snooze work as for other items. Commission still owed after month end is not an item: it is a
+  manager's matter and the Commissions tab shows it.
+- Tour `clinic.scans` v2 also covers results, sending and the Reports tab.
+- **Sales Records** (clinic): a "Diagnostic scans" filter (All sales / Scans only / Without scans),
+  shown when the add-on is on or scan sales exist. The list, the totals at the top and the CSV follow
+  it; scan sales carry a "Scan · SCN-…" tag. A Scan Desk sale holds only scans, so the filter is by
+  sale. Tour `clinic.sales` v4 has a step for it. Reports → Categories already showed scans under
+  their own "Diagnostic Scans" category, and Reports → Items per scan.
 
 ## 11. Open points
 

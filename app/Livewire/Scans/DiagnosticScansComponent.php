@@ -7,15 +7,14 @@ use Livewire\Component;
 
 /**
  * Front Desk → Diagnostic Scans: one page, a tab per part. Each tab is its own component.
- * Phase 1 has the catalogue and the partner clinics; the scan desk, commissions and reports
- * follow (docs/diagnostic-scans-design.md).
+ * See docs/diagnostic-scans-design.md.
  */
 class DiagnosticScansComponent extends Component
 {
-    public const TABS = ['desk' => 'Scan Desk', 'catalogue' => 'Scan Catalogue', 'partners' => 'Partner Clinics', 'commissions' => 'Commissions'];
+    public const TABS = ['desk' => 'Scan Desk', 'catalogue' => 'Scan Catalogue', 'partners' => 'Partner Clinics', 'commissions' => 'Commissions', 'reports' => 'Reports'];
 
-    /** Tabs only managers open: what referrers are owed and paying it. */
-    public const MANAGER_TABS = ['commissions'];
+    /** Tabs only managers open: what referrers are owed and paying it, and the money in the reports. */
+    public const MANAGER_TABS = ['commissions', 'reports'];
 
     #[Url(except: 'desk')]
     public string $tab = 'desk';

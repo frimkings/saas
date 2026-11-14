@@ -83,6 +83,11 @@ require __DIR__.'/auth.php';
 // Public pricing page (hosted only): plans, a "build your own" calculator and "Request this plan".
 Route::get('/pricing', [\App\Http\Controllers\PricingController::class, 'show'])->name('pricing');
 Route::post('/pricing/request', [\App\Http\Controllers\PricingController::class, 'request'])->middleware('throttle:5,60')->name('pricing.request');
+// Scan results shared with a referring clinic: signed links that expire, no sign-in (ScanResultsController).
+Route::middleware(['signed', 'throttle:60,1'])->group(function () {
+    Route::get('/scan-results/{order}', [\App\Http\Controllers\ScanResultsController::class, 'show'])->whereNumber('order')->name('scan-results.show');
+    Route::get('/scan-results/{order}/files/{document}', [\App\Http\Controllers\ScanResultsController::class, 'file'])->whereNumber(['order', 'document'])->name('scan-results.file');
+});
 // A quotation or pro-forma sent to a prospect, opened from the link in their SMS or email (no sign-in).
 Route::get('/quote/{token}', [\App\Http\Controllers\ProspectQuoteDocumentController::class, 'public'])->middleware('throttle:30,1')->where('token', '[A-Za-z0-9]{48}')->name('quote.public');
 
@@ -194,7 +199,13 @@ Route::get('cashier/dashboard', CashierDashboardComponent::class)->name('cashier
 Route::get('cashier/seller-desk', POSComponent::class)->name('cashier.seller-desk');
 Route::get('cashier/day-close', \App\Livewire\Admin\DayCloseComponent::class)->name('admin.day-close')->middleware('feature:cash_book')->middleware('role:Cashier|Manager|Super Admin');
 Route::get('cashier/outstanding-balances', OutstandingBalancesComponent::class)->name('cashier.outstanding-balances')->middleware('feature-or-leftover:outstanding_balances');
-// Diagnostic scans: catalogue, partner clinics (and later the scan desk and commissions). Opticians don't sell scans.
+// Diagnostic scans (add-on): scan desk, catalogue, partner clinics, commissions and reports. Opticians don't sell scans.
+Route::get('front-desk/scans/report.csv', function (\Illuminate\Http\Request $request) {
+    $data = $request->validate(['from' => 'required|date_format:Y-m-d', 'to' => 'required|date_format:Y-m-d|after_or_equal:from']);
+    $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+
+    return app(\App\Services\Scans\ScanReports::class)->csv(\Illuminate\Support\Carbon::parse($data['from']), \Illuminate\Support\Carbon::parse($data['to']), $clinic?->name ?? '');
+})->name('frontdesk.scans.report')->middleware(['role:Manager|Super Admin', 'feature:diagnostic_scans']);
 Route::get('front-desk/scans', \App\Livewire\Scans\DiagnosticScansComponent::class)->name('frontdesk.scans')->middleware(['role:Secretary|Cashier|Manager|Super Admin', 'feature:diagnostic_scans']);
 Route::get('/livewire/ajax-patients', [POSComponent::class, 'getPatientsJson']);
 Route::get('/cashier/sales-records', SalesRecordsComponent::class)->name('cashier.sales-records');

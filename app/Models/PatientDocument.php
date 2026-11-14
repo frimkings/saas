@@ -13,6 +13,7 @@ class PatientDocument extends Model
     protected $fillable = [
         'patient_id',
         'consultation_id',
+        'scan_order_id',
         'uploaded_by',
         'document_type',
         'title',

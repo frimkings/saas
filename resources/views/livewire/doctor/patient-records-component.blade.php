@@ -737,6 +737,11 @@
             <div class="w-full px-2">
              
 
+                {{-- Diagnostic Scans add-on: order scans; they wait at the Scan Desk to be paid --}}
+                @if(\App\Livewire\Scans\ConsultationScansComponent::allowed())
+                    <livewire:scans.consultation-scans-component :patient-id="$patient->id" :consultation-id="$consultationID ? (int) $consultationID : null" :key="'consult-scans-'.$patient->id" />
+                @endif
+
                 @if($canAppointments)
                 {{-- ⭐ APPOINTMENT BOOKING SECTION - Right Column ⭐ --}}
                 <div class="ui-panel mb-4">

@@ -5,6 +5,9 @@ namespace App\Services\Attendance;
 use App\Models\AttendanceLeaveType;
 use App\Models\AttendanceStaff;
 use App\Models\Setting;
+use App\Services\LicenseService;
+use App\Services\Scans\ScanCommissionService;
+use App\Support\Feature;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -18,6 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * the branch takes it off, plus approved overtime at the branch's rate.
  * Hourly: the hours on site up to the end of the working day, plus approved overtime at the
  * branch's rate. Leave and holidays are not paid by themselves.
+ * With the Diagnostic Scans add-on, a doctor's scan commission for the days is added to gross pay.
  */
 class AttendancePayroll
 {
@@ -46,6 +50,11 @@ class AttendancePayroll
         for ($month = $first->startOfMonth(); $salaried && $month->lte($last); $month = $month->addMonthNoOverflow()) {
             $schedules[$month->format('Y-m')] = $this->analyzer->schedules($salaried, $month, $month->endOfMonth()->startOfDay());
         }
+
+        // Doctors' scan commission for the days (Diagnostic Scans add-on), paid with their salary.
+        $commission = LicenseService::has(Feature::DIAGNOSTIC_SCANS)
+            ? app(ScanCommissionService::class)->forPayroll(array_values(array_filter(array_map(fn ($row) => $row['staff']->is_tracked ? $row['staff']->user_id : null, $report['rows']))), $first, $last)
+            : [];
 
         $rows = [];
         foreach ($report['rows'] as $row) {
@@ -94,12 +103,15 @@ class AttendancePayroll
             foreach (['basic', 'overtime_pay', 'absence', 'unpaid', 'lateness'] as $money) {
                 $line[$money] = round($line[$money], 2);
             }
-            $line['gross'] = $staff->pay_type ? round(max(0, $line['basic'] + $line['overtime_pay'] - $line['absence'] - $line['unpaid'] - $line['lateness']), 2) : null;
+            $line['scan_commission'] = (float) ($commission[$staff->user_id] ?? 0);
+            $line['gross'] = $staff->pay_type
+                ? round(max(0, $line['basic'] + $line['overtime_pay'] - $line['absence'] - $line['unpaid'] - $line['lateness'] + $line['scan_commission']), 2)
+                : ($line['scan_commission'] ? round(max(0, $line['scan_commission']), 2) : null);
             $rows[] = $line;
         }
 
         return ['rows' => $rows, 'settings' => $settings, 'pending' => array_sum(array_column($rows, 'overtime_pending')),
-            'unrecorded' => array_sum(array_column($rows, 'unrecorded')), 'unpaid_staff' => count(array_filter($rows, fn ($line) => ! $line['pay_type']))];
+            'unrecorded' => array_sum(array_column($rows, 'unrecorded')), 'commission' => $commission !== [], 'unpaid_staff' => count(array_filter($rows, fn ($line) => ! $line['pay_type']))];
     }
 
     /**
@@ -148,7 +160,7 @@ class AttendancePayroll
             fputcsv($out, []);
             fputcsv($out, ['Employee ID', 'Name', 'Department', 'Paid', 'Rate', 'Days expected', 'Days present', 'Days absent', 'Paid leave (days)', 'Unpaid leave (days)', 'Holidays',
                 'Hours on site', 'Minutes late', 'Overtime hours (approved)', 'Overtime hours (waiting)', 'Basic pay', 'Overtime pay', 'Absence deduction', 'Unpaid leave deduction',
-                'Lateness deduction', 'Gross pay', 'Note']);
+                'Lateness deduction', ...($payroll['commission'] ? ['Scan commission'] : []), 'Gross pay', 'Note']);
             foreach ($payroll['rows'] as $line) {
                 $staff = $line['staff'];
                 $money = fn ($amount) => $line['pay_type'] ? number_format($amount, 2, '.', '') : null;
@@ -156,8 +168,10 @@ class AttendancePayroll
                     $staff->name, $staff->unit?->name ?? $staff->department, ['monthly' => 'Monthly salary', 'hourly' => 'By the hour'][$line['pay_type']] ?? 'Not set', $money($line['rate'] ?? 0),
                     $line['expected'], $line['present'], $line['absent'], $line['paid_leave'], $line['unpaid_leave'], $line['holidays'], round($line['minutes_worked'] / 60, 2),
                     $line['late_minutes'], round($line['overtime_minutes'] / 60, 2), round($line['overtime_pending'] / 60, 2), $money($line['basic']), $money($line['overtime_pay']),
-                    $money($line['absence']), $money($line['unpaid']), $money($line['lateness']), $money($line['gross'] ?? 0),
-                    $line['pay_type'] ? null : 'No pay set for this person']);
+                    $money($line['absence']), $money($line['unpaid']), $money($line['lateness']),
+                    ...($payroll['commission'] ? [number_format($line['scan_commission'], 2, '.', '')] : []),
+                    $line['gross'] === null ? null : number_format($line['gross'], 2, '.', ''),
+                    $line['pay_type'] ? null : ($line['scan_commission'] ? 'No pay set: scan commission only' : 'No pay set for this person')]);
             }
             fclose($out);
         }, $name.'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);

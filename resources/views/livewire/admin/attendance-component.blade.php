@@ -683,7 +683,7 @@
                 <div class="ui-table-wrap">
                     <table class="table ui-table ui-table-sm mb-0">
                         <thead><tr><th>Staff</th><th>Paid</th><th>Rate ({{ $currency }})</th><th class="text-right">Present</th><th class="text-right">Absent</th><th class="text-right">Late</th><th class="text-right">Overtime</th>
-                            <th class="text-right">Basic</th><th class="text-right">Overtime pay</th><th class="text-right">Taken off</th><th class="text-right">Gross</th></tr></thead>
+                            <th class="text-right">Basic</th><th class="text-right">Overtime pay</th><th class="text-right">Taken off</th>@if($payroll['commission'])<th class="text-right" title="Diagnostic Scans: commission on scans the doctor ordered, earned in these days">Scan commission</th>@endif<th class="text-right">Gross</th></tr></thead>
                         <tbody>
                             @foreach($payrollPage[0] as $line)
                                 @php $id = $line['staff']->id; @endphp
@@ -701,18 +701,23 @@
                                         <td class="text-right ui-number">{{ number_format($line['basic'], 2) }}</td>
                                         <td class="text-right ui-number">{{ $line['overtime_pay'] ? number_format($line['overtime_pay'], 2) : '–' }}</td>
                                         <td class="text-right ui-number">{{ ($off = $line['absence'] + $line['unpaid'] + $line['lateness']) ? number_format($off, 2) : '–' }}</td>
+                                        @if($payroll['commission'])<td class="text-right ui-number">{{ $line['scan_commission'] ? number_format($line['scan_commission'], 2) : '–' }}</td>@endif
                                         <td class="text-right ui-number font-semibold">{{ number_format($line['gross'], 2) }}</td>
+                                    @elseif($line['scan_commission'])
+                                        <td colspan="3" class="text-right text-sm text-slate-400">Set how they are paid</td>
+                                        <td class="text-right ui-number">{{ number_format($line['scan_commission'], 2) }}</td>
+                                        <td class="text-right ui-number font-semibold">{{ number_format($line['gross'] ?? 0, 2) }}</td>
                                     @else
-                                        <td colspan="4" class="text-right text-sm text-slate-400">Set how they are paid</td>
+                                        <td colspan="{{ $payroll['commission'] ? 5 : 4 }}" class="text-right text-sm text-slate-400">Set how they are paid</td>
                                     @endif
                                 </tr>
                             @endforeach
                         </tbody>
-                        <tfoot><tr><td colspan="10" class="text-right font-semibold">Total gross{{ $payrollPage[1]['pages'] > 1 ? ', everyone' : '' }}</td><td class="text-right ui-number font-semibold">{{ number_format($payrollTotal, 2) }}</td></tr></tfoot>
+                        <tfoot><tr><td colspan="{{ $payroll['commission'] ? 11 : 10 }}" class="text-right font-semibold">Total gross{{ $payrollPage[1]['pages'] > 1 ? ', everyone' : '' }}</td><td class="text-right ui-number font-semibold">{{ number_format($payrollTotal, 2) }}</td></tr></tfoot>
                     </table>
                 </div>
                 @include('livewire.admin.partials.attendance-pager', ['pager' => $payrollPage[1], 'model' => 'payPage'])
-                <p class="!mb-0 text-xs text-slate-500">On a salary, a working day is worth the month's salary divided by that month's working days. By the hour, people are paid for hours on site up to the end of the day, plus approved overtime; leave and holidays are not added.</p>
+                <p class="!mb-0 text-xs text-slate-500">On a salary, a working day is worth the month's salary divided by that month's working days. By the hour, people are paid for hours on site up to the end of the day, plus approved overtime; leave and holidays are not added.@if($payroll['commission']) Scan commission is what doctors earned on scans they ordered in these days and was not paid by voucher; once paid, settle it under Diagnostic Scans → Commissions.@endif</p>
                 <div class="flex flex-wrap items-center justify-end gap-2">
                     <a class="ui-button ui-button-secondary" href="{{ route('admin.attendance.export', ['format' => 'payroll', 'from' => $first->format('Y-m-d'), 'to' => $last->format('Y-m-d')] + ($department !== '' ? ['department' => $department] : [])) }}"><i class="fas fa-file-excel" aria-hidden="true"></i>Download for Excel</a>
                     <x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePayroll">Save and work out again</x-ui.button>

@@ -30,7 +30,7 @@ final class TourCatalog
         'clinic.clearance' => 1,
         'clinic.pos' => 2,
         'clinic.queue' => 2,
-        'clinic.sales' => 3,
+        'clinic.sales' => 4,
         'clinic.day-close' => 2,
         'clinic.cash-book' => 1,
         'clinic.settings' => 1,
@@ -38,7 +38,7 @@ final class TourCatalog
         'clinic.claims' => 1,
         'clinic.receivables' => 1,
         'clinic.insurer-payments' => 1,
-        'clinic.scans' => 1,
+        'clinic.scans' => 2,
         'platform.dashboard' => 1,
         'platform.clinics' => 1,
         'platform.plans' => 1,
@@ -295,6 +295,7 @@ final class TourCatalog
             ['title' => 'Every sale', 'body' => 'All sales for the days you pick, with the amount after any discount and who made it.'],
             ['target' => 'sales-totals', 'title' => 'The totals', 'body' => 'What was sold, and how much was given in discounts.'],
             ['target' => 'sales-filters', 'title' => 'Find a sale', 'body' => 'Search by name or transaction number, pick the days, show only refunded or paid sales, or download them as CSV.'],
+            ($c['scans'] ?? false) ? ['target' => 'sales-scan-filter', 'title' => 'Diagnostic scans', 'body' => 'Show only scan sales from the Scan Desk, or leave them out. The totals and the CSV follow it. Scan sales carry a Scan tag with their order number.'] : null,
             ['target' => 'sales-list', 'title' => 'Look closer or put it right', 'body' => 'The eye shows the items, discount and receipt. The red arrow refunds a sale, or voids one entered by mistake today; on plans with approvals a manager decides first.'],
             ($c['previous'] ?? false) ? ['target' => 'sales-previous', 'title' => 'Before you moved here', 'body' => 'What patients paid in your previous software, for reference. Those payments are not sales here and stay out of these totals and your reports.'] : null,
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
@@ -377,17 +378,18 @@ final class TourCatalog
         $manager = (bool) ($c['manager'] ?? false);
 
         return ['key' => 'clinic.scans', 'title' => 'Diagnostic Scans', 'steps' => [
-            ['title' => 'Diagnostic scans', 'body' => 'OCT, visual fields, fundus photos and your other scans: register the patient, take the payment, and follow each scan to its report. Patients sent by partner clinics or your own doctors are tracked so the referrer earns their commission.'],
+            ['title' => 'Diagnostic scans', 'body' => 'OCT, visual fields, fundus photos and your other scans: register the patient, take the payment, and follow each scan to its report. Patients sent by partner clinics or your own doctors are tracked so the referrer earns their commission. Scans a doctor orders in the consultation arrive here to be paid.'],
             ['target' => 'scan-desk-tiles', 'title' => 'What needs doing', 'body' => 'Orders still to bill, scans still to do and reports still to write.'],
             ['target' => 'scan-new-order', 'title' => 'A new scan order', 'body' => 'Find the patient or register them, say who referred them, ask whether they agree to share their results with that clinic, and add the scans. Then take the payment: in full, or part now and the rest on Outstanding Balances.'],
-            ['target' => 'scan-stages', 'title' => 'Work lists', 'body' => 'To bill, to scan and to report. Open an order to take its payment or mark it scanned and reported.'],
+            ['target' => 'scan-stages', 'title' => 'Work lists', 'body' => 'To bill, to scan and to report. Open an order to take its payment, add the result files, mark it scanned and reported, and send the results to the referring clinic when the patient agreed.'],
             ['target' => 'scan-tab-catalogue', 'title' => 'Scan catalogue', 'body' => $manager
                 ? 'The scans you offer, their price (per eye or per scan) and the commission a referrer earns on each.'
                 : 'The scans you offer and their price. A manager sets them.'],
             ['target' => 'scan-tab-partners', 'title' => 'Partner clinics', 'body' => $manager
                 ? 'Clinics that send you patients: their code for referral slips, their doctors, how results reach them, and any commission agreed with one clinic.'
                 : 'Clinics that send you patients, with their code and doctors. A manager adds them.'],
-            $manager ? ['target' => 'scan-tab-commissions', 'title' => 'Commissions', 'body' => 'What each partner clinic and doctor is owed once their patients\' bills are paid in full. Pay it from here; each payout is recorded as an expense, so the cash book balances.'] : null,
+            $manager ? ['target' => 'scan-tab-commissions', 'title' => 'Commissions', 'body' => 'What each partner clinic and doctor is owed once their patients\' bills are paid in full. Pay partners from here; each payout is recorded as an expense, so the cash book balances. Doctors followed in Attendance get theirs in the monthly payroll: settle the month here after paying salaries.'] : null,
+            $manager ? ['target' => 'scan-tab-reports', 'title' => 'Reports', 'body' => 'Referrals per partner clinic for any dates: orders, patients, scans, money and commission. Also by scan and by doctor, how fast results go out, and partners who have gone quiet. Download it for Excel.'] : null,
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

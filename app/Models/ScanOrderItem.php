@@ -31,9 +31,13 @@ class ScanOrderItem extends Model
         return $this->belongsTo(SaleItem::class);
     }
 
-    /** "OCT Macula (both eyes)". */
+    /** "OCT Macula (both eyes)", "OCT Macula (OD)". */
     public function label(): string
     {
-        return $this->scan_name.($this->eye ? ' ('.strtolower(self::EYES[$this->eye] ?? $this->eye).')' : '');
+        return $this->scan_name.match ($this->eye) {
+            null, '' => '',
+            'OU' => ' (both eyes)',
+            default => " ({$this->eye})",
+        };
     }
 }
