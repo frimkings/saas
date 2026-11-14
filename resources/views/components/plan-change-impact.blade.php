@@ -8,6 +8,9 @@
 @if($impact)
     <div role="status" aria-live="polite" style="{{ $box }};border-radius:10px;padding:12px 14px;margin:10px 0;font-size:13px;line-height:1.5">
         <b>{{ $impact['downgrade'] ? 'Before moving to a smaller plan' : 'What changes' }}</b>
+        @if($impact['lost_module'] ?? false)
+            <p style="margin:6px 0 0;color:{{ $dark ? '#fca5a5' : '#b91c1c' }};font-weight:600">⚠ This plan is for a different product: the module below stops working for this clinic.</p>
+        @endif
         @if($impact['lost'])
             <p style="margin:6px 0 0"><span style="{{ $muted }}">Stops working:</span> {{ implode(', ', $impact['lost']) }}.</p>
         @else

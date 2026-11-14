@@ -34,6 +34,27 @@ class ClinicalSuitePlans
         Feature::SPECTACLES_PRO, Feature::PATIENT_LEDGER, Feature::APPROVALS, Feature::INSURANCE,
         Feature::AUDIT_TRAIL, Feature::UNLIMITED_USERS, Feature::PRIORITY_SUPPORT, Feature::GUIDED_ONBOARDING];
 
+    /**
+     * The one Optical shop plan (GHS 300 a month, decided 2026-11-14): every optical-shop feature, no user or
+     * storage limit. Staff attendance is not in it; shops buy it as an add-on like clinics do. It is not on the
+     * pricing page's clinic grid; the page's "Optical shop" add-on line shows its price.
+     */
+    public const OPTICAL_FAMILY = 'optical-shop';
+
+    public static function opticalPlan(): array
+    {
+        return ['name' => 'Optical Shop', 'price' => 300, 'users' => null, 'storage_mb' => null];
+    }
+
+    /** The Optical shop plan's feature list: the product key, every optical extra except attendance, and the markers. */
+    public static function opticalFeatures(): array
+    {
+        $attendance = [Feature::ATTENDANCE, ...PlanProduct::ATTENDANCE_PARTS];
+        $extras = array_diff(array_keys(PlanProduct::planExtrasFor(PlanProduct::OPTICAL)), $attendance);
+
+        return PlanProduct::features(PlanProduct::OPTICAL, $extras);
+    }
+
     /** Paying yearly costs twelve months (no free months) and adds these SMS credits to the clinic's wallet, by plan family. */
     public const YEARLY_SMS = ['clinic-starter' => 30, 'clinic-standard' => 300, 'clinic-plus' => 1000, 'clinic-pro' => 2000];
 

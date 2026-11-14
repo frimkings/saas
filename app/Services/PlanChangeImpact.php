@@ -32,6 +32,12 @@ class PlanChangeImpact
             ->filter(fn ($feature) => PlanProduct::allows($current, $feature) && ! PlanProduct::allows($target, $feature))
             ->values()->all();
 
+        // A whole module the clinic has now and the new plan leaves out (e.g. a Clinic plan for an optical shop).
+        $modules = [Feature::CLINICAL => 'The whole clinic module (patients, consultations, clinic till)', Feature::OPTICAL => 'The whole optical shop (orders, lab, POS, optical stock)'];
+        $lostModules = collect($modules)
+            ->filter(fn ($label, $key) => PlanProduct::allows($current, $key) && ! PlanProduct::allows($target, $key))
+            ->values()->all();
+
         $over = [];
         $users = $clinic->users()->wherePivot('status', 'active')->count();
         if ($to->included_users !== null && $users > $to->included_users) {
@@ -80,7 +86,8 @@ class PlanChangeImpact
         }
 
         return [
-            'lost' => array_map(fn ($feature) => PlanProduct::EXTRAS[$feature][0] ?? $feature, $lostKeys),
+            'lost' => [...$lostModules, ...array_map(fn ($feature) => PlanProduct::EXTRAS[$feature][0] ?? $feature, $lostKeys)],
+            'lost_module' => $lostModules !== [],
             'over' => $over,
             'leftovers' => $leftovers,
             'billing' => $billing,
