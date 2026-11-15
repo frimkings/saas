@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Middleware;
 use App\Services\SubscriptionService;
+use App\Support\LivewireRequest;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -11,14 +12,14 @@ class EnforceSubscriptionWriteAccess
         if(!auth()->check()||$request->routeIs('logout','tenant.*','platform.*','password.force.*'))return $next($request);
         $context=app(TenantContext::class);if(!$context->resolved() && config('tenancy.enabled'))return $next($request);
         $service=app(\App\Services\ClinicAccessService::class);
-        if ($request->routeIs('livewire.update')) {
-            foreach ((array) $request->input('components', []) as $component) {
-                $snapshot = json_decode($component['snapshot'] ?? '', true);
-                $name = $snapshot['memo']['name'] ?? '';
+        if (LivewireRequest::isUpdate($request)) {
+            foreach (LivewireRequest::components($request) as ['name' => $name, 'data' => $data]) {
                 if (str_starts_with($name, 'optical.')) {
                     abort_unless($service->access('optical')['allowed'], 403);
                 }
-                if (\App\Support\OpticalMode::opticalOnly() && (
+                // The optical shop's Sales page (optical.sales) is the clinic's sales component in optical mode.
+                $opticalScreen = $name === 'cashier.sales-records-component' && ($data['businessLine'] ?? null) === 'optical';
+                if (\App\Support\OpticalMode::opticalOnly() && ! $opticalScreen && (
                     str_starts_with($name, 'doctor.') || str_starts_with($name, 'secretary.')
                     || str_starts_with($name, 'cashier.') || str_starts_with($name, 'cart.')
                 )) abort(403, 'Clinical workflows are not included in this subscription.');
@@ -44,7 +45,7 @@ class EnforceSubscriptionWriteAccess
     private function attendanceOnlyTarget(Request $request): ?\Illuminate\Http\RedirectResponse
     {
         $name = $request->route()?->getName();
-        if (! $name || str_starts_with($name, 'livewire.') || ! \App\Support\OpticalMode::attendanceOnly()) return null;
+        if (! $name || LivewireRequest::isUpdate($request) || str_contains($name, 'livewire.') || ! \App\Support\OpticalMode::attendanceOnly()) return null;
         foreach (config('subscriptions.attendance_only_routes', []) as $route) {
             if ($request->routeIs($route, $route.'.*')) return null;
         }
@@ -75,7 +76,7 @@ class EnforceSubscriptionWriteAccess
 
     private function isReadOnlyInteraction(Request $request): bool
     {
-        if (!$request->routeIs('livewire.update')) return false;
+        if (!LivewireRequest::isUpdate($request)) return false;
         $components = $request->input('components', []);
         if (!is_array($components) || !$components) return false;
         foreach ($components as $component) {
@@ -97,7 +98,7 @@ class EnforceSubscriptionWriteAccess
     }
     private function isRenewalRequest(Request $request): bool
     {
-        if (!$request->routeIs('livewire.update') || !auth()->user()?->hasRole('Super Admin')) return false;
+        if (!LivewireRequest::isUpdate($request) || !auth()->user()?->hasRole('Super Admin')) return false;
         $components = $request->input('components', []);
         if (!is_array($components) || !$components) return false;
         $allowed = [

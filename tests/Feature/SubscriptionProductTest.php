@@ -121,6 +121,23 @@ class SubscriptionProductTest extends TestCase
         $this->get(route('optical.dashboard'))->assertOk()->assertSee('Clinic pages are not part of your optical shop subscription.');
     }
 
+    public function test_optical_shop_can_use_its_sales_page_which_shares_the_clinic_sales_component(): void
+    {
+        $user = $this->tenantUser('optical');
+        $html = $this->actingAs($user)->get(route('optical.sales'))->assertOk()->getContent();
+
+        preg_match_all('/wire:snapshot="([^"]+)"/', $html, $found);
+        $snapshot = collect($found[1])->map(fn ($s) => html_entity_decode($s, ENT_QUOTES))
+            ->first(fn ($s) => (json_decode($s, true)['memo']['name'] ?? null) === 'cashier.sales-records-component');
+        $this->assertNotNull($snapshot);
+
+        // Livewire actions reach the subscription checks (the update route is "default.livewire.update"),
+        // and the clinic component in optical mode is not mistaken for a clinic workflow.
+        $this->withHeaders(['X-Livewire' => '1'])->postJson('/livewire/update', ['components' => [
+            ['snapshot' => $snapshot, 'updates' => ['searchTerm' => 'abc'], 'calls' => []],
+        ]])->assertOk();
+    }
+
     public function test_clinic_only_subscriber_is_sent_from_optical_pages(): void
     {
         $user = $this->tenantUser('clinic');

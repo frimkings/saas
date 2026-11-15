@@ -68,6 +68,8 @@ class RestorePreviousSubscriptionCommand extends Command
                     'branch_limit_override', 'notes', 'trial_ends_at', 'current_period_starts_at', 'current_period_ends_at', 'grace_ends_at',
                     'cancelled_at', 'restricted_at', 'suspended_at',
                 ]);
+                // A superseded row comes back with the status it had before the test plan replaced it.
+                if ($copy['status'] === ClinicSubscription::SUPERSEDED) $copy['status'] = $previous->superseded_status ?: 'active';
                 $restored = ClinicSubscription::create([...$copy, 'clinic_id' => $clinic->id, 'change_reason' => "Restored subscription #{$previous->id} after a test plan"]);
                 $audit->record('SUBSCRIPTION_RESTORED', $clinic->id, $current->toArray(), $restored->toArray(), "Test plan undone; back to subscription #{$previous->id}");
             });

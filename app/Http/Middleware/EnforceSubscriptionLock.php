@@ -53,7 +53,7 @@ class EnforceSubscriptionLock
 
     private function onlyAdminComponents(Request $request): bool
     {
-        if (!$request->routeIs('livewire.update')) {
+        if (!\App\Support\LivewireRequest::isUpdate($request)) {
             return false;
         }
 
@@ -71,7 +71,7 @@ class EnforceSubscriptionLock
     private function deny(Request $request, string $to, string $message): mixed
     {
         // Livewire actions and polling get a plain 403; the next page load is redirected.
-        if ($request->routeIs('livewire.update') || $request->expectsJson()) {
+        if (\App\Support\LivewireRequest::isUpdate($request) || $request->expectsJson()) {
             return response()->json(['message' => $message], 403);
         }
 

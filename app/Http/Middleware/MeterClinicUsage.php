@@ -36,7 +36,7 @@ class MeterClinicUsage
         if ($clinicId = $context->clinicId()) {
             [$dbMs, $dbQueries] = $meter->database();
             // Livewire sends the header empty, which some servers drop, so check the route too.
-            $livewire = $request->hasHeader('X-Livewire') || $request->routeIs('livewire.update', '*.livewire.update');
+            $livewire = $request->hasHeader('X-Livewire') || \App\Support\LivewireRequest::isUpdate($request);
             $pageView = ! $livewire && $request->isMethod('GET');
             $request->attributes->set(self::ATTRIBUTE, [$clinicId, [
                 'requests' => 1,

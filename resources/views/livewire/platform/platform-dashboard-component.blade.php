@@ -141,9 +141,9 @@
 @php($clinicChanges=$scheduledChanges->where('clinic_id',$selectedClinic->id))
 @if($clinicChanges->isNotEmpty())<table class="ui-table ui-table-sm"><thead><tr><th>From</th><th>To</th><th>Effective</th><th>Status</th></tr></thead><tbody>@foreach($clinicChanges as $change)<tr><td>{{ $change->fromPlan->name }}</td><td>{{ $change->toPlan->name }}</td><td>{{ $change->effective_at->format('d M Y') }}</td><td><span class="ui-badge {{ $change->status==='scheduled'?'ui-badge--warning':($change->status==='cancelled'?'ui-badge--danger':'') }}">{{ strtoupper($change->status) }}</span></td></tr>@endforeach</tbody></table>@endif</section>
 <section class="pa-section"><h4>Adjust dates</h4>
-<p class="ui-muted" style="margin:0 0 8px">Backdate a period paid earlier, extend a trial or correct a date. Dates can be in the past. The status is worked out again from them.</p>
+<p class="ui-muted" style="margin:0 0 8px">Backdate a period paid earlier or correct a date. Dates can be in the past. The status is worked out again from them.</p>
 <div class="pa-form pa-form-2">
-<label class="ui-field"><span>Status</span><select class="ui-input" wire:model.live="adjStatus"><option value="trial">Trial</option><option value="active">Active (paid)</option></select></label>
+<label class="ui-field"><span>Status</span><select class="ui-input" wire:model.live="adjStatus"><option value="active">Active (paid)</option></select></label>
 @if($adjStatus==='trial')<label class="ui-field"><span>Trial ends</span><input type="date" class="ui-input" wire:model="adjTrialEnds">@error('adjTrialEnds')<small class="ui-error">{{ $message }}</small>@enderror</label>@endif
 <label class="ui-field"><span>Period starts</span><input type="date" class="ui-input" wire:model="adjStart">@error('adjStart')<small class="ui-error">{{ $message }}</small>@enderror</label>
 <label class="ui-field"><span>Period ends</span><input type="date" class="ui-input" wire:model="adjEnd">@error('adjEnd')<small class="ui-error">{{ $message }}</small>@enderror</label>
@@ -219,7 +219,7 @@
 <label class="ui-field"><span>Monthly price</span><input class="ui-input" wire:model="basePrice" type="number" step=".01" min="0">@error('basePrice')<small class="ui-error">{{ $message }}</small>@enderror</label>
 <label class="ui-field"><span>Annual price</span><input class="ui-input" wire:model="annualPrice" type="number" step=".01" min="0">@error('annualPrice')<small class="ui-error">{{ $message }}</small>@enderror</label>
 <label class="ui-field"><span>Price per extra branch</span><input class="ui-input" wire:model="additionalBranchPrice" type="number" step=".01" min="0"><small class="ui-muted">Charged per branch above the included number.</small>@error('additionalBranchPrice')<small class="ui-error">{{ $message }}</small>@enderror</label>
-<div class="ui-field"><span>Trial length</span><p class="ui-muted" style="margin:6px 0 0">{{ (int) config('subscriptions.trial_days', 2) }} days for every plan, then the clinic is suspended.</p></div>
+<div class="ui-field"><span>Trial</span><p class="ui-muted" style="margin:6px 0 0">None: a new clinic starts paying on the day it is registered.</p></div>
 </div></section>
 <section class="pa-section"><h4>Allowances</h4><p class="ui-muted" style="margin-top:0">Leave empty for unlimited.</p><div class="pa-form pa-form-2">
 <label class="ui-field"><span>Branches included</span><input class="ui-input" wire:model="includedBranches" type="number" min="1" placeholder="Unlimited">@error('includedBranches')<small class="ui-error">{{ $message }}</small>@enderror</label>
@@ -240,7 +240,7 @@
 <section class="pa-section"><h4>Assign a clinic to this plan</h4><p class="ui-muted" style="margin-top:0">Starts a new subscription immediately. To move a clinic at the end of its period instead, use its panel → Plan &amp; renewal.</p>
 <form wire:submit="assignSubscription"><div class="pa-form pa-form-2">
 <label class="ui-field pa-span"><span>Clinic</span><select class="ui-input" wire:model="clinicId"><option value="">Select clinic</option>@foreach($allClinics as $ac)<option value="{{ $ac->id }}">{{ $ac->name }} ({{ $ac->currentSubscription?->plan?->name??'no plan' }})</option>@endforeach</select>@error('clinicId')<small class="ui-error">{{ $message }}</small>@enderror</label>
-<label class="ui-field"><span>Status</span><select class="ui-input" wire:model="status">@foreach(['trial','active','overdue','suspended','cancelled'] as $st)<option value="{{ $st }}">{{ ucfirst($st) }}</option>@endforeach</select></label>
+<label class="ui-field"><span>Status</span><select class="ui-input" wire:model="status">@foreach(['active','overdue','suspended','cancelled'] as $st)<option value="{{ $st }}">{{ ucfirst($st) }}</option>@endforeach</select></label>
 <label class="ui-field"><span>Billing interval</span><select class="ui-input" wire:model="subscriptionInterval"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>
 <label class="ui-field"><span>Renewal</span><select class="ui-input" wire:model="renewalMode"><option value="manual">Manual</option><option value="automatic">Automatic</option></select></label>
 <label class="ui-field"><span>Branch limit override</span><input class="ui-input" wire:model="branchLimitOverride" type="number" min="1" placeholder="Use plan limit">@error('branchLimitOverride')<small class="ui-error">{{ $message }}</small>@enderror</label>
@@ -378,10 +378,8 @@
 <label class="ui-field"><span>Super Admin phone</span><input class="ui-input" wire:model="newAdminPhone" placeholder="Optional"></label>
 <label class="ui-field"><span>Plan</span><select class="ui-input" wire:model="newPlanId"><option value="">Select a {{ \Illuminate\Support\Str::lower(\App\Support\PlanProduct::label($newClinicProduct)) }} plan</option>@foreach($plans->where('is_active',true)->where('product',$newClinicProduct) as $p)<option value="{{ $p->id }}">{{ $p->name }} — {{ $p->currency }} {{ number_format((float) $p->base_price, 2) }} a month</option>@endforeach</select>@if($plans->where('is_active',true)->where('product',$newClinicProduct)->isEmpty())<small class="ui-error">No {{ \Illuminate\Support\Str::lower(\App\Support\PlanProduct::label($newClinicProduct)) }} plan is offered yet. Create one under Subscription Plans first.</small>@endif @error('newPlanId')<small class="ui-error">{{ $message }}</small>@enderror</label>
 </div>
-<fieldset class="ui-field" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin:0 0 12px"><legend style="padding:0 4px;font-weight:600">How it starts</legend>
-<label style="display:flex;gap:8px;align-items:flex-start"><input type="radio" value="trial" wire:model.live="newClinicStart" style="width:auto;margin-top:3px"><span><b>Free trial</b> for {{ (int) config('subscriptions.trial_days', 2) }} days. When it ends the clinic is suspended until it moves to a paid plan.</span></label>
-<label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="radio" value="paid" wire:model.live="newClinicStart" style="width:auto;margin-top:3px"><span><b>Paid</b>: starts today on the plan, with its first invoice.</span></label>
-@if($newClinicStart === 'paid')
+<fieldset class="ui-field" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin:0 0 12px"><legend style="padding:0 4px;font-weight:600">Subscription</legend>
+<p class="ui-muted" style="margin:0">Starts today on the plan, with its first invoice. There is no free trial.</p>
 <div class="pa-form pa-form-2" style="margin-top:10px">
 <label class="ui-field"><span>Billing</span><select class="ui-input" wire:model="newClinicInterval"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>
 <label class="ui-field" style="align-self:end"><span style="display:flex;gap:8px;align-items:center"><input type="checkbox" wire:model.live="newPaymentReceived" style="width:auto">Payment received now</span></label>
@@ -391,7 +389,6 @@
 @endif
 </div>
 <small class="ui-muted" style="display:block;margin-top:6px">{{ $newPaymentReceived ? 'The invoice is recorded as paid.' : 'The invoice is left due; record its payment under Billing when it comes in.' }}</small>
-@endif
 </fieldset>
 @if(\App\Support\ClinicStarterData::offeredFor($newClinicProduct))
 <fieldset class="ui-field" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin:0 0 12px"><legend style="padding:0 4px;font-weight:600">Starter data</legend>
@@ -400,7 +397,7 @@
 <small class="ui-muted" style="display:block;margin-top:6px">The clinic can rename or remove any of them later.</small>
 </fieldset>
 @endif
-<p class="ui-muted">{{ $newClinicStart === 'paid' ? 'The clinic starts on the paid plan today.' : 'The clinic starts on a '.(int) config('subscriptions.trial_days', 2).'-day trial.' }} @if($this->existingAdmin())Its owner signs in with the password they already use.@else The Super Admin signs in with the temporary password <code>password</code> and must change it immediately.@endif</p>
+<p class="ui-muted">The clinic starts on the paid plan today. @if($this->existingAdmin())Its owner signs in with the password they already use.@else The Super Admin signs in with the temporary password <code>password</code> and must change it immediately.@endif</p>
 @endif
 <footer class="pa-modal-foot">@if($onboardingStep>1)<button type="button" class="ui-button ui-button-secondary" wire:click="onboardingBack">Back</button>@else<button type="button" class="ui-button ui-button-secondary" wire:click="closeOnboarding">Cancel</button>@endif<button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="onboardingNext,onboardClinic">@if($onboardingStep<3)Next@else<span wire:loading.remove wire:target="onboardClinic">Create clinic</span><span wire:loading wire:target="onboardClinic">Creating…</span>@endif</button></footer>
 </form>

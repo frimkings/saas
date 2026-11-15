@@ -39,7 +39,7 @@ class SubscriptionLifecycleService
 
     public function calculateStatus(ClinicSubscription $subscription, CarbonInterface $at): string
     {
-        if (in_array($subscription->status, ['cancelled', 'suspended'], true)) {
+        if (in_array($subscription->status, ['cancelled', 'suspended', \App\Models\ClinicSubscription::SUPERSEDED], true)) {
             return $subscription->status;
         }
         if ($subscription->status === 'restricted') {

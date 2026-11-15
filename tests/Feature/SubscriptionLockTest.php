@@ -96,6 +96,30 @@ class SubscriptionLockTest extends TestCase
         $this->get(route('admin.subscription'))->assertOk()->assertSee('Staff are locked out');
     }
 
+    /** A Livewire action on a page, sent the way the browser sends it (real snapshot, real update route). */
+    private function livewireCall(string $html, string $component, string $method): \Illuminate\Testing\TestResponse
+    {
+        preg_match_all('/wire:snapshot="([^"]+)"/', $html, $found);
+        $snapshot = collect($found[1])->map(fn ($s) => html_entity_decode($s, ENT_QUOTES))
+            ->first(fn ($s) => (json_decode($s, true)['memo']['name'] ?? null) === $component);
+        $this->assertNotNull($snapshot, "{$component} is on the page");
+
+        return $this->withHeaders(['X-Livewire' => '1'])->postJson('/livewire/update', ['components' => [
+            ['snapshot' => $snapshot, 'updates' => new \stdClass, 'calls' => [['path' => '', 'method' => $method, 'params' => []]]],
+        ]]);
+    }
+
+    public function test_a_locked_clinics_owner_can_still_act_on_the_subscription_page(): void
+    {
+        $this->expiredHoursAgo(50);
+        $this->actingAs($this->admin);
+        $html = $this->get(route('admin.subscription'))->assertOk()->getContent();
+
+        // No plan chosen: the request reaches the component and fails its own validation, not the lock.
+        $this->livewireCall($html, 'admin.clinic-subscription-portal-component', 'requestPlanChange')
+            ->assertOk()->assertJsonMissing(['message' => 'Renew the clinic subscription to continue.']);
+    }
+
     public function test_after_two_days_staff_are_told_to_contact_support_and_admin_can_still_pay(): void
     {
         PlatformSetting::put(['support_name' => 'EyeClinic Support', 'support_phone' => '0302000000', 'support_whatsapp' => '0241234567']);

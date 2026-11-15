@@ -6,8 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class ClinicSubscription extends Model
 {
-    protected $fillable = ['clinic_id', 'subscription_plan_id', 'plan_snapshot', 'pricing_snapshot', 'feature_snapshot', 'status', 'renewal_mode', 'billing_interval', 'branch_limit_override', 'notes', 'change_reason', 'trial_ends_at', 'current_period_starts_at', 'current_period_ends_at', 'grace_ends_at', 'cancelled_at', 'status_changed_at', 'lifecycle_evaluated_at', 'restricted_at', 'suspended_at'];
-    protected $casts = ['plan_snapshot'=>'array','pricing_snapshot'=>'array','feature_snapshot'=>'array','branch_limit_override' => 'integer', 'trial_ends_at' => 'datetime', 'current_period_starts_at' => 'datetime', 'current_period_ends_at' => 'datetime', 'grace_ends_at' => 'datetime', 'cancelled_at' => 'datetime', 'status_changed_at'=>'datetime', 'lifecycle_evaluated_at'=>'datetime', 'restricted_at'=>'datetime', 'suspended_at'=>'datetime'];
+    protected $fillable = ['clinic_id', 'subscription_plan_id', 'plan_snapshot', 'pricing_snapshot', 'feature_snapshot', 'status', 'renewal_mode', 'billing_interval', 'branch_limit_override', 'notes', 'change_reason', 'trial_ends_at', 'current_period_starts_at', 'current_period_ends_at', 'grace_ends_at', 'cancelled_at', 'status_changed_at', 'lifecycle_evaluated_at', 'restricted_at', 'suspended_at', 'superseded_at', 'superseded_status'];
+    protected $casts = ['plan_snapshot'=>'array','pricing_snapshot'=>'array','feature_snapshot'=>'array','branch_limit_override' => 'integer', 'trial_ends_at' => 'datetime', 'current_period_starts_at' => 'datetime', 'current_period_ends_at' => 'datetime', 'grace_ends_at' => 'datetime', 'cancelled_at' => 'datetime', 'status_changed_at'=>'datetime', 'lifecycle_evaluated_at'=>'datetime', 'restricted_at'=>'datetime', 'suspended_at'=>'datetime', 'superseded_at'=>'datetime'];
+
+    /** Statuses of a subscription that is still running; a newer subscription supersedes them. */
+    public const LIVE_STATUSES = ['trial', 'active', 'overdue', 'restricted'];
+
+    /** Replaced by a newer subscription of the same clinic (a plan change, a grant, a restore). */
+    public const SUPERSEDED = 'superseded';
 
     protected static function booted(): void
     {
@@ -21,6 +27,13 @@ class ClinicSubscription extends Model
         static::saved(fn () => app(\App\Services\SubscriptionService::class)->forgetCurrent());
         static::deleted(fn () => app(\App\Services\SubscriptionService::class)->forgetCurrent());
         static::created(function (self $subscription): void {
+            // The newest subscription is the clinic's current one: older ones that were still running
+            // stop here, so renewal invoices and the lifecycle job only ever see the current one.
+            static::query()->where('clinic_id', $subscription->clinic_id)->where('id', '<', $subscription->id)
+                ->whereIn('status', self::LIVE_STATUSES)
+                ->update(['superseded_status' => \Illuminate\Support\Facades\DB::raw('status'), 'status' => self::SUPERSEDED,
+                    'superseded_at' => now(), 'status_changed_at' => now(), 'updated_at' => now()]);
+
             $plan=$subscription->plan;
             \App\Models\SubscriptionAgreement::firstOrCreate(['clinic_subscription_id'=>$subscription->id],[
                 'clinic_id'=>$subscription->clinic_id,'subscription_plan_id'=>$plan?->id,'plan_family_code'=>$plan?->family_code??$plan?->code??data_get($subscription->plan_snapshot,'code','unknown'),'plan_version'=>$plan?->version??data_get($subscription->plan_snapshot,'version',1),'terms_version'=>$plan?->terms_version??1,

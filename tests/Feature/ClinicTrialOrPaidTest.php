@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-/** Every trial is 2 days, then the clinic is suspended; a new clinic starts on a trial or paid. */
+/** No trials since 2026-11-15: a new clinic starts paying the day it is registered. Trials already running end as before. */
 class ClinicTrialOrPaidTest extends TestCase
 {
     use RefreshDatabase;
@@ -37,19 +37,30 @@ class ClinicTrialOrPaidTest extends TestCase
             ->set('newPlanId', $this->plan->id)->set('newClinicStart', $start);
     }
 
-    public function test_a_trial_lasts_two_days_and_then_the_clinic_is_suspended(): void
+    public function test_there_is_no_trial_a_new_clinic_starts_its_paid_subscription_at_once(): void
     {
-        $this->onboard('Trial Eyes', 'trial')->assertSee('Free trial')->assertSee('for 2 days')->call('onboardClinic')->assertHasNoErrors();
-        $clinic = Clinic::where('name', 'Trial Eyes')->sole();
-        $subscription = $clinic->currentSubscription;
-        $this->assertSame('trial', $subscription->status);
-        $this->assertEqualsWithDelta(2 * 24 * 60, now()->diffInMinutes($subscription->trial_ends_at), 2);
+        // The wizard offers no trial, and one asked for anyway is refused.
+        $this->onboard('Trial Eyes', 'trial')->assertDontSee('Free trial')->assertSee('There is no free trial')
+            ->call('onboardClinic')->assertHasErrors('newClinicStart');
+        $this->assertFalse(Clinic::where('name', 'Trial Eyes')->exists());
+
+        $this->onboard('Trial Eyes', 'paid')->call('onboardClinic')->assertHasNoErrors();
+        $subscription = Clinic::where('name', 'Trial Eyes')->sole()->currentSubscription;
+        $this->assertSame('active', $subscription->status);
+        $this->assertNull($subscription->trial_ends_at);
+        $this->assertSame(now()->toDateString(), $subscription->current_period_starts_at->toDateString());
+        $this->assertSame(1, PlatformInvoice::where('clinic_id', $subscription->clinic_id)->count(), 'first invoice issued the same day');
+    }
+
+    public function test_a_trial_that_was_already_running_still_ends_in_suspension(): void
+    {
+        $clinic = Clinic::create(['name' => 'Old Trial', 'slug' => 'old-trial', 'deployment_mode' => 'hosted', 'status' => 'active']);
+        $subscription = ClinicSubscription::create(['clinic_id' => $clinic->id, 'subscription_plan_id' => $this->plan->id, 'status' => 'trial',
+            'trial_ends_at' => now()->addDays(2), 'current_period_starts_at' => now(), 'current_period_ends_at' => now()->addDays(2)]);
 
         $this->travelTo(now()->addDays(2)->addMinutes(5));
         app(SubscriptionService::class)->forgetCurrent();
-        // Locked at once, before the hourly check runs...
         $this->assertSame('suspended', app(SubscriptionService::class)->access($clinic->fresh())['status']);
-        // ...and the hourly check records it: no grace day, no read-only week.
         $this->assertSame('suspended', app(SubscriptionLifecycleService::class)->evaluate($subscription->fresh())->status);
     }
 

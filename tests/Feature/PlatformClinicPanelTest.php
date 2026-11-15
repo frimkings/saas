@@ -153,7 +153,7 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertSame('Applied now.', $request->fresh()->review_notes);
     }
 
-    public function test_the_developer_backdates_a_paid_period_and_reopens_an_ended_trial(): void
+    public function test_the_developer_backdates_a_paid_period_and_cannot_reopen_a_trial(): void
     {
         $clinic = $this->clinic();
         $panel = $this->panel($clinic)->call('setPanelTab', 'plan')->assertSee('Adjust dates');
@@ -167,12 +167,12 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertNotSame('active', $sub->status, 'a period that has ended is not active');
         $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SUBSCRIPTION_DATES_ADJUSTED', 'clinic_id' => $clinic->id, 'reason' => 'Paid by MoMo two months ago']);
 
-        // A trial that ended (suspended) is given three more days: it opens again.
+        // No more trials: an ended trial can only be turned into a paid period.
         $sub->update(['status' => 'suspended', 'trial_ends_at' => now()->subDay()]);
         $panel->set('adjStatus', 'trial')->set('adjTrialEnds', now()->addDays(3)->toDateString())
             ->set('adjStart', now()->subDays(3)->toDateString())->set('adjEnd', now()->addDays(3)->toDateString())
-            ->set('adjReason', 'Owner asked for more time')->call('panelAdjustDates')->assertHasNoErrors();
-        $this->assertSame('trial', $clinic->fresh()->currentSubscription->status);
+            ->set('adjReason', 'Owner asked for more time')->call('panelAdjustDates')->assertHasErrors('adjStatus');
+        $this->assertSame('suspended', $clinic->fresh()->currentSubscription->status);
     }
 
     public function test_an_upgrade_mid_period_keeps_the_paid_dates_and_charges_only_the_difference(): void
@@ -253,7 +253,7 @@ class PlatformClinicPanelTest extends TestCase
         $component->assertSet('showOnboarding', false)->assertSet('selectedClinicId', $clinic->id)->assertSee('Modal Eye Care');
         $this->assertSame('Africa/Accra', $clinic->default_timezone);
         $this->assertDatabaseHas('clinic_user', ['clinic_id' => $clinic->id, 'clinic_role' => 'Super Admin']);
-        $this->assertDatabaseHas('clinic_subscriptions', ['clinic_id' => $clinic->id, 'subscription_plan_id' => $this->basic->id, 'status' => 'trial']);
+        $this->assertDatabaseHas('clinic_subscriptions', ['clinic_id' => $clinic->id, 'subscription_plan_id' => $this->basic->id, 'status' => 'active', 'trial_ends_at' => null]);
     }
 
     public function test_an_owner_who_already_has_an_account_can_be_given_a_second_separate_business(): void
