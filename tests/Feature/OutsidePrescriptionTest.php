@@ -78,12 +78,14 @@ class OutsidePrescriptionTest extends TestCase
         $this->assertSame(['Timolol 0.5% drops'], OutsidePrescription::pluck('name')->all());
         $this->assertSame(1, Cart::where('consultation_id', $consultation->id)->count(), 'the cart item is kept');
 
-        // The slip lists what to buy outside first, then what was given here.
+        // The slip lists only what to buy at a pharmacy: not what the clinic gave, and no diagnosis.
         $this->get(route('doctor.prescription.print', $consultation))->assertOk();
         $html = view('pdf.prescription-slip', ['consultation' => $consultation, 'patient' => $patient, 'doctor' => auth()->user(), 'settings' => null,
             'items' => Cart::where('consultation_id', $consultation->id)->with('product.category')->get(),
             'outsideItems' => $consultation->outsidePrescriptions()->get()])->render();
-        $this->assertMatchesRegularExpression('/To buy at a pharmacy.*Timolol 0\.5% drops.*1 Months.*Given at the clinic.*Ciprofloxacin drops/s', $html);
+        $this->assertMatchesRegularExpression('/Medicines to buy at a pharmacy.*Timolol 0\.5% drops.*1 (M|m)onths/s', $html);
+        $this->assertStringNotContainsString('Ciprofloxacin drops', $html);
+        $this->assertStringNotContainsString('Diagnosis', $html);
         $this->assertStringContainsString('RX-' . $consultation->id, $html);
     }
 

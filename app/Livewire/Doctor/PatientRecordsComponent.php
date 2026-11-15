@@ -2753,26 +2753,6 @@ public function deleteAppointment($appointmentId)
         }
     }
 
-    public function printRefraction($consultationId)
-    {
-        $consultation = Consultations::with(['refraction', 'patient'])
-            ->where('patient_id', $this->patient->id)
-            ->findOrFail($consultationId);
-        
-        if (!$consultation->refraction) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'No refraction data available']);
-            return;
-        }
-
-        $html = view('doctor.refraction-print', [
-            'consultation' => $consultation,
-            'refraction' => $consultation->refraction,
-            'patient' => $consultation->patient
-        ])->render();
-
-        $this->dispatch('printRefraction', ...['html' => $html]);
-    }
-
     public function updatedStateLensType($value)
     {
         $this->loadLensProductsForRefraction();

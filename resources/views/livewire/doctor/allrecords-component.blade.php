@@ -365,24 +365,24 @@
                         <table class="ui-table mb-0" style="font-size:.875rem;">
                             <thead style="background:linear-gradient(135deg,#2c3e50 0%,#3d5166 100%);">
                                 <tr>
-                                    <th class="px-4 border-0" style="width:36px;">
+                                    <th class="border-0" style="width:32px; padding-left:14px; padding-right:4px;">
                                         <input type="checkbox" wire:model.live="selectAll"
                                                class="export-checkbox export-checkbox--all"
                                                title="Select all filtered records">
                                     </th>
-                                    <th class="px-2 text-white border-0" style="width:36px;">#</th>
+                                    <th class="text-white border-0" style="width:30px; padding-left:4px; padding-right:4px;">#</th>
                                     <th class="text-white border-0">Patient</th>
                                     <th class="text-white border-0">Age / Gender</th>
                                     <th class="text-white border-0">Date</th>
                                     <th class="text-white border-0">Chief Complaint</th>
                                     <th class="text-white border-0">Diagnoses</th>
                                     <th class="text-white border-0 text-center">
-                                        IOP <small style="opacity:.7; font-weight:400;">(OD/OS)</small>
+                                        IOP<br><small style="opacity:.7; font-weight:400;">OD / OS</small>
                                     </th>
                                     <th class="text-white border-0 text-center">
-                                        VA <small style="opacity:.7; font-weight:400;">(OD/OS)</small>
+                                        VA<br><small style="opacity:.7; font-weight:400;">OD / OS</small>
                                     </th>
-                                    <th class="text-white border-0 text-right px-4">Actions</th>
+                                    <th class="text-white border-0 text-right px-3">Actions</th>
                                 </tr>
                             </thead>
                             <tbody wire:loading.class="opacity-50">
@@ -399,29 +399,24 @@
                                     $vaOS      = $record->vaOS6m;
                                 @endphp
                                 <tr class="{{ in_array((string)$record->id, array_map('strval', $selectedIds)) ? 'table-row--selected' : '' }}">
-                                    <td class="px-4 align-middle">
+                                    <td class="align-middle" style="padding-left:14px; padding-right:4px;">
                                         <input type="checkbox"
                                                wire:model.live="selectedIds"
                                                value="{{ $record->id }}"
                                                class="export-checkbox">
                                     </td>
-                                    <td class="px-2 text-slate-500 align-middle">
+                                    <td class="text-slate-500 align-middle" style="padding-left:4px; padding-right:4px;">
                                         {{ $allrecords->firstItem() + $loop->index }}
                                     </td>
 
-                                    <td class="align-middle">
-                                        <div class="font-semibold text-slate-900" style="line-height:1.3;">
+                                    {{-- Two lines: the name, then the patient number and phone. --}}
+                                    <td class="align-middle" style="max-width:185px;">
+                                        <div class="font-semibold text-slate-900 rec-oneline" style="line-height:1.3;" title="{{ $patient?->name }}">
                                             {{ $patient?->name ?? '—' }}
                                         </div>
-                                        <div class="flex flex-wrap items-center mt-1" style="gap:2px 6px;">
-                                            <code class="text-slate-500" style="font-size:.72rem; background:#f8f9fa; padding:1px 5px; border-radius:4px; white-space:nowrap;">
-                                                {{ $patient?->pxnumber ?? '—' }}
-                                            </code>
-                                            @if($patient?->contact)
-                                            <span class="text-slate-500" style="font-size:.75rem;">
-                                                {{ $patient->contact }}
-                                            </span>
-                                            @endif
+                                        <div class="rec-oneline text-slate-500 mt-1" style="font-size:.72rem;" title="{{ trim(($patient?->pxnumber ?? '').'  '.($patient?->contact ?? '')) }}">
+                                            <code style="background:#f8f9fa; padding:1px 5px; border-radius:4px;">{{ $patient?->pxnumber ?? '—' }}</code>
+                                            @if($patient?->contact)<span class="ml-1">{{ $patient->contact }}</span>@endif
                                         </div>
                                     </td>
 
@@ -433,12 +428,12 @@
                                         <span class="text-slate-500">—</span>
                                         @endif
                                         @if($gender)
-                                        <br>
-                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold mt-1"
+                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold ml-1"
                                               style="font-size:.68rem;
                                                      background:{{ $gender === 'Male' ? '#dbeafe' : ($gender === 'Female' ? '#fce7f3' : '#f3f4f6') }};
-                                                     color:{{ $gender === 'Male' ? '#1d4ed8' : ($gender === 'Female' ? '#9d174d' : '#374151') }};">
-                                            {{ $gender }}
+                                                     color:{{ $gender === 'Male' ? '#1d4ed8' : ($gender === 'Female' ? '#9d174d' : '#374151') }};"
+                                              title="{{ $gender }}" aria-label="{{ $gender }}">
+                                            {{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($gender, 0, 1)) }}
                                         </span>
                                         @endif
                                     </td>
@@ -452,18 +447,23 @@
                                         </div>
                                     </td>
 
-                                    <td class="align-middle text-slate-500" style="max-width:155px; font-size:.82rem;">
-                                        <span title="{{ $record->chiefComplaint }}">
-                                            {{ \Illuminate\Support\Str::limit($record->chiefComplaint, 42) ?: '—' }}
-                                        </span>
+                                    {{-- One line each, so every row stays the same short height; the full text is on hover and in the record. --}}
+                                    <td class="align-middle text-slate-500" style="max-width:135px; font-size:.82rem;">
+                                        <span class="rec-oneline" title="{{ $record->chiefComplaint }}">{{ $record->chiefComplaint ?: '—' }}</span>
                                     </td>
 
-                                    <td class="align-middle" style="max-width:180px;">
-                                        @forelse($record->diagnoses as $diag)
-                                            <span class="diag-badge">{{ $diag->name }}</span>
-                                        @empty
+                                    <td class="align-middle" style="max-width:135px;">
+                                        @php $diags = $record->diagnoses; @endphp
+                                        @if($diags->isEmpty())
                                             <span class="text-slate-500" style="font-size:.8rem;">—</span>
-                                        @endforelse
+                                        @else
+                                            <div class="flex items-center" style="gap:4px; min-width:0;">
+                                                <span class="diag-badge rec-oneline" style="margin:0; min-width:0;" title="{{ $diags->first()->name }}">{{ $diags->first()->name }}</span>
+                                                @if($diags->count() > 1)
+                                                    <span class="diag-more" title="{{ $diags->skip(1)->pluck('name')->implode(', ') }}">+{{ $diags->count() - 1 }}</span>
+                                                @endif
+                                            </div>
+                                        @endif
                                     </td>
 
                                     <td class="text-center align-middle" style="white-space:nowrap;">
@@ -490,11 +490,11 @@
                                         @endif
                                     </td>
 
-                                    <td class="text-right px-4 align-middle">
+                                    <td class="text-right px-3 align-middle" style="white-space:nowrap;">
                                         <a href="{{ route('doctor.patient-records', $record->clearance) }}"
-                                           class="ui-button ui-button-sm ui-button-primary rounded-full px-4 shadow-sm"
+                                           class="ui-button ui-button-sm ui-button-primary rounded-full px-3 shadow-sm"
                                            style="font-size:.78rem;">
-                                            <i class="fas fa-folder-open mr-1"></i>Open
+                                            Open
                                         </a>
                                         <a href="{{ route('doctor.patient-timeline', $record->patient) }}"
                                            class="ui-button ui-button-sm ui-button-secondary rounded-full px-2 shadow-sm ml-1"
@@ -803,6 +803,30 @@
     .table-row--selected { background: #eff6ff !important; }
 
     /* ── Results table ────────────────────────────────────────────────── */
+    .rec-oneline {
+        display: block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* The chip keeps its look but stays on one line (its own rule below would let it wrap). */
+    .diag-badge.rec-oneline {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .diag-more {
+        flex: 0 0 auto;
+        background: #e9ecef;
+        color: #475569;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: .7rem;
+        font-weight: 700;
+        cursor: help;
+    }
     .diag-badge {
         display: inline-block;
         background: #f0f4ff;

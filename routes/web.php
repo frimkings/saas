@@ -498,16 +498,8 @@ Route::get('/doctor/visit-summaries/download',
 Route::get('doctor/referrals', ReferralComponent::class)->name('doctor.referrals')->middleware('feature:referrals');
 Route::get('/doctor/referrals/{referral}/print', [ReferralController::class, 'printLetter'])->name('doctor.referral.pdf')->middleware('feature:referrals');
 
-Route::get('/refraction/print/{consultation}', function($consultationID){
-    abort_if(!auth()->user()->hasAnyRole(['Doctor', 'Super Admin', 'Manager']), 403);
-
-    $consultation = \App\Models\Consultations::with('patient')->findOrFail($consultationID);
-    $refraction   = \App\Models\Refractions::where('consultation_id', $consultationID)->first();
-    abort_unless($refraction, 404, 'No refraction was recorded for this consultation.');
-    $patient      = $consultation->patient;
-
-    return view('livewire.doctor.refraction-print', compact('consultation', 'refraction', 'patient'));
-})->name('refraction.print');
+// The spectacle prescription slip (A5, or two copies on A4: Settings → Receipts & Payments).
+Route::get('/refraction/print/{consultation}', [PatientMedicalRecordController::class, 'printRefraction'])->name('refraction.print');
 });
 
 // Clinic logos and profile pictures (App\Support\PublicFiles). On hosted installs they live in

@@ -327,17 +327,3 @@ window.goToDispensing = function () {
     setTimeout(() => field?.focus({ preventScroll: true }), 400);
 };
 
-// Print refraction
-window.addEventListener('printRefraction', event => {
-    const printWindow = window.open('', '', 'height=600,width=800');
-    printWindow.document.write('<html><head><title>Refraction Prescription</title>');
-    printWindow.document.write('<style>body{font-family:Arial;padding:20px;}</style>');
-    printWindow.document.write('</head><body>');
-    printWindow.document.write(event.detail.html);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 250);
-});

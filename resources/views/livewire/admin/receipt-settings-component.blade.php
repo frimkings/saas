@@ -28,6 +28,20 @@
                             <small class="mt-1 block text-xs text-slate-500">When the day's visit SMS go out (clinic time).</small>
                         </div>
 
+                        <div class="mb-4">
+                            <label class="text-sm font-semibold text-slate-500" for="prescriptionPaper">PRESCRIPTION SLIPS</label>
+                            <select id="prescriptionPaper" wire:model="prescription_paper" class="ui-input bg-slate-50 border-0 @error('prescription_paper') is-invalid @enderror" style="max-width:360px;">
+                                @foreach(\App\Support\Clinical\Slip::PAPERS as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('prescription_paper') <span class="text-red-700 text-sm">{{ $message }}</span> @enderror
+                            <small class="mt-1 block text-xs text-slate-500">
+                                How the spectacle prescription (Print Refraction) and the drug prescription print. Choose A4 if the printer has no A5 paper:
+                                each sheet then holds a patient copy and a clinic copy, to cut along the dashed line.
+                            </small>
+                        </div>
+
                         <button type="submit" class="ui-button ui-button-primary ui-button-sm">
                             <i class="fas fa-save mr-1"></i> Save receipt settings
                         </button>

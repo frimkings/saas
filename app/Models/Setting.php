@@ -94,6 +94,7 @@ class Setting extends Model
         'review_link',
         'visit_receipts_enabled',
         'closing_time',
+        'prescription_paper',
         'reminder_appointment_hours',
         'reminder_due_days',
         'reminder_uncollected_days',
