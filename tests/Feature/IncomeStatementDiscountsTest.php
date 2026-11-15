@@ -66,6 +66,29 @@ class IncomeStatementDiscountsTest extends TestCase
         $this->assertStringContainsString('"Discounts allowed",40.00,"From sales"', $csv);
     }
 
+    public function test_items_on_hold_for_a_part_payment_count_and_returned_units_leave_in_proportion(): void
+    {
+        // Part payment: 600 + 300 on hold (subtotal stays 0 until the balance is paid), 100 discount.
+        $held = Sales::create(['user_id' => $this->owner->id, 'business_line' => 'clinic', 'transaction_id' => 'TX-HOLD',
+            'total_amount' => 800, 'amount_paid' => 300, 'payment_status' => 'partial',
+            'discount_type' => 'fixed', 'discount_value' => 100, 'discount_amount' => 100]);
+        SaleItem::create(['sale_id' => $held->id, 'prescribed_quantity' => 1, 'dispensed_quantity' => 0, 'selling_price' => 600, 'unit_cost' => 250]);
+        SaleItem::create(['sale_id' => $held->id, 'prescribed_quantity' => 2, 'dispensed_quantity' => 0, 'selling_price' => 150, 'unit_cost' => 40]);
+        $this->assertSame(0.0, (float) SaleItem::where('sale_id', $held->id)->sum('subtotal'));
+
+        // 4 units at 50 with a 40 discount; 1 unit comes back, taking a quarter of the line and 10 of the discount.
+        $returned = $this->sale('TX-RET', [], 40);
+        $returned->update(['total_amount' => 160, 'amount_paid' => 160]);
+        SaleItem::create(['sale_id' => $returned->id, 'prescribed_quantity' => 4, 'dispensed_quantity' => 4, 'selling_price' => 50, 'unit_cost' => 20]);
+        SaleItem::where('sale_id', $returned->id)->update(['refunded_quantity' => 1]);
+
+        $statement = app(ClinicStatementService::class)->statement(now()->startOfMonth(), now()->endOfMonth());
+
+        $this->assertSame(1050.0, $statement['revenue'], '900 on hold + 150 kept of the returned line.');
+        $this->assertSame(390.0, $statement['cost_of_sales'], '250 + 2 x 40 on hold + 3 x 20 kept.');
+        $this->assertSame([['name' => 'Discounts allowed', 'amount' => 130.0]], $statement['sales_expense_lines']->all());
+    }
+
     public function test_sales_records_show_the_discount_given_and_who_approved_it(): void
     {
         $sale = $this->sale('TX-D', [250], 25);

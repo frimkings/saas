@@ -225,7 +225,9 @@ class SettingsComponent extends Component
             return;
         }
 
-        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic();
+        // The clinic being worked in; the settings row's own clinic when no clinic is chosen (a
+        // single-clinic install, a console or test run).
+        $clinic = app(\App\Support\Tenancy\TenantContext::class)->clinic() ?? $setting->clinic;
         $clinic?->update(['name' => $name]);
         $setting->forceFill(['clinic_name' => $name]);
 

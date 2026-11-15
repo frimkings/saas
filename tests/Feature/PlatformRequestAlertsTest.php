@@ -94,6 +94,7 @@ class PlatformRequestAlertsTest extends TestCase
         Mail::fake();
         [$clinic, , $pro] = $this->clinic();
         PlatformSetting::put([PlatformRequestAlerts::INBOX_SETTING => null]);
+        config(['app.support.email' => null]); // whatever the local .env sets (PLATFORM_SUPPORT_EMAIL)
 
         Livewire::test(ClinicSubscriptionPortalComponent::class)->set('requestedPlanId', $pro->id)->set('requestedInterval', 'monthly')->call('requestPlanChange');
 

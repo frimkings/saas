@@ -267,7 +267,8 @@ class MessagingTest extends TestCase
     {
         \Illuminate\Support\Facades\Mail::fake();
         $this->tenant(credits: 100);
-        config(['services.eazisms.low_balance' => 10]);
+        // No support inbox, whatever the local .env sets (PLATFORM_SUPPORT_EMAIL).
+        config(['services.eazisms.low_balance' => 10, 'app.support.email' => null]);
 
         $status = app(\App\Services\Messaging\PlatformSmsBalance::class)->check(); // fake provider balance is 42
 

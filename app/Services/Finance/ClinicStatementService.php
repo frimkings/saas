@@ -15,7 +15,8 @@ use Illuminate\Support\Collection;
 
 /**
  * The clinic income statement for a period: revenue (at full price) and cost of sales from
- * clinic sales, grouped by product category and leaving out returned items, plus lab work on spectacle orders; discounts given
+ * clinic sales, grouped by product category, counting items held for a part payment and leaving out
+ * returned units, plus lab work on spectacle orders; discounts given
  * and insurer shortfalls written off as operating expenses; expenses from the Expense Tracker
  * (grouped by category, in the section the category reports under) plus manual statement
  * entries; tax from entries.
@@ -50,12 +51,43 @@ class ClinicStatementService
         return $query;
     }
 
+    /**
+     * A line held for a part payment: sold and taken from stock, but its stored subtotal stays 0
+     * until the balance is paid (SaleItem::is_on_hold). The sale's total already charges it.
+     */
+    private static function onHold(string $t): string
+    {
+        return "({$t}.dispensed_quantity = 0 AND {$t}.prescribed_quantity > 0)";
+    }
+
+    /** Units sold and kept on a line: on-hold units, or what was handed over less what came back. */
+    public static function keptQuantitySql(string $t = 'sale_items'): string
+    {
+        return 'CASE WHEN ' . self::onHold($t) . " THEN {$t}.prescribed_quantity"
+            . " WHEN {$t}.refunded_quantity >= {$t}.dispensed_quantity THEN 0"
+            . " ELSE {$t}.dispensed_quantity - {$t}.refunded_quantity END";
+    }
+
+    /** A line's value at full price for the units kept (returned units leave in proportion). */
+    public static function keptValueSql(string $t = 'sale_items'): string
+    {
+        return 'CASE WHEN ' . self::onHold($t) . " THEN {$t}.prescribed_quantity * {$t}.selling_price"
+            . " WHEN {$t}.dispensed_quantity > 0 THEN {$t}.subtotal * (" . self::keptQuantitySql($t) . ") / {$t}.dispensed_quantity"
+            . " ELSE {$t}.subtotal END";
+    }
+
+    /** A line's whole value at full price, before any return. */
+    public static function fullValueSql(string $t = 'sale_items'): string
+    {
+        return 'CASE WHEN ' . self::onHold($t) . " THEN {$t}.prescribed_quantity * {$t}.selling_price ELSE {$t}.subtotal END";
+    }
+
     /** @return Collection<int, object{name: string, amount: string}> */
     public function revenueLines(CarbonInterface $from, CarbonInterface $to): Collection
     {
         return $this->salesLines($from, $to)
             ->selectRaw("COALESCE(categories.name, 'Uncategorized') as name")
-            ->selectRaw('SUM(sale_items.subtotal) as amount')
+            ->selectRaw('ROUND(SUM(' . self::keptValueSql() . '), 2) as amount')
             ->groupBy('categories.id', 'categories.name')
             ->orderBy('name')
             ->get();
@@ -66,7 +98,7 @@ class ClinicStatementService
     {
         $lines = $this->salesLines($from, $to)
             ->selectRaw("COALESCE(categories.name, 'Uncategorized') as name")
-            ->selectRaw('SUM(sale_items.dispensed_quantity * COALESCE(sale_items.unit_cost, products.cost_price, 0)) as amount')
+            ->selectRaw('ROUND(SUM((' . self::keptQuantitySql() . ') * COALESCE(sale_items.unit_cost, products.cost_price, 0)), 2) as amount')
             ->groupBy('categories.id', 'categories.name')
             ->orderBy('name')
             ->get();
@@ -92,14 +124,15 @@ class ClinicStatementService
     public function salesExpenseLines(CarbonInterface $from, CarbonInterface $to): Collection
     {
         $range = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
-        $kept = fn ($q) => $q->where(fn ($q) => $q->where('refunded_quantity', 0)->orWhereColumn('refunded_quantity', '<', 'dispensed_quantity'));
+        // Full and kept value of each sale's lines, counting lines on hold for a part payment.
+        $value = fn (string $sql) => SaleItem::query()->selectRaw("COALESCE(SUM({$sql}), 0)")->whereColumn('sale_items.sale_id', 'sales.id');
         $discounts = Sales::where('business_line', BusinessLine::CLINIC)
             ->where('is_refunded', false)
             ->where('discount_amount', '>', 0)
             ->whereBetween('created_at', $range)
-            ->withSum('items as gross', 'subtotal')
-            ->withSum(['items as kept_gross' => $kept], 'subtotal')
-            ->get(['id', 'discount_amount'])
+            ->select(['sales.id', 'sales.discount_amount'])
+            ->addSelect(['gross' => $value(self::fullValueSql()), 'kept_gross' => $value(self::keptValueSql())])
+            ->get()
             ->sum(fn ($sale) => (float) $sale->gross > 0
                 ? (float) $sale->discount_amount * (float) $sale->kept_gross / (float) $sale->gross
                 : (float) $sale->discount_amount);
