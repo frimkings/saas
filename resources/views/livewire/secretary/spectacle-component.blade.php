@@ -257,6 +257,11 @@
                             <button type="button" wire:click="directPrint({{ $order->id }})" class="so-icon-btn" title="Print job card">
                                 <i class="fas fa-print"></i>
                             </button>
+                        @elseif(($sent = $sentRequests[$refraction->id] ?? null) && in_array($sent->status, \App\Models\OpticalOrderRequest::ACTIVE, true))
+                            <a wire:navigate href="{{ route('secretary.optical-sent') }}" class="so-btn so-btn-sm" title="Sent to {{ $sent->opticalClinic?->name }}">
+                                <i class="fas fa-paper-plane"></i>
+                                {{ match($sent->status) { 'query' => 'Question', 'quoted' => 'Quote', default => 'Sent' } }}
+                            </a>
                         @else
                             <button type="button"
                                     wire:click="openOrderModal({{ $refraction->id }})"
@@ -265,6 +270,14 @@
                                 <i class="fas fa-plus"></i>
                                 Create
                             </button>
+                            @if($opticalTargets)
+                                <button type="button" data-tour="send-to-optical"
+                                        x-on:click="$dispatch('send-to-optical', { refractionId: {{ $refraction->id }} })"
+                                        class="so-btn so-btn-sm {{ $canCreateOrder ? '' : 'is-disabled' }}" title="Send to an optical centre"
+                                        {{ !$canCreateOrder ? 'disabled' : '' }}>
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            @endif
                         @endif
                     </div>
                 </article>
@@ -453,6 +466,11 @@
                             <i class="fas fa-plus-circle"></i>
                             <p>No spectacle order has been created for this refraction.</p>
                         </div>
+                        @php $activeSent = $sentRequests[$activeRefraction->id] ?? null; @endphp
+                        @if($activeSent && in_array($activeSent->status, \App\Models\OpticalOrderRequest::ACTIVE, true))
+                            <p class="so-muted mb-2"><i class="fas fa-paper-plane mr-1"></i>Sent to <b>{{ $activeSent->opticalClinic?->name }}</b> on {{ $activeSent->created_at->format('d M Y') }} · {{ $activeSent->progressLabel() }}</p>
+                            <a wire:navigate href="{{ route('secretary.optical-sent') }}" class="so-btn so-btn-wide">Follow it in Sent to Optical</a>
+                        @else
                         <button type="button"
                                 wire:click="openOrderModal({{ $activeRefraction->id }})"
                                 class="so-btn so-btn-primary so-btn-wide {{ $activeCanCreateOrder ? '' : 'is-disabled' }}"
@@ -460,6 +478,19 @@
                             <i class="fas fa-plus"></i>
                             Create Order
                         </button>
+                        @if($opticalTargets)
+                            <button type="button"
+                                    x-on:click="$dispatch('send-to-optical', { refractionId: {{ $activeRefraction->id }} })"
+                                    class="so-btn so-btn-wide mt-2 {{ $activeCanCreateOrder ? '' : 'is-disabled' }}"
+                                    {{ !$activeCanCreateOrder ? 'disabled' : '' }}>
+                                <i class="fas fa-paper-plane"></i>
+                                Send to Optical Centre
+                            </button>
+                        @endif
+                        @if($activeSent && in_array($activeSent->status, ['rejected', 'quote_declined'], true))
+                            <small class="so-muted mt-2 block text-red-700">{{ $activeSent->opticalClinic?->name }} {{ $activeSent->status === 'quote_declined' ? 'quoted for the last request; you declined: '.$activeSent->decline_reason : 'turned down the last request: '.$activeSent->reject_reason }}</small>
+                        @endif
+                        @endif
                         @if(!$activeCanCreateOrder)
                             <small class="so-muted mt-2 block">Part or full payment must be recorded at POS first.</small>
                         @endif
@@ -2188,4 +2219,7 @@ function printThermalJobCard() {
     win.onafterprint = function() { win.close(); };
 }
 </script>
+    @if($opticalTargets)
+        <livewire:secretary.send-to-optical-component wire:key="send-to-optical" />
+    @endif
 </div>

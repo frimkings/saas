@@ -796,7 +796,7 @@ class SpectaclesComponent extends Component
 
         $this->recordType === 'orders'
             ? $query->whereHas('lensOrder')
-            : $query->where('dispensing_required', true)->doesntHave('lensOrder');
+            : $query->where('dispensing_required', true)->doesntHave('lensOrder')->whereNotIn($query->qualifyColumn('id'), self::acceptedAtOptical());
 
         if ($this->statusFilter) {
             if ($this->statusFilter === 'Pending') {
@@ -948,6 +948,19 @@ class SpectaclesComponent extends Component
 
     /* =================== RENDER =================== */
 
+    /** The send dialog finished: redraw so the row shows "Sent". */
+    #[\Livewire\Attributes\On('optical-request-sent')]
+    public function refreshAfterSend(): void
+    {
+    }
+
+    /** Refractions a linked optical centre has taken on: they leave the "needs order" queue (see Sent to Optical). */
+    private static function acceptedAtOptical()
+    {
+        return \App\Models\OpticalOrderRequest::forSender((int) app(\App\Support\Tenancy\TenantContext::class)->clinicId())
+            ->where('status', 'accepted')->whereNotNull('refraction_id')->select('refraction_id');
+    }
+
     public function render()
     {
         // Single grouped query instead of 5 individual count queries
@@ -956,7 +969,7 @@ class SpectaclesComponent extends Component
             ->pluck('cnt', 'status');
 
         $stats = [
-            'pending'     => Refractions::where('dispensing_required', true)->doesntHave('lensOrder')->count(),
+            'pending'     => Refractions::where('dispensing_required', true)->doesntHave('lensOrder')->whereNotIn('id', self::acceptedAtOptical())->count(),
             'ordered'     => $statusCounts->get('Pending', 0),
             'in_lab'      => $statusCounts->get('In Lab', 0),
             'ready'       => $statusCounts->get('Ready', 0),
@@ -1014,7 +1027,13 @@ class SpectaclesComponent extends Component
             ])->find($this->printPreviewOrderId);
         }
 
+        $links = app(\App\Services\OpticalLinks\OpticalLinkService::class);
+        $sentRequests = \App\Models\OpticalOrderRequest::forSender((int) app(\App\Support\Tenancy\TenantContext::class)->clinicId())
+            ->where('kind', 'order')->whereIn('refraction_id', $spectacles->pluck('id'))->with('opticalClinic:id,name')->orderBy('id')->get()->keyBy('refraction_id');
+
         return view('livewire.secretary.spectacle-component', [
+            'opticalTargets'     => $links->sendTargets()->count(),
+            'sentRequests'       => $sentRequests,
             'spectacles'         => $spectacles,
             'activeRefraction'   => $activeRefraction,
             'stats'              => $stats,

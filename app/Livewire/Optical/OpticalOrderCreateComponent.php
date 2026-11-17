@@ -31,6 +31,9 @@ class OpticalOrderCreateComponent extends Component
     public ?int $remakeOfId = null;
     public string $remake_reason = '';
     public string $remake_charge = '';
+    /** An order sent online by a linked clinic (OpticalOrderRequest) that this form is pricing. */
+    #[\Livewire\Attributes\Locked]
+    public ?int $linkRequestId = null;
 
     // Step 1: Customer
     public $patient_id;
@@ -127,6 +130,12 @@ class OpticalOrderCreateComponent extends Component
         }
         if (request()->filled('remake_of')) {
             $this->loadRemake((int) request('remake_of'));
+            // A remake a linked clinic asked for: the job also answers their request.
+            if (request()->filled('request_id')) $this->loadLinkRequest((int) request('request_id'));
+            return;
+        }
+        if (request()->filled('request_id')) {
+            $this->loadLinkRequest((int) request('request_id'));
             return;
         }
         if (request()->filled('partner_id')) {
@@ -266,6 +275,46 @@ class OpticalOrderCreateComponent extends Component
         $this->patient_id = null;
         $this->clearPrescription();
         $this->bill_to = 'partner';
+    }
+
+    /** Fill the form from an order a linked clinic sent: partner, wearer, reference, Rx and notes. */
+    private function loadLinkRequest(int $id): void
+    {
+        $request = app(\App\Services\OpticalLinks\OpticalLinkService::class)->incomingRequest($id);
+        if ($request->status !== 'sent') {
+            session()->flash('error', 'That request is no longer waiting to be accepted.');
+            $this->redirectRoute('optical.requests', navigate: true);
+            return;
+        }
+        if ($this->remakeOfId) {
+            // Remake: the original job already filled the form; only check it is the job the clinic means.
+            $original = $request->remakeOf;
+            abort_unless($request->isRemake() && $original && (int) $original->lens_order_id === (int) $this->remakeOfId, 404);
+            $this->linkRequestId = $request->id;
+            $this->paid_amount = 0;
+            $this->remake_reason = (string) $request->remake_reason;
+            $this->updatedRemakeReason();
+            $this->notes = collect(['Remake asked for by '.$request->senderClinic?->name.': '.(\App\Models\LensOrder::REMAKE_REASONS[$request->remake_reason] ?? $request->remake_reason), $request->notes])->filter()->implode("\n");
+            return;
+        }
+        $this->linkRequestId = $request->id;
+        $this->paid_amount = 0;
+        $this->changeOrderSource('partner');
+        $this->choosePartner((int) $request->optical_partner_clinic_id);
+        $this->bill_to = 'partner';
+        $this->customer_name = $request->patient_name;
+        $this->customer_phone = $request->patient_phone;
+        $this->reference = (string) $request->sender_reference;
+        $this->fillMeasurements((array) $request->rx);
+        if ($request->lens_type) $this->lens_type = $request->lens_type;
+        if ($request->frame_choice === 'own_frame') $this->frame_source = 'customer';
+        $this->notes = collect([
+            $request->urgency === 'urgent' ? 'URGENT' : null,
+            $request->lens_notes ? 'Lens: '.$request->lens_notes : null,
+            'Frame: '.(\App\Models\OpticalOrderRequest::FRAME_CHOICES[$request->frame_choice] ?? $request->frame_choice).($request->frame_notes ? ' - '.$request->frame_notes : ''),
+            $request->notes,
+            $request->query_answer ? 'Clinic answered: '.$request->query_answer : null,
+        ])->filter()->implode("\n");
     }
 
     public function choosePrescription($id): void
@@ -511,14 +560,15 @@ class OpticalOrderCreateComponent extends Component
         $step = $from;
         do {
             $step = max(1, min(7, $step + $direction));
-        } while (($step === 2 && ! $this->needsRx()) || ($step === 3 && ! $this->needsFrame()));
+        } while (($step === 2 && ! $this->needsRx()) || ($step === 3 && ! $this->needsFrame()) || ($step === 6 && $this->linkRequestId));
         return $step;
     }
 
     public function setStep($step)
     {
         $target = max(1, min(7, (int) $step));
-        if (($target === 2 && ! $this->needsRx()) || ($target === 3 && ! $this->needsFrame())) return;
+        // A linked clinic pays through its account, so its jobs take no deposit.
+        if (($target === 2 && ! $this->needsRx()) || ($target === 3 && ! $this->needsFrame()) || ($target === 6 && $this->linkRequestId)) return;
 
         if ($target <= $this->currentStep) {
             $this->resetValidation();
@@ -1083,14 +1133,27 @@ class OpticalOrderCreateComponent extends Component
 
     public function saveAsQuotation()
     {
+        if ($this->linkRequestId) return $this->sendLinkedJob();
         abort_if($this->remakeOfId !== null, 422, 'Place a remake as an order, not a quotation.');
         $this->saveOrder('Quotation');
         session()->flash('success', $this->editingQuotationId ? 'Optical quotation updated.' : 'Optical quotation created.');
         return redirect()->route('optical.orders');
     }
 
+    /** A job from a linked clinic: quote it to the clinic (or place a free one) and go back to Incoming Orders. */
+    private function sendLinkedJob()
+    {
+        $quoted = $this->priceBreakdown()['total'] > 0;
+        $this->saveOrder($quoted ? 'Quotation' : 'Pending');
+        $clinic = \App\Models\OpticalOrderRequest::find($this->linkRequestId)?->senderClinic?->name ?? 'the clinic';
+        session()->flash('success', $quoted ? "Quote sent to {$clinic}. Start the job here once they approve it." : "Job placed for {$clinic}.");
+
+        return redirect()->route('optical.requests');
+    }
+
     public function createOrder()
     {
+        if ($this->linkRequestId) return $this->sendLinkedJob();
         $this->validateDeposit();
         if ($this->editingQuotationId) {
             DB::transaction(function () {
@@ -1181,6 +1244,22 @@ class OpticalOrderCreateComponent extends Component
         ];
         if ($this->editingQuotationId) {
             return app(OpticalOrderService::class)->updateQuotation($this->editingQuotationId, $data);
+        }
+        if ($this->linkRequestId) {
+            // A priced job goes to the clinic as a quote to approve; a free one (e.g. a free remake) starts at once.
+            // Saved together with the request, so the clinic never sees a job its request doesn't point to.
+            $breakdown = $this->priceBreakdown();
+            $quote = $status === 'Quotation' || $breakdown['total'] > 0;
+            $data['link_request'] = true;
+            $data['paid_amount'] = 0;
+            $lines = $breakdown['lines'];
+            if ($breakdown['discount'] > 0) $lines[] = ['label' => 'Discount', 'amount' => -$breakdown['discount']];
+            return DB::transaction(function () use ($data, $quote, $lines) {
+                $links = app(\App\Services\OpticalLinks\OpticalLinkService::class);
+                $order = app(OpticalOrderService::class)->create($data, $quote);
+                $quote ? $links->markQuoted($this->linkRequestId, $order, $lines) : $links->markAccepted($this->linkRequestId, $order);
+                return $order;
+            });
         }
         return app(OpticalOrderService::class)->create($data, $status === 'Quotation');
     }

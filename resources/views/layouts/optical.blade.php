@@ -27,7 +27,9 @@
     $tenant = app(\App\Support\Tenancy\TenantContext::class);
     // Menu badges: everything needing attention, and late or uncollected jobs on Orders.
     $attentionCounts = auth()->check() && ! auth()->user()->is_platform_admin ? app(\App\Services\Reminders\AttentionItems::class)->counts('optical') : [];
-    $navBadges = ['optical.attention' => $attentionCounts['total'] ?? 0, 'optical.orders' => $attentionCounts['orders'] ?? 0];
+    $navBadges = ['optical.attention' => $attentionCounts['total'] ?? 0, 'optical.orders' => $attentionCounts['orders'] ?? 0,
+        'optical.requests' => auth()->check() ? \App\Services\OpticalLinks\OpticalLinkService::newIncomingCount() : 0,
+        'optical.partners' => auth()->check() ? \App\Services\OpticalLinks\OpticalLinkPaymentService::waitingCount() : 0];
 @endphp
 <div class="min-h-screen flex flex-col">
     {{-- One row: brand on the left, workspace / branch / sign out on the right, all the same height.

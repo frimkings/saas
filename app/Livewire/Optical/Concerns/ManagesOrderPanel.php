@@ -11,6 +11,7 @@ use Illuminate\Validation\Rule;
 use App\Support\PaymentMethods;
 use App\Services\OpticalCollectionNotifier;
 use App\Services\OpticalOrderWorkflowService;
+use App\Support\OpticalAccess;
 
 /**
  * The optical order side panel and everything it can do: move the order along, take
@@ -82,8 +83,21 @@ trait ManagesOrderPanel
             'serviceLines', 'lensLines', 'remakeOf', 'refundLog', 'partnerClinic', 'purchaseOrderLines.purchaseOrder', 'labSupplier', 'events.user'])->find($this->viewOrderId) : null;
     }
 
+    /** Bench steps need the lab; payments, notices and handing over need the front desk. */
+    private function assertDesk(): void
+    {
+        abort_unless(OpticalAccess::desk(auth()->user()), 403, 'The front desk does this.');
+    }
+
+    private function assertBench(): void
+    {
+        abort_unless(OpticalAccess::bench(auth()->user()), 403, 'Lab staff do this.');
+    }
+
     public function updateStatus($orderId, $newStatus): void
     {
+        abort_unless(OpticalAccess::canMoveTo(auth()->user(), (string) $newStatus), 403,
+            in_array((string) $newStatus, OpticalAccess::LAB_STEPS, true) ? 'Lab staff move jobs through the lab.' : 'The front desk hands glasses over.');
         $workflow = app(OpticalOrderWorkflowService::class);
         $order = $workflow->transition((int) $orderId, (string) $newStatus);
         session()->flash('success', "Order {$order->order_id} marked as {$newStatus}.".\App\Livewire\Optical\OpticalCollectionsComponent::readySmsNote($workflow->lastReadySms));
@@ -91,6 +105,7 @@ trait ManagesOrderPanel
 
     public function sendCollectionSms($orderId, $kind): void
     {
+        $this->assertDesk();
         $order = LensOrder::whereIn('status', ['Ready for Collection', 'Ready'])->findOrFail((int) $orderId);
         $result = app(OpticalCollectionNotifier::class)->sendSms($order, (string) $kind);
         $result['success']
@@ -100,12 +115,14 @@ trait ManagesOrderPanel
 
     public function recordPanelWhatsApp($orderId, $kind): void
     {
+        $this->assertDesk();
         $order = LensOrder::whereIn('status', ['Ready for Collection', 'Ready'])->findOrFail((int) $orderId);
         app(OpticalCollectionNotifier::class)->recordWhatsApp($order, (string) $kind);
     }
 
     public function receiveLens($orderId, $eye): void
     {
+        $this->assertBench();
         $order = app(OpticalOrderWorkflowService::class)->receiveSpecialOrderLens((int) $orderId, (string) $eye);
         session()->flash('success', 'Special-order '.strtoupper((string) $eye)." lens received for {$order->order_id}.");
     }
@@ -113,6 +130,7 @@ trait ManagesOrderPanel
     /** Converting asks for the deposit, and for an expired quotation whether to keep its prices. */
     public function convertQuotationToOrder($orderId): void
     {
+        $this->assertDesk();
         $quotation = LensOrder::where('status', 'Quotation')->findOrFail((int) $orderId);
         $this->convertOrderId = $quotation->id;
         $minimum = app(OpticalOrderWorkflowService::class)->minimumDeposit($quotation);
@@ -126,6 +144,7 @@ trait ManagesOrderPanel
 
     public function confirmConvertQuotation(): void
     {
+        $this->assertDesk();
         $quotation = LensOrder::where('status', 'Quotation')->findOrFail((int) $this->convertOrderId);
         $this->validate([
             'convertDeposit' => 'nullable|numeric|min:0',
@@ -143,6 +162,7 @@ trait ManagesOrderPanel
 
     public function openSendToLab($orderId): void
     {
+        $this->assertBench();
         $order = LensOrder::where('status', 'Pending')->findOrFail((int) $orderId);
         $this->sendToLabOrderId = $order->id;
         $this->labSupplierId = (string) ($order->lab_supplier_id ?? '');
@@ -155,6 +175,7 @@ trait ManagesOrderPanel
     /** Fill the lab form for one lab, or clear it for a new one. */
     public function editLab(?int $id = null): void
     {
+        $this->assertBench();
         $lab = $id ? Supplier::where('is_active', true)->findOrFail($id) : null;
         $this->labEditingId = $lab?->id;
         $this->labName = $lab->name ?? '';
@@ -166,6 +187,7 @@ trait ManagesOrderPanel
 
     public function saveLab(): void
     {
+        $this->assertBench();
         app(ClinicAccessService::class)->assertWritable('optical');
         $this->labName = trim(preg_replace('/\s+/', ' ', $this->labName));
         $this->validate([
@@ -189,6 +211,7 @@ trait ManagesOrderPanel
      */
     public function removeLab(int $id): void
     {
+        $this->assertBench();
         app(ClinicAccessService::class)->assertWritable('optical');
         $lab = Supplier::where('is_active', true)->findOrFail($id);
         $used = LensOrder::withoutGlobalScopes()->where('lab_supplier_id', $lab->id)->exists()
@@ -219,6 +242,7 @@ trait ManagesOrderPanel
 
     public function sendToLab(): void
     {
+        $this->assertBench();
         $this->validate(['labSupplierId' => 'nullable|integer', 'expectedBack' => 'nullable|date|after_or_equal:today']);
         $order = app(OpticalOrderWorkflowService::class)->transition((int) $this->sendToLabOrderId, 'Sent to Lab',
             $this->labSupplierId === '' ? null : (int) $this->labSupplierId, $this->expectedBack ?: null);
@@ -229,6 +253,7 @@ trait ManagesOrderPanel
 
     public function remake($id)
     {
+        $this->assertDesk();
         $order = LensOrder::whereIn('status', ['Ready for Collection', 'Ready', 'Collected'])->findOrFail((int) $id);
         return redirect()->route('optical.orders.create', ['remake_of' => $order->id]);
     }
@@ -266,6 +291,7 @@ trait ManagesOrderPanel
 
     public function confirmDeleteOrder($id): void
     {
+        $this->assertDesk();
         $order = LensOrder::findOrFail((int) $id);
         if ((float) $order->paid_amount > 0) {
             if (auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])) {
@@ -282,6 +308,7 @@ trait ManagesOrderPanel
 
     public function deleteOrder(): void
     {
+        $this->assertDesk();
         if (! $this->orderToDeleteId) return;
         $order = app(OpticalOrderWorkflowService::class)->cancel($this->orderToDeleteId);
         $this->showDeleteOrderModal = false;
@@ -292,6 +319,7 @@ trait ManagesOrderPanel
 
     public function openPaymentModal($id): void
     {
+        $this->assertDesk();
         $order = LensOrder::findOrFail((int) $id);
         if (! $order->sale_id) {
             $this->addError('order', "Order {$order->order_id} is a clinic order: take its payment on the patient's clinic bill at reception or the cashier.");
@@ -308,6 +336,7 @@ trait ManagesOrderPanel
 
     public function recordPayment(): void
     {
+        $this->assertDesk();
         $this->validate([
             'paymentOrderId' => 'required|integer',
             'paymentAmount' => 'required|numeric|gt:0',

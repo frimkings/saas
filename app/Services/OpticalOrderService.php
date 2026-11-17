@@ -293,7 +293,8 @@ class OpticalOrderService
     {
         $remake = $data['remake'] ?? null;
         if (! $remake) return null;
-        if ($quotation) throw ValidationException::withMessages(['remake' => 'Place a remake as an order, not a quotation.']);
+        // A charged remake for a linked clinic is quoted first, like any of their jobs.
+        if ($quotation && empty($data['link_request'])) throw ValidationException::withMessages(['remake' => 'Place a remake as an order, not a quotation.']);
         $original = LensOrder::whereIn('status', ['Ready for Collection', 'Ready', 'Collected'])->find((int) ($remake['of'] ?? 0));
         if (! $original) throw ValidationException::withMessages(['remake' => 'Remakes can only be made for glasses that are ready or collected.']);
         if (! array_key_exists($remake['reason'] ?? '', LensOrder::REMAKE_REASONS) || ! in_array($remake['charge'] ?? '', ['free', 'charged'], true)) {

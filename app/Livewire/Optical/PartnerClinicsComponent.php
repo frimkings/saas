@@ -28,6 +28,8 @@ class PartnerClinicsComponent extends Component
     public string $statusFilter = 'active';
     public bool $owingOnly = false;
     public ?int $viewPartnerId = null;
+    public ?int $disputingPaymentId = null;
+    public string $disputeReason = '';
 
     protected $queryString = ['search' => ['except' => ''], 'statusFilter' => ['except' => 'active']];
 
@@ -165,6 +167,60 @@ class PartnerClinicsComponent extends Component
         session()->flash('success', 'Partner clinic archived. Existing orders remain available.');
     }
 
+    /* ---------- Linking to a clinic on the platform (App\Services\OpticalLinks\OpticalLinkService) ---------- */
+
+    public function createInvite(int $id): void
+    {
+        $this->assertManager();
+        app(ClinicAccessService::class)->assertWritable('optical');
+        app(\App\Services\OpticalLinks\OpticalLinkService::class)->createInvite(OpticalPartnerClinic::findOrFail($id), auth()->user());
+        $this->viewPartnerId = $id;
+        session()->flash('success', 'Invite created. Send the code or link to the clinic’s owner or manager.');
+    }
+
+    public function revokeInvite(int $id): void
+    {
+        $this->assertManager();
+        app(\App\Services\OpticalLinks\OpticalLinkService::class)->revokeInvite(OpticalPartnerClinic::findOrFail($id));
+        session()->flash('success', 'Invite cancelled.');
+    }
+
+    public function setLink(int $id, string $status): void
+    {
+        $this->assertManager();
+        app(\App\Services\OpticalLinks\OpticalLinkService::class)->setLinkStatus(OpticalPartnerClinic::findOrFail($id), $status, auth()->user());
+        session()->flash('success', match ($status) {
+            'paused' => 'Link paused. The clinic can’t send new orders until you resume it.',
+            'active' => 'Link resumed.',
+            default => 'Unlinked. Jobs already sent stay on both sides.',
+        });
+    }
+
+    /* ---------- Payments a linked clinic recorded (App\Services\OpticalLinks\OpticalLinkPaymentService) ---------- */
+
+    public function confirmLinkPayment(int $id): void
+    {
+        $payment = \App\Models\OpticalLinkPayment::forOptical((int) app(TenantContext::class)->clinicId())->findOrFail($id);
+        $receipt = app(\App\Services\OpticalLinks\OpticalLinkPaymentService::class)->confirm($payment, auth()->user());
+        session()->flash('success', 'Payment confirmed as receipt '.$receipt->receipt_number.'. The jobs it covers are settled on the account.');
+    }
+
+    public function startDispute(?int $id = null): void
+    {
+        $this->disputingPaymentId = $id;
+        $this->disputeReason = '';
+        $this->resetErrorBag();
+    }
+
+    public function disputeLinkPayment(): void
+    {
+        $this->resetErrorBag();
+        $payment = \App\Models\OpticalLinkPayment::forOptical((int) app(TenantContext::class)->clinicId())->findOrFail((int) $this->disputingPaymentId);
+        app(\App\Services\OpticalLinks\OpticalLinkPaymentService::class)->dispute($payment, $this->disputeReason, auth()->user());
+        $this->reset(['disputingPaymentId', 'disputeReason']);
+        session()->flash('success', 'The clinic sees that you have not received this payment, and why.');
+    }
+
     public function render()
     {
         $accounts = app(\App\Services\OpticalPartnerAccountService::class);
@@ -202,6 +258,10 @@ class PartnerClinicsComponent extends Component
             'canManage' => \App\Support\OpticalAccess::isManager(auth()->user()),
             'viewAging' => $view ? $accounts->aging($view) : [],
             'viewOrders' => $view ? \App\Models\LensOrder::where('partner_clinic_id', $view->id)->latest()->limit(8)->get() : collect(),
+            'viewInvite' => $view ? app(\App\Services\OpticalLinks\OpticalLinkService::class)->openInvite($view) : null,
+            'viewLinkPayments' => $view && $view->linked_clinic_id ? app(\App\Services\OpticalLinks\OpticalLinkPaymentService::class)->waitingForOptical($view->id) : collect(),
+            'linkPaymentsWaiting' => \App\Services\OpticalLinks\OpticalLinkPaymentService::waitingCount() > 0
+                ? \App\Models\OpticalLinkPayment::forOptical((int) app(TenantContext::class)->clinicId())->where('status', 'pending')->pluck('optical_partner_clinic_id')->countBy() : collect(),
         ])->layout('layouts.optical');
     }
 }

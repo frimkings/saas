@@ -4,6 +4,20 @@
         <div>
             <h1 class="text-xl font-bold text-slate-900">{{ $remakeOfId ? 'Remake Glasses' : ($editingQuotationId ? 'Edit Optical Quotation' : 'Create Order / Quote') }}</h1>
             <p class="ui-muted text-xs">Create prescription orders or service jobs for customers and partner clinics.</p>
+            @if($linkRequestId)
+                @php $linkRequest = \App\Models\OpticalOrderRequest::find($linkRequestId); @endphp
+                <p class="mt-1 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-900"><i class="fas fa-inbox mr-1"></i>Online order from <b>{{ $linkRequest?->senderClinic?->name }}</b> for {{ $linkRequest?->patient_name }}. {{ $remakeOfId ? 'Choose free or charged, then place it.' : 'The prescription is filled in: check it, then price the job.' }} A priced job goes to the clinic as a quote; you start it once they approve.
+                    @php
+                        $asked = collect([
+                            $linkRequest?->lens_type ? 'Lens: '.$linkRequest->lens_type : null,
+                            $linkRequest?->lens_notes,
+                            'Frame: '.(\App\Models\OpticalOrderRequest::FRAME_CHOICES[$linkRequest?->frame_choice] ?? $linkRequest?->frame_choice).($linkRequest?->frame_notes ? ' ('.$linkRequest->frame_notes.')' : ''),
+                            $linkRequest?->urgency === 'urgent' ? 'Urgent' : null,
+                        ])->filter();
+                    @endphp
+                    @if($linkRequest && $asked->isNotEmpty())<br><b>The clinic asked for:</b> {{ $asked->implode(' · ') }}@endif
+                </p>
+            @endif
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <x-guide-tour page="optical.order-create" class="!py-1 !text-xs" :auto="$currentStep === 1" />
@@ -669,7 +683,7 @@
                     @php $runningTotal = $this->calculateTotalProperty(); @endphp
                     @if($runningTotal > 0)<span class="text-xs text-slate-600">Total <strong class="font-mono text-slate-900">{{ currency() }} {{ number_format($runningTotal, 2) }}</strong></span>@endif
                 @endif
-                @unless($remakeOfId)
+                @unless($remakeOfId || $linkRequestId)
                 {{-- On step 1 the typed customer goes with it. --}}
                 <button type="button" data-tour="opt-quote" @if($currentStep === 1) x-on:click="$wire.saveQuotationWithRequester(requester())" @else wire:click="saveAsQuotation" @endif wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                     class="ui-button bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-xs px-4 py-2 rounded-lg border border-slate-300 shadow-sm">
@@ -697,8 +711,13 @@
                 @else
                     <button type="button" wire:click="createOrder" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                         class="ui-button bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs px-6 py-2 rounded-lg shadow font-mono">
-                        <span wire:loading.remove wire:target="createOrder">Place Optical Order ✓</span>
-                        <span wire:loading wire:target="createOrder">Placing order…</span>
+                        @if($linkRequestId && $runningTotal > 0)
+                            <span wire:loading.remove wire:target="createOrder">Send quote to clinic ✓</span>
+                            <span wire:loading wire:target="createOrder">Sending quote…</span>
+                        @else
+                            <span wire:loading.remove wire:target="createOrder">Place Optical Order ✓</span>
+                            <span wire:loading wire:target="createOrder">Placing order…</span>
+                        @endif
                     </button>
                 @endif
             </div>

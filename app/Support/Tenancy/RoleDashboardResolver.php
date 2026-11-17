@@ -13,7 +13,7 @@ class RoleDashboardResolver
         'Doctor' => 'doctor.dashboard',
         'Secretary' => 'secretary.dashboard',
         'Cashier' => 'cashier.seller-desk',
-        'Optician' => 'optical.dashboard',
+        'Optician' => 'optical.lab-workbench',
     ];
 
     public function routeName(User $user): string
@@ -30,7 +30,8 @@ class RoleDashboardResolver
         }
 
         if (\App\Support\OpticalMode::opticalOnly($context->clinic())) {
-            return 'optical.dashboard';
+            // Bench staff (Optician, Lab Technician) start at the Lab Workbench.
+            return ! \App\Support\OpticalAccess::desk($user) && \App\Support\OpticalAccess::bench($user) ? 'optical.lab-workbench' : 'optical.dashboard';
         }
 
         // Attendance only: managers run the attendance page, everyone else sees their own.

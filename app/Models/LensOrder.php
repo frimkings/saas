@@ -321,6 +321,10 @@ class LensOrder extends Model
     {
         // Every screen and service changes status through the model, so record each change here.
         static::updated(function (LensOrder $order): void {
+            // A job sent in by a linked clinic: let the clinic see where it is and what it owes.
+            if ($order->order_source === 'partner' && $order->wasChanged(['status', 'paid_amount', 'total', 'order_id'])) {
+                \App\Services\OpticalLinks\OpticalLinkService::syncFromOrder($order);
+            }
             if (! $order->wasChanged('status')) return;
             $order->events()->create([
                 'clinic_id' => $order->clinic_id, 'branch_id' => $order->branch_id, 'user_id' => auth()->id(),

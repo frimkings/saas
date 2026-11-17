@@ -104,7 +104,7 @@
                                         <button type="button" x-on:click="openLocal($wire, { paymentOrderId: {{ $ord->id }}, paymentAmount: '{{ number_format(max(0, $ord->total - (float) $ord->paid_amount), 2, '.', '') }}', showPaymentModal: true }, $root.querySelector('[data-payment-form]'))" class="oo-btn warn">Take payment</button>
                                     @elseif($blocked)
                                         <span class="oo-btn warn cursor-default" title="This clinic order is paid on the patient's clinic bill. Take the payment at reception or the cashier.">Pay at clinic</span>
-                                    @elseif($step && ! $awaiting)
+                                    @elseif($step && ! $awaiting && \App\Support\OpticalAccess::canMoveTo(auth()->user(), in_array($ord->status, ['Pending', 'Sent to Lab', 'In Production'], true) ? 'Sent to Lab' : 'Collected'))
                                         <button type="button" wire:click="{{ $step[1] }}" @if($step[2]) wire:confirm="{{ $step[2] }}" @endif class="oo-btn primary">{{ $step[0] }}</button>
                                     @else<span class="oo-slot"></span>@endif
                                     <button type="button" wire:click="openOrder({{ $ord->id }})" class="oo-btn">View</button>

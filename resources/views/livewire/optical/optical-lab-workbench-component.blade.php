@@ -104,7 +104,7 @@
                                     @if($awaiting->isNotEmpty() && $open)
                                         @php $line = $awaiting->first(); @endphp
                                         <button type="button" class="oo-btn warn" wire:click="receiveLens({{ $ord->id }}, '{{ $line->eye }}')" wire:confirm="Confirm the {{ strtoupper($line->eye) }} lens has arrived from the supplier?">{{ strtoupper($line->eye) }} lens arrived</button>
-                                    @elseif($step && $open)
+                                    @elseif($step && $open && \App\Support\OpticalAccess::canMoveTo(auth()->user(), in_array($ord->status, ['Pending', 'Sent to Lab', 'In Production'], true) ? 'Sent to Lab' : 'Collected'))
                                         <button type="button" class="oo-btn primary" wire:click="{{ $step[1] }}" @if($step[2]) wire:confirm="{{ $step[2] }}" @endif>{{ $step[0] }}</button>
                                     @else<span></span>@endif
                                     <button type="button" class="oo-btn" wire:click="openOrder({{ $ord->id }})">View</button>

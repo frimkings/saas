@@ -66,6 +66,9 @@
         'secretary.patients'            => 'Patients',
         'secretary.appointments'        => 'Appointments',
         'secretary.spectacles'          => 'Spectacles Orders',
+        'secretary.optical-sent'        => 'Sent to Optical',
+        'secretary.optical-centres'     => 'Optical Centres',
+        'secretary.optical-owed'        => 'Owed to Optical Centres',
         'secretary.patient-clearance'   => 'Patient Clearance',
 
         // Cashier / POS

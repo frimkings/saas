@@ -15,6 +15,11 @@
             $step = \App\Support\Optical\OrderPresenter::nextStep($o, $bench ?? false);
             $onAccount = $o->order_source === 'partner' && $o->partner_billing_terms === 'on_account';
             $isManager = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+            // Front desk: money, notices, handing over. Bench: lab steps (App\Support\OpticalAccess).
+            $deskOk = \App\Support\OpticalAccess::desk(auth()->user());
+            $benchOk = \App\Support\OpticalAccess::bench(auth()->user());
+            $stepIsBench = in_array($o->status, ['Pending', 'Sent to Lab', 'In Production'], true);
+            $stepAllowed = $stepIsBench ? $benchOk : $deskOk;
             // Orders store their lab docket as JSON in notes; older or hand-written notes stay plain text.
             $docket = \App\Support\Optical\OrderPresenter::docket($o);
             $rx = $o->prescription_snapshot;
@@ -66,7 +71,7 @@
                                 : 'ordered from '.($po->supplier?->name ?? 'the supplier').' on '.($po->ordered_at ?? $po->created_at)->format('j M').($po->expected_date ? ', expected '.$po->expected_date->format('j M') : '').' · '.$po->po_number);
                         @endphp
                         <span>Waiting for the {{ strtoupper($line->eye) }} special-order lens: {{ $buying }}. Glazing can't start until it arrives.</span>
-                        @if($open)<button type="button" class="oo-btn warn" wire:click="receiveLens({{ $o->id }}, '{{ $line->eye }}')" wire:confirm="Confirm the {{ strtoupper($line->eye) }} lens has arrived from the supplier?">Mark received</button>@endif
+                        @if($open && $benchOk)<button type="button" class="oo-btn warn" wire:click="receiveLens({{ $o->id }}, '{{ $line->eye }}')" wire:confirm="Confirm the {{ strtoupper($line->eye) }} lens has arrived from the supplier?">Mark received</button>@endif
                     </div>
                 @endforeach
                 @if($clinicBill)
@@ -148,7 +153,7 @@
                     </section>
                 @endif
 
-                @if($isReady)
+                @if($isReady && $deskOk)
                     @php
                         $kind = $o->ready_notified_at ? \App\Services\OpticalCollectionNotifier::REMINDER : \App\Services\OpticalCollectionNotifier::READY;
                         $whatsApp = $notifier->whatsAppLink($o, $kind);
@@ -183,11 +188,11 @@
                         <button type="button" class="oo-btn" onclick="window.print()">Print this panel</button>
                         @if($o->sale_id && $o->status !== 'Cancelled')<a href="{{ route('optical.receipt', $o->sale_id) }}" target="_blank" class="oo-btn">Receipt</a>@endif
                         @if($o->refundLog)<a href="{{ route('refunds.receipt', $o->refundLog) }}" target="_blank" class="oo-btn">Refund receipt</a>@endif
-                        @if($o->status === 'Quotation')<a href="{{ route('optical.orders.create', ['quotation_id' => $o->id]) }}" class="oo-btn">Edit quote</a>@endif
+                        @if($o->status === 'Quotation' && $deskOk)<a href="{{ route('optical.orders.create', ['quotation_id' => $o->id]) }}" class="oo-btn">Edit quote</a>@endif
                     </div>
                 </section>
 
-                @if(! in_array($o->status, ['Cancelled', 'Collected'], true))
+                @if(! in_array($o->status, ['Cancelled', 'Collected'], true) && $deskOk)
                     <section class="oo-section" style="border-top:1px solid var(--clinic-line);padding-top:14px">
                         <h3 style="color:#b91c1c">Cancel</h3>
                         @if((float) $o->paid_amount > 0 && $o->status !== 'Quotation')
@@ -205,13 +210,15 @@
             </div>
 
             <footer class="oo-drawer-foot">
-                @if(in_array($o->status, ['Ready for Collection', 'Ready', 'Collected'], true) && $o->work_type === 'prescription')
+                @if(in_array($o->status, ['Ready for Collection', 'Ready', 'Collected'], true) && $o->work_type === 'prescription' && $deskOk)
                     <button type="button" wire:click="remake({{ $o->id }})" class="oo-btn" title="Re-do the lenses for this order">Remake</button>
                 @endif
-                @if($balance > 0 && $o->sale_id && ! in_array($o->status, ['Quotation', 'Cancelled'], true))
+                @if($balance > 0 && $o->sale_id && ! in_array($o->status, ['Quotation', 'Cancelled'], true) && $deskOk)
                     <button type="button" x-on:click="openLocal($wire, { paymentOrderId: {{ $o->id }}, paymentAmount: '{{ number_format(max(0, $o->total - (float) $o->paid_amount), 2, '.', '') }}', showPaymentModal: true }, $root.querySelector('[data-payment-form]'))" class="oo-btn {{ $isReady ? 'primary' : 'warn' }}">Record payment</button>
                 @endif
-                @if($step && ! ($isReady && $balance > 0 && ! $onAccount))
+                @if($step && ! $stepAllowed)
+                    <span class="ui-muted" style="font-size:12px">{{ $stepIsBench ? 'Lab staff move this job on.' : 'The front desk takes it from here.' }}</span>
+                @elseif($step && ! ($isReady && $balance > 0 && ! $onAccount))
                     <button type="button" wire:click="{{ $step[1] }}" @if($step[2]) wire:confirm="{{ $step[2] }}" @endif class="oo-btn primary" @if($awaited->isNotEmpty() && $o->status === 'Pending') disabled title="Waiting for a special-order lens" @endif>{{ $step[0] }}</button>
                 @endif
             </footer>

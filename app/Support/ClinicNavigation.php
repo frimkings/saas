@@ -60,6 +60,26 @@ class ClinicNavigation
         ]);
     }
 
+    /**
+     * Sending spectacle orders to linked optical centres: the sent list once a link exists (or something
+     * was sent), and the links page for owners and managers.
+     */
+    private static function opticalLinkLinks(bool $spectacles): array
+    {
+        $user = auth()->user();
+        if (! $spectacles || ! $user?->hasAnyRole(['Secretary', 'Manager', 'Super Admin'])) return [];
+        $links = app(\App\Services\OpticalLinks\OpticalLinkService::class);
+        $clinicId = (int) app(\App\Support\Tenancy\TenantContext::class)->clinicId();
+        $inUse = $clinicId && ($links->linksForSender($clinicId)->isNotEmpty() || \App\Models\OpticalOrderRequest::forSender($clinicId)->exists());
+
+        return [
+            ['label' => 'Sent to Optical', 'route' => 'secretary.optical-sent', 'badge' => $inUse ? \App\Services\OpticalLinks\OpticalLinkService::senderQueryCount() : 0, 'show' => $inUse],
+            ['label' => 'Owed to Optical', 'route' => 'secretary.optical-owed', 'badge' => $inUse ? \App\Models\OpticalLinkPayment::forSender($clinicId)->where('status', 'disputed')->count() : 0,
+                'show' => $inUse && $links->canManageLinks($user)],
+            ['label' => 'Optical Centres', 'route' => 'secretary.optical-centres', 'show' => $links->canManageLinks($user)],
+        ];
+    }
+
     /** Reception and cashier desk. */
     public static function reception(): array
     {
@@ -79,6 +99,7 @@ class ClinicNavigation
             ['label' => 'Clearance & Spectacles', 'icon' => 'fa-clipboard-check', 'show' => $desk, 'items' => [
                 ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
                 ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0, 'show' => $has(Feature::SPECTACLE_ORDERS)],
+                ...self::opticalLinkLinks($has(Feature::SPECTACLE_ORDERS)),
             ]],
             ['label' => 'Sales & Billing', 'icon' => 'fa-cash-register', 'items' => [
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
@@ -147,6 +168,7 @@ class ClinicNavigation
             $menu[] = ['label' => 'Front Desk', 'icon' => 'fa-cash-register', 'items' => [
                 ['label' => 'Patient Clearance', 'route' => 'secretary.patient-clearance'],
                 ['label' => 'Spectacles', 'route' => 'secretary.spectacles', 'badge' => $counts['orders'] ?? 0, 'show' => $has(Feature::SPECTACLE_ORDERS)],
+                ...self::opticalLinkLinks($has(Feature::SPECTACLE_ORDERS)),
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records', 'active' => ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],

@@ -186,6 +186,12 @@ Route::middleware(['auth', 'role:Secretary|Manager|Super Admin'])->group(functio
     Route::get('secretary/appointments', AppointmentsComponent::class)->name('secretary.appointments')->middleware('feature-or-leftover:appointments');
     Route::get('secretary/spectacles', SpectaclesComponent::class)->name('secretary.spectacles')->middleware('feature:spectacle_orders');
 Route::get('secretary/patient-clearance', CashierPatientClearanceComponent::class)->name('secretary.patient-clearance');
+    // Spectacle orders sent to linked optical centres (App\Services\OpticalLinks\OpticalLinkService).
+    Route::get('secretary/sent-to-optical', \App\Livewire\Secretary\SentToOpticalComponent::class)->name('secretary.optical-sent')->middleware('feature:spectacle_orders');
+    Route::get('secretary/optical-centres', \App\Livewire\Secretary\OpticalCentresComponent::class)->name('secretary.optical-centres')->middleware('role:Manager|Super Admin');
+    Route::get('secretary/owed-to-optical', \App\Livewire\Secretary\OpticalOwedComponent::class)->name('secretary.optical-owed')->middleware(['feature:spectacle_orders', 'role:Manager|Super Admin']);
+    // The link an optical centre sends with its invite code.
+    Route::get('optical-links/accept', fn (\Illuminate\Http\Request $request) => redirect()->route('secretary.optical-centres', ['code' => (string) $request->query('code')]))->name('optical-links.accept');
 
 
 });
@@ -267,6 +273,8 @@ Route::get('/optical/lens-grid', \App\Livewire\Optical\OpticalLensGridComponent:
  Route::get('/optical/stock', \App\Livewire\Optical\OpticalStockManagementComponent::class)->name('optical.stock');
  Route::get('/optical/stock/receive-lenses', \App\Livewire\Optical\OpticalLensReceivingComponent::class)->middleware('role:Manager|Super Admin')->name('optical.stock.receive-lenses');
 Route::get('/optical/orders/create', \App\Livewire\Optical\OpticalOrderCreateComponent::class)->name('optical.orders.create');
+// Orders sent online by linked clinics (App\Services\OpticalLinks\OpticalLinkService).
+Route::get('/optical/incoming', \App\Livewire\Optical\IncomingRequestsComponent::class)->name('optical.requests');
 Route::get('/optical/orders/{order}/docket', function (int $order) {
     $order = \App\Models\LensOrder::with(['patient', 'opticalPrescription', 'frameProduct', 'lensProduct', 'frameOpticalProduct', 'lensOpticalProduct', 'user'])->findOrFail($order);
     return view('optical.order-docket', compact('order'));

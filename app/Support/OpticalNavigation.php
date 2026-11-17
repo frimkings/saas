@@ -21,6 +21,8 @@ class OpticalNavigation
             ['key' => 'desk', 'label' => 'Front desk', 'links' => [
                 // Awaiting Collection opens from the Orders page (Ready filter and collection reminders).
                 ['optical.orders', 'Orders', 'fa-clipboard-list'],
+                // Shown once a partner clinic is linked (or has sent something).
+                ['optical.requests', 'Incoming Orders', 'fa-inbox'],
                 ['optical.pos', 'Retail POS', 'fa-shopping-cart'],
                 ['optical.sales', 'Sales Records', 'fa-receipt'],
                 ['optical.prescriptions', 'Prescriptions', 'fa-file-medical'],
@@ -56,7 +58,7 @@ class OpticalNavigation
     public const OPEN_FOR_ROLE = [
         'Optical Assistant' => ['desk'],
         'Lab Technician' => ['lab', 'stock'],
-        'Optician' => ['desk', 'lab'],
+        'Optician' => ['lab'],
     ];
 
     /** The optical pages as one list (phone menu, and the optical menu of a combined clinic). */
@@ -71,6 +73,7 @@ class OpticalNavigation
     {
         return match ($route) {
             'admin.users' => self::canManageStaff(),
+            'optical.requests' => OpticalAccess::can(auth()->user(), $route) && \App\Services\OpticalLinks\OpticalLinkService::receivesOnline(),
             'optical.audit-trail', 'optical.login-history' => \App\Services\LicenseService::has(Feature::AUDIT_TRAIL) && OpticalAccess::can(auth()->user(), $route),
             default => OpticalAccess::can(auth()->user(), $route),
         };

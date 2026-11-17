@@ -25,6 +25,7 @@ final class TourCatalog
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 1,
+        'optical.requests' => 2,
         'clinic.dashboard' => 4,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
@@ -39,6 +40,8 @@ final class TourCatalog
         'clinic.receivables' => 1,
         'clinic.insurer-payments' => 1,
         'clinic.scans' => 2,
+        'clinic.optical-sent' => 2,
+        'clinic.optical-owed' => 1,
         'platform.dashboard' => 2,
         'platform.clinics' => 1,
         'platform.plans' => 1,
@@ -48,7 +51,7 @@ final class TourCatalog
         'platform.sms' => 1,
         'platform.announcements' => 1,
         'platform.usage' => 1,
-        'platform.imports-other' => 1,
+        'platform.imports-other' => 2,
         'platform.analytics' => 1,
         'platform.support' => 1,
     ];
@@ -71,6 +74,7 @@ final class TourCatalog
             'optical.lab' => self::opticalLab(),
             'optical.catalogue' => self::opticalCatalogue($context),
             'optical.pos' => self::opticalPos(),
+            'optical.requests' => self::opticalRequests(),
             'clinic.dashboard' => self::clinicDashboard($context),
             'clinic.registry' => self::clinicRegistry(),
             'clinic.clearance' => self::clinicClearance(),
@@ -85,12 +89,36 @@ final class TourCatalog
             'clinic.receivables' => self::clinicReceivables(),
             'clinic.insurer-payments' => self::clinicInsurerPayments(),
             'clinic.scans' => self::clinicScans($context),
+            'clinic.optical-sent' => self::clinicOpticalSent(),
+            'clinic.optical-owed' => self::clinicOpticalOwed(),
             default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
         if (! $tour) return null;
         $tour['steps'] = array_values(array_filter($tour['steps']));
 
         return $tour + ['version' => self::version($tour['key']) ?? 1];
+    }
+
+    /** Front Desk → Sent to Optical: spectacle orders sent to linked optical centres. */
+    private static function clinicOpticalSent(): array
+    {
+        return ['key' => 'clinic.optical-sent', 'title' => 'Sent to Optical', 'steps' => [
+            ['target' => 'sent-to-optical', 'title' => 'Orders you sent', 'body' => 'Send an order from Spectacles → Refractions Needing Order with the paper-plane button, once the patient has paid at the Point of Sale. Here you see each one: waiting, a question from the optical centre to answer, accepted (with the job’s progress in their lab), or turned down.'],
+            ['title' => 'Approve the price first', 'body' => 'The optical centre prices each job and sends you a quote: the lens, frame and services with their trade price. Approve it and they start the job; decline it with a reason and the patient goes back to Refractions Needing Order. An expired quote can be sent back for a new price.'],
+            ['title' => 'Remakes', 'body' => 'Once glasses are ready or collected, Ask for a remake sends the job back with your reason. The optical centre decides whether it is free (their error or warranty) or charged; a charged one comes to you as a quote.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Owners and managers link optical centres under Optical Centres and pay them under Owed to Optical. Take this tour again at any time from here.'],
+        ]];
+    }
+
+    /** Front Desk → Owed to Optical: what linked optical centres billed and what the clinic paid. */
+    private static function clinicOpticalOwed(): array
+    {
+        return ['key' => 'clinic.optical-owed', 'title' => 'Owed to Optical Centres', 'steps' => [
+            ['title' => 'One card per optical centre', 'body' => 'What they billed for jobs you approved, what you paid, payments they still have to confirm, and what is left to pay, with the open jobs underneath.'],
+            ['title' => 'Record a payment', 'body' => 'Record payment books it in your expenses at once (Optical centre jobs), so cash from the till shows in End of day. The oldest jobs are paid first, or say which jobs it covers. The optical centre confirms it when the money arrives.'],
+            ['target' => 'owed-payments', 'title' => 'Payments you recorded', 'body' => 'Waiting, confirmed, or not received. If the optical centre says it did not arrive, check and withdraw it: its expense is removed too.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Payments the optical centre recorded itself (cash at their counter) appear under "Paid but not in your expenses yet". Take this tour again at any time from here.'],
+        ]];
     }
 
     private static function attendanceManager(array $c): array
@@ -143,6 +171,17 @@ final class TourCatalog
             ['target' => 'opt-new-order', 'title' => 'Start here', 'body' => 'New Order takes a prescription job or a quotation step by step. Walk-in POS Sale is for selling something off the shelf.'],
             ['target' => 'opt-stats', 'title' => 'Today at a glance', 'body' => 'Orders taken today, glasses ready for collection, and money still owed by customers.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
+        ]];
+    }
+
+    /** Optical → Incoming Orders: spectacle orders sent online by linked clinics. */
+    private static function opticalRequests(): array
+    {
+        return ['key' => 'optical.requests', 'title' => 'Incoming Orders', 'steps' => [
+            ['target' => 'incoming-orders', 'title' => 'Orders from linked clinics', 'body' => 'Clinics you linked under Partner Clinics send their spectacle orders here, with the wearer’s name, phone and prescription. Open one to accept it: the order form opens with the prescription filled in, and you price the job as a partner order. Or ask the clinic a question, or turn it down with a reason they will see.'],
+            ['title' => 'Quotes, then the job', 'body' => 'Pricing a job sends the clinic a quote; it waits under Quotes. Once they approve it, open it and press Start the job: it goes on their account at the approved price, with no deposit. A free job, such as a free remake, starts straight away.'],
+            ['title' => 'Remakes and payments', 'body' => 'A clinic can ask for a remake of glasses you made; accept it to open the remake form and choose free or charged. When a clinic records a payment to you, confirm it on their card under Partner Clinics.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'The clinic follows each job as you move it through the lab. Take this tour again at any time from here.'],
         ]];
     }
 
@@ -478,8 +517,8 @@ final class TourCatalog
                 ['target' => 'cu-clinics', 'title' => 'Clinic by clinic', 'body' => 'Sort by any column to see who uses the most, and press a clinic for its day-by-day use.'],
             ]],
             'platform.imports-other' => ['Import from other software', [
-                ['target' => 'xi-tabs', 'title' => 'Two kinds of import', 'body' => 'An SQL dump from our own older system creates a new clinic. Files exported from other software, such as Cloudify, go into a clinic you have already set up through Clinics → Onboard new clinic.'],
-                ['target' => 'xi-upload', 'title' => 'Check the files first', 'body' => 'Choose the clinic and upload all the exported .xlsx files (or one .zip). Checking writes nothing to the clinic.'],
+                ['target' => 'xi-tabs', 'title' => 'Two kinds of import', 'body' => 'An SQL dump from our own older system creates a new clinic. Files from other software (Cloudify\'s export, or a capture of iTestEMR\'s pages) go into a clinic you have already set up through Clinics → Onboard new clinic.'],
+                ['target' => 'xi-upload', 'title' => 'Check the files first', 'body' => 'Choose the clinic and their previous software, then upload all its files at once (or one .zip): .xlsx for Cloudify; for iTestEMR, the .zip its capture button makes (choose iTestEMR to see the button and its steps). Checking writes nothing to the clinic.'],
                 ['target' => 'xi-list', 'title' => 'Every import', 'body' => 'Open one to see its report, import it, follow its progress, or undo it. Uploaded files are deleted once an import finishes.'],
             ]],
             'platform.analytics' => ['Subscription Analytics', [

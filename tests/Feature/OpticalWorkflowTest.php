@@ -1378,12 +1378,59 @@ class OpticalWorkflowTest extends TestCase
         }
         $this->assertSame('optical.lab-workbench', Role::where('name', 'Lab Technician')->value('dashboard_route'));
 
-        // An Optician opens everything except management.
+        // The Optician works the lab bench: workbench and job tracking, lenses looked up in the catalogue.
         $this->opticalStaff('optical-optician', 'Optician');
-        foreach (['optical.orders', 'optical.lab-workbench', 'optical.pos', 'optical.reports', 'optical.stock-counts'] as $route) {
+        foreach (['optical.lab-workbench', 'optical.jobs', 'optical.catalogue', 'optical.lens-grid'] as $route) {
             $this->get(route($route))->assertOk();
         }
-        $this->get(route('optical.purchasing'))->assertForbidden();
+        foreach (['optical.orders', 'optical.orders.create', 'optical.pos', 'optical.sales', 'optical.partners', 'optical.reports', 'optical.stock-counts', 'optical.purchasing'] as $route) {
+            $this->get(route($route))->assertForbidden();
+        }
+        $this->assertSame('optical.lab-workbench', Role::where('name', 'Optician')->value('dashboard_route'));
+    }
+
+    public function test_the_front_desk_is_the_secretarys_and_the_bench_is_the_opticians(): void
+    {
+        foreach (['Secretary', 'Cashier'] as $name) Role::firstOrCreate(['name' => $name, 'guard_name' => 'web'])->givePermissionTo([...\App\Support\OpticalAccess::PERMISSIONS, 'manage users']);
+        \App\Support\OpticalAccess::installRoles();
+
+        // Secretary and Cashier: the front desk only, as before for orders and the till; no lab, stock or reports.
+        foreach (['Secretary' => 'optical-secretary', 'Cashier' => 'optical-cashier'] as $role => $slug) {
+            $this->opticalStaff($slug, $role);
+            foreach (['optical.orders', 'optical.orders.create', 'optical.pos', 'optical.sales', 'optical.prescriptions', 'optical.partners', 'optical.jobs', 'optical.catalogue'] as $route) {
+                $this->get(route($route))->assertOk();
+            }
+            foreach (['optical.lab-workbench', 'optical.stock-counts', 'optical.stock', 'optical.reports', 'optical.purchasing'] as $route) {
+                $this->get(route($route))->assertForbidden();
+            }
+            $this->get(route('optical.orders'))->assertSee('id="optical-nav-desk"', false)->assertDontSee('Lab Workbench')->assertDontSee('Staff &amp; roles', false);
+            // Staff & roles is the manager's: the desk can't give itself the lab or a manager's role.
+            $this->get(route('admin.users'))->assertForbidden();
+        }
+
+        // The desk can't move a job through the lab; it records payments and hands glasses over.
+        $secretary = auth()->user();
+        $this->assertFalse(\App\Support\OpticalAccess::canMoveTo($secretary, 'Sent to Lab'));
+        $this->assertTrue(\App\Support\OpticalAccess::canMoveTo($secretary, 'Collected'));
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('updateStatus', 999999, 'Ready for Collection')->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openSendToLab', 999999)->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('receiveLens', 999999, 'od')->assertForbidden();
+
+        // The Optician moves jobs through the lab but takes no money and hands nothing over.
+        $optician = $this->opticalStaff('optical-bench', 'Optician');
+        $this->assertTrue(\App\Support\OpticalAccess::canMoveTo($optician, 'In Production'));
+        $this->assertFalse(\App\Support\OpticalAccess::canMoveTo($optician, 'Collected'));
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('updateStatus', 999999, 'Collected')->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('openPaymentModal', 999999)->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('confirmDeleteOrder', 999999)->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('remake', 999999)->assertForbidden();
+        // A bench step gets past the role check (no such order here, so not found).
+        try {
+            Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('updateStatus', 999999, 'In Production');
+            $this->fail('Expected the missing order to be looked up.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        }
+        $this->get(route('optical.lab-workbench'))->assertSee('id="optical-nav-lab"', false)->assertDontSee('Retail POS');
     }
 
     public function test_menu_is_grouped_by_area_and_each_role_sees_its_own_groups(): void

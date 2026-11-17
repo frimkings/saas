@@ -54,7 +54,7 @@
                             $owed = $balances[$partner->id] ?? 0;
                         @endphp
                         <tr wire:key="partner-{{ $partner->id }}" class="{{ $viewPartnerId === $partner->id ? 'oo-active' : '' }}" wire:click="openPartner({{ $partner->id }})">
-                            <td><b>{{ $partner->name }}</b>@if(! $partner->is_active) <span class="oo-badge oo-b-grey">Archived</span>@endif @if($partner->address)<span class="oo-sub" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">{{ $partner->address }}</span>@endif</td>
+                            <td><b>{{ $partner->name }}</b>@if(! $partner->is_active) <span class="oo-badge oo-b-grey">Archived</span>@endif @if($partner->hasLink()) <span class="oo-badge {{ $partner->link_status === 'active' ? 'oo-b-green' : 'oo-b-grey' }}" title="Sends orders online">{{ $partner->link_status === 'active' ? 'Linked' : 'Link paused' }}</span>@endif @if($linkPaymentsWaiting->get($partner->id)) <span class="oo-badge oo-b-amber">Payment to confirm</span>@endif @if($partner->address)<span class="oo-sub" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">{{ $partner->address }}</span>@endif</td>
                             <td>{{ $partner->contact_person ?: '—' }}<span class="oo-sub">{{ $partner->phone ?: ($partner->email ?: 'No contact details') }}</span></td>
                             <td><span class="oo-badge {{ $partner->billing_terms === 'on_account' ? 'oo-b-purple' : 'oo-b-grey' }}">{{ $partner->billing_terms === 'on_account' ? 'On account' : 'Pay on order' }}</span></td>
                             <td>{{ $open->count() ?: '—' }}@if($ready)<span class="oo-sub" style="color:#92400e;font-weight:700">{{ $ready }} ready</span>@endif</td>
@@ -128,6 +128,73 @@
                         <p class="ui-muted text-sm m-0">No jobs yet.</p>
                     @endforelse
                     @if($viewOrders->count() >= 8)<p style="margin:8px 0 0"><a class="oo-link" wire:navigate href="{{ route('optical.orders', ['sourceFilter' => 'partner', 'partnerFilter' => $viewPartner->id]) }}">See all jobs →</a></p>@endif
+                </section>
+                @if($viewLinkPayments->isNotEmpty())
+                    <section class="oo-section" data-tour="partner-link-payments">
+                        <h3>Payments from the clinic to confirm</h3>
+                        <p class="pc-hint" style="margin:0 0 8px">{{ $viewPartner->linkedClinic?->name }} says it paid these. Confirm once the money is in your account or till: the jobs are then settled here and on their side.</p>
+                        @foreach($viewLinkPayments as $payment)
+                            <div class="rounded-lg border border-slate-200 p-2.5 mb-2" wire:key="olp-{{ $payment->id }}">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="text-sm"><b>{{ currency() }} {{ number_format((float) $payment->amount, 2) }}</b> · {{ $payment->methodLabel() }}@if($payment->reference) · ref {{ $payment->reference }}@endif
+                                        <span class="pc-hint" style="display:block">{{ $payment->created_at->format('d M Y H:i') }}@if($payment->recorder) by {{ $payment->recorder->name }}@endif · {{ count((array) $payment->allocations) }} {{ \Illuminate\Support\Str::plural('job', count((array) $payment->allocations)) }}@if($payment->notes) · {{ $payment->notes }}@endif</span></div>
+                                    @if($disputingPaymentId !== $payment->id)
+                                        <div class="flex gap-2">
+                                            <button type="button" class="oo-btn" wire:click="startDispute({{ $payment->id }})">Not received</button>
+                                            <button type="button" class="oo-btn primary" wire:click="confirmLinkPayment({{ $payment->id }})" wire:confirm="Confirm you received {{ currency() }} {{ number_format((float) $payment->amount, 2) }}?">Confirm received</button>
+                                        </div>
+                                    @endif
+                                </div>
+                                @if($disputingPaymentId === $payment->id)
+                                    <div class="mt-2">
+                                        <textarea wire:model="disputeReason" rows="2" class="ui-input text-sm" aria-label="What is wrong with this payment" placeholder="e.g. Nothing arrived on our MoMo number yet."></textarea>
+                                        @error('disputeReason')<small class="pc-err">{{ $message }}</small>@enderror
+                                        <div class="flex gap-2 mt-2"><button type="button" class="oo-btn danger" wire:click="disputeLinkPayment">Tell the clinic</button><button type="button" class="oo-btn" wire:click="startDispute">Back</button></div>
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                        @error('payment')<small class="pc-err">{{ $message }}</small>@enderror
+                    </section>
+                @endif
+                <section class="oo-section" data-tour="partner-link">
+                    <h3>Online link</h3>
+                    @if($viewPartner->hasLink())
+                        <p class="text-sm m-0">
+                            <span class="oo-badge {{ $viewPartner->link_status === 'active' ? 'oo-b-green' : 'oo-b-grey' }}">{{ \App\Models\OpticalPartnerClinic::LINK_STATUSES[$viewPartner->link_status] }}</span>
+                            to <b>{{ $viewPartner->linkedClinic?->name ?? 'a clinic' }}</b>@if($viewPartner->linked_at) since {{ $viewPartner->linked_at->format('d M Y') }}@endif.
+                        </p>
+                        <p class="pc-hint" style="margin:6px 0 0">{{ $viewPartner->link_status === 'active' ? 'They send orders straight to Incoming Orders: wearer name, phone and prescription.' : 'They can’t send new orders while the link is paused.' }}</p>
+                        @if($canManage)
+                            <div class="flex flex-wrap gap-2 mt-2.5">
+                                @if($viewPartner->link_status === 'active')
+                                    <button type="button" class="oo-btn" wire:click="setLink({{ $viewPartner->id }}, 'paused')">Pause link</button>
+                                @elseif(! $viewPartner->link_paused_by_clinic_id || (int) $viewPartner->link_paused_by_clinic_id === (int) $viewPartner->clinic_id)
+                                    <button type="button" class="oo-btn" wire:click="setLink({{ $viewPartner->id }}, 'active')">Resume link</button>
+                                @else
+                                    <span class="pc-hint" style="align-self:center">The clinic paused this link, so only they can resume it.</span>
+                                @endif
+                                <button type="button" class="oo-btn danger" wire:click="setLink({{ $viewPartner->id }}, 'ended')" wire:confirm="Unlink {{ $viewPartner->linkedClinic?->name ?? 'this clinic' }}? They can't send new orders. Jobs already sent stay on both sides.">Unlink</button>
+                            </div>
+                        @endif
+                    @elseif($viewInvite)
+                        @php
+                            $inviteUrl = route('optical-links.accept', ['code' => $viewInvite->code]);
+                            $inviteText = 'To send us spectacle orders online, open '.$inviteUrl.' while signed in as the clinic owner or manager, or enter code '.$viewInvite->code.' under Optical Centres. The code expires on '.$viewInvite->expires_at->format('d M Y').'.';
+                        @endphp
+                        <p class="text-sm m-0">Invite code <b class="font-mono" style="font-size:18px;letter-spacing:2px">{{ $viewInvite->code }}</b></p>
+                        <p class="pc-hint" style="margin:4px 0 0">Waiting for the clinic to accept · expires {{ $viewInvite->expires_at->format('d M Y') }}</p>
+                        <div class="flex flex-wrap gap-2 mt-2.5" x-data="{ copied: false }">
+                            <button type="button" class="oo-btn" x-on:click="navigator.clipboard?.writeText(@js($inviteText)); copied = true; setTimeout(() => copied = false, 2000)"><span x-text="copied ? 'Copied' : 'Copy message'">Copy message</span></button>
+                            <a class="oo-btn" target="_blank" rel="noopener" href="https://wa.me/{{ preg_replace('/\D+/', '', (string) $viewPartner->messagingPhone()) }}?text={{ rawurlencode($inviteText) }}">WhatsApp</a>
+                            @if($canManage)<button type="button" class="oo-btn danger" wire:click="revokeInvite({{ $viewPartner->id }})">Cancel invite</button>@endif
+                        </div>
+                    @else
+                        <p class="pc-hint" style="margin:0">Is this clinic on Nexus too? Link it, and its staff send orders straight to you with the prescription filled in, then follow each job's progress.</p>
+                        @if($canManage && $viewPartner->is_active)<button type="button" class="oo-btn mt-2.5" wire:click="createInvite({{ $viewPartner->id }})">Invite to link</button>@endif
+                    @endif
+                    @error('invite')<p class="pc-err">{{ $message }}</p>@enderror
+                    @error('link')<p class="pc-err">{{ $message }}</p>@enderror
                 </section>
                 @if($canManage)<section class="oo-section" style="border-top:1px solid var(--clinic-line);padding-top:14px">
                     @if($viewPartner->is_active)

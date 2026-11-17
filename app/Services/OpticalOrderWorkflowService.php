@@ -55,7 +55,9 @@ class OpticalOrderWorkflowService
             }
             // Held stock lenses leave the branch ledger when glazing starts.
             if ($order->status === 'Pending') $lenses->consumeForGlazing($order);
-            $onAccount = $order->order_source === 'partner' && $order->partner_billing_terms === 'on_account';
+            // Linked clinics settle through their account with the optical centre, like on-account partners.
+            $onAccount = $order->order_source === 'partner'
+                && ($order->partner_billing_terms === 'on_account' || \App\Services\OpticalLinks\OpticalLinkService::isLinkedOrder($order));
             if ($status === 'Collected' && ! $onAccount) {
                 // Clinic spectacle orders are paid on the clinic consultation bill, not here.
                 $clinicBilled = \App\Support\Optical\ClinicSpectacleBilling::appliesTo($order);
@@ -116,6 +118,8 @@ class OpticalOrderWorkflowService
     /** The deposit a new order must carry (none for partners billed on account). */
     public function minimumDeposit(LensOrder $order): float
     {
+        // Linked clinics pay through their account with the optical centre, never a deposit.
+        if ($order->order_source === 'partner' && \App\Services\OpticalLinks\OpticalLinkService::isLinkedOrder($order)) return 0.0;
         $onAccount = $order->order_source === 'partner' && $order->partner_billing_terms === 'on_account';
         $percent = $onAccount ? 0 : (int) (OpticalSetting::first()?->min_deposit_percentage ?? 0);
 
@@ -135,6 +139,8 @@ class OpticalOrderWorkflowService
             if ($order->status !== 'Quotation' || ! $order->display_customer_name) {
                 throw ValidationException::withMessages(['order' => 'This quotation cannot be converted.']);
             }
+            // A quote sent to a linked clinic waits for the clinic's approval.
+            \App\Services\OpticalLinks\OpticalLinkService::assertQuoteApproved($order);
             if ($order->isQuoteExpired() && $reprice === null) {
                 throw ValidationException::withMessages(['quote' => 'This quotation expired on '.$order->quote_valid_until->format('d M Y').'. Keep the quoted prices or re-price it at current prices.']);
             }
