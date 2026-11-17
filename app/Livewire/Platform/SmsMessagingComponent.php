@@ -16,6 +16,8 @@ class SmsMessagingComponent extends Component
     public array $rejectNotes = [];
     /** Setting id => the sender ID exactly as registered with the network, when it differs from the request. */
     public array $approveAs = [];
+    /** Setting id => the differing "approve as" name the admin has been warned about once. */
+    public array $approveAsConfirmed = [];
 
     // Platform override of a clinic's sender ID, without waiting for a request
     public ?int $editingSenderClinicId = null;
@@ -88,7 +90,23 @@ class SmsMessagingComponent extends Component
         $as = trim((string) ($this->approveAs[$settingId] ?? ''));
         if ($as !== '') {
             $this->validate(["approveAs.$settingId" => self::SENDER_RULE], ["approveAs.$settingId.regex" => self::SENDER_MESSAGE]);
+
+            if (self::isStatusWord($as)) {
+                $this->addError("approveAs.$settingId", "\"{$as}\" is not a sender ID. Leave the box empty to approve \"{$setting->sms_sender_id_requested}\" as requested.");
+                return;
+            }
+
+            // A name that differs from the request by more than capitals or spaces needs a second click,
+            // so a stray word in the box can't silently replace the clinic's sender ID.
+            $normalise = fn (?string $v) => strtolower(str_replace(' ', '', (string) $v));
+            if ($normalise($as) !== $normalise($setting->sms_sender_id_requested)
+                && ($this->approveAsConfirmed[$settingId] ?? null) !== $as) {
+                $this->approveAsConfirmed[$settingId] = $as;
+                $this->addError("approveAs.$settingId", "This approves \"{$as}\", not the requested \"{$setting->sms_sender_id_requested}\". Messages will fail unless \"{$as}\" is registered in EazismsPro. Click Approve again to confirm, or clear the box.");
+                return;
+            }
         }
+        unset($this->approveAsConfirmed[$settingId]);
 
         $setting->update([
             'sms_sender_id'        => $as !== '' ? $as : $setting->sms_sender_id_requested,
@@ -117,6 +135,12 @@ class SmsMessagingComponent extends Component
         session()->flash('sms_message', "Sender ID {$setting->sms_sender_id_requested} rejected.");
     }
 
+    /** Words typed into a sender ID box by mistake (e.g. "approved"), never real sender IDs. */
+    private static function isStatusWord(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), ['approved', 'approve', 'yes', 'ok', 'okay', 'pending', 'rejected', 'reject', 'none'], true);
+    }
+
     /** A hosted clinic's settings row; the sender ID is only the platform's to set for hosted clinics. */
     private function hostedSetting(int $clinicId): Setting
     {
@@ -143,6 +167,10 @@ class SmsMessagingComponent extends Component
         $this->senderOverride = trim($this->senderOverride);
         $this->validate(['senderOverride' => array_merge(['required'], self::SENDER_RULE)],
             ['senderOverride.regex' => self::SENDER_MESSAGE], ['senderOverride' => 'sender ID']);
+        if (self::isStatusWord($this->senderOverride)) {
+            $this->addError('senderOverride', "\"{$this->senderOverride}\" is not a sender ID. Type the name registered in EazismsPro.");
+            return;
+        }
 
         $setting = $this->hostedSetting((int) $this->editingSenderClinicId);
         $old = $setting->only(['sms_sender_id', 'sms_sender_id_requested', 'sms_sender_id_status']);

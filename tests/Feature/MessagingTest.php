@@ -414,6 +414,33 @@ class MessagingTest extends TestCase
         $this->assertSame(['VisionSpace', 'approved'], [$setting->fresh()->sms_sender_id, $setting->fresh()->sms_sender_id_status]);
     }
 
+    public function test_approve_as_box_cannot_silently_replace_the_requested_sender_id(): void
+    {
+        $this->tenant();
+        $setting = Setting::getSettings();
+        $setting->update(['sms_sender_id_requested' => 'VY ODEI EYE', 'sms_sender_id_status' => 'pending']);
+        app(TenantContext::class)->clear();
+        $this->actingAs(User::factory()->create(['is_platform_admin' => true]));
+
+        // A status word typed into the box is refused outright, even on a second click.
+        $page = Livewire::test(SmsMessagingComponent::class)->set("approveAs.{$setting->id}", 'approved');
+        $page->call('approve', $setting->id)->assertHasErrors("approveAs.{$setting->id}");
+        $page->call('approve', $setting->id)->assertHasErrors("approveAs.{$setting->id}");
+        $this->assertSame('pending', $setting->fresh()->sms_sender_id_status);
+
+        // A different name needs a second click to confirm.
+        $page = Livewire::test(SmsMessagingComponent::class)->set("approveAs.{$setting->id}", 'ADS');
+        $page->call('approve', $setting->id)->assertHasErrors("approveAs.{$setting->id}");
+        $this->assertSame('pending', $setting->fresh()->sms_sender_id_status);
+        $page->call('approve', $setting->id)->assertHasNoErrors();
+        $this->assertSame(['ADS', 'approved'], [$setting->fresh()->sms_sender_id, $setting->fresh()->sms_sender_id_status]);
+
+        // The direct sender edit refuses status words too.
+        Livewire::test(SmsMessagingComponent::class)->call('editSender', $setting->clinic_id)
+            ->set('senderOverride', 'Approved')->call('saveSender')->assertHasErrors('senderOverride');
+        $this->assertSame('ADS', $setting->fresh()->sms_sender_id);
+    }
+
     public function test_platform_approves_and_rejects_sender_id_requests(): void
     {
         $tenant = $this->tenant();
@@ -706,6 +733,9 @@ class MessagingTest extends TestCase
     public function test_optical_orders_panel_filters_and_takes_the_order_to_collection(): void
     {
         $tenant = $this->tenant(0);
+        // The owner works both the front desk and the bench (App\Support\OpticalAccess).
+        \Spatie\Permission\Models\Role::findOrCreate('Super Admin', 'web');
+        $tenant['user']->assignRole('Super Admin');
         $order = $this->readyOpticalOrder($tenant['user']);
         $other = $this->readyOpticalOrder($tenant['user'], 'Kofi Lens', '0241113333');
         app(\App\Services\OpticalOrderWorkflowService::class)->transition($order->id, 'Ready for Collection');
@@ -729,6 +759,9 @@ class MessagingTest extends TestCase
     public function test_clinic_spectacle_order_is_paid_on_the_clinic_bill_not_the_optical_page(): void
     {
         $tenant = $this->tenant(0);
+        // The owner works both the front desk and the bench (App\Support\OpticalAccess).
+        \Spatie\Permission\Models\Role::findOrCreate('Super Admin', 'web');
+        $tenant['user']->assignRole('Super Admin');
         $patient = Patient::createWithGeneratedPxNumber(['user_id' => $tenant['user']->id, 'name' => 'Clinic Patient', 'contact' => '0241115555', 'gender' => 'Other']);
         $clearance = \App\Models\CashierPatientClearance::create(['user_id' => $tenant['user']->id, 'patient_id' => $patient->id, 'clearance_date' => now()->toDateString(), 'payment_status' => 'Paid']);
         $consultation = \App\Models\Consultations::create(['user_id' => $tenant['user']->id, 'patient_id' => $patient->id, 'clearance_id' => $clearance->id, 'chiefComplaint' => 'Blurred vision']);
@@ -748,6 +781,9 @@ class MessagingTest extends TestCase
     public function test_lab_workbench_stages_bench_steps_and_panel(): void
     {
         $tenant = $this->tenant(0);
+        // The owner works both the front desk and the bench (App\Support\OpticalAccess).
+        \Spatie\Permission\Models\Role::findOrCreate('Super Admin', 'web');
+        $tenant['user']->assignRole('Super Admin');
         $onBench = $this->readyOpticalOrder($tenant['user']);
         $queued = app(\App\Services\OpticalOrderService::class)->create([
             'patient_id' => Patient::createWithGeneratedPxNumber(['user_id' => $tenant['user']->id, 'name' => 'Queue Person', 'contact' => '0241116666', 'gender' => 'Other'])->id,
@@ -770,6 +806,9 @@ class MessagingTest extends TestCase
     public function test_awaiting_collection_hands_over_from_the_row_and_panel(): void
     {
         $tenant = $this->tenant(0);
+        // The owner works both the front desk and the bench (App\Support\OpticalAccess).
+        \Spatie\Permission\Models\Role::findOrCreate('Super Admin', 'web');
+        $tenant['user']->assignRole('Super Admin');
         $order = $this->readyOpticalOrder($tenant['user']);
         app(\App\Services\OpticalOrderWorkflowService::class)->transition($order->id, 'Ready for Collection');
 

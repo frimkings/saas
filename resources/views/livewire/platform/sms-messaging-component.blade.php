@@ -65,7 +65,7 @@
                         <td><b>{{ $invoice->clinic?->name }}</b></td>
                         <td>{{ $invoice->number }}<small>{{ $invoice->currency }} {{ number_format($invoice->balance(), 2) }} outstanding</small></td>
                         <td>{{ number_format($invoice->sms_credits) }}</td>
-                        <td>{{ $invoice->due_date->format('d M Y') }}@if($invoice->due_date->isPast())<small><span class="ui-badge ui-badge--danger">OVERDUE</span></small>@endif</td>
+                        <td>{{ $invoice->due_date->format('d M Y') }}@if($invoice->due_date->lt(today()))<small><span class="ui-badge ui-badge--danger">OVERDUE</span></small>@endif</td>
                         <td>
                             <div class="ui-actions" style="flex-wrap:nowrap">
                                 <select class="ui-input" wire:model="paymentMethods.{{ $invoice->id }}" aria-label="Payment method" style="width:150px">
@@ -214,8 +214,8 @@
                         <td>{{ $s->sms_sender_id_requested_at?->format('d M Y H:i') ?? '—' }}</td>
                         <td>
                             <div class="ui-actions" style="flex-wrap:nowrap">
-                                <input class="ui-input" type="text" wire:model="approveAs.{{ $s->id }}" maxlength="11" placeholder="Approve as (exact spelling)" title="Only if the network registered it with different capitals or spelling" aria-label="Approve as, exact spelling registered with the network">
-                                <button type="button" class="ui-button ui-button-primary ui-button-sm" wire:click="approve({{ $s->id }})" wire:loading.attr="disabled" wire:confirm="Approve sender ID {{ $s->sms_sender_id_requested }}? Make sure it is registered in EazismsPro first.">Approve</button>
+                                <input class="ui-input" type="text" wire:model="approveAs.{{ $s->id }}" maxlength="11" placeholder="Leave empty to use {{ $s->sms_sender_id_requested }}" title="Only if the network registered it with different capitals or spelling. Leave empty to approve the requested name." aria-label="Approve as, exact spelling registered with the network">
+                                <button type="button" class="ui-button ui-button-primary ui-button-sm" wire:click="approve({{ $s->id }})" wire:loading.attr="disabled" wire:confirm="Approve this sender ID? Make sure the name being approved is registered in EazismsPro first.">Approve</button>
                                 <input class="ui-input" type="text" wire:model="rejectNotes.{{ $s->id }}" placeholder="Reason for rejection" aria-label="Reason for rejection">
                                 <button type="button" class="ui-button ui-button-danger ui-button-sm" wire:click="reject({{ $s->id }})" wire:loading.attr="disabled">Reject</button>
                             </div>
