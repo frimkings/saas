@@ -335,7 +335,7 @@ class ClinicAddonService
         }
     }
 
-    private function removeFromUpcomingRenewal(ClinicSubscription $subscription, ClinicAddon $addon): void
+    public function removeFromUpcomingRenewal(ClinicSubscription $subscription, ClinicAddon $addon): void
     {
         $invoice = $this->upcomingRenewal($subscription);
         if (! $invoice || (float) $invoice->amount_paid > 0 || $invoice->status !== 'unpaid') return;

@@ -219,4 +219,35 @@ class AttendanceBillingTest extends TestCase
         $this->actingAs(User::factory()->create());
         Livewire::test(ClinicAttendanceSizeComponent::class, ['clinicId' => $clinic->id])->assertForbidden();
     }
+    /** VISION SPACE, Nov 2026: shifts and trends kept billing as add-ons after the Complete package that includes them. */
+    public function test_a_package_ends_the_attendance_add_ons_it_includes_and_credits_what_they_charged_for_its_days(): void
+    {
+        [$clinic, $subscription] = $this->clinic();
+        $addon = fn (string $feature, string $from) => ClinicAddon::create(['clinic_id' => $clinic->id, 'feature' => $feature, 'monthly_price' => 100, 'quantity' => 1, 'currency' => 'GHS', 'starts_at' => Carbon::parse($from)]);
+        $charge = function (ClinicAddon $addon, string $from, float $amount) use ($clinic, $subscription) {
+            $invoice = PlatformInvoice::create(['number' => 'ADD-'.$addon->id, 'clinic_id' => $clinic->id, 'clinic_subscription_id' => $subscription->id, 'source' => 'addon', 'status' => 'unpaid',
+                'period_start' => $from, 'period_end' => '2026-10-30', 'due_date' => $from, 'subtotal' => $amount, 'tax' => 0, 'total' => $amount, 'amount_paid' => 0, 'currency' => 'GHS']);
+            $invoice->lines()->create(['description' => $addon->feature.' add-on', 'amount' => $amount, 'clinic_addon_id' => $addon->id, 'sort' => 0]);
+
+            return $invoice;
+        };
+        $shifts = $addon(Feature::ATTENDANCE_SHIFTS, '2026-10-10');
+        $shiftsCharge = $charge($shifts, '2026-10-10', 70);          // 21 days, 10–30 Oct
+        $this->travelTo(Carbon::parse('2026-10-20 09:00:00'));
+        $trends = $addon(Feature::ATTENDANCE_TRENDS, '2026-10-20');
+        $trendsCharge = $charge($trends, '2026-10-20', 36.67);       // 11 days, all inside the package
+        $hospital = $addon(Feature::ATTENDANCE_HOSPITAL, '2026-10-20');
+        $payroll = ClinicAddon::create(['clinic_id' => $clinic->id, 'feature' => Feature::DAILY_SUMMARY, 'monthly_price' => 30, 'quantity' => 1, 'currency' => 'GHS', 'starts_at' => now()]);
+
+        app(AttendanceSizing::class)->set($clinic, 'professional', 40, null, null, $this->admin());
+
+        $this->assertSame('2026-10-20', $shifts->fresh()->ends_at->toDateString());
+        $this->assertNotNull($trends->fresh()->ends_at);
+        $this->assertNull($hospital->fresh()->ends_at, 'hospital tools are not in Professional');
+        $this->assertNull($payroll->fresh()->ends_at, 'other add-ons are untouched');
+        // 11 of 21 days of the shifts charge are in the package; 10 days before it stay owed.
+        $this->assertSame([36.67, 33.33, 'unpaid'], [(float) $shiftsCharge->fresh()->credited_amount, $shiftsCharge->fresh()->balance(), $shiftsCharge->fresh()->status]);
+        $this->assertSame('void', $trendsCharge->fresh()->status, 'all of it is in the package');
+        $this->assertNotContains(Feature::ATTENDANCE_SHIFTS, ClinicAddon::where('clinic_id', $clinic->id)->activeAt()->pluck('feature')->all());
+    }
 }

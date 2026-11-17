@@ -260,6 +260,7 @@
 .clinic-ui .ui-tile__label { @apply flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500; }
 .clinic-ui .ui-tile__label .fas { color: var(--clinic-accent); }
 .clinic-ui .ui-tile__value { @apply truncate text-2xl font-semibold text-slate-900; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
+@media (max-width: 640px) { .clinic-ui .ui-tile__value { font-size: 1.15rem; letter-spacing: -.2px; } }   /* two tiles a row on a phone: "GHS 8,578.68" fits instead of "GHS 8,578.…" */
 .clinic-ui .ui-tile__hint { @apply mt-auto text-xs text-slate-500; }
 .clinic-ui .ui-tile--accent { border-left: 4px solid var(--clinic-accent); }
 .clinic-ui .ui-tile--good { @apply border-green-300 bg-green-50; }

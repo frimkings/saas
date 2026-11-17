@@ -7,5 +7,6 @@ class PlatformInvoice extends Model {
     public function clinic(){return $this->belongsTo(Clinic::class);} public function subscription(){return $this->belongsTo(ClinicSubscription::class,'clinic_subscription_id');} public function payments(){return $this->hasMany(PlatformPayment::class);} public function creditNotes(){return $this->hasMany(PlatformCreditNote::class);} public function refunds(){return $this->hasMany(PlatformPaymentRefund::class);} public function smsBundle(){return $this->belongsTo(SmsBundle::class);}
     /** The charges making up the invoice, when it lists them (older invoices have none). */
     public function lines(){return $this->hasMany(PlatformInvoiceLine::class)->orderBy('sort')->orderBy('id');}
-    public function balance(): float { return max(0, (float)$this->total-(float)$this->amount_paid-(float)$this->credited_amount+(float)$this->refunded_amount); }
+    /** What is still owed: nothing on a void invoice. */
+    public function balance(): float { if ($this->status === 'void') return 0.0; return max(0,(float)$this->total-(float)$this->amount_paid-(float)$this->credited_amount+(float)$this->refunded_amount); }
 }

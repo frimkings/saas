@@ -104,6 +104,8 @@ class ClinicAddonsComponent extends Component
             'requests' => ClinicAddonRequest::with('requester')->where('clinic_id', $clinic->id)->where('status', 'pending')->oldest()->get(),
             'prorata' => fn (float $price) => $addons->prorata($clinic, $price),
             'needsAttendance' => fn (string $feature) => $addons->needsAttendanceFirst($clinic, $feature),
+            // Modules the clinic's attendance package gives: not sold again as add-ons.
+            'inPackage' => \App\Support\Pricing\AttendanceSuitePrices::modulesIn(app(\App\Services\AttendanceSizing::class)->current($clinic->id)?->package ?? '__none'),
         ]);
     }
 

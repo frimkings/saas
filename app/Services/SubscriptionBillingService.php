@@ -136,18 +136,24 @@ class SubscriptionBillingService
             $change=SubscriptionChange::query()->lockForUpdate()->findOrFail($change->id);
             if($change->status==='applied')return $change->subscription;
             $old=$change->subscription;$plan=$change->toPlan;
-            // A clinic on trial stays on trial, to the same end date: changing its plan is not a payment,
-            // so it must not turn the trial into a paid month.
+            // There are no trials any more (2026-11-15): a clinic still on one (or whose trial has ended) starts paying
+            // when its plan is changed, from today, and gets the first invoice at once, as a newly registered clinic does.
+            // Keeping the trial and its end date left a clinic whose trial had ended locked out after its plan was changed.
             // Part-way through a paid period (an upgrade applied now) the dates already paid for are kept, and
             // only the difference for the days left is charged; starting a new month then left the paid one
             // unused and gave the dearer plan free until the next renewal.
             $midPeriod=in_array($old->status,['active','overdue'],true)&&$old->current_period_ends_at&&$old->current_period_ends_at->gt($change->effective_at);
             $period=match(true){
-                $old->status==='trial'=>['status'=>'trial','trial_ends_at'=>$old->trial_ends_at,'current_period_starts_at'=>$old->current_period_starts_at,'current_period_ends_at'=>$old->current_period_ends_at??$old->trial_ends_at],
+                $old->status==='trial'=>['status'=>'active','current_period_starts_at'=>now()->startOfDay(),'current_period_ends_at'=>($change->billing_interval==='yearly'?now()->startOfDay()->addYear():now()->startOfDay()->addMonth())->subDay()->endOfDay()],
                 $midPeriod=>['status'=>$old->status,'current_period_starts_at'=>$old->current_period_starts_at,'current_period_ends_at'=>$old->current_period_ends_at],
-                default=>['status'=>'active','current_period_starts_at'=>$change->effective_at,'current_period_ends_at'=>$change->billing_interval==='yearly'?$change->effective_at->copy()->addYear():$change->effective_at->copy()->addMonth()],
+                // A new paid period: from today (applied now) or the day after the old period ends, invoiced in handOver.
+                default=>(function()use($change){$from=$change->timing==='period_end'?$change->effective_at->copy()->addSecond()->startOfDay():now()->startOfDay();
+                    return ['status'=>'active','current_period_starts_at'=>$from,'current_period_ends_at'=>($change->billing_interval==='yearly'?$from->copy()->addYear():$from->copy()->addMonth())->subDay()->endOfDay()];})(),
             };
             $new=ClinicSubscription::create(['clinic_id'=>$old->clinic_id,'subscription_plan_id'=>$plan->id,'renewal_mode'=>$old->renewal_mode,'billing_interval'=>$change->billing_interval,'branch_limit_override'=>$old->branch_limit_override,'change_reason'=>$change->reason]+$period);
+            // The old plan's invoices for days the new one covers are not owed twice (see handOver/keepCurrentPeriod).
+            if($midPeriod)$this->keepCurrentPeriod($new,$change->requested_by);
+            else $this->handOver($new,$change->requested_by);
             if($midPeriod){
                 $difference=round((float)$plan->base_price-(float)data_get($old->pricing_snapshot,'base_price',$old->plan?->base_price??0),2);
                 if($difference>0)app(\App\Services\ClinicAddonService::class)->chargeRestOfPeriod($new->clinic,$difference,
@@ -158,6 +164,67 @@ class SubscriptionBillingService
                 ->update(['status'=>'approved','reviewed_by'=>$change->requested_by,'reviewed_at'=>now(),'review_notes'=>'Applied now.']);
             $change->update(['status'=>'applied','applied_at'=>now()]);return $new;
         });
+    }
+
+    /**
+     * A new subscription takes over from the clinic's older ones (a plan change, a plan assigned by hand).
+     * Their renewal invoices for days the new one now covers are not owed twice: unpaid ones are voided and
+     * what was paid on them is credited to the new one's first invoice. The new period is then invoiced at
+     * once, as for a newly registered clinic, so a plan change never gives a month free.
+     * Returns the new period's invoice, or null when the new subscription is not one that pays (suspended…).
+     */
+    public function handOver(ClinicSubscription $new, ?int $operatorId = null): ?PlatformInvoice
+    {
+        $start = ($new->current_period_starts_at ?? now())->copy();
+        $adjust = app(BillingAdjustmentService::class);
+        $carried = 0.0;
+        $paidOn = [];
+        foreach ($this->replacedInvoices($new) as $old) {
+            if ((float) $old->amount_paid <= 0 && (float) $old->credited_amount <= 0) {
+                $adjust->void($old, 'Replaced by '.($new->plan?->name ?? 'a new plan').' from '.$start->format('d M Y').' (subscription #'.$new->id.').', $operatorId);
+            } else {
+                $carried += max(0, (float) $old->amount_paid - (float) $old->refunded_amount);
+                $paidOn[] = $old->number;
+            }
+        }
+        if (! in_array($new->status, ['active', 'overdue'], true)) return null;
+
+        $invoice = $this->invoiceFor($new, $start);
+        if ($carried > 0 && $invoice->wasRecentlyCreated && $invoice->balance() > 0) {
+            $adjust->credit($invoice, round(min($carried, $invoice->balance()), 2), 'Already paid on '.implode(', ', $paidOn).' for the previous plan.', $operatorId);
+        }
+
+        return $invoice->refresh();
+    }
+
+    /**
+     * An upgrade part-way through a paid period keeps that period: its invoice moves to the new subscription
+     * (it is still owed, or already paid, as it was), and an unpaid renewal already issued for a later
+     * period at the old price is voided, so the next renewal is at the new price.
+     */
+    public function keepCurrentPeriod(ClinicSubscription $new, ?int $operatorId = null): void
+    {
+        $periodEnd = $new->current_period_ends_at;
+        foreach ($this->replacedInvoices($new) as $old) {
+            $later = $periodEnd && $old->period_start && $old->period_start->gt($periodEnd);
+            if ($later && (float) $old->amount_paid <= 0 && (float) $old->credited_amount <= 0) {
+                app(BillingAdjustmentService::class)->void($old, 'Renewal at the old price, replaced by '.($new->plan?->name ?? 'a new plan').' (subscription #'.$new->id.').', $operatorId);
+            } else {
+                $old->update(['clinic_subscription_id' => $new->id]);
+            }
+        }
+    }
+
+    /** Open renewal invoices of the clinic's older subscriptions for days on or after the new one starts. */
+    public function replacedInvoices(ClinicSubscription $new): \Illuminate\Support\Collection
+    {
+        $start = ($new->current_period_starts_at ?? now())->copy()->startOfDay();
+
+        return PlatformInvoice::where('clinic_id', $new->clinic_id)->where('source', 'renewal')
+            ->whereNotNull('clinic_subscription_id')->where('clinic_subscription_id', '<', $new->id)
+            ->whereNotIn('status', ['void', 'credited'])
+            ->whereDate('period_end', '>', $start->toDateString())
+            ->orderBy('id')->get();
     }
 
     public function applyScheduledChanges(): int

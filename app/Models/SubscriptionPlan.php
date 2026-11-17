@@ -16,6 +16,8 @@ class SubscriptionPlan extends Model
     }
 
     public function subscriptions() { return $this->hasMany(ClinicSubscription::class); }
+    /** For lists of plans: several share a name (BASIC, its versions), so the code tells them apart. */
+    public function optionLabel(): string { return $this->name.' — '.$this->code.($this->is_active ? '' : ' (archived)'); }
     public function supersedes() { return $this->belongsTo(self::class, 'supersedes_plan_id'); }
     public function successors() { return $this->hasMany(self::class, 'supersedes_plan_id'); }
 }

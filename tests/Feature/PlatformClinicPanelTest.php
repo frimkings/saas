@@ -96,7 +96,7 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SUBSCRIPTION_CHANGE_SCHEDULED', 'clinic_id' => $clinic->id]);
     }
 
-    public function test_an_upgrade_during_a_trial_applies_at_once_and_the_trial_stays(): void
+    public function test_a_plan_change_during_a_trial_ends_the_trial_and_starts_a_paid_month_with_its_invoice(): void
     {
         $clinic = $this->clinic();
         $trialEnds = now()->addDays(3)->startOfMinute();
@@ -109,8 +109,28 @@ class PlatformClinicPanelTest extends TestCase
 
         $now = $clinic->fresh()->currentSubscription;
         $this->assertSame($this->pro->id, $now->subscription_plan_id, 'the new plan applies now');
-        $this->assertSame('trial', $now->status, 'still a trial, not a paid month');
-        $this->assertTrue($trialEnds->equalTo($now->trial_ends_at));
+        // No more trials: the paid month starts today and is invoiced at once, as for a newly registered clinic.
+        $this->assertSame('active', $now->status);
+        $this->assertTrue(now()->startOfDay()->equalTo($now->current_period_starts_at));
+        $this->assertSame(now()->addMonth()->subDay()->toDateString(), $now->current_period_ends_at->toDateString());
+        $invoice = \App\Models\PlatformInvoice::where('clinic_subscription_id', $now->id)->sole();
+        $this->assertSame(250.0, (float) $invoice->total);
+    }
+
+    public function test_changing_the_plan_of_a_clinic_whose_trial_has_ended_unlocks_it(): void
+    {
+        // Nexus Opticals, 2026-11-15: the trial ended on the 12th, the plan was changed, and staff stayed locked out.
+        $clinic = $this->clinic();
+        $ended = now()->subDays(3);
+        $clinic->currentSubscription->update(['status' => 'trial', 'trial_ends_at' => $ended, 'current_period_starts_at' => $ended->copy()->subMonth(), 'current_period_ends_at' => $ended]);
+
+        $this->panel($clinic)->call('setPanelTab', 'plan')->set('panelPlanId', $this->pro->id)->set('panelTiming', 'immediate')
+            ->set('panelReason', 'Moving to the Pro plan')->call('panelChangePlan')->assertHasNoErrors();
+
+        $now = $clinic->fresh()->currentSubscription;
+        $this->assertSame([$this->pro->id, 'active'], [$now->subscription_plan_id, $now->status]);
+        $this->assertTrue($now->current_period_ends_at->isFuture());
+        $this->assertSame(1, \App\Models\PlatformInvoice::where('clinic_id', $clinic->id)->count());
     }
 
     public function test_a_downgrade_waits_for_the_period_end_and_can_be_applied_now_or_cancelled(): void
@@ -149,7 +169,7 @@ class PlatformClinicPanelTest extends TestCase
             ->call('reviewPlanRequest', $request->id, true);
 
         $now = $clinic->fresh()->currentSubscription;
-        $this->assertSame([$this->pro->id, 'trial'], [$now->subscription_plan_id, $now->status], 'applied now, still on trial');
+        $this->assertSame([$this->pro->id, 'active'], [$now->subscription_plan_id, $now->status], 'applied now, and the trial is over');
         $this->assertSame('Applied now.', $request->fresh()->review_notes);
     }
 

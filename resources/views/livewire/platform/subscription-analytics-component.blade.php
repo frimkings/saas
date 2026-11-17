@@ -50,7 +50,7 @@
             <div class="ui-field" style="grid-column:span 2"><span>Dates</span><x-date-range from="from" to="to" presets="finance" theme="dark" /></div>
             <label class="ui-field"><span>Product</span><select class="ui-input" wire:model.live="product"><option value="">All products</option>@foreach(\App\Support\PlanProduct::PRODUCTS as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select></label>
             <label class="ui-field"><span>Clinic</span><select class="ui-input" wire:model.live="clinicId"><option value="">All clinics</option>@foreach($clinics as $clinic)<option value="{{ $clinic->id }}">{{ $clinic->name }}</option>@endforeach</select></label>
-            <label class="ui-field"><span>Plan</span><select class="ui-input" wire:model.live="planId"><option value="">All plans</option>@foreach($plans as $plan)<option value="{{ $plan->id }}">{{ $plan->name }}</option>@endforeach</select></label>
+            <label class="ui-field"><span>Plan</span><select class="ui-input" wire:model.live="planId"><option value="">All plans</option>@foreach($plans as $plan)<option value="{{ $plan->id }}">{{ $plan->optionLabel() }}</option>@endforeach</select></label>
             <label class="ui-field"><span>Subscription status</span><select class="ui-input" wire:model.live="status"><option value="">All statuses</option>@foreach(['trial','active','overdue','restricted','suspended','cancelled'] as $state)<option value="{{ $state }}">{{ ucfirst($state) }}</option>@endforeach</select></label>
         </div>
         <p class="ui-hint" style="margin:10px 0 0">Showing {{ $analyticsFrom->format('d M Y') }} – {{ $analyticsTo->format('d M Y') }}. MRR, ARR and renewals reflect subscriptions today; invoice and payment figures cover the selected dates.</p>
@@ -79,7 +79,7 @@
     <div class="an-group">Growth &amp; retention (selected dates)</div>
     <div class="an-kpis">
         <div class="ui-tile" title="Clinics that moved from a trial to a paid subscription"><span class="ui-tile__label">Trial conversion</span><b class="ui-tile__value">{{ $metrics['trials'] ? $metrics['conversion_rate'] . '%' : '—' }}</b><small class="ui-tile__hint">{{ $metrics['converted'] }} of {{ $metrics['trials'] }} trial(s) converted</small></div>
-        <div class="ui-tile" title="Clinics cancelled or suspended in the period ÷ clinics at the start"><span class="ui-tile__label">Churn</span><b class="{{ $metrics['churned'] ? 'fail' : 'pass' }}">{{ $metrics['churn_rate'] }}%</b><small class="ui-tile__hint">{{ $metrics['churned'] }} clinic(s) cancelled or suspended</small></div>
+        <div class="ui-tile" title="Clinics cancelled or suspended in the period ÷ clinics subscribed at any time in it"><span class="ui-tile__label">Churn</span><b class="{{ $metrics['churned'] ? 'fail' : 'pass' }}">{{ $metrics['churn_rate'] }}%</b><small class="ui-tile__hint">{{ $metrics['churned'] }} clinic(s) cancelled or suspended</small></div>
         <div class="ui-tile"><span class="ui-tile__label">Upgrades</span><b class="{{ $metrics['upgrades'] ? 'pass' : '' }}">{{ $metrics['upgrades'] }}</b><small class="ui-tile__hint">Moved to a higher-priced plan</small></div>
         <div class="ui-tile"><span class="ui-tile__label">Downgrades</span><b class="{{ $metrics['downgrades'] ? 'warn' : '' }}">{{ $metrics['downgrades'] }}</b><small class="ui-tile__hint">Moved to a lower-priced plan</small></div>
     </div>

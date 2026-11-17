@@ -86,6 +86,8 @@ class AttendanceSizing
             return [$size, $invoice];
         });
 
+        $this->endCoveredAddons($clinic->id, $size->package, $by);
+
         app(PlatformAuditService::class)->record($current ? 'CLINIC_ATTENDANCE_SIZE_CHANGED' : 'CLINIC_ATTENDANCE_SIZE_ADDED', $clinic->id,
             $old, ['package' => $size->package, 'staff_limit' => $size->staff_limit, 'monthly_price' => (float) $size->monthly_price,
                 'invoice' => $invoice?->number]);
@@ -93,6 +95,50 @@ class AttendanceSizing
         app(SubscriptionService::class)->forgetCurrent();
 
         return $size->fresh();
+    }
+
+    /**
+     * Attendance modules bought one by one before the package that includes them: they stop now, so they are
+     * not paid for twice. What an add-on charged for days the package now covers comes off its invoice (a
+     * credit, or a void when it is all covered); days before the package stay owed. Returns the add-ons ended.
+     */
+    public function endCoveredAddons(int $clinicId, string $package, ?User $by = null, ?CarbonInterface $from = null): int
+    {
+        $from ??= now();
+        $modules = AttendanceSuitePrices::modulesIn($package);
+        $adjust = app(BillingAdjustmentService::class);
+        $ended = 0;
+        $addons = \App\Models\ClinicAddon::where('clinic_id', $clinicId)->whereIn('feature', $modules)
+            ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', $from))->get();
+        foreach ($addons as $addon) {
+            DB::transaction(function () use ($addon, $from, $by, $adjust, $package) {
+                $addon->update(['ends_at' => $from, 'cancelled_at' => $addon->cancelled_at ?? now(), 'cancelled_by' => $addon->cancelled_by ?? $by?->id,
+                    'reason' => trim(($addon->reason ? $addon->reason . "
+" : '') . 'Ended: included in the attendance ' . (AttendanceSuitePrices::PACKAGES[$package]['name'] ?? $package) . ' package.')]);
+                $lines = \App\Models\PlatformInvoiceLine::with('invoice')->where('clinic_addon_id', $addon->id)->get();
+                foreach ($lines as $line) {
+                    $invoice = $line->invoice;
+                    if (! $invoice || in_array($invoice->status, ['void', 'credited'], true) || ! $invoice->period_start || ! $invoice->period_end) continue;
+                    $days = max(1, $invoice->period_start->diffInDays($invoice->period_end) + 1);
+                    $covered = max(0, min($days, $from->copy()->startOfDay()->diffInDays($invoice->period_end, false) + 1));
+                    if ($covered <= 0) continue;
+                    $refund = round((float) $line->amount * $covered / $days, 2);
+                    $reason = "{$covered} of {$days} days of {$line->description} are in the attendance package from " . $from->format('d M Y') . '.';
+                    if ($invoice->lines()->count() === 1 && $covered >= $days && (float) $invoice->amount_paid <= 0 && (float) $invoice->credited_amount <= 0) {
+                        $adjust->void($invoice, $reason, $by?->id);
+                    } elseif ($invoice->balance() > 0) {
+                        $adjust->credit($invoice, min($refund, $invoice->balance()), $reason, $by?->id);
+                    }
+                }
+                $subscription = app(SubscriptionService::class)->current($addon->clinic);
+                if ($subscription) app(ClinicAddonService::class)->removeFromUpcomingRenewal($subscription, $addon);
+            });
+            app(PlatformAuditService::class)->record('CLINIC_ADDON_CANCELLED', $clinicId, [], ['feature' => $addon->feature, 'ends_at' => $from->toDateTimeString(), 'reason' => 'included in attendance package']);
+            $ended++;
+        }
+        if ($ended) app(ClinicAddonService::class)->forget($clinicId);
+
+        return $ended;
     }
 
     /** Back to the list price for its package and size (not from special pricing, which has none). */

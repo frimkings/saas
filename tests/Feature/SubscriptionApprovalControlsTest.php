@@ -27,7 +27,11 @@ class SubscriptionApprovalControlsTest extends TestCase
 
     private function user(string $email): User
     {
-        return User::factory()->create(['email' => $email]);
+        // Platform administrators: with only one, they may approve their own requests (nobody else can).
+        $user = User::factory()->create(['email' => $email]);
+        $user->forceFill(['is_platform_admin' => true])->save();
+
+        return $user;
     }
 
     public function test_requester_cannot_approve_but_a_second_admin_executes_once(): void

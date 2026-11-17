@@ -36,6 +36,8 @@
                     <td><b>{{ $offer['name'] }}</b></td>
                     @if($included->has($feature))
                         <td><span class="ui-badge">Included in plan</span></td><td class="ui-muted">—</td><td></td>
+                    @elseif(! $addon && in_array($feature, $inPackage, true))
+                        <td><span class="ui-badge">In attendance package</span></td><td class="ui-muted">—</td><td></td>
                     @elseif($addon)
                         <td>
                             <span class="ui-badge ui-badge--good">Add-on</span>
