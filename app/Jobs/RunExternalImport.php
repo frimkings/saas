@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\ExternalImportBatch;
-use App\Services\ExternalImport\CloudifyImport;
 use App\Services\ExternalImport\ExternalImportRollback;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,10 +24,11 @@ class RunExternalImport implements ShouldQueue
 
     public function __construct(public int $batchId) {}
 
-    public function handle(CloudifyImport $import, ExternalImportRollback $rollback): void
+    public function handle(ExternalImportRollback $rollback): void
     {
         $batch = ExternalImportBatch::findOrFail($this->batchId);
         if ($batch->status !== 'queued') return;
+        $import = $batch->importer();
         $batch->update(['status' => 'importing', 'started_at' => now(), 'error' => null, 'progress_percent' => 1, 'current_step' => 'starting']);
 
         try {

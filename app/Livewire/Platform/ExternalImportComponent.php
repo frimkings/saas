@@ -38,15 +38,18 @@ class ExternalImportComponent extends Component
     public string $confirmation = '';
     public string $undoConfirmation = '';
 
-    public function checkFiles(CloudifyImport $import): void
+    public function checkFiles(): void
     {
         $this->validate([
             'clinicId' => 'required|integer|exists:clinics,id', 'source' => 'required|in:'.implode(',', array_keys(ExternalImportBatch::SOURCES)),
             'sheetFiles' => 'required|array|min:1|max:'.self::MAX_FILES, 'sheetFiles.*' => 'file|max:'.self::MAX_KB,
         ], [], ['clinicId' => 'clinic', 'sheetFiles' => 'files', 'sheetFiles.*' => 'file']);
+        $import = ExternalImportBatch::importerFor($this->source);
+        $types = $this->fileTypes();
         foreach ($this->sheetFiles as $file) {
-            if (! in_array(strtolower($file->getClientOriginalExtension()), ['xlsx', 'zip'], true)) {
-                $this->addError('sheetFiles', $file->getClientOriginalName().' is not an .xlsx or .zip file.');
+            if (str_starts_with($file->getClientOriginalName(), '~$')) continue;
+            if (! in_array(strtolower($file->getClientOriginalExtension()), [...$types, 'zip'], true)) {
+                $this->addError('sheetFiles', $file->getClientOriginalName().' is not a '.implode(', ', array_map(fn ($t) => '.'.$t, $types)).' or .zip file.');
                 return;
             }
         }
@@ -64,7 +67,7 @@ class ExternalImportComponent extends Component
         } catch (\Throwable $e) {
             Storage::disk('local')->deleteDirectory($dir);
             report($e);
-            $this->addError('sheetFiles', $e instanceof \RuntimeException ? $e->getMessage() : 'The files could not be read. Check they are the .xlsx files exported from Cloudify.');
+            $this->addError('sheetFiles', $e instanceof \RuntimeException ? $e->getMessage() : 'The files could not be read. Check they are the files from '.ExternalImportBatch::SOURCES[$this->source].'.');
             return;
         }
         foreach ($this->sheetFiles as $file) $file->delete();
@@ -73,28 +76,34 @@ class ExternalImportComponent extends Component
         session()->flash('success', 'Files checked. Nothing has been imported yet: review the report, match the staff, then import.');
     }
 
-    /** Uploaded .xlsx files are kept as they are; a .zip contributes the .xlsx files inside it. */
+    private function fileTypes(): array
+    {
+        return ExternalImportBatch::FILE_TYPES[$this->source] ?? ['xlsx'];
+    }
+
+    /** Uploaded files are kept as they are, under their own extension; a .zip contributes the files of the right kind inside it. */
     private function storeFiles(string $dir): array
     {
         $disk = Storage::disk('local');
+        $types = $this->fileTypes();
         $stored = [];
         $add = function (string $name, $contents) use (&$stored, $dir, $disk) {
-            if (count($stored) >= self::MAX_FILES) throw new \RuntimeException('Upload at most '.self::MAX_FILES.' spreadsheets at a time.');
-            $path = $dir.'/'.(count($stored) + 1).'.xlsx';
+            if (count($stored) >= self::MAX_FILES) throw new \RuntimeException('Upload at most '.self::MAX_FILES.' files at a time.');
+            $path = $dir.'/'.(count($stored) + 1).'.'.strtolower(pathinfo($name, PATHINFO_EXTENSION));
             $disk->put($path, $contents);
             $stored[] = ['name' => Str::limit(basename(str_replace('\\', '/', $name)), 150, ''), 'path' => $path];
         };
         foreach ($this->sheetFiles as $file) {
             // Excel leaves a small "~$name.xlsx" lock file beside a workbook that is open; it holds no data.
             if (str_starts_with($file->getClientOriginalName(), '~$')) continue;
-            if (strtolower($file->getClientOriginalExtension()) === 'xlsx') { $add($file->getClientOriginalName(), file_get_contents($file->getRealPath())); continue; }
+            if (in_array(strtolower($file->getClientOriginalExtension()), $types, true)) { $add($file->getClientOriginalName(), file_get_contents($file->getRealPath())); continue; }
             $zip = new ZipArchive();
             if ($zip->open($file->getRealPath()) !== true) throw new \RuntimeException($file->getClientOriginalName().' is not a readable .zip file.');
             try {
                 for ($i = 0; $i < $zip->numFiles; $i++) {
                     $entry = $zip->statIndex($i);
                     $name = $entry['name'];
-                    if (! str_ends_with(strtolower($name), '.xlsx') || str_contains($name, '__MACOSX') || str_starts_with(basename($name), '~$')) continue;
+                    if (! in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), $types, true) || str_contains($name, '__MACOSX') || str_starts_with(basename($name), '~$')) continue;
                     if ($entry['size'] > self::MAX_KB * 1024) throw new \RuntimeException(basename($name).' inside the .zip is larger than '.(self::MAX_KB / 1024).' MB.');
                     $add($name, $zip->getFromIndex($i));
                 }
@@ -102,7 +111,7 @@ class ExternalImportComponent extends Component
                 $zip->close();
             }
         }
-        if (! $stored) throw new \RuntimeException('No .xlsx spreadsheets were found in the upload.');
+        if (! $stored) throw new \RuntimeException('No '.implode(' or ', array_map(fn ($t) => '.'.$t, $types)).' files were found in the upload.');
 
         return $stored;
     }
@@ -119,7 +128,8 @@ class ExternalImportComponent extends Component
             $match = $users->first(fn ($u) => $person['kind'] === 'email' ? strtolower($u->email) === $person['label'] : mb_strtolower($u->name) === mb_strtolower($person['label']));
             $this->staff[md5($person['key'])] = (string) ($saved ?? $match?->id ?? '');
         }
-        $this->include = array_map(fn ($key) => (bool) ($batch->settings['include'][$key] ?? true), array_combine(array_keys(CloudifyImport::OPTIONAL), array_keys(CloudifyImport::OPTIONAL)));
+        $optional = array_keys($batch->importer()::OPTIONAL);
+        $this->include = array_map(fn ($key) => (bool) ($batch->settings['include'][$key] ?? true), array_combine($optional, $optional));
         $this->confirmation = $this->undoConfirmation = '';
         $this->resetErrorBag();
     }
@@ -193,6 +203,14 @@ class ExternalImportComponent extends Component
         return null;
     }
 
+    /** The iTestEMR capture tool (resources/tools/itestemr-capture.js), given to clinics as a bookmark button. */
+    private function captureScript(): ?string
+    {
+        $path = resource_path('tools/itestemr-capture.js');
+
+        return is_file($path) ? file_get_contents($path) : null;
+    }
+
     private function clinicUsers(int $clinicId)
     {
         return DB::table('users')->join('clinic_user', 'clinic_user.user_id', '=', 'users.id')
@@ -206,6 +224,7 @@ class ExternalImportComponent extends Component
         if ($this->selectedBatchId && ! $selected) $this->selectedBatchId = null;
 
         return view('livewire.platform.external-import-component', [
+            'captureScript' => $this->source === 'itestemr' ? $this->captureScript() : null,
             'clinics' => Clinic::orderBy('name')->get(['id', 'name', 'slug', 'status']),
             'batches' => ExternalImportBatch::with('clinic:id,name')->latest()->limit(20)->get(),
             'selected' => $selected,

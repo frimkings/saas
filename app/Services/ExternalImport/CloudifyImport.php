@@ -22,6 +22,8 @@ use RuntimeException;
  */
 class CloudifyImport
 {
+    use ImportHelpers;
+
     public const SOURCE = 'cloudify';
 
     /** key => [label, columns that identify the file, where it goes] */
@@ -47,14 +49,10 @@ class CloudifyImport
     /** Options the platform admin can switch off before importing. */
     public const OPTIONAL = ['new_diagnoses' => 'Diagnosis names missing from the clinic list', 'appointments' => 'Appointments and bookings', 'items' => 'Item list as products', 'expenses' => 'Expense history'];
 
-    private ExternalImportBatch $batch;
     private int $clinicId;
     private int $branchId;
     private int $ownerId;
     private array $staff = [];
-    private array $tracked = [];
-    private array $counts = [];
-    private array $skipped = [];
 
     public function __construct(private XlsxTableReader $reader) {}
 
@@ -513,23 +511,6 @@ class CloudifyImport
         }
     }
 
-    /**
-     * Every product here has a batch number (4-15 characters, unique in the clinic), a manufacture date and a
-     * later expiry date: the Products page and the stock lists rely on them. Cloudify has none, so an imported
-     * product gets batch CLD-<item id>, its Cloudify creation date, and an expiry two years from the import,
-     * to be replaced with real batches and dates at the stock count. $taken is updated with the batch used.
-     */
-    public static function productDefaults($itemId, Carbon $created, array &$taken): array
-    {
-        $base = 'CLD-'.Str::limit(preg_replace('/[^A-Za-z0-9]/', '', (string) $itemId) ?: Str::upper(Str::random(6)), 9, '');
-        $batch = $base;
-        for ($n = 2; isset($taken[mb_strtolower($batch)]); $n++) $batch = Str::limit($base, 15 - strlen("-$n"), '')."-$n";
-        $taken[mb_strtolower($batch)] = true;
-        $made = $created->copy()->startOfDay()->min(today());
-
-        return ['batch_number' => $batch, 'manufacture_date' => $made->toDateString(), 'expiry_date' => today()->addYears(2)->toDateString()];
-    }
-
     /** History only, like payments: legacy_expenses, never the Expense Tracker or the income statement. */
     private function importExpenses(array $rows): void
     {
@@ -548,28 +529,6 @@ class CloudifyImport
                 'created_at' => $at, 'updated_at' => $at,
             ]);
         }
-    }
-
-    private function insert(string $table, array $row): int
-    {
-        $id = (int) DB::table($table)->insertGetId($row);
-        $this->tracked[] = ['external_import_batch_id' => $this->batch->id, 'table_name' => $table, 'record_id' => $id];
-        $this->counts[$table] = ($this->counts[$table] ?? 0) + 1;
-        if (count($this->tracked) >= 500) $this->flush();
-
-        return $id;
-    }
-
-    /** Writes the list of created rows; also called when an import fails so its partial rows can be undone. */
-    public function flush(): void
-    {
-        foreach (array_chunk($this->tracked, 500) as $chunk) DB::table('external_import_rows')->insert($chunk);
-        $this->tracked = [];
-    }
-
-    private function skip(string $sheet, string $reason): void
-    {
-        $this->skipped[$sheet][$reason] = ($this->skipped[$sheet][$reason] ?? 0) + 1;
     }
 
     /** The clinic account chosen for a Cloudify email or name; the owner when none was chosen. */
@@ -596,52 +555,12 @@ class CloudifyImport
         return $id ? (DB::table('users')->where('id', $id)->value('name') ?? $email) : $email;
     }
 
-    /** Excel stores dates as day numbers since 1899-12-30; some exports write them as text. */
-    public function dateTime($value): ?Carbon
-    {
-        $value = trim((string) $value);
-        if ($value === '') return null;
-        if (is_numeric($value)) return (float) $value > 1 && (float) $value < 2958465 ? Carbon::create(1899, 12, 30, 0, 0, 0)->addSeconds((int) round((float) $value * 86400)) : null;
-        try { return Carbon::parse($value); } catch (\Throwable) { return null; }
-    }
-
-    private function date($value): ?Carbon
-    {
-        return $this->dateTime($value)?->startOfDay();
-    }
-
-    private function widen(array &$range, Carbon $day): void
-    {
-        if (! $range[0] || $day->lt($range[0])) $range[0] = $day;
-        if (! $range[1] || $day->gt($range[1])) $range[1] = $day;
-    }
-
-    private function text($value): ?string
-    {
-        $value = trim(preg_replace("/[ \t\x{00A0}]+/u", ' ', preg_replace("/\n{3,}/", "\n\n", (string) $value)));
-
-        return $value === '' ? null : $value;
-    }
-
     /** "ROSE ASEBI" becomes "Rose Asebi"; names typed in mixed case are left as typed. */
     private function name(string $first, string $last): string
     {
         $name = $this->text($first.' '.$last) ?? '';
 
         return $name !== '' && mb_strtoupper($name) === $name ? mb_convert_case(mb_strtolower($name), MB_CASE_TITLE) : $name;
-    }
-
-    private function gender($value): string
-    {
-        return match (strtolower(trim((string) $value))) { 'm', 'male' => 'Male', 'f', 'female' => 'Female', 'other', 'o' => 'Other', default => '' };
-    }
-
-    private function power($value): ?float
-    {
-        $value = str_replace(['−', ' '], ['-', ''], trim((string) $value));
-        if (in_array(strtolower($value), ['pl', 'plano', 'plan'], true)) return 0.0;
-
-        return is_numeric($value) && abs((float) $value) < 100 ? round((float) $value, 2) : null;
     }
 
     private function iop($value): ?float
@@ -655,29 +574,4 @@ class CloudifyImport
             ->map(fn ($n) => Str::ucfirst($n))->unique(fn ($n) => mb_strtolower($n))->values()->all();
     }
 
-    /** "Cataract BE", "cataract (be)" and "Cataract" are one diagnosis; the eye stays in the visit notes. */
-    private function withoutEye(string $name): string
-    {
-        $eye = '(BE|OU|RE|LE|OD|OS|B\/E|BOTH EYES|RIGHT EYE|LEFT EYE|LE\s*>\s*RE|RE\s*>\s*LE)';
-        do {
-            $before = $name;
-            $name = trim(preg_replace('/[\s,;.]*\(?\s*'.$eye.'\s*\)?[\s.,;]*$/i', '', $name));
-        } while ($name !== $before && $name !== '');
-
-        return $name === '' ? trim($before) : $name;
-    }
-
-    private function diagnosisKey(string $name): string
-    {
-        return mb_strtolower(preg_replace('/\s+/', ' ', $this->withoutEye($name)));
-    }
-
-    /** The clinic's diagnosis list keyed by diagnosisKey(). */
-    private function clinicDiagnoses(int $clinicId): array
-    {
-        $map = [];
-        foreach (DB::table('diagnoses')->where('clinic_id', $clinicId)->whereNull('deleted_at')->orderBy('id')->get(['id', 'name']) as $d) $map[$this->diagnosisKey($d->name)] ??= $d->id;
-
-        return $map;
-    }
 }
