@@ -246,3 +246,34 @@ Questions this table raises (decide before phase 2, not phase 1):
 (`ClinicNavigation`, Expenses, Attendance, approvals, dashboards…) move to `Access::allows`.
 Known example: Admin Settings' route admits Managers but the page itself admits only
 Super Admin — unchanged for now.
+
+### Browser check per role — 2026-11-18 (after phase 1A)
+
+One local test user per role in a local all-features test clinic (clinic 20, "RC Role Check"),
+headless Chrome: landing page, every menu link opened, all 101 guarded pages without
+parameters requested, and the role's main search typed.
+
+| Role | Lands on | Menu links | Guarded pages as expected | Search |
+|---|---|---|---|---|
+| Super Admin | Admin dashboard | 32, all open | 99 / 101 | POS, patients, clearance ✓ |
+| Manager | Admin dashboard | 17, all open | 94 / 101 | POS, patients, clearance ✓ |
+| Secretary | Front desk dashboard | 10, all open | 98 / 101 | POS, patients, clearance ✓ |
+| Cashier | POS | 7, all open | 99 / 101 | POS ✓ |
+| Doctor | Doctor dashboard | 6, all open | 101 / 101 | – |
+| Optician | Lab workbench | 6, all open | 95 / 101 | POS ✓ |
+| Optical Assistant | Optical orders | 10, all open | 101 / 101 | not found by the script |
+| Lab Technician | Lab workbench | 8, all open | 100 / 101 | – |
+| Staff | Profile | 6, **4 refused** | 101 / 101 | – |
+
+None of the differences come from phase 1A; all were there before (the routes give the same
+answers as the old rules). Found:
+1. **Page refuses what its route allows** (in-page role checks, phase 1B): Manager on Reports,
+   Income / Combined statement and Settings (pages admit Super Admin only); Optician on cashier
+   dashboard, sales records, outstanding balances and refund log (pages leave Optician out). The
+   menu already hides these, so people don't see broken links.
+2. **Staff's menu shows four cashier links it cannot open.**
+3. **Secretary:** accepting an optical-centre link redirects to Optical Centres, a Manager-only page.
+4. **Old optical "customers" link** redirects to Partners, which Optician / Lab Technician can't open.
+5. **`/livewire/ajax-patients` (500):** the route points to a POS method that no longer exists; nothing uses it.
+6. Scans refused everywhere: the add-on isn't in "all features" — a plan gate, not a role gate.
+7. Optician can open the clinic POS (route and page both allow it).
