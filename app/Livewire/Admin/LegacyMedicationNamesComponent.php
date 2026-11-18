@@ -24,7 +24,7 @@ class LegacyMedicationNamesComponent extends Component
 
     public function mount(): void
     {
-        abort_if(! auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'inventory.manage'), 403);
         // ?search= opens on one name (the Prescription tab links here).
         $this->search = mb_substr(trim((string) request()->query('search', '')), 0, 100);
         if ($this->search !== '') $this->unmatchedOnly = false;

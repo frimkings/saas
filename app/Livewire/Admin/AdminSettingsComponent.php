@@ -21,7 +21,7 @@ class AdminSettingsComponent extends Component
 
     public function mount()
     {
-        abort_if(!Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::allows(Auth::user(), 'settings.manage'), 403);
 
         $tab = request()->query('tab', 'system');
         if (isset(self::MOVED[$tab])) {

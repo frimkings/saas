@@ -65,7 +65,7 @@ class ReportsComponent extends Component
     public function mount()
     {
         $user = auth()->user();
-        abort_if(!$user?->hasRole('Super Admin') && !$user?->can('manage billing'), 403);
+        abort_unless(\App\Support\Access\Access::allows($user, 'reports.sales'), 403);
         $full = \App\Services\LicenseService::has(\App\Support\Feature::SALES_REPORTS);
         abort_unless($full || \App\Services\LicenseService::has(\App\Support\Feature::SALES_REPORTS_MONTH), 403);
         $this->monthOnly = !$full;

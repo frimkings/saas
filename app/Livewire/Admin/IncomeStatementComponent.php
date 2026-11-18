@@ -79,7 +79,7 @@ class IncomeStatementComponent extends Component
     {
         abort_if(!LicenseService::has(Feature::ADVANCED_REPORTS), 403, 'The income statement is not included in your plan.');
         $user = auth()->user();
-        abort_if(!$user?->hasRole('Super Admin') && !$user?->can('manage billing'), 403);
+        abort_unless(\App\Support\Access\Access::allows($user, 'reports.finance'), 403);
         AuditTrail::record('report.accessed', 'Accessed income statement page');
         $this->fromDate = $this->normalizeDate($this->fromDate, now()->startOfMonth());
         $this->toDate = $this->normalizeDate($this->toDate, now()->endOfMonth());

@@ -5,18 +5,20 @@ namespace App\Support\Access;
 /**
  * What each role can do, built by the Nexus team and the same for every clinic. Phase 1 copies
  * exactly the access the old role rules gave (tests/Fixtures/route-access-before.json), so nobody
- * gains or loses anything. Optical roles are handled by OpticalAccess and carry nothing here.
+ * gains or loses anything. Decided since (2026-11-18): Managers don't get sales reports, the
+ * income / combined statement or clinic settings; Opticians are bench-only (no till).
+ * Optical roles are handled by OpticalAccess and carry nothing here.
  */
 final class RoleMap
 {
     public const OWNER = 'Super Admin';
 
-    /** Front desk, cashier and optician all work the till. */
+    /** Front desk and cashier work the till. */
     private const TILL = ['pos.sell', 'sales.view', 'balances.view', 'refunds.view'];
 
     private const FRONT_DESK = [
         'patients.view', 'appointments.manage', 'clearance.manage', 'spectacles.manage',
-        'optical_links.respond', 'scans.desk',
+        'scans.desk',
     ];
 
     private const CLINICAL = ['clinical.queue', 'clinical.records', 'clinical.referrals', 'clinical.print'];
@@ -27,8 +29,8 @@ final class RoleMap
         'ledger.view', 'insurance.manage',
         'approve.discounts', 'approve.refunds', 'approve.revokes',
         'inventory.manage', 'inventory.movements', 'purchasing.manage', 'lens_report.view',
-        'reports.sales', 'reports.finance', 'messages.recall', 'messages.logs',
-        'attendance.manage', 'audit.view', 'branches.manage', 'settings.manage', 'optical.manage',
+        'dashboard.view', 'messages.recall', 'messages.logs',
+        'attendance.manage', 'audit.view', 'branches.manage', 'optical.manage',
     ];
 
     /** @return list<string> */
@@ -39,7 +41,6 @@ final class RoleMap
             'Manager' => [...self::TILL, ...self::FRONT_DESK, ...self::MANAGEMENT],
             'Secretary' => [...self::TILL, ...self::FRONT_DESK],
             'Cashier' => [...self::TILL, 'scans.desk', 'dayclose.manage'],
-            'Optician' => self::TILL,
             'Doctor' => self::CLINICAL,
             default => [],
         };

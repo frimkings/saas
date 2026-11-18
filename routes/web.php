@@ -224,7 +224,6 @@ Route::get('front-desk/scans/report.csv', function (\Illuminate\Http\Request $re
     return app(\App\Services\Scans\ScanReports::class)->csv(\Illuminate\Support\Carbon::parse($data['from']), \Illuminate\Support\Carbon::parse($data['to']), $clinic?->name ?? '');
 })->name('frontdesk.scans.report')->middleware(['access', 'feature:diagnostic_scans']);
 Route::get('front-desk/scans', \App\Livewire\Scans\DiagnosticScansComponent::class)->name('frontdesk.scans')->middleware(['access', 'feature:diagnostic_scans']);
-Route::get('/livewire/ajax-patients', [POSComponent::class, 'getPatientsJson'])->name('cashier.ajax-patients');
 Route::get('/cashier/sales-records', SalesRecordsComponent::class)->name('cashier.sales-records');
 Route::get('/cashier/refund-logs', RefundLogsComponent::class)->name('refunds.logs');
 // The old cart page needed a patient it was never given; the till is the Point of Sale.

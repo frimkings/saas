@@ -30,10 +30,7 @@ class RefundLogsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(
-            !auth()->user()?->hasRole(['Secretary', 'Cashier', 'Manager', 'Super Admin']),
-            403
-        );
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'refunds.view'), 403);
 
         if (!$this->fromDate) {
             $this->fromDate = Carbon::now()->subMonth()->toDateString();

@@ -14,6 +14,12 @@ audited.
   only permissions Nexus has defined, and only those the clinic's plan includes.
 - A clinic needing something different gets a new standard role from Nexus (e.g. Senior Cashier,
   Accountant) or a per-person adjustment.
+- **Managers** do not get sales reports, the income / combined statement or clinic settings
+  (Owner only). They keep the admin dashboard.
+- **Opticians are bench-only:** lab workbench and job tracking, no till (no POS, sales records,
+  balances or refund log).
+- **Accepting a link from an optical centre** is for whoever manages optical centres (Owner,
+  Manager), not the front desk.
 
 ---
 
@@ -91,8 +97,7 @@ feature on the clinic's plan.
 | `appointments.manage` | Appointments | secretary/appointments | appointments |
 | `clearance.manage` | Patient clearance (send to doctor) | secretary/patient-clearance | – |
 | `spectacles.manage` | Spectacles & sent to optical | secretary/spectacles, sent-to-optical | spectacle_orders |
-| `optical_links.respond` | Accept links from optical centres | optical-links/accept | – |
-| `optical_centres.manage` | Optical centres & money owed to them | secretary/optical-centres, owed-to-optical, optical-links/accept | spectacle_orders |
+| `optical_centres.manage` | Optical centres: links, invitations, money owed | secretary/optical-centres, owed-to-optical, optical-links/accept | spectacle_orders |
 | `scans.desk` | Diagnostic scans: front desk | front-desk/scans | diagnostic_scans |
 | `scans.export` | Diagnostic scans: export report | front-desk/scans/report.csv | diagnostic_scans |
 
@@ -152,7 +157,8 @@ feature on the clinic's plan.
 ### Reports
 | Key | Label | Today's screens | Plan feature |
 |---|---|---|---|
-| `reports.sales` | Dashboard & sales reports | admin/dashboard, admin/reports | – (PDF export: sales_reports) |
+| `dashboard.view` | Admin dashboard (business overview) | admin/dashboard | – |
+| `reports.sales` | Sales reports | admin/reports | – (PDF export: sales_reports) |
 | `reports.finance` | Income statement & combined statement | admin/income-statement, combined-statement | advanced_reports |
 | `reports.delivery` | Scheduled report emails | admin/report-delivery | – |
 
@@ -242,10 +248,25 @@ Questions this table raises (decide before phase 2, not phase 1):
   with the old rules saved in `tests/Fixtures/route-access-before.json` — no differences.
   Full suite: 1270 tests pass.
 
-**Phase 1 part B — next.** The ~217 role-name checks inside pages and the menu
-(`ClinicNavigation`, Expenses, Attendance, approvals, dashboards…) move to `Access::allows`.
-Known example: Admin Settings' route admits Managers but the page itself admits only
-Super Admin — unchanged for now.
+**Phase 1 part B, part 1 — done 2026-11-18 (pages and menu).**
+- Decisions applied in `RoleMap`: Managers lose sales reports, income / combined statement and
+  settings; Opticians lose the till; the admin dashboard has its own permission (`dashboard.view`).
+- The ~25 page-entry role checks (settings, approvals, expenses, reports, income statement, insurer
+  payments, subscription, licence, cashier dashboard, sales records, balances, refund log, legacy
+  pages, optical owed) now ask `Access::allows` for the same permission as their route, so a route
+  and its page can no longer disagree. `FinanceStatements` uses the same permissions.
+- The menu (`ClinicNavigation::visible`) hides any link to a page the person can't open, using the
+  same screen map — fixes Staff seeing four cashier links it couldn't open.
+- Fixes: optical-link accept page now needs `optical_centres.manage` (it lands on that page); the
+  old optical "customers" link is refused cleanly for bench roles; the dead
+  `/livewire/ajax-patients` route is removed.
+- Tests: `AccessPagesTest` loads every page as every role in a test clinic (opens what the map
+  allows, refused or redirected otherwise) and checks every role's menu only links to pages it can
+  open; `AccessScreensTest` lists the deliberate changes against the old snapshot.
+
+**Phase 1 part B, part 2 — next.** The remaining role-name checks guard single actions inside
+pages (owner-only deletes and settings, attendance payroll, quotation status, refunds…) and a few
+layout choices (`sharedLayout`, `NavigationWorkspace`). They move to permissions per action.
 
 ### Browser check per role — 2026-11-18 (after phase 1A)
 
@@ -277,3 +298,12 @@ answers as the old rules). Found:
 5. **`/livewire/ajax-patients` (500):** the route points to a POS method that no longer exists; nothing uses it.
 6. Scans refused everywhere: the add-on isn't in "all features" — a plan gate, not a role gate.
 7. Optician can open the clinic POS (route and page both allow it).
+
+### Browser check per role — after phase 1B part 1 (2026-11-18)
+
+Same nine single-role users in local test clinic 20. Every menu link opened for every role, and
+all 100 guarded pages answered as the screen map says. The only difference: Diagnostic Scans is
+refused for everyone because the scans add-on isn't part of "all features" — a plan gate.
+Opticians are now refused every till page; Staff's menu shows only Dashboard and Needs Attention;
+Managers' menu no longer lists Reports, Income / Combined statement or Settings.
+Full suite: 1272 tests pass.

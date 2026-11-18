@@ -17,7 +17,7 @@ final class Screens
         'secretary.patient-clearance' => ['clearance.manage'],
         'secretary.spectacles' => ['spectacles.manage'],
         'secretary.optical-sent' => ['spectacles.manage'],
-        'optical-links.accept' => ['optical_links.respond'],
+        'optical-links.accept' => ['optical_centres.manage'],
         'secretary.optical-centres' => ['optical_centres.manage'],
         'secretary.optical-owed' => ['optical_centres.manage'],
         'frontdesk.scans' => ['scans.desk'],
@@ -45,7 +45,6 @@ final class Screens
         'cart' => ['pos.sell'],
         'cashier.dashboard' => ['pos.sell'],
         'cashier.seller-desk' => ['pos.sell'],
-        'cashier.ajax-patients' => ['pos.sell'],
         'cashier.clearance-receipt' => ['pos.sell'],
         'cashier.receipt.show' => ['pos.sell'],
         'cashier.receipt.pdf' => ['pos.sell'],
@@ -94,7 +93,7 @@ final class Screens
         'admin.lens-outstanding-report' => ['lens_report.view'],
 
         // Reports
-        'admin.dashboard' => ['reports.sales'],
+        'admin.dashboard' => ['dashboard.view'],
         'admin.reports' => ['reports.sales'],
         'reports.export.pdf' => ['reports.sales'],
         'admin.income-statement' => ['reports.finance'],

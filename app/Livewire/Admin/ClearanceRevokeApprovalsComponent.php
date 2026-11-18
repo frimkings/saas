@@ -33,11 +33,7 @@ class ClearanceRevokeApprovalsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(
-            !auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) &&
-            !auth()->user()?->can('approve clearance revoke'),
-            403
-        );
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'approve.revokes'), 403);
 
         $this->fromDate = now()->subDays(30)->toDateString();
         $this->toDate   = now()->toDateString();

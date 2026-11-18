@@ -61,7 +61,7 @@ class SalesRecordsComponent extends Component
         // Optical sales follow the optical roles; clinic sales keep their own.
         abort_if($this->businessLine === 'optical'
             ? ! \App\Support\OpticalAccess::can(auth()->user(), 'optical.sales')
-            : ! auth()->user()?->hasRole(['Secretary', 'Cashier', 'Manager', 'Super Admin']), 403);
+            : ! \App\Support\Access\Access::allowsAny(auth()->user(), ['sales.view', 'sales.manage']), 403);
         $this->normalizeFilters();
     }
 

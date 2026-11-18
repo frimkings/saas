@@ -45,7 +45,7 @@ class OutstandingBalancesComponent extends Component
 
     public function mount()
     {
-        abort_if(!auth()->user()?->hasRole(['Secretary', 'Cashier', 'Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'balances.view'), 403);
         $this->rotatePaymentIdempotencyKey();
     }
 

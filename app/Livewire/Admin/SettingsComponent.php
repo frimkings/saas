@@ -76,7 +76,7 @@ class SettingsComponent extends Component
 
     public function mount()
     {
-        abort_if(!Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::allows(Auth::user(), 'settings.manage'), 403);
 
         $setting = Setting::getSettings();
         $this->fillFromSetting($setting);

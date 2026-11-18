@@ -150,7 +150,7 @@ class InsurerPaymentsComponent extends Component
     private function authorizeAccess(): void
     {
         $user = auth()->user();
-        abort_unless($user?->hasRole('Super Admin') || $user?->can(InsurerPayment::PERMISSION), 403);
+        abort_unless(\App\Support\Access\Access::allows($user, 'insurance.payments'), 403);
     }
 
     public function render()

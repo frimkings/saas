@@ -277,10 +277,7 @@ class RefundApprovalsComponent extends Component
     {
         $user = auth()->user();
 
-        abort_if(
-            !$user?->hasAnyRole(['Manager', 'Super Admin']) && !$user?->can('manage billing'),
-            403
-        );
+        abort_unless(\App\Support\Access\Access::allows($user, 'approve.refunds'), 403);
     }
 
     // ── Render ────────────────────────────────────────────────────────────────

@@ -93,11 +93,11 @@ class ExpensesComponent extends Component
 
         if ($this->isOptical()) {
             abort_unless(app(ClinicAccessService::class)->access('optical')['allowed'], 403);
-            abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+            abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'optical.manage'), 403);
         } else {
             // Fix #12: generic 403 — don't leak feature flag names to unauthenticated/low-role users
             abort_if(!LicenseService::has(Feature::EXPENSE_TRACKING), 403);
-            abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin', 'Cashier']), 403);
+            abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'expenses.manage'), 403);
         }
 
         $this->fromDate = $this->validDate($this->fromDate) ?? Carbon::now()->startOfMonth()->toDateString();

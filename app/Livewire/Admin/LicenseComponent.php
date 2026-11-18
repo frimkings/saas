@@ -17,7 +17,7 @@ class LicenseComponent extends Component
     public function mount(): void
     {
         // Fix #12: generic 403 — don't leak feature/role names in error messages
-        abort_if(!Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::allows(Auth::user(), 'billing.manage'), 403);
     }
 
     public function activate(): void

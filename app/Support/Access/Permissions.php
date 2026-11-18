@@ -21,8 +21,7 @@ final class Permissions
         'appointments.manage' => ['Appointments', 'Patients & front desk', []],
         'clearance.manage' => ['Patient clearance (send to doctor)', 'Patients & front desk', []],
         'spectacles.manage' => ['Spectacles and orders sent to optical', 'Patients & front desk', []],
-        'optical_links.respond' => ['Accept links from optical centres', 'Patients & front desk', []],
-        'optical_centres.manage' => ['Optical centres and money owed to them', 'Patients & front desk', []],
+        'optical_centres.manage' => ['Optical centres: links, invitations and money owed', 'Patients & front desk', []],
         'scans.desk' => ['Diagnostic scans: front desk', 'Patients & front desk', []],
         'scans.export' => ['Diagnostic scans: export report', 'Patients & front desk', []],
 
@@ -61,8 +60,9 @@ final class Permissions
         'lens_report.view' => ['Lens outstanding report', 'Stock & purchasing', []],
 
         // Reports
-        'reports.sales' => ['Dashboard and sales reports', 'Reports', []],
-        'reports.finance' => ['Income statement and combined statement', 'Reports', []],
+        'dashboard.view' => ['Admin dashboard (business overview)', 'Reports', []],
+        'reports.sales' => ['Sales reports', 'Reports', ['manage billing']],
+        'reports.finance' => ['Income statement and combined statement', 'Reports', ['manage billing']],
         'reports.delivery' => ['Scheduled report emails', 'Reports', []],
 
         // Communications

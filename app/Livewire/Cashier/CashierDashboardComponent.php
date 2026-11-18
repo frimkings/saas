@@ -29,10 +29,7 @@ class CashierDashboardComponent extends Component
 
     public function mount(): void
     {
-        abort_if(
-            !auth()->user()?->hasAnyRole(['Cashier', 'Secretary', 'Manager', 'Super Admin']),
-            403
-        );
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'pos.sell'), 403);
 
         $today      = Carbon::today();
         $monthStart = Carbon::now()->startOfMonth();

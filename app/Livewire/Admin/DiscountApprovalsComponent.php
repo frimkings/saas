@@ -27,10 +27,7 @@ class DiscountApprovalsComponent extends Component
     public function mount()
     {
         $user = auth()->user();
-        abort_if(
-            !$user?->hasAnyRole(['Manager', 'Super Admin']) && !$user?->can('manage billing'),
-            403
-        );
+        abort_unless(\App\Support\Access\Access::allows($user, 'approve.discounts'), 403);
     }
 
     public function updatedSearch()      { $this->resetPage(); }
@@ -52,7 +49,7 @@ class DiscountApprovalsComponent extends Component
     public function approveRequest($requestId)
     {
         $u = auth()->user();
-        abort_if(!$u?->hasAnyRole(['Manager', 'Super Admin']) && !$u?->can('manage billing'), 403);
+        abort_unless(\App\Support\Access\Access::allows($u, 'approve.discounts'), 403);
 
         $request = DiscountApprovalRequest::where('status', DiscountApprovalRequest::STATUS_PENDING)
             ->findOrFail($requestId);
@@ -109,7 +106,7 @@ class DiscountApprovalsComponent extends Component
     public function rejectRequest($requestId)
     {
         $u = auth()->user();
-        abort_if(!$u?->hasAnyRole(['Manager', 'Super Admin']) && !$u?->can('manage billing'), 403);
+        abort_unless(\App\Support\Access\Access::allows($u, 'approve.discounts'), 403);
 
         $request = DiscountApprovalRequest::where('status', DiscountApprovalRequest::STATUS_PENDING)
             ->findOrFail($requestId);

@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Services\Reminders\AttentionItems;
+use App\Support\Access\Access;
+use App\Support\Access\Screens;
 
 /**
  * Sidebar menus for the Tailwind clinic layout (layouts/clinic). Each entry is a link
@@ -86,7 +88,7 @@ class ClinicNavigation
         $counts = app(AttentionItems::class)->counts('clinic');
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         // Registration, appointments, clearance and spectacles are the front desk's; a cashier has the till side only.
-        $desk = (bool) auth()->user()?->hasAnyRole(['Secretary', 'Manager', 'Super Admin']);
+        $desk = Access::allows(auth()->user(), 'patients.view');
 
         return self::visible([
             ['label' => 'Dashboard', 'route' => $desk ? 'secretary.dashboard' : 'cashier.dashboard', 'icon' => 'fa-tachometer-alt'],
@@ -269,12 +271,19 @@ class ClinicNavigation
         ];
     }
 
-    /** Drops hidden links and groups left empty. */
+    /**
+     * Drops hidden links, links to pages the person can't open (the same screen map the routes use,
+     * so the menu and the pages always agree) and groups left empty.
+     */
     private static function visible(array $menu): array
     {
         $out = [];
         foreach ($menu as $item) {
             if (($item['show'] ?? true) === false) {
+                continue;
+            }
+            if (isset($item['route']) && Screens::permissionsFor($item['route']) !== null
+                && ! Access::allowsRoute(auth()->user(), $item['route'])) {
                 continue;
             }
             if (isset($item['items'])) {

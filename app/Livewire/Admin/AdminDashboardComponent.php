@@ -216,7 +216,7 @@ class AdminDashboardComponent extends Component
 
     public function hideSetup(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'dashboard.view'), 403);
         \App\Support\Guides\Guides::mark(\App\Support\Guides\ClinicSetup::GUIDE, \App\Models\UserGuide::HIDDEN);
     }
 
