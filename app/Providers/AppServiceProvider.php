@@ -94,8 +94,11 @@ class AppServiceProvider extends ServiceProvider
         Queue::after(fn (JobProcessed $event) => $clearTenant());
         Queue::exceptionOccurred(fn (JobExceptionOccurred $event) => $clearTenant());
 
-        // Livewire's own requests from an optical page are checked against that page's role access too.
-        \Livewire\Livewire::addPersistentMiddleware([\App\Http\Middleware\EnsureOpticalAccess::class]);
+        // Livewire's own requests from a page are checked against that page's access too.
+        \Livewire\Livewire::addPersistentMiddleware([
+            \App\Http\Middleware\EnsureOpticalAccess::class,
+            \App\Http\Middleware\EnsureScreenAccess::class,
+        ]);
 
         // @feature('feature_name') ... @else ... @endfeature
         Blade::if('feature', fn(string $f) => LicenseService::has($f));
