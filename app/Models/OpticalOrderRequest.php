@@ -39,11 +39,12 @@ class OpticalOrderRequest extends Model
     protected $fillable = ['sender_clinic_id', 'sender_branch_id', 'sent_by', 'optical_clinic_id', 'optical_partner_clinic_id',
         'refraction_id', 'sender_reference', 'patient_name', 'patient_phone', 'rx', 'lens_type', 'lens_notes', 'frame_choice',
         'frame_notes', 'urgency', 'notes', 'status', 'query_message', 'query_answer', 'reject_reason', 'lens_order_id',
-        'order_number', 'order_status', 'status_updated_at', 'handled_by', 'kind', 'remake_of_request_id', 'remake_reason'];
+        'order_number', 'order_status', 'status_updated_at', 'handled_by', 'kind', 'remake_of_request_id', 'remake_reason',
+        'source', 'sender_name'];
 
     protected $casts = ['rx' => 'array', 'status_updated_at' => 'datetime', 'quote_lines' => 'array', 'quote_total' => 'decimal:2',
         'quote_valid_until' => 'date', 'quoted_at' => 'datetime', 'approved_at' => 'datetime', 'order_total' => 'decimal:2',
-        'order_paid' => 'decimal:2', 'order_cancelled_at' => 'datetime'];
+        'order_paid' => 'decimal:2', 'order_cancelled_at' => 'datetime', 'auto_approved' => 'boolean'];
 
     public function scopeForOptical(Builder $query, int $clinicId): Builder
     {
@@ -58,6 +59,26 @@ class OpticalOrderRequest extends Model
     public function senderClinic()
     {
         return $this->belongsTo(Clinic::class, 'sender_clinic_id');
+    }
+
+    /** The optical centre's partner record this request came through. */
+    public function partner()
+    {
+        return $this->belongsTo(OpticalPartnerClinic::class, 'optical_partner_clinic_id')->withoutGlobalScopes();
+    }
+
+    /** Sent from the ordering page by a partner that is not on Nexus (OpticalOrderPageService). */
+    public function fromPage(): bool
+    {
+        return $this->source === 'page' && $this->sender_clinic_id === null;
+    }
+
+    /** Who sent it, as the optical centre sees it. */
+    public function senderLabel(): string
+    {
+        if ($this->sender_clinic_id) return (string) ($this->senderClinic?->name ?? 'A linked clinic');
+
+        return ($this->partner?->name ?? 'Partner clinic').' (ordering page'.($this->sender_name ? ', '.$this->sender_name : '').')';
     }
 
     public function opticalClinic()

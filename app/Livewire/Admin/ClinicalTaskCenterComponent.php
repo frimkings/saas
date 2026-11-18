@@ -80,6 +80,15 @@ class ClinicalTaskCenterComponent extends Component
             'spectacle' => LensOrder::where('renewal_approval_status', 'pending')->count(),
         ];
 
+        // Parts on the plan (or left over from a bigger one): the others' cards and panels would link to closed pages.
+        $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
+        $can = [
+            'appointments' => $has(\App\Support\Feature::APPOINTMENTS) || \App\Support\PlanLeftovers::has(\App\Support\Feature::APPOINTMENTS),
+            'inventory_alerts' => $has(\App\Support\Feature::INVENTORY_ALERTS),
+            'outstanding' => $has(\App\Support\Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(\App\Support\Feature::OUTSTANDING_BALANCES),
+            'sms' => $has(\App\Support\Feature::PATIENT_MESSAGES) || $has(\App\Support\Feature::SMS_CAMPAIGNS),
+        ];
+
         $summaryCards = [
             [
                 'label' => 'Patients Awaiting',
@@ -96,6 +105,7 @@ class ClinicalTaskCenterComponent extends Component
                 'icon' => 'fa-calendar-times',
                 'route' => route('secretary.appointments'),
                 'hint' => 'Appointments needing follow-up',
+                'show' => $can['appointments'],
             ],
             [
                 'label' => 'Prescriptions',
@@ -120,6 +130,7 @@ class ClinicalTaskCenterComponent extends Component
                 'icon' => 'fa-box-open',
                 'route' => route('admin.inventory-alerts'),
                 'hint' => 'Low, expired, or expiring stock',
+                'show' => $can['inventory_alerts'],
             ],
             [
                 'label' => 'Outstanding',
@@ -128,6 +139,7 @@ class ClinicalTaskCenterComponent extends Component
                 'icon' => 'fa-file-invoice-dollar',
                 'route' => route('cashier.outstanding-balances'),
                 'hint' => currency() . number_format((float) $outstandingQuery->sum(DB::raw(\App\Models\Sales::PATIENT_BALANCE_SQL)), 2) . ' uncollected',
+                'show' => $can['outstanding'],
             ],
             [
                 'label' => 'Report Outbox',
@@ -144,8 +156,10 @@ class ClinicalTaskCenterComponent extends Component
                 'icon' => 'fa-comment-slash',
                 'route' => route('admin.sms-logs'),
                 'hint' => 'Messages that did not send',
+                'show' => $can['sms'],
             ],
         ];
+        $summaryCards = array_values(array_filter($summaryCards, fn ($card) => $card['show'] ?? true));
 
         return view('livewire.admin.clinical-task-center-component', [
             'summaryCards' => $summaryCards,
@@ -156,6 +170,7 @@ class ClinicalTaskCenterComponent extends Component
             'reportDeliveries' => $reportDeliveryQuery->latest()->limit(5)->get(),
             'failedSmsLogs' => $failedSmsQuery->latest()->limit(5)->get(),
             'approvalCounts' => $approvalCounts,
+            'can' => $can,
             'inventoryCounts' => [
                 'low' => $lowStockQuery->count(),
                 'out' => $outOfStockQuery->count(),

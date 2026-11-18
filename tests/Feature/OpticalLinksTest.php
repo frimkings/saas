@@ -554,4 +554,293 @@ class OpticalLinksTest extends TestCase
         $this->as('clinic', $this->staff($clinic, $branch, 'Secretary', 'Front desk'));
         $this->get(route('secretary.optical-owed'))->assertForbidden();
     }
+
+    /* ---------------------------------------------------------------- agreed terms: trade %, credit, auto-approve, platform */
+
+    public function test_the_agreed_trade_discount_comes_off_the_quote_on_its_own_line(): void
+    {
+        $partner = $this->linked();
+        $this->as('optical');
+        Livewire::test(PartnerClinicsComponent::class)->call('openPartner', $partner->id)
+            ->set('terms', ['lens' => '10', 'frame' => '95', 'service' => '', 'credit' => ''])->call('saveTerms')->assertHasErrors('terms.frame')
+            ->set('terms', ['lens' => '10', 'frame' => '20', 'service' => '', 'credit' => ''])->call('saveTerms')->assertHasNoErrors();
+        $this->assertSame([10.0, 20.0, 0.0], array_values($partner->fresh()->tradePercents()));
+
+        // The clinic sees the terms; another optical centre's staff or a clinic can't set them.
+        $this->as('clinic');
+        Livewire::test(OpticalCentresComponent::class)->assertSee('lenses 10%, frames 20%');
+
+        $request = $this->send($this->refraction(), $partner->id);
+        $this->priceInForm($request, 300)->assertHasNoErrors();
+        $request->refresh();
+        $quote = LensOrder::findOrFail($request->lens_order_id);
+        // Frame 300 less 20% = 240; the wearer's own lenses cost nothing.
+        $this->assertSame([240.0, 240.0, 60.0], [(float) $request->quote_total, (float) $quote->total, (float) $quote->discount_amount]);
+        $this->assertContains('Agreed trade discount (lenses 10%, frames 20%)', collect($request->quote_lines)->pluck('label')->all());
+        $this->assertSame(-60.0, (float) collect($request->quote_lines)->firstWhere('label', 'Agreed trade discount (lenses 10%, frames 20%)')['amount']);
+
+        // Ordinary partner jobs (not from a link request) are priced as before.
+        $this->as('optical');
+        $form = Livewire::withQueryParams(['partner_id' => $partner->id])->test(OpticalOrderCreateComponent::class);
+        $form->set('frame_source', 'custom')->set('frame_model_number', 'Red')->set('frame_price', 100);
+        $plain = $form->instance()->priceBreakdown();
+        $this->assertSame([0.0, 100.0], [$plain['trade'], $plain['total']]);
+    }
+
+    public function test_quotes_within_the_clinics_limit_are_approved_and_started_at_once(): void
+    {
+        $partner = $this->linked();
+        $this->as('clinic');
+        Livewire::test(OpticalCentresComponent::class)->set("autoApprove.{$partner->id}", 'abc')->call('saveAutoApprove', $partner->id)->assertHasErrors("autoApprove.{$partner->id}")
+            ->set("autoApprove.{$partner->id}", '250')->call('saveAutoApprove', $partner->id)->assertHasNoErrors();
+        $this->assertSame(250.0, $partner->fresh()->auto_approve_limit);
+
+        // Within the limit: approved and the job started, with no one pressing anything.
+        $small = $this->send($this->refraction(), $partner->id);
+        $this->priceInForm($small, 200)->assertHasNoErrors()->assertSessionHas('success', fn ($m) => str_contains($m, 'approved at once'));
+        $small->refresh();
+        $this->assertSame(['accepted', true], [$small->status, $small->auto_approved]);
+        $this->assertSame('Pending', LensOrder::find($small->lens_order_id)->status);
+        $this->as('clinic');
+        Livewire::test(SentToOpticalComponent::class)->assertSee('approved automatically');
+
+        // Over it: waits for the clinic as before.
+        $big = $this->send($this->refraction(), $partner->id);
+        $this->priceInForm($big, 400)->assertHasNoErrors();
+        $this->assertSame(['quoted', false], [$big->fresh()->status, $big->fresh()->auto_approved]);
+
+        // Only owners and managers set it.
+        [$clinic, $branch] = $this->clinics['clinic'];
+        $this->as('clinic', $this->staff($clinic, $branch, 'Secretary', 'Desk'));
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->setAutoApprove($partner->id, '1000', auth()->user());
+    }
+
+    public function test_at_the_credit_limit_the_clinic_cannot_send_new_jobs_until_it_pays(): void
+    {
+        $partner = $this->linked();
+        $this->as('optical');
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->setTerms($partner, ['credit' => '300'], auth()->user());
+        $job = $this->acceptedJob($partner->fresh(), 300);
+        $this->assertTrue(\App\Services\OpticalLinks\OpticalLinkTermsService::overLimit($partner->fresh()));
+
+        $refraction = $this->refraction();
+        try {
+            $this->send($refraction, $partner->id);
+            $this->fail('Sent a job over the credit limit.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('credit limit', $e->errors()['partnerId'][0]);
+        }
+        Livewire::test(OpticalCentresComponent::class)->assertSee('Credit limit reached');
+
+        // An auto-approve limit never takes the clinic past its credit: such a quote waits.
+        $this->as('clinic');
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->setAutoApprove($partner->id, '1000', auth()->user());
+        $this->as('optical');
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->setTerms($partner, ['credit' => '400'], auth()->user());
+        $next = $this->send($this->refraction(), $partner->id);
+        $this->priceInForm($next, 150)->assertHasNoErrors();
+        $this->assertSame('quoted', $next->fresh()->status);
+
+        // Paid and confirmed: below the limit again.
+        $this->as('clinic');
+        $payment = app(OpticalLinkPaymentService::class)->record($partner->id, 300, 'cash', null, null, null, auth()->user());
+        $this->as('optical');
+        app(OpticalLinkPaymentService::class)->confirm($payment, auth()->user());
+        $this->assertSame(0.0, \App\Services\OpticalLinks\OpticalLinkTermsService::owed($partner->fresh()));
+        $this->assertSame('sent', $this->send($refraction, $partner->id)->status);
+        $this->assertSame('accepted', $job->fresh()->status);
+    }
+
+    public function test_the_platform_sees_every_link_and_can_pause_it_with_a_reason(): void
+    {
+        $partner = $this->linked();
+        $this->acceptedJob($partner, 120);
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $this->actingAs($admin)->withSession(['workspace_mode' => 'platform']);
+        app(TenantContext::class)->clear();
+
+        $this->get(route('platform.optical-links'))->assertOk()->assertSee('Bright Optics')->assertSee('Hill Eye Clinic')->assertSee('120.00');
+        Livewire::test(\App\Livewire\Platform\OpticalLinksComponent::class)->call('open', $partner->id)
+            ->call('setStatus', 'paused')->assertHasErrors('reason')
+            ->set('reason', 'Payment dispute under review')->call('setStatus', 'paused')->assertHasNoErrors();
+        $partner->refresh();
+        $this->assertSame(['paused', true, 'Payment dispute under review'], [$partner->link_status, $partner->link_paused_by_platform, $partner->link_status_reason]);
+
+        // Neither clinic can resume it, and the clinic can't send.
+        foreach (['optical', 'clinic'] as $side) {
+            $this->as($side);
+            try {
+                app(OpticalLinkService::class)->setLinkStatus($partner, 'active', auth()->user());
+                $this->fail('A clinic lifted the platform\'s pause.');
+            } catch (ValidationException $e) {
+                $this->assertStringContainsString('Nexus support', $e->errors()['link'][0]);
+            }
+        }
+        Livewire::test(OpticalCentresComponent::class)->assertSee('Paused by Nexus support: Payment dispute under review');
+        $this->assertTrue(app(OpticalLinkService::class)->sendTargets()->isEmpty());
+
+        // Only a platform admin steps in; the platform resumes its own pause.
+        try {
+            app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->platformSetStatus($partner->id, 'active', null, auth()->user());
+            $this->fail('A clinic used the platform action.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
+        }
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->platformSetStatus($partner->id, 'active', null, $admin);
+        $this->assertSame(['active', false, null], [$partner->fresh()->link_status, $partner->fresh()->link_paused_by_platform, $partner->fresh()->link_status_reason]);
+
+        // Clinic staff can't open the page.
+        $this->as('clinic');
+        $this->assertContains($this->get(route('platform.optical-links'))->status(), [302, 403]);
+    }
+
+    /* ---------------------------------------------------------------- ordering page for clinics not on Nexus */
+
+    /** Turn on the ordering page for a new partner; returns [partner, token, pin]. */
+    private function orderPage(string $name = 'Roadside Clinic'): array
+    {
+        $partner = $this->partner($name);
+        $component = Livewire::test(PartnerClinicsComponent::class)->call('openPartner', $partner->id)
+            ->set('pagePin', '123456')->call('setOrderPage', $partner->id)->assertHasErrors('pagePin')
+            ->set('pagePin', '')->call('setOrderPage', $partner->id)->assertHasNoErrors();
+        $pin = $component->get('shownPin');
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $pin);
+        $partner->refresh();
+        $this->assertTrue($partner->hasOrderPage());
+        $this->assertArrayNotHasKey('page_pin_hash', $partner->toArray());
+        $this->assertNotSame($pin, $partner->page_pin_hash);
+
+        return [$partner, $partner->page_token, $pin];
+    }
+
+    private function pageOrder(array $overrides = []): array
+    {
+        return $overrides + ['sender_name' => 'Nurse Esi', 'patient_name' => 'Kofi Boateng', 'patient_phone' => '0244000111', 'reference' => 'F-17',
+            'od_sph' => '-1.25', 'od_cyl' => '-0.50', 'od_axis' => '90', 'os_sph' => '-1.00', 'pd' => '62', 'lens_type' => 'Single vision',
+            'frame_choice' => 'patient_chooses', 'urgency' => 'normal'];
+    }
+
+    public function test_a_clinic_not_on_nexus_orders_and_follows_jobs_with_a_link_and_pin(): void
+    {
+        [$partner, $token, $pin] = $this->orderPage();
+        app(TenantContext::class)->clear();
+        auth()->logout();
+
+        // Without the PIN: only the PIN form; nothing about orders. A wrong link is not found.
+        $this->get(route('order-page.show', $token))->assertOk()->assertSee('Enter your PIN')->assertDontSee('Your orders')
+            ->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+        $this->get('/order/'.str_repeat('A', 40))->assertNotFound();
+        $this->post(route('order-page.send', $token), $this->pageOrder())->assertRedirect(route('order-page.show', $token));
+        $this->assertSame(0, OpticalOrderRequest::count());
+
+        $this->post(route('order-page.pin', $token), ['pin' => $pin])->assertRedirect(route('order-page.show', $token));
+        $this->get(route('order-page.show', $token))->assertSee('Your orders')->assertSee('Send a new order');
+
+        // A cylinder needs an axis; then the order goes to Incoming Orders.
+        $this->post(route('order-page.send', $token), $this->pageOrder(['od_axis' => '']))->assertSessionHasErrors('od_axis');
+        $this->post(route('order-page.send', $token), $this->pageOrder())->assertSessionHasNoErrors();
+        $request = OpticalOrderRequest::sole();
+        $this->assertSame(['page', null, 'Nurse Esi', 'Kofi Boateng', 'sent'], [$request->source, $request->sender_clinic_id, $request->sender_name, $request->patient_name, $request->status]);
+        $this->assertEquals([-1.25, -0.5, 90], [$request->rx['od']['sph'], $request->rx['od']['cyl'], $request->rx['od']['axis']]);
+
+        // The optical centre asks a question; they answer on the page.
+        $this->as('optical');
+        Livewire::test(IncomingRequestsComponent::class)->assertSee('Roadside Clinic (ordering page, Nurse Esi)')
+            ->call('open', $request->id)->set('question', 'Which frame size?')->call('sendQuestion')->assertHasNoErrors();
+        app(TenantContext::class)->clear();
+        auth()->logout();
+        $this->get(route('order-page.show', $token))->assertSee('Which frame size?');
+        $this->post(route('order-page.answer', [$token, $request->id]), ['answer' => 'Medium'])->assertSessionHasNoErrors();
+        $this->assertSame(['sent', 'Medium'], [$request->fresh()->status, $request->fresh()->query_answer]);
+
+        // Priced in the order form: placed straight away as a partner job (no quote on the page).
+        $this->as('optical');
+        Livewire::withQueryParams(['request_id' => $request->id])->test(OpticalOrderCreateComponent::class)
+            ->set('frame_source', 'custom')->set('frame_model_number', 'Black metal')->set('frame_price', 250)
+            ->set('lens_fulfilment_source', 'customer')->set('lens_price', 0)->call('createOrder')->assertHasNoErrors();
+        $request->refresh();
+        $job = LensOrder::findOrFail($request->lens_order_id);
+        $this->assertSame(['accepted', 'Pending', 250.0, $partner->id], [$request->status, $job->status, (float) $job->total, (int) $job->partner_clinic_id]);
+        app(OpticalOrderWorkflowService::class)->transition($job->id, 'Sent to Lab');
+
+        app(TenantContext::class)->clear();
+        auth()->logout();
+        $this->get(route('order-page.show', $token))->assertSee('Sent to Lab')->assertSee($job->order_id);
+    }
+
+    public function test_wrong_pins_lock_the_page_and_a_new_pin_or_link_signs_everyone_out(): void
+    {
+        [$partner, $token, $pin] = $this->orderPage();
+        $optical = auth()->user();
+        app(TenantContext::class)->clear();
+        auth()->logout();
+
+        foreach (range(1, 4) as $try) {
+            $this->post(route('order-page.pin', $token), ['pin' => '000001'])->assertSessionHasErrors('pin');
+        }
+        $this->post(route('order-page.pin', $token), ['pin' => '000001'])->assertSessionHasErrors(['pin' => 'Too many wrong PINs. The page is locked for 15 minutes.']);
+        // Locked: even the right PIN waits.
+        $this->post(route('order-page.pin', $token), ['pin' => $pin])->assertSessionHasErrors('pin');
+        $this->travel(16)->minutes();
+        $this->post(route('order-page.pin', $token), ['pin' => $pin])->assertSessionHasNoErrors();
+        $this->get(route('order-page.show', $token))->assertSee('Your orders');
+
+        // A new PIN signs this browser out.
+        $this->as('optical', $optical);
+        Livewire::test(PartnerClinicsComponent::class)->call('openPartner', $partner->id)->set('pagePin', '482913')->call('setOrderPage', $partner->id)->assertHasNoErrors();
+        app(TenantContext::class)->clear();
+        auth()->logout();
+        $this->get(route('order-page.show', $token))->assertSee('Enter your PIN');
+        $this->post(route('order-page.pin', $token), ['pin' => '482913'])->assertSessionHasNoErrors();
+
+        // A new link: the old one is gone. Turning it off: gone too.
+        $this->as('optical', $optical);
+        Livewire::test(PartnerClinicsComponent::class)->call('newOrderPageLink', $partner->id);
+        $newToken = $partner->fresh()->page_token;
+        $this->assertNotSame($token, $newToken);
+        auth()->logout();
+        $this->get(route('order-page.show', $token))->assertNotFound();
+        $this->as('optical', $optical);
+        Livewire::test(PartnerClinicsComponent::class)->call('disableOrderPage', $partner->id);
+        auth()->logout();
+        $this->get(route('order-page.show', $newToken))->assertNotFound();
+
+        // Only managers turn it on.
+        [$clinic, $branch] = $this->clinics['optical'];
+        $this->as('optical', $this->staff($clinic, $branch, 'Secretary', 'Desk'));
+        Livewire::test(PartnerClinicsComponent::class)->call('setOrderPage', $partner->id)->assertForbidden();
+    }
+
+    public function test_each_page_sees_only_its_own_orders_and_they_move_to_the_clinic_when_it_links(): void
+    {
+        [$roadside, $token, $pin] = $this->orderPage('Roadside Clinic');
+        [$other, $otherToken, $otherPin] = $this->orderPage('Hill Eye Clinic');
+        app(TenantContext::class)->clear();
+        auth()->logout();
+
+        $this->post(route('order-page.pin', $otherToken), ['pin' => $otherPin]);
+        $this->post(route('order-page.send', $otherToken), $this->pageOrder(['patient_name' => 'Secret Patient']));
+        $this->post(route('order-page.pin', $token), ['pin' => $pin]);
+        $this->post(route('order-page.send', $token), $this->pageOrder());
+        $this->get(route('order-page.show', $token))->assertSee('Kofi Boateng')->assertDontSee('Secret Patient');
+        // Another page's order can't be cancelled from this page.
+        $foreign = OpticalOrderRequest::where('patient_name', 'Secret Patient')->sole();
+        $this->post(route('order-page.cancel', [$token, $foreign->id]))->assertNotFound();
+        $this->assertSame('sent', $foreign->fresh()->status);
+
+        // Hill Eye Clinic joins Nexus and links: its page order moves to its account, the page closes.
+        $this->as('optical');
+        $invite = app(OpticalLinkService::class)->createInvite($other->fresh(), auth()->user());
+        $this->as('clinic');
+        app(OpticalLinkService::class)->acceptInvite($invite->code, auth()->user());
+        [$clinic] = $this->clinics['clinic'];
+        $this->assertSame((int) $clinic->id, (int) $foreign->fresh()->sender_clinic_id);
+        $this->assertFalse($other->fresh()->hasOrderPage());
+        Livewire::test(SentToOpticalComponent::class)->assertSee('Secret Patient');
+        auth()->logout();
+        app(TenantContext::class)->clear();
+        $this->get(route('order-page.show', $otherToken))->assertNotFound();
+        // Roadside's page is untouched.
+        $this->get(route('order-page.show', $token))->assertSee('Kofi Boateng');
+    }
 }

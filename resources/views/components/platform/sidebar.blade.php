@@ -7,10 +7,11 @@
     $waitingBilling = \App\Models\SubscriptionChangeRequest::where('status', 'pending')->count()
         + \App\Models\SubscriptionApprovalRequest::where('status', 'pending')->count();
     $waitingAddons = \App\Models\ClinicAddonRequest::where('status', 'pending')->count();
+    $linkDisputes = \Illuminate\Support\Facades\Schema::hasTable('optical_link_payments') ? \App\Models\OpticalLinkPayment::where('status', 'disputed')->count() : 0;
     $smsLow = (bool) (app(\App\Services\Messaging\PlatformSmsBalance::class)->last()['low'] ?? false);
     $tabs = ['dashboard' => '▥ Dashboard', 'clinics' => '✚ Clinics Directory', 'plans' => '◆ Subscription Plans', 'billing' => '▤ Invoices & Billing',
         'licenses' => '⚿ Offline Licenses', 'audit' => '⬡ Security & Audit'];
-    $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'usage' => ['platform.usage', '◷ Clinic Usage'],'imports' => ['platform.imports', '⇧ Legacy Imports'],
+    $pages = ['analytics' => ['platform.subscription-analytics', '◔ Subscription Analytics'], 'usage' => ['platform.usage', '◷ Clinic Usage'], 'links' => ['platform.optical-links', '⇄ Optical Links'],'imports' => ['platform.imports', '⇧ Legacy Imports'],
         'readiness' => ['platform.deployment-readiness', '✓ Deployment Readiness'], 'sms' => ['platform.sms', '✉ SMS Messaging'], 'announcements' => ['platform.announcements', '📣 Announcements'], 'pricing' => ['platform.pricing', '＄ Pricing Page'], 'quotes' => ['platform.quotes', '❏ Quotes'],'support' => ['platform.support', '☏ Support Contact']];
 @endphp
 @once
@@ -33,7 +34,7 @@
             <a data-tour="nav-{{ $key }}" href="{{ route('platform.dashboard', $key === 'dashboard' ? [] : ['tab' => $key]) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'clinics' && $overlimit)<span class="ps-badge">{{ $overlimit }}</span>@endif@if($key === 'clinics' && $waitingAddons)<span class="ps-badge" title="Add-on requests waiting">{{ $waitingAddons }}</span>@endif @if($key === 'billing' && $waitingBilling)<span class="ps-badge" title="Plan requests and approvals waiting">{{ $waitingBilling }}</span>@endif</a>
         @endforeach
         @foreach($pages as $key => [$route, $label])
-            <a data-tour="nav-{{ $key }}" href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'pricing' && $newPricing)<span class="ps-badge">{{ $newPricing }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>
+            <a data-tour="nav-{{ $key }}" href="{{ route($route) }}" class="{{ $active === $key ? 'active' : '' }}" @if($active === $key) aria-current="page" @endif>{{ $label }}@if($key === 'sms' && $pendingSms)<span class="ps-badge">{{ $pendingSms }}</span>@endif @if($key === 'links' && $linkDisputes)<span class="ps-badge" title="Disputed payments between linked clinics">{{ $linkDisputes }}</span>@endif @if($key === 'pricing' && $newPricing)<span class="ps-badge">{{ $newPricing }}</span>@endif @if($key === 'sms' && $smsLow)<span class="ps-badge" title="Platform SMS balance is low">Low</span>@endif</a>
         @endforeach
     </nav>
     <div class="ps-foot" data-tour="pf-modes">

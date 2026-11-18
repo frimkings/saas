@@ -586,6 +586,12 @@ public $isEditingAppointment = false;
 
     public function bookAppointmentFromConsultation()
 {
+    // Appointments come with the plan (Standard and up); a downgraded clinic keeps its booked ones but books no new.
+    if (!LicenseService::has(Feature::APPOINTMENTS)) {
+        $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Appointments are not included in your plan.']);
+        return;
+    }
+
     // Validate appointment data
     $this->validate([
         'appointmentTitle' => 'required|string|min:3',
@@ -1589,6 +1595,11 @@ public function deleteAppointment($appointmentId)
 
     public function createUrgentReferralDraft()
     {
+        if (!LicenseService::has(Feature::REFERRALS)) {
+            $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Referral letters are not included in your plan.']);
+            return;
+        }
+
         $reasons = $this->urgentReferralReasons;
 
         if (empty($reasons)) {
@@ -2893,6 +2904,7 @@ public function deleteAppointment($appointmentId)
         $canClinicalPdfs = LicenseService::has(Feature::CLINICAL_PDFS);
         $canDocuments = LicenseService::has(Feature::CLINICAL_DOCUMENTS);
         $canAppointments = LicenseService::has(Feature::APPOINTMENTS);
+        $canReferrals = LicenseService::has(Feature::REFERRALS);
         $clinicalTrendData = $this->activeTab === 'history' && $canCharts ? $this->clinicalTrendData : [];
         $eyeDiseaseRiskFlags = $this->activeTab === 'history' && $canCharts ? $this->eyeDiseaseRiskFlags : [];
         $lensOptions = collect();
@@ -2929,7 +2941,7 @@ public function deleteAppointment($appointmentId)
             DB::disableQueryLog();
         }
 
-        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments'))
+        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments', 'canReferrals'))
             ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

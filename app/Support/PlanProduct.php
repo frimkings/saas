@@ -45,11 +45,11 @@ class PlanProduct
     public const ATTENDANCE_EXTRAS = [
         Feature::AUDIT_TRAIL, Feature::DAILY_SUMMARY, Feature::WEEKLY_SUMMARY, Feature::MONTHLY_SUMMARY,
         Feature::MANUAL_BACKUP, Feature::SCHEDULED_BACKUPS, Feature::UNLIMITED_USERS,
-        ...self::ATTENDANCE_PARTS, Feature::ATTENDANCE_STAFF_PACK,
+        ...self::ATTENDANCE_PARTS, Feature::ATTENDANCE_STAFF_PACK, Feature::EXTRA_USER,
     ];
 
     /** Sold only as add-ons, never ticked on a plan. */
-    public const ADDON_ONLY = [Feature::ATTENDANCE_STAFF_PACK, Feature::SCAN_STORAGE_PACK];
+    public const ADDON_ONLY = [Feature::ATTENDANCE_STAFF_PACK, Feature::SCAN_STORAGE_PACK, Feature::EXTRA_USER];
 
     /**
      * Features only some clinics want: never included by '*' or a legacy "everything" list. A
@@ -67,13 +67,21 @@ class PlanProduct
     /** A pack's size until the platform sets one. */
     public static function defaultPackSize(string $feature): int
     {
-        return $feature === Feature::SCAN_STORAGE_PACK ? self::STORAGE_PACK_GB : self::STAFF_PACK_SIZE;
+        return match ($feature) {
+            Feature::SCAN_STORAGE_PACK => self::STORAGE_PACK_GB,
+            Feature::EXTRA_USER => 1,
+            default => self::STAFF_PACK_SIZE,
+        };
     }
 
-    /** What a pack's units are: "staff" or "GB". */
+    /** What a pack's units are: "staff", "GB" or "users". */
     public static function packUnit(string $feature): string
     {
-        return $feature === Feature::SCAN_STORAGE_PACK ? 'GB' : 'staff';
+        return match ($feature) {
+            Feature::SCAN_STORAGE_PACK => 'GB',
+            Feature::EXTRA_USER => 'users',
+            default => 'staff',
+        };
     }
 
     /** Parts of attendance sold on their own; each needs attendance itself. */
@@ -105,6 +113,7 @@ class PlanProduct
         Feature::ATTENDANCE_HOSPITAL => ['Attendance: hospital tools (departments, cover, rotation, swaps)', null],
         Feature::ATTENDANCE_STAFF_PACK => ['Attendance: extra staff (packs)', null],
         Feature::SCAN_STORAGE_PACK => ['Scans & attachments: storage (packs)', self::CLINIC],
+        Feature::EXTRA_USER => ['Extra users', null],
         Feature::DIAGNOSTIC_SCANS => ['Diagnostic scans & referral commissions', self::CLINIC],
         Feature::SMS_CAMPAIGNS => ['SMS reminders & campaigns', null],
         Feature::APPROVALS => ['Approval workflows', null],

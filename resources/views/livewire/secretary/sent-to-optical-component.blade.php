@@ -48,6 +48,7 @@
                                     </div>
                                 @endif
                                 @if($request->status === 'quote_declined')<div class="mt-1 text-xs text-red-700">You declined: {{ $request->decline_reason }}</div>@endif
+                                @if($request->auto_approved)<div class="mt-1 text-xs text-slate-500">Quote of {{ currency() }} {{ number_format((float) $request->quote_total, 2) }} approved automatically (within your limit){{ collect((array) $request->quote_lines)->contains(fn ($l) => str_starts_with($l['label'] ?? '', 'Agreed trade discount')) ? ', with your trade discount' : '' }}.</div>@endif
                                 @if($request->status === 'accepted' && $request->balance() > 0)<div class="text-xs text-slate-600">Owed {{ currency() }} {{ number_format($request->balance(), 2) }} of {{ number_format((float) $request->order_total, 2) }}</div>@endif
                                 @if($request->order_number)<div class="text-xs text-slate-500">Job {{ $request->order_number }} · updated {{ $request->status_updated_at?->diffForHumans() }}</div>@endif
                                 @if($request->status === 'query')<div class="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"><b>Question:</b> {{ $request->query_message }}</div>@endif

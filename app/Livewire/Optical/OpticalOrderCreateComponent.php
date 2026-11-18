@@ -34,6 +34,8 @@ class OpticalOrderCreateComponent extends Component
     /** An order sent online by a linked clinic (OpticalOrderRequest) that this form is pricing. */
     #[\Livewire\Attributes\Locked]
     public ?int $linkRequestId = null;
+    /** Set while saving: the clinic's auto-approve limit covered the quote, so the job started at once. */
+    private bool $linkAutoStarted = false;
 
     // Step 1: Customer
     public $patient_id;
@@ -294,7 +296,7 @@ class OpticalOrderCreateComponent extends Component
             $this->paid_amount = 0;
             $this->remake_reason = (string) $request->remake_reason;
             $this->updatedRemakeReason();
-            $this->notes = collect(['Remake asked for by '.$request->senderClinic?->name.': '.(\App\Models\LensOrder::REMAKE_REASONS[$request->remake_reason] ?? $request->remake_reason), $request->notes])->filter()->implode("\n");
+            $this->notes = collect(['Remake asked for by '.$request->senderLabel().': '.(\App\Models\LensOrder::REMAKE_REASONS[$request->remake_reason] ?? $request->remake_reason), $request->notes])->filter()->implode("\n");
             return;
         }
         $this->linkRequestId = $request->id;
@@ -663,8 +665,9 @@ class OpticalOrderCreateComponent extends Component
         ], [
             'service_lines.*.quantity.*' => 'Enter a whole-number quantity from 1 to 1000 for each service.',
         ]);
-        if ((float) $this->discount_amount > $this->priceBreakdown()['subtotal']) {
-            throw ValidationException::withMessages(['discount_amount' => 'Discount cannot be more than the order subtotal.']);
+        $pricing = $this->priceBreakdown();
+        if ((float) $this->discount_amount > round($pricing['subtotal'] - $pricing['trade'], 2)) {
+            throw ValidationException::withMessages(['discount_amount' => $pricing['trade'] > 0 ? 'Discount cannot be more than the order subtotal after the agreed trade discount.' : 'Discount cannot be more than the order subtotal.']);
         }
     }
 
@@ -1078,20 +1081,20 @@ class OpticalOrderCreateComponent extends Component
         $lines = [];
         if ($this->needsFrame() && $this->frame_source !== 'customer') {
             $frame = (float) ($this->frame_optical_product_id ? OpticalProduct::find($this->frame_optical_product_id)?->selling_price : $this->frame_price);
-            $lines[] = ['label' => 'Frame'.($this->frame_model_number ? ' · '.$this->frame_model_number : ''), 'amount' => $frame];
+            $lines[] = ['label' => 'Frame'.($this->frame_model_number ? ' · '.$this->frame_model_number : ''), 'amount' => $frame, 'kind' => 'frame'];
         }
         if ($this->work_type === 'prescription') {
             $eyes = $this->lens_fulfilment_source === 'stock' ? ($this->lensAvailability['eyes'] ?? []) : [];
             if ($eyes && isset(reset($eyes)['unit_price'])) {
                 foreach ($eyes as $eye => $line) {
-                    $lines[] = ['label' => strtoupper($eye).' lens · '.(($line['source'] ?? 'stock') === 'stock' ? 'branch stock' : 'special order'), 'amount' => (float) $line['unit_price']];
+                    $lines[] = ['label' => strtoupper($eye).' lens · '.(($line['source'] ?? 'stock') === 'stock' ? 'branch stock' : 'special order'), 'amount' => (float) $line['unit_price'], 'kind' => 'lens'];
                 }
             } elseif ($this->lens_optical_product_id) {
-                $lines[] = ['label' => 'Lenses (pair)', 'amount' => (float) OpticalProduct::find($this->lens_optical_product_id)?->selling_price];
+                $lines[] = ['label' => 'Lenses (pair)', 'amount' => (float) OpticalProduct::find($this->lens_optical_product_id)?->selling_price, 'kind' => 'lens'];
             } elseif ($this->lens_fulfilment_source === 'customer') {
-                $lines[] = ['label' => 'Lenses · customer supplied', 'amount' => 0.0];
+                $lines[] = ['label' => 'Lenses · customer supplied', 'amount' => 0.0, 'kind' => 'lens'];
             } else {
-                $lines[] = ['label' => 'Lenses (pair)'.($this->lens_fulfilment_source === 'stock' ? ' · branch stock' : ' · special order'), 'amount' => (float) $this->lens_price];
+                $lines[] = ['label' => 'Lenses (pair)'.($this->lens_fulfilment_source === 'stock' ? ' · branch stock' : ' · special order'), 'amount' => (float) $this->lens_price, 'kind' => 'lens'];
             }
         }
         $catalogue = $this->selectedServices()->keyBy('id');
@@ -1101,24 +1104,44 @@ class OpticalOrderCreateComponent extends Component
             $quantity = max(0, (int) ($line['quantity'] ?? 0));
             // name, unit and service_index let the page recount the line as the quantity is typed.
             $lines[] = ['label' => $service->name.($quantity !== 1 ? ' × '.$quantity : ''), 'amount' => round($quantity * (float) $service->price, 2),
-                'name' => $service->name, 'unit' => (float) $service->price, 'service_index' => $index];
+                'name' => $service->name, 'unit' => (float) $service->price, 'service_index' => $index, 'kind' => 'service'];
         }
         if ((float) $this->glazing_fee > 0) {
-            $lines[] = ['label' => 'Glazing fee (from earlier quotation)', 'amount' => (float) $this->glazing_fee];
+            $lines[] = ['label' => 'Glazing fee (from earlier quotation)', 'amount' => (float) $this->glazing_fee, 'kind' => 'service'];
         }
         if ($this->remakeIsFree()) {
             $lines = array_map(fn ($line) => ['label' => $line['label'], 'amount' => 0.0], $lines);
             $lines[] = ['label' => 'Free remake (no charge)', 'amount' => 0.0];
         }
         $subtotal = round(array_sum(array_column($lines, 'amount')), 2);
+        // A job from a linked clinic gets the trade % agreed on the link, line by line (OpticalLinkTermsService).
+        $terms = $this->remakeIsFree() ? null : $this->linkTerms();
+        $trade = 0.0;
+        if ($terms) {
+            $pct = $terms->tradePercents();
+            foreach ($lines as $line) $trade += (float) $line['amount'] * ($pct[$line['kind'] ?? ''] ?? 0) / 100;
+            $trade = round($trade, 2);
+        }
 
         return [
             'lines' => $lines,
             'free' => $this->remakeIsFree(),
             'subtotal' => $subtotal,
+            'trade' => $trade,
+            'trade_pct' => $terms ? $terms->tradePercents() : null,
+            'trade_label' => $terms ? 'Agreed trade discount ('.$terms->tradeSummary().')' : null,
             'discount' => $this->remakeIsFree() ? 0.0 : (float) $this->discount_amount,
-            'total' => $this->remakeIsFree() ? 0.0 : max(0, round($subtotal - (float) $this->discount_amount, 2)),
+            'total' => $this->remakeIsFree() ? 0.0 : max(0, round($subtotal - $trade - (float) $this->discount_amount, 2)),
         ];
+    }
+
+    /** The link this job came through, when it carries an agreed trade %. */
+    private function linkTerms(): ?OpticalPartnerClinic
+    {
+        if (! $this->linkRequestId || ! $this->partner_id) return null;
+        $partner = OpticalPartnerClinic::find((int) $this->partner_id);
+
+        return $partner && $partner->linked_clinic_id && $partner->hasTradeTerms() ? $partner : null;
     }
 
     public function calculateTotalProperty()
@@ -1143,10 +1166,16 @@ class OpticalOrderCreateComponent extends Component
     /** A job from a linked clinic: quote it to the clinic (or place a free one) and go back to Incoming Orders. */
     private function sendLinkedJob()
     {
-        $quoted = $this->priceBreakdown()['total'] > 0;
+        $request = \App\Models\OpticalOrderRequest::find($this->linkRequestId);
+        // Orders from the ordering page (partner not on Nexus) have no quote step: the job is placed.
+        $quoted = $this->priceBreakdown()['total'] > 0 && ! $request?->fromPage();
         $this->saveOrder($quoted ? 'Quotation' : 'Pending');
-        $clinic = \App\Models\OpticalOrderRequest::find($this->linkRequestId)?->senderClinic?->name ?? 'the clinic';
-        session()->flash('success', $quoted ? "Quote sent to {$clinic}. Start the job here once they approve it." : "Job placed for {$clinic}.");
+        $clinic = $request?->senderLabel() ?? 'the clinic';
+        session()->flash('success', match (true) {
+            $quoted && $this->linkAutoStarted => "Within {$clinic}'s approval limit, so the quote was approved at once and the job has started.",
+            $quoted => "Quote sent to {$clinic}. Start the job here once they approve it.",
+            default => "Job placed for {$clinic}.",
+        });
 
         return redirect()->route('optical.requests');
     }
@@ -1249,15 +1278,19 @@ class OpticalOrderCreateComponent extends Component
             // A priced job goes to the clinic as a quote to approve; a free one (e.g. a free remake) starts at once.
             // Saved together with the request, so the clinic never sees a job its request doesn't point to.
             $breakdown = $this->priceBreakdown();
-            $quote = $status === 'Quotation' || $breakdown['total'] > 0;
+            $quote = ($status === 'Quotation' || $breakdown['total'] > 0) && ! \App\Models\OpticalOrderRequest::find($this->linkRequestId)?->fromPage();
             $data['link_request'] = true;
             $data['paid_amount'] = 0;
-            $lines = $breakdown['lines'];
+            // The agreed trade discount is saved as part of the order's discount; the quote shows it as its own line.
+            $data['discount_amount'] = round($breakdown['discount'] + $breakdown['trade'], 2);
+            $lines = array_map(fn ($line) => ['label' => $line['label'], 'amount' => $line['amount']], $breakdown['lines']);
+            if ($breakdown['trade'] > 0) $lines[] = ['label' => $breakdown['trade_label'], 'amount' => -$breakdown['trade']];
             if ($breakdown['discount'] > 0) $lines[] = ['label' => 'Discount', 'amount' => -$breakdown['discount']];
             return DB::transaction(function () use ($data, $quote, $lines) {
                 $links = app(\App\Services\OpticalLinks\OpticalLinkService::class);
                 $order = app(OpticalOrderService::class)->create($data, $quote);
-                $quote ? $links->markQuoted($this->linkRequestId, $order, $lines) : $links->markAccepted($this->linkRequestId, $order);
+                $this->linkAutoStarted = $quote ? $links->markQuoted($this->linkRequestId, $order, $lines) : false;
+                if (! $quote) $links->markAccepted($this->linkRequestId, $order);
                 return $order;
             });
         }

@@ -84,7 +84,7 @@ class IncomingRequestsComponent extends Component
     {
         $request = app(OpticalLinkService::class)->incomingRequest((int) $this->viewId);
         $order = app(OpticalLinkService::class)->startJob($request);
-        session()->flash('success', "Job {$order->order_id} started for {$request->senderClinic?->name}. It is on their account at the approved price.");
+        session()->flash('success', "Job {$order->order_id} started for {$request->senderLabel()}. It is on their account at the approved price.");
     }
 
     /** Withdraw a quote (or tidy one the clinic declined): its quotation is cancelled. */
@@ -119,7 +119,7 @@ class IncomingRequestsComponent extends Component
     public function render()
     {
         $clinicId = (int) app(TenantContext::class)->clinicId();
-        $base = OpticalOrderRequest::forOptical($clinicId)->with('senderClinic:id,name');
+        $base = OpticalOrderRequest::forOptical($clinicId)->with(['senderClinic:id,name', 'partner:id,name']);
         $counts = collect(self::TABS)->map(fn ($label, $tab) => $this->scopeTab(clone $base, $tab)->count());
         $requests = $this->scopeTab(clone $base, $this->tab)
             ->orderByRaw("urgency = 'urgent' desc")->orderByDesc('status_updated_at')->paginate(15);

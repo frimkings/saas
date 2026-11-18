@@ -25,7 +25,7 @@ final class TourCatalog
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 1,
-        'optical.requests' => 2,
+        'optical.requests' => 4,
         'clinic.dashboard' => 4,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
@@ -40,7 +40,7 @@ final class TourCatalog
         'clinic.receivables' => 1,
         'clinic.insurer-payments' => 1,
         'clinic.scans' => 2,
-        'clinic.optical-sent' => 2,
+        'clinic.optical-sent' => 3,
         'clinic.optical-owed' => 1,
         'platform.dashboard' => 2,
         'platform.clinics' => 1,
@@ -51,6 +51,7 @@ final class TourCatalog
         'platform.sms' => 1,
         'platform.announcements' => 1,
         'platform.usage' => 1,
+        'platform.links' => 1,
         'platform.imports-other' => 2,
         'platform.analytics' => 1,
         'platform.support' => 1,
@@ -105,6 +106,7 @@ final class TourCatalog
         return ['key' => 'clinic.optical-sent', 'title' => 'Sent to Optical', 'steps' => [
             ['target' => 'sent-to-optical', 'title' => 'Orders you sent', 'body' => 'Send an order from Spectacles → Refractions Needing Order with the paper-plane button, once the patient has paid at the Point of Sale. Here you see each one: waiting, a question from the optical centre to answer, accepted (with the job’s progress in their lab), or turned down.'],
             ['title' => 'Approve the price first', 'body' => 'The optical centre prices each job and sends you a quote: the lens, frame and services with their trade price. Approve it and they start the job; decline it with a reason and the patient goes back to Refractions Needing Order. An expired quote can be sent back for a new price.'],
+            ['title' => 'Routine jobs without waiting', 'body' => 'Under Optical Centres, an owner or manager can approve quotes automatically up to an amount: a quote within it starts at once and shows here as approved automatically. The same page shows the trade discount each optical centre gives you and your credit limit; at the limit you can’t send new jobs until you pay under Owed to Optical.'],
             ['title' => 'Remakes', 'body' => 'Once glasses are ready or collected, Ask for a remake sends the job back with your reason. The optical centre decides whether it is free (their error or warranty) or charged; a charged one comes to you as a quote.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Owners and managers link optical centres under Optical Centres and pay them under Owed to Optical. Take this tour again at any time from here.'],
         ]];
@@ -180,6 +182,8 @@ final class TourCatalog
         return ['key' => 'optical.requests', 'title' => 'Incoming Orders', 'steps' => [
             ['target' => 'incoming-orders', 'title' => 'Orders from linked clinics', 'body' => 'Clinics you linked under Partner Clinics send their spectacle orders here, with the wearer’s name, phone and prescription. Open one to accept it: the order form opens with the prescription filled in, and you price the job as a partner order. Or ask the clinic a question, or turn it down with a reason they will see.'],
             ['title' => 'Quotes, then the job', 'body' => 'Pricing a job sends the clinic a quote; it waits under Quotes. Once they approve it, open it and press Start the job: it goes on their account at the approved price, with no deposit. A free job, such as a free remake, starts straight away.'],
+            ['title' => 'Agreed terms', 'body' => 'Under Partner Clinics, open a linked clinic to set its trade % off your prices for lenses, frames and services, and a credit limit. The trade % comes off every quote for them on its own line. At the credit limit they can’t send new jobs until they pay. If the clinic approves quotes automatically up to an amount, a quote within it starts the job at once.'],
+            ['title' => 'Clinics not on Nexus', 'body' => 'Under Partner Clinics, open a partner that is not on Nexus and turn on its ordering page: you get a private link and set a 6-digit PIN to send them separately. They send orders with the prescription and follow each job there, without an account. Their orders arrive here marked "ordering page"; you price them as ordinary partner jobs, with no quote to approve. If they join Nexus later and link, their orders move to their account.'],
             ['title' => 'Remakes and payments', 'body' => 'A clinic can ask for a remake of glasses you made; accept it to open the remake form and choose free or charged. When a clinic records a payment to you, confirm it on their card under Partner Clinics.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'The clinic follows each job as you move it through the lab. Take this tour again at any time from here.'],
         ]];
@@ -510,6 +514,12 @@ final class TourCatalog
             'platform.announcements' => ['Announcements', [
                 ['target' => 'an-list', 'title' => 'What you have sent', 'body' => 'Each announcement emails clinic owners and Super Admins, and can show a banner in the app until they dismiss it.'],
                 ['target' => 'an-new', 'title' => 'A new announcement', 'body' => 'Write the message, choose how it goes out and which clinics get it, and preview the email before sending.'],
+            ]],
+            'platform.links' => ['Optical Links', [
+                ['target' => 'ol-totals', 'title' => 'Links at a glance', 'body' => 'Clinics linked to optical centres, links paused, what clinics owe on jobs started, links at their credit limit, and payments an optical centre says it never received.'],
+                ['target' => 'ol-filter', 'title' => 'Find a link', 'body' => 'Show linked, paused, ended or every link, or only those that need attention: a disputed payment, a credit limit reached, or a pause you made.'],
+                ['target' => 'ol-list', 'title' => 'Every link', 'body' => 'Each row shows the agreed terms (trade %, credit limit, auto-approval), jobs, money owed and payments. Click one for its latest jobs and payments.'],
+                ['title' => 'Step in when needed', 'body' => 'In a link\'s details you can pause it with a reason (new jobs stop, and only you can resume it) or end it. Both clinics see your reason. Jobs already sent carry on.'],
             ]],
             'platform.usage' => ['Clinic Usage', [
                 ['target' => 'cu-period', 'title' => 'Pick a period', 'body' => 'Every figure is a total for the days you pick: this month so far, last month, the last 30 or 7 days, any earlier month ("A month…"), or your own dates ("From – to…"). Nothing is deleted, so past months stay here. Enter your hosting bill to see what each clinic costs to host.'],

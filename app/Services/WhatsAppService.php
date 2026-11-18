@@ -146,6 +146,10 @@ class WhatsAppService
             return 'WhatsApp notifications are disabled.';
         }
 
+        if (!SmsService::planIncludesPatientMessages()) {
+            return 'WhatsApp messages to patients are not included in your plan.';
+        }
+
         if (empty($s->whatsapp_phone_number_id) || empty($s->whatsapp_access_token)) {
             return 'WhatsApp not configured. Add credentials in Communications → WhatsApp.';
         }

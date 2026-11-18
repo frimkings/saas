@@ -46,6 +46,7 @@
             </div>
         </div>
 
+        @if($can['appointments'])
         <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
@@ -67,6 +68,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
@@ -106,6 +108,7 @@
             </div>
         </div>
 
+        @if($can['inventory_alerts'])
         <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
@@ -120,7 +123,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
+        @if($can['outstanding'])
         <div class="w-full xl:w-4/12 lg:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
@@ -142,6 +147,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         <div class="w-full xl:w-6/12 px-2 mb-6">
             <div class="task-panel">
@@ -165,6 +171,7 @@
             </div>
         </div>
 
+        @if($can['sms'])
         <div class="w-full xl:w-6/12 px-2 mb-6">
             <div class="task-panel">
                 <div class="task-panel__header">
@@ -186,6 +193,7 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
 
     <style>

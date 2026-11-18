@@ -30,6 +30,11 @@ class PartnerClinicsComponent extends Component
     public ?int $viewPartnerId = null;
     public ?int $disputingPaymentId = null;
     public string $disputeReason = '';
+    /** Agreed terms on a link: trade % (lens, frame, service) and credit limit, as typed. */
+    public array $terms = ['lens' => '', 'frame' => '', 'service' => '', 'credit' => ''];
+    /** Ordering page for a partner not on Nexus: a PIN typed by the manager (blank: one is made up), and the PIN just set, shown once. */
+    public string $pagePin = '';
+    public string $shownPin = '';
 
     protected $queryString = ['search' => ['except' => ''], 'statusFilter' => ['except' => 'active']];
 
@@ -48,12 +53,37 @@ class PartnerClinicsComponent extends Component
     public function openPartner(int $id): void
     {
         $this->viewPartnerId = OpticalPartnerClinic::findOrFail($id)->id;
+        $this->reset(['pagePin', 'shownPin']);
         $this->showForm = false;
         $this->resetErrorBag();
+        $this->fillTerms();
+    }
+
+    private function fillTerms(): void
+    {
+        $partner = $this->viewPartnerId ? OpticalPartnerClinic::find($this->viewPartnerId) : null;
+        $show = fn ($value) => $value === null ? '' : rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
+        $this->terms = [
+            'lens' => $show($partner?->trade_lens_pct), 'frame' => $show($partner?->trade_frame_pct),
+            'service' => $show($partner?->trade_service_pct), 'credit' => $partner?->credit_limit === null ? '' : number_format((float) $partner->credit_limit, 2, '.', ''),
+        ];
+    }
+
+    /** Trade % and credit limit for a linked clinic (App\Services\OpticalLinks\OpticalLinkTermsService). */
+    public function saveTerms(): void
+    {
+        $this->assertManager();
+        $this->resetErrorBag();
+        $partner = OpticalPartnerClinic::findOrFail((int) $this->viewPartnerId);
+        abort_unless($partner->hasLink(), 422);
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->setTerms($partner, $this->terms, auth()->user());
+        $this->fillTerms();
+        session()->flash('success', 'Terms saved. They apply to new quotes for '.($partner->linkedClinic?->name ?? 'this clinic').', who can see them.');
     }
 
     public function closePartner(): void
     {
+        $this->reset(['pagePin', 'shownPin']);
         $this->viewPartnerId = null;
         $this->showForm = false;
         $this->resetErrorBag();
@@ -63,6 +93,7 @@ class PartnerClinicsComponent extends Component
     public function updatedViewPartnerId($value): void
     {
         if ($value === null) $this->resetErrorBag();
+        else $this->fillTerms();
     }
 
     /** The form opens and closes in the browser (openLocal / dismissLocal); tidy up when the server hears it closed. */
@@ -196,6 +227,35 @@ class PartnerClinicsComponent extends Component
         });
     }
 
+    /* ---------- Ordering page for a partner not on Nexus (App\Services\OpticalLinks\OpticalOrderPageService) ---------- */
+
+    public function setOrderPage(int $id): void
+    {
+        $this->assertManager();
+        $this->resetErrorBag();
+        $partner = OpticalPartnerClinic::findOrFail($id);
+        $first = ! $partner->hasOrderPage();
+        $this->shownPin = app(\App\Services\OpticalLinks\OpticalOrderPageService::class)->enable($partner, auth()->user(), $this->pagePin);
+        $this->pagePin = '';
+        $this->viewPartnerId = $id;
+        session()->flash('success', $first ? 'Ordering page turned on. Send the link and the PIN to the clinic, separately.' : 'New PIN set. The old PIN no longer works.');
+    }
+
+    public function newOrderPageLink(int $id): void
+    {
+        $this->assertManager();
+        app(\App\Services\OpticalLinks\OpticalOrderPageService::class)->newLink(OpticalPartnerClinic::findOrFail($id), auth()->user());
+        session()->flash('success', 'New link made. The old link no longer works; send the clinic the new one.');
+    }
+
+    public function disableOrderPage(int $id): void
+    {
+        $this->assertManager();
+        app(\App\Services\OpticalLinks\OpticalOrderPageService::class)->disable(OpticalPartnerClinic::findOrFail($id), auth()->user());
+        $this->shownPin = '';
+        session()->flash('success', 'Ordering page turned off. Orders already sent stay in Incoming Orders.');
+    }
+
     /* ---------- Payments a linked clinic recorded (App\Services\OpticalLinks\OpticalLinkPaymentService) ---------- */
 
     public function confirmLinkPayment(int $id): void
@@ -259,6 +319,7 @@ class PartnerClinicsComponent extends Component
             'viewAging' => $view ? $accounts->aging($view) : [],
             'viewOrders' => $view ? \App\Models\LensOrder::where('partner_clinic_id', $view->id)->latest()->limit(8)->get() : collect(),
             'viewInvite' => $view ? app(\App\Services\OpticalLinks\OpticalLinkService::class)->openInvite($view) : null,
+            'viewLinkOwed' => $view && $view->hasLink() ? \App\Services\OpticalLinks\OpticalLinkTermsService::owed($view) : null,
             'viewLinkPayments' => $view && $view->linked_clinic_id ? app(\App\Services\OpticalLinks\OpticalLinkPaymentService::class)->waitingForOptical($view->id) : collect(),
             'linkPaymentsWaiting' => \App\Services\OpticalLinks\OpticalLinkPaymentService::waitingCount() > 0
                 ? \App\Models\OpticalLinkPayment::forOptical((int) app(TenantContext::class)->clinicId())->where('status', 'pending')->pluck('optical_partner_clinic_id')->countBy() : collect(),

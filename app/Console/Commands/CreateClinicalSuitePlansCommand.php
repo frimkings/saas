@@ -39,14 +39,9 @@ class CreateClinicalSuitePlansCommand extends Command
             $settings['plans'][$family] = ['order' => $order, 'max_visits' => $plan['max_visits'], 'tagline' => $plan['tagline'], 'featured' => $plan['featured'] ?? false];
         }
 
-        // The Optical shop plan: created and kept to its definition the same way, but not put on the clinic grid.
-        $optical = ClinicalSuitePlans::opticalPlan();
-        $this->syncPlan($versions, $audit, ClinicalSuitePlans::OPTICAL_FAMILY, $optical['name'], $optical['price'], [
-            'name' => $optical['name'], 'code' => ClinicalSuitePlans::OPTICAL_FAMILY, 'product' => PlanProduct::OPTICAL, 'features' => ClinicalSuitePlans::opticalFeatures(),
-            'included_branches' => 1, 'included_users' => $optical['users'], 'storage_limit_mb' => $optical['storage_mb'],
-            'base_price' => $optical['price'], 'annual_price' => $optical['price'] * 12, 'additional_branch_price' => $optical['price'],
-            'currency' => 'GHS', 'billing_interval' => 'monthly', 'tax_rate' => 0, 'trial_days' => 14, 'grace_days' => 0, 'is_active' => true,
-        ]);
+        // The Optical Suite's one plan is Standard Optical, kept on the platform; any other optical plan no active
+        // clinic is on stops being sold (this command used to create an "Optical Shop" plan).
+        foreach (ClinicalSuitePlans::retireOtherOpticalPlans() as $plan) $this->line("{$plan}: no longer sold (Standard Optical is the optical plan).");
 
         foreach (ClinicalSuitePlans::RETIRED as $family) {
             unset($settings['plans'][$family]);

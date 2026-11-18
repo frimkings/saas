@@ -42,6 +42,11 @@ class ClinicAddon extends Model
 
             return "Scans & attachments: extra storage ({$packs} " . ($packs === 1 ? 'pack' : 'packs') . ', ' . (int) $this->units . ' GB)';
         }
+        if ($this->feature === \App\Support\Feature::EXTRA_USER) {
+            $users = (int) ($this->units ?: $this->quantity ?: 1);
+
+            return 'Extra users (' . $users . ' ' . ($users === 1 ? 'user' : 'users') . ')';
+        }
 
         return $name;
     }

@@ -83,6 +83,16 @@ require __DIR__.'/auth.php';
 // Public pricing page (hosted only): plans, a "build your own" calculator and "Request this plan".
 Route::get('/pricing', [\App\Http\Controllers\PricingController::class, 'show'])->name('pricing');
 Route::post('/pricing/request', [\App\Http\Controllers\PricingController::class, 'request'])->middleware('throttle:5,60')->name('pricing.request');
+
+// Ordering page for partner clinics not on Nexus: private link + PIN, no account (OpticalOrderPageService).
+Route::prefix('order/{token}')->where(['token' => '[A-Za-z0-9]{40}', 'id' => '[0-9]+'])->middleware('throttle:order-page')->group(function () {
+    Route::get('/', [\App\Http\Controllers\OpticalOrderPageController::class, 'show'])->name('order-page.show');
+    Route::post('/pin', [\App\Http\Controllers\OpticalOrderPageController::class, 'pin'])->middleware('throttle:order-page-pin')->name('order-page.pin');
+    Route::post('/', [\App\Http\Controllers\OpticalOrderPageController::class, 'send'])->middleware('throttle:order-page-send')->name('order-page.send');
+    Route::post('/jobs/{id}/answer', [\App\Http\Controllers\OpticalOrderPageController::class, 'answer'])->name('order-page.answer');
+    Route::post('/jobs/{id}/cancel', [\App\Http\Controllers\OpticalOrderPageController::class, 'cancel'])->name('order-page.cancel');
+    Route::post('/leave', [\App\Http\Controllers\OpticalOrderPageController::class, 'leave'])->name('order-page.leave');
+});
 // Scan results shared with a referring clinic: signed links that expire, no sign-in (ScanResultsController).
 Route::middleware(['signed', 'throttle:60,1'])->group(function () {
     Route::get('/scan-results/{order}', [\App\Http\Controllers\ScanResultsController::class, 'show'])->whereNumber('order')->name('scan-results.show');
@@ -103,6 +113,7 @@ Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform/quotes/{quote}.pdf', [\App\Http\Controllers\ProspectQuoteDocumentController::class, 'platform'])->name('platform.quote.pdf');
     Route::get('/platform/announcements', \App\Livewire\Platform\AnnouncementsComponent::class)->name('platform.announcements');
     Route::get('/platform/usage', \App\Livewire\Platform\ClinicUsageComponent::class)->name('platform.usage');
+    Route::get('/platform/optical-links', \App\Livewire\Platform\OpticalLinksComponent::class)->name('platform.optical-links');
     Route::get('/platform/subscription-analytics',\App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');
     Route::get('/platform/subscription-analytics.csv', [\App\Http\Controllers\Platform\SubscriptionAnalyticsExportController::class,'csv'])->name('platform.subscription-analytics.csv');
     Route::get('/platform/billing-report.csv', [\App\Http\Controllers\Platform\BillingReportController::class,'csv'])->name('platform.billing-report.csv');

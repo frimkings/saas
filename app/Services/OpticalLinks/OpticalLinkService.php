@@ -110,6 +110,8 @@ class OpticalLinkService
                 ->where('linked_clinic_id', $clinicId)->where('id', '!=', $partner->id)->update(['linked_clinic_id' => null]);
             $partner->forceFill(['linked_clinic_id' => $clinicId, 'link_status' => 'active', 'linked_at' => now(), 'link_paused_by_clinic_id' => null])->save();
             $invite->forceFill(['accepted_clinic_id' => $clinicId, 'accepted_by' => $by->id, 'accepted_at' => now()])->save();
+            // Orders it sent from its ordering page before joining move to its account; the page closes.
+            OpticalOrderPageService::carryOver($partner, $clinicId);
             AuditTrail::record('optical.link_accepted', 'Linked to optical centre '.$invite->opticalClinic?->name, null, [], ['optical_clinic_id' => $invite->optical_clinic_id]);
 
             return $partner;
@@ -139,6 +141,9 @@ class OpticalLinkService
         abort_unless(in_array($clinicId, [(int) $partner->clinic_id, (int) $partner->linked_clinic_id], true), 404);
         abort_unless($partner->hasLink(), 422);
         app(ClinicAccessService::class)->assertWritable();
+        if ($partner->link_paused_by_platform && $status !== 'ended') {
+            throw ValidationException::withMessages(['link' => 'Nexus support paused this link'.($partner->link_status_reason ? ': '.$partner->link_status_reason : '').'. Contact support to resume it.']);
+        }
 
         $old = $partner->link_status;
         if ($status === 'active' && $old === 'paused' && $partner->link_paused_by_clinic_id && (int) $partner->link_paused_by_clinic_id !== $clinicId) {
@@ -171,6 +176,10 @@ class OpticalLinkService
         }
         if ($refraction->lensOrder) {
             throw ValidationException::withMessages(['partnerId' => 'A spectacle order already exists for this refraction.']);
+        }
+        $owed = OpticalLinkTermsService::owed($partner);
+        if (OpticalLinkTermsService::overLimit($partner, $owed)) {
+            throw ValidationException::withMessages(['partnerId' => OpticalLinkTermsService::creditMessage($partner, $owed)]);
         }
         if ($this->openRequestFor($refraction->id)) {
             throw ValidationException::withMessages(['partnerId' => 'This refraction has already been sent and is still open.']);
@@ -342,11 +351,14 @@ class OpticalLinkService
      * The order form saved a quotation from this request: the clinic approves the price before
      * the job starts. A quotation sent earlier for the same request (expired) is cancelled.
      *
+     * When the quote is within the clinic's auto-approve amount (and its credit limit), it is approved
+     * at once and the job starts; returns true then.
+     *
      * @param  array<int, array{label: string, amount: float}>  $lines
      */
-    public function markQuoted(int $requestId, LensOrder $quotation, array $lines): void
+    public function markQuoted(int $requestId, LensOrder $quotation, array $lines): bool
     {
-        DB::transaction(function () use ($requestId, $quotation, $lines) {
+        return DB::transaction(function () use ($requestId, $quotation, $lines) {
             $request = OpticalOrderRequest::forOptical($this->currentClinicId())->lockForUpdate()->findOrFail($requestId);
             if ($request->status !== 'sent') {
                 throw ValidationException::withMessages(['request' => 'This request was changed by the clinic while you worked on it ('.$request->progressLabel().'). Check it in Incoming Orders.']);
@@ -356,7 +368,7 @@ class OpticalLinkService
                 'status' => 'quoted', 'lens_order_id' => $quotation->id, 'order_number' => $quotation->order_id, 'order_status' => 'Quotation',
                 'quote_total' => round((float) $quotation->total, 2), 'quote_valid_until' => $quotation->quote_valid_until,
                 'quote_lines' => array_values(array_map(fn ($line) => ['label' => (string) $line['label'], 'amount' => round((float) $line['amount'], 2)], $lines)),
-                'quoted_at' => now(), 'approved_at' => null, 'approved_by' => null, 'decline_reason' => null,
+                'quoted_at' => now(), 'approved_at' => null, 'approved_by' => null, 'auto_approved' => false, 'decline_reason' => null,
                 'order_total' => round((float) $quotation->total, 2), 'order_paid' => 0, 'order_cancelled_at' => null,
                 'status_updated_at' => now(), 'handled_by' => auth()->id(),
             ])->save();
@@ -365,6 +377,15 @@ class OpticalLinkService
             }
             AuditTrail::record('optical.quote_sent', 'Sent a quote of '.currency().' '.number_format((float) $quotation->total, 2).' to '.$request->senderClinic?->name.' for '.$request->patient_name,
                 $quotation, [], ['request_id' => $request->id]);
+
+            $link = OpticalPartnerClinic::withoutGlobalScopes()->with('clinic')->find($request->optical_partner_clinic_id);
+            if (! $link || ! OpticalLinkTermsService::autoApproves($link, (float) $quotation->total)) return false;
+            $request->forceFill(['status' => 'approved', 'approved_at' => now(), 'auto_approved' => true, 'status_updated_at' => now()])->save();
+            AuditTrail::record('optical.quote_auto_approved', 'Quote of '.currency().' '.number_format((float) $quotation->total, 2).' for '.$request->patient_name
+                .' approved automatically (within '.$request->senderClinic?->name.' limit of '.currency().' '.number_format((float) $link->auto_approve_limit, 2).')', $quotation, [], ['request_id' => $request->id]);
+            $this->startJob($request);
+
+            return true;
         });
     }
 
@@ -382,7 +403,7 @@ class OpticalLinkService
     {
         $request = OpticalOrderRequest::where('lens_order_id', $order->id)->where('optical_clinic_id', $order->clinic_id)->latest('id')->first();
         if ($request && $request->status !== 'approved') {
-            throw ValidationException::withMessages(['order' => 'This quote was sent to '.($request->senderClinic?->name ?? 'the clinic').' online. Start it from Incoming Orders once they approve it.']);
+            throw ValidationException::withMessages(['order' => 'This quote was sent to '.$request->senderLabel().' online. Start it from Incoming Orders once they approve it.']);
         }
     }
 

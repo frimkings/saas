@@ -6,7 +6,7 @@
             <p class="ui-muted text-xs">Create prescription orders or service jobs for customers and partner clinics.</p>
             @if($linkRequestId)
                 @php $linkRequest = \App\Models\OpticalOrderRequest::find($linkRequestId); @endphp
-                <p class="mt-1 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-900"><i class="fas fa-inbox mr-1"></i>Online order from <b>{{ $linkRequest?->senderClinic?->name }}</b> for {{ $linkRequest?->patient_name }}. {{ $remakeOfId ? 'Choose free or charged, then place it.' : 'The prescription is filled in: check it, then price the job.' }} A priced job goes to the clinic as a quote; you start it once they approve.
+                <p class="mt-1 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs text-sky-900"><i class="fas fa-inbox mr-1"></i>Online order from <b>{{ $linkRequest?->senderLabel() }}</b> for {{ $linkRequest?->patient_name }}. {{ $remakeOfId ? 'Choose free or charged, then place it.' : 'The prescription is filled in: check it, then price the job.' }} {{ $linkRequest?->fromPage() ? 'It is placed as an ordinary partner job; they follow it on their ordering page.' : 'A priced job goes to the clinic as a quote; you start it once they approve.' }}
                     @php
                         $asked = collect([
                             $linkRequest?->lens_type ? 'Lens: '.$linkRequest->lens_type : null,
@@ -593,6 +593,7 @@
                         <label for="discount-amount" class="block text-xs font-bold text-slate-700 mb-1">Discount Amount ({{ currency() }})</label>
                         <input autocomplete="off" id="discount-amount" type="number" min="0" step="0.01" wire:model="discount_amount" class="ui-input w-full text-xs font-mono text-red-600">
                         @error('discount_amount')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                        @if(! empty($pricing['trade_pct']))<p class="mt-1 text-xs text-slate-500">The trade discount agreed with this clinic ({{ \Illuminate\Support\Str::after($pricing['trade_label'], '(') }} is taken off on its own. Enter any extra discount here.</p>@endif
                     </div>
                 </div>
 
@@ -711,7 +712,7 @@
                 @else
                     <button type="button" wire:click="createOrder" wire:loading.attr="disabled" wire:loading.class="opacity-60 cursor-wait"
                         class="ui-button bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs px-6 py-2 rounded-lg shadow font-mono">
-                        @if($linkRequestId && $runningTotal > 0)
+                        @if($linkRequestId && $runningTotal > 0 && ! \App\Models\OpticalOrderRequest::find($linkRequestId)?->fromPage())
                             <span wire:loading.remove wire:target="createOrder">Send quote to clinic ✓</span>
                             <span wire:loading wire:target="createOrder">Sending quote…</span>
                         @else

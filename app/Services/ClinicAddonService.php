@@ -66,6 +66,8 @@ class ClinicAddonService
     public function planIncludes(Clinic $clinic, string $feature): bool
     {
         $subscription = $this->subscription($clinic);
+        // A plan with no user limit has nothing for extra users to add.
+        if ($feature === \App\Support\Feature::EXTRA_USER) return $subscription !== null && $this->planHasUnlimitedUsers($subscription);
 
         return $subscription !== null && PlanProduct::allows($subscription->feature_snapshot, $feature);
     }
@@ -205,6 +207,14 @@ class ClinicAddonService
     public function changePacks(ClinicAddon $addon, int $packs): ClinicAddon
     {
         if ($packs < 1 || $packs > 1000) throw ValidationException::withMessages(['addon' => 'Choose between 1 and 1,000 packs.']);
+        // Fewer extra users than are in use would lock the clinic out of adding anyone and leave it over its limit.
+        if ($addon->feature === \App\Support\Feature::EXTRA_USER && $packs < (int) $addon->quantity) {
+            $quota = app(SubscriptionQuotaService::class)->usage($addon->clinic)['users'];
+            $after = $quota['limit'] === null ? null : $quota['limit'] - ((int) $addon->units - $packs);
+            if ($after !== null && $quota['used'] > $after) {
+                throw ValidationException::withMessages(['addon' => "The clinic has {$quota['used']} active users, so it needs at least " . ($packs + $quota['used'] - $after) . ' extra users. Deactivate users first.']);
+            }
+        }
         $quantity = max(1, (int) $addon->quantity);
         $perPack = (float) $addon->monthly_price / $quantity;
         $perPackStaff = (int) round(((int) $addon->units) / $quantity);
@@ -214,6 +224,18 @@ class ClinicAddonService
         app(PlatformAuditService::class)->record('CLINIC_ADDON_PACKS_CHANGED', $addon->clinic_id, $old, ['feature' => $addon->feature, 'quantity' => $packs, 'units' => $perPackStaff * $packs]);
 
         return $addon->fresh();
+    }
+
+    /** Whether the subscription's plan has no user limit. */
+    public function planHasUnlimitedUsers(ClinicSubscription $subscription): bool
+    {
+        return data_get($subscription->plan_snapshot, 'included_users') === null;
+    }
+
+    /** Extra user logins the clinic's "Extra users" add-on gives on top of its plan. */
+    public function extraUsers(int $clinicId): int
+    {
+        return (int) ClinicAddon::where('clinic_id', $clinicId)->where('feature', \App\Support\Feature::EXTRA_USER)->activeAt()->sum('units');
     }
 
     /** Extra staff on attendance from packs the clinic has now. */
@@ -235,6 +257,7 @@ class ClinicAddonService
             ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>', $start))->where('monthly_price', '>', 0)->get()
             // Nothing for what the plan or the attendance package already gives.
             ->reject(fn (ClinicAddon $addon) => PlanProduct::allows($subscription->feature_snapshot, $addon->feature)
+                || ($addon->feature === \App\Support\Feature::EXTRA_USER && $this->planHasUnlimitedUsers($subscription))
                 || in_array($addon->feature, app(AttendanceSizing::class)->features($subscription->clinic_id), true))
             ->map(fn (ClinicAddon $addon) => [$addon->name() . ' add-on', $this->periodPrice($subscription, (float) $addon->monthly_price), $addon->id])
             ->values()->all();

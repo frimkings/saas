@@ -393,6 +393,7 @@
                                     </div>
                                     <div class="text-sm">Detected: {{ implode(', ', $urgentReferralReasons) }}</div>
                                 </div>
+                                @if($canReferrals)
                                 <button type="button"
                                     wire:click="createUrgentReferralDraft"
                                     wire:loading.attr="disabled"
@@ -405,6 +406,7 @@
                                         <i class="fas fa-spinner fa-spin"></i> Creating
                                     </span>
                                 </button>
+                                @endif
                             </div>
                         </div>
                     @endif

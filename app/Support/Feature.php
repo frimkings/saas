@@ -43,6 +43,8 @@ class Feature
     const ATTENDANCE_STAFF_PACK = 'attendance_staff_pack';
     // Packs of scan & attachment storage on top of the plan's allowance, bought as an add-on; never a plan tick.
     const SCAN_STORAGE_PACK = 'scan_storage_pack';
+    // Extra user logins on top of the plan's included users, bought as an add-on (one user per pack); never a plan tick.
+    const EXTRA_USER = 'extra_user';
     // On every plan saved since attendance was split into parts. A list without it (older plans,
     // older offline keys) has attendance whole: every part comes with it.
     const ATTENDANCE_PARTS_CHOSEN = 'attendance_parts_chosen';

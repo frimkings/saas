@@ -15,10 +15,15 @@ class OpticalCentresComponent extends Component
     public string $code = '';
     #[Locked]
     public ?int $previewInviteId = null;
+    /** Per link: approve quotes up to this amount automatically (blank: approve each yourself). */
+    public array $autoApprove = [];
 
     public function mount(): void
     {
         abort_unless(app(OpticalLinkService::class)->canManageLinks(auth()->user()), 403);
+        foreach (app(OpticalLinkService::class)->linksForSender() as $link) {
+            $this->autoApprove[$link->id] = $link->auto_approve_limit === null ? '' : number_format((float) $link->auto_approve_limit, 2, '.', '');
+        }
         if (request()->filled('code')) {
             $this->code = strtoupper(trim((string) request('code')));
             $this->check();
@@ -54,6 +59,16 @@ class OpticalCentresComponent extends Component
         abort_unless($partner, 404);
         app(OpticalLinkService::class)->setLinkStatus($partner, $status, auth()->user());
         session()->flash('success', $status === 'ended' ? 'Unlinked. Orders already sent stay in Sent to Optical.' : ($status === 'paused' ? 'Link paused.' : 'Link resumed.'));
+    }
+
+    public function saveAutoApprove(int $partnerId): void
+    {
+        $this->resetErrorBag();
+        app(\App\Services\OpticalLinks\OpticalLinkTermsService::class)->setAutoApprove($partnerId, (string) ($this->autoApprove[$partnerId] ?? ''), auth()->user());
+        $value = trim((string) ($this->autoApprove[$partnerId] ?? ''));
+        session()->flash('success', $value === '' || (float) $value <= 0
+            ? 'You will approve every quote from this optical centre yourself.'
+            : 'Quotes up to '.currency().' '.number_format((float) $value, 2).' are now approved automatically, and the job starts at once.');
     }
 
     public function render()

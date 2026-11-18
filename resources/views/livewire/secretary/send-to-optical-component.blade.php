@@ -12,7 +12,7 @@
                 </div>
                 <p class="!mb-0 text-xs text-slate-500">The optical centre receives only the patient's name, phone number and this prescription. You charge the patient here; the optical centre bills your clinic.</p>
 
-                <x-ui.field label="Optical centre" name="partnerId" wire:model="partnerId" :options="$targets->mapWithKeys(fn ($p) => [$p->id => $p->clinic?->name])->all()" placeholder-option="Choose…" required />
+                <x-ui.field label="Optical centre" name="partnerId" wire:model="partnerId" :options="$targets->mapWithKeys(fn ($p) => [$p->id => $p->clinic?->name.(\App\Services\OpticalLinks\OpticalLinkTermsService::overLimit($p) ? ' (credit limit reached)' : ($p->hasTradeTerms() ? ' · trade '.$p->tradeSummary() : ''))])->all()" placeholder-option="Choose…" required />
                 <x-ui.field label="Frame" name="frameChoice" wire:model.live="frameChoice" :options="\App\Models\OpticalOrderRequest::FRAME_CHOICES" required />
                 @if($frameChoice !== 'patient_chooses')
                     <x-ui.field label="Frame details" name="frameNotes" type="textarea" rows="2" wire:model="frameNotes" placeholder="Brand, model, colour or condition of the patient's frame" />

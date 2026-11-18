@@ -35,24 +35,41 @@ class ClinicalSuitePlans
         Feature::AUDIT_TRAIL, Feature::UNLIMITED_USERS, Feature::PRIORITY_SUPPORT, Feature::GUIDED_ONBOARDING];
 
     /**
-     * The one Optical shop plan (GHS 300 a month, decided 2026-11-14): every optical-shop feature, no user or
-     * storage limit. Staff attendance is not in it; shops buy it as an add-on like clinics do. It is not on the
-     * pricing page's clinic grid; the page's "Optical shop" add-on line shows its price.
+     * The Optical Suite has one plan, Standard Optical (decided 2026-11-18), kept on the platform rather than made
+     * here. The "Optical Shop" plan this command used to create (GHS 300, 2026-11-14) is no longer sold.
      */
-    public const OPTICAL_FAMILY = 'optical-shop';
+    public const OPTICAL_PLAN_NAME = 'Standard Optical';
 
-    public static function opticalPlan(): array
+    public const RETIRED_OPTICAL_FAMILY = 'optical-shop';
+
+    /** The optical plan on sale: the newest active Standard Optical version (the pricing page shows its price). */
+    public static function opticalPlan(): ?\App\Models\SubscriptionPlan
     {
-        return ['name' => 'Optical Shop', 'price' => 300, 'users' => null, 'storage_mb' => null];
+        return \App\Models\SubscriptionPlan::where('product', PlanProduct::OPTICAL)->where('name', self::OPTICAL_PLAN_NAME)
+            ->where('is_active', true)->orderByDesc('id')->first();
     }
 
-    /** The Optical shop plan's feature list: the product key, every optical extra except attendance, and the markers. */
-    public static function opticalFeatures(): array
+    /**
+     * Archive every other optical plan (optical shop only, or clinic and optical together) unless a clinic that is
+     * active right now is on it. Archived plans are no longer offered; their rows stay for the history.
+     *
+     * @return list<string> the plans archived, "name (code)"
+     */
+    public static function retireOtherOpticalPlans(): array
     {
-        $attendance = [Feature::ATTENDANCE, ...PlanProduct::ATTENDANCE_PARTS];
-        $extras = array_diff(array_keys(PlanProduct::planExtrasFor(PlanProduct::OPTICAL)), $attendance);
+        $keep = self::opticalPlan()?->id;
+        if ($keep === null) return []; // no Standard Optical here (a new install): leave the optical plans alone
+        $inUse = \App\Models\ClinicSubscription::whereIn('id', \App\Models\ClinicSubscription::selectRaw('MAX(id)')->groupBy('clinic_id'))
+            ->whereIn('status', ['active', 'trial', 'overdue', 'restricted'])->pluck('subscription_plan_id')->all();
+        $retired = [];
+        foreach (\App\Models\SubscriptionPlan::where('is_active', true)->get() as $plan) {
+            $product = $plan->product ?: PlanProduct::productOf($plan->features);
+            if (! in_array($product, [PlanProduct::OPTICAL, PlanProduct::BOTH], true) || $plan->id === $keep || in_array($plan->id, $inUse, true)) continue;
+            $plan->update(['is_active' => false, 'retired_at' => now()]);
+            $retired[] = "{$plan->name} ({$plan->code})";
+        }
 
-        return PlanProduct::features(PlanProduct::OPTICAL, $extras);
+        return $retired;
     }
 
     /** Paying yearly costs twelve months (no free months) and adds these SMS credits to the clinic's wallet, by plan family. */

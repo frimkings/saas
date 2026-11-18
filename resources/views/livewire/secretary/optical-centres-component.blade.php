@@ -41,15 +41,34 @@
         <div class="border-b border-slate-200 p-4"><h2 class="text-base font-semibold text-slate-900 !mb-0">Linked optical centres</h2>@error('link')<p class="ui-error !mb-0 mt-1" role="alert">{{ $message }}</p>@enderror</div>
         <div class="ui-table-wrap">
             <table class="ui-table w-full text-sm">
-                <thead><tr><th>Optical centre</th><th>Status</th><th>Since</th><th class="text-right">Actions</th></tr></thead>
+                <thead><tr><th>Optical centre</th><th>Status</th><th>Agreed terms</th><th data-tour="optical-auto-approve">Approve quotes automatically up to</th><th class="text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($links as $link)
                         <tr wire:key="link-{{ $link->id }}">
                             <td><b>{{ $link->clinic?->name }}</b>@if($link->link_status === 'active' && $link->clinic && ! $service->opticalCanReceive($link->clinic))<div class="text-xs text-amber-700">Not taking orders right now (their subscription).</div>@endif</td>
                             <td><span class="inline-flex rounded px-2 py-0.5 text-xs font-semibold {{ $link->link_status === 'active' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700' }}">{{ \App\Models\OpticalPartnerClinic::LINK_STATUSES[$link->link_status] ?? $link->link_status }}</span></td>
-                            <td>{{ $link->linked_at?->format('d M Y') }}</td>
+                            @php
+                                $owed = \App\Services\OpticalLinks\OpticalLinkTermsService::owed($link);
+                                $atLimit = \App\Services\OpticalLinks\OpticalLinkTermsService::overLimit($link, $owed);
+                            @endphp
+                            <td class="text-xs">
+                                <div>Trade discount: <b>{{ $link->tradeSummary() }}</b></div>
+                                <div>You owe {{ currency() }} {{ number_format($owed, 2) }}@if($link->credit_limit !== null) of a {{ currency() }} {{ number_format($link->credit_limit, 2) }} credit limit @endif</div>
+                                @if($atLimit)<div class="font-semibold text-red-700">Credit limit reached: pay them under Owed to Optical to send new jobs.</div>@endif
+                                @if($link->linked_at)<div class="text-slate-500">Linked since {{ $link->linked_at->format('d M Y') }}</div>@endif
+                            </td>
+                            <td>
+                                <form wire:submit="saveAutoApprove({{ $link->id }})" class="flex items-center gap-1">
+                                    <input type="number" min="0" step="0.01" wire:model="autoApprove.{{ $link->id }}" class="ui-input !w-28 text-sm" placeholder="Off" aria-label="Approve quotes automatically up to">
+                                    <x-ui.button type="submit">Save</x-ui.button>
+                                </form>
+                                @error('autoApprove.'.$link->id)<p class="ui-error !mb-0 text-xs" role="alert">{{ $message }}</p>@enderror
+                                <p class="!mb-0 text-xs text-slate-500">{{ $link->auto_approve_limit !== null ? 'Quotes up to this start at once.' : 'You approve each quote.' }}</p>
+                            </td>
                             <td class="text-right whitespace-nowrap">
-                                @if($link->link_status === 'active')
+                                @if($link->link_paused_by_platform)
+                                    <span class="mr-2 text-xs text-red-700">Paused by Nexus support{{ $link->link_status_reason ? ': '.$link->link_status_reason : '' }}</span>
+                                @elseif($link->link_status === 'active')
                                     <x-ui.button wire:click="setLink({{ $link->id }}, 'paused')">Pause</x-ui.button>
                                 @elseif(! $link->link_paused_by_clinic_id || (int) $link->link_paused_by_clinic_id === (int) $link->linked_clinic_id)
                                     <x-ui.button wire:click="setLink({{ $link->id }}, 'active')">Resume</x-ui.button>
@@ -60,7 +79,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="ui-empty"><p class="ui-muted text-sm">No optical centres linked yet.</p></td></tr>
+                        <tr><td colspan="5" class="ui-empty"><p class="ui-muted text-sm">No optical centres linked yet.</p></td></tr>
                     @endforelse
                 </tbody>
             </table>

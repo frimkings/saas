@@ -22,7 +22,13 @@ window.orderPricing = (pricing) => ({
     label(line) { return this.isService(line) ? line.name + (this.quantity(line) !== 1 ? ' × ' + this.quantity(line) : '') : line.label; },
     subtotal() { return Math.round(this.pricing.lines.reduce((sum, line) => sum + this.amount(line), 0) * 100) / 100; },
     discount() { return this.pricing.free ? 0 : num(this.$wire.discount_amount); },
-    total() { return this.pricing.free ? 0 : Math.max(0, Math.round((this.subtotal() - this.discount()) * 100) / 100); },
+    // The trade % agreed on a clinic–optical link, line by line (lens, frame, service).
+    trade() {
+        const pct = this.pricing.trade_pct;
+        if (! pct || this.pricing.free) return 0;
+        return Math.round(this.pricing.lines.reduce((sum, line) => sum + this.amount(line) * (pct[line.kind] || 0) / 100, 0) * 100) / 100;
+    },
+    total() { return this.pricing.free ? 0 : Math.max(0, Math.round((this.subtotal() - this.trade() - this.discount()) * 100) / 100); },
 });
 
 /**

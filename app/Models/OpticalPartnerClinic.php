@@ -15,8 +15,47 @@ class OpticalPartnerClinic extends Model
 
     protected $fillable = ['name', 'contact_person', 'phone', 'email', 'address', 'billing_terms', 'is_active', 'notification_phone', 'notify_via'];
 
-    // linked_clinic_id, link_status and linked_at change only through OpticalLinkService.
-    protected $casts = ['is_active' => 'boolean', 'linked_at' => 'datetime'];
+    // linked_clinic_id, link_status and linked_at change only through OpticalLinkService; the agreed
+    // terms (trade %, credit limit, auto-approve limit) only through OpticalLinkTermsService.
+    protected $casts = ['is_active' => 'boolean', 'linked_at' => 'datetime', 'terms_updated_at' => 'datetime',
+        'trade_lens_pct' => 'float', 'trade_frame_pct' => 'float', 'trade_service_pct' => 'float',
+        'credit_limit' => 'float', 'auto_approve_limit' => 'float', 'link_paused_by_platform' => 'boolean',
+        'page_pin_set_at' => 'datetime', 'page_locked_until' => 'datetime', 'page_last_used_at' => 'datetime'];
+
+    // The ordering-page secret and PIN never leave the server in arrays or JSON.
+    protected $hidden = ['page_token', 'page_pin_hash'];
+
+    /** The ordering page for a partner not on Nexus is on (OpticalOrderPageService). */
+    public function hasOrderPage(): bool
+    {
+        return $this->page_token !== null && $this->page_pin_hash !== null;
+    }
+
+    /** Kinds of price line the trade % applies to, with the column that holds each %. */
+    public const TRADE_KINDS = ['lens' => 'trade_lens_pct', 'frame' => 'trade_frame_pct', 'service' => 'trade_service_pct'];
+
+    /** @return array{lens: float, frame: float, service: float} trade % off, 0 where none is agreed */
+    public function tradePercents(): array
+    {
+        return array_map(fn ($column) => (float) ($this->{$column} ?? 0), self::TRADE_KINDS);
+    }
+
+    public function hasTradeTerms(): bool
+    {
+        return array_sum($this->tradePercents()) > 0;
+    }
+
+    /** e.g. "lenses 10%, frames 15%" */
+    public function tradeSummary(): string
+    {
+        $names = ['lens' => 'lenses', 'frame' => 'frames', 'service' => 'services'];
+        $parts = [];
+        foreach ($this->tradePercents() as $kind => $pct) {
+            if ($pct > 0) $parts[] = $names[$kind].' '.rtrim(rtrim(number_format($pct, 2), '0'), '.').'%';
+        }
+
+        return $parts ? implode(', ', $parts) : 'none';
+    }
 
     public function linkedClinic()
     {

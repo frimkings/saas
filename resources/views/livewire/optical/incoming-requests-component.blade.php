@@ -34,7 +34,7 @@
                     @forelse($requests as $request)
                         <tr wire:key="ir-{{ $request->id }}" class="{{ $viewId === $request->id ? 'oo-active' : '' }}" wire:click="open({{ $request->id }})">
                             <td>{{ $request->created_at->format('d M Y') }}<span class="oo-sub">{{ $request->created_at->format('H:i') }}</span></td>
-                            <td><b>{{ $request->senderClinic?->name }}</b><span class="oo-sub">Ref {{ $request->sender_reference ?: '—' }}</span></td>
+                            <td><b>{{ $request->senderLabel() }}</b><span class="oo-sub">Ref {{ $request->sender_reference ?: '—' }}</span></td>
                             <td><b>{{ $request->patient_name }}</b>@if($request->urgency === 'urgent') <span class="oo-badge oo-b-red">Urgent</span>@endif @if($request->isRemake())<span class="oo-badge oo-b-amber">Remake</span>@endif
                                 <span class="oo-sub">R {{ $request->eyeLine('od') }} · L {{ $request->eyeLine('os') }}</span></td>
                             <td><span class="oo-badge {{ match($request->status) { 'sent' => 'oo-b-purple', 'query', 'quoted' => 'oo-b-amber', 'accepted', 'approved' => 'oo-b-green', 'quote_declined' => 'oo-b-red', default => 'oo-b-grey' } }}">{{ $statusLabels[$request->status] ?? $request->status }}</span>
@@ -57,7 +57,7 @@
             <header class="oo-drawer-head">
                 <div>
                     <h2 id="ir-title">{{ $viewRequest->patient_name }}</h2>
-                    <div class="text-xs ui-muted">From {{ $viewRequest->senderClinic?->name }} · {{ $viewRequest->created_at->format('d M Y H:i') }}@if($viewRequest->sender) by {{ $viewRequest->sender->name }}@endif</div>
+                    <div class="text-xs ui-muted">From {{ $viewRequest->senderLabel() }} · {{ $viewRequest->created_at->format('d M Y H:i') }}@if($viewRequest->sender) by {{ $viewRequest->sender->name }}@endif</div>
                 </div>
                 <button type="button" class="oo-x" wire:click="close" aria-label="Close">&times;</button>
             </header>
@@ -73,8 +73,11 @@
                             <dt><b>Total</b></dt><dd class="tabular-nums"><b>{{ currency() }} {{ number_format((float) $viewRequest->quote_total, 2) }}</b></dd>
                             @if($viewRequest->quote_valid_until)<dt>Valid until</dt><dd>{{ $viewRequest->quote_valid_until->format('d M Y') }}</dd>@endif
                         </dl>
-                        @if($viewRequest->status === 'quoted')<p class="ir-hint mt-1">Waiting for {{ $viewRequest->senderClinic?->name }} to approve it.</p>@endif
-                        @if($viewRequest->status === 'approved')<p class="ir-note mt-2">Approved {{ $viewRequest->approved_at?->format('d M Y H:i') }}. Start the job: it goes on their account at this price.</p>@endif
+                        @if($viewRequest->status === 'quoted')<p class="ir-hint mt-1">Waiting for {{ $viewRequest->senderLabel() }} to approve it.</p>@endif
+                        @if($viewRequest->status === 'approved')<p class="ir-note mt-2">Approved {{ $viewRequest->approved_at?->format('d M Y H:i') }}. Start the job: it goes on their account at this price.</p>
+                            @php $link = \App\Models\OpticalPartnerClinic::find($viewRequest->optical_partner_clinic_id); $linkOwed = $link ? \App\Services\OpticalLinks\OpticalLinkTermsService::owed($link) : 0; @endphp
+                            @if($link && \App\Services\OpticalLinks\OpticalLinkTermsService::overLimit($link, $linkOwed))<p class="ir-note mt-2" style="border-color:#fca5a5;background:#fef2f2"><b>Over the credit limit:</b> they owe {{ currency() }} {{ number_format($linkOwed, 2) }} of a {{ currency() }} {{ number_format((float) $link->credit_limit, 2) }} limit. You can still start it, or wait for a payment.</p>@endif
+                        @endif
                         @if($viewRequest->status === 'quote_declined')<p class="ir-note mt-2"><b>Declined:</b> {{ $viewRequest->decline_reason }}</p>@endif
                     </section>
                 @endif

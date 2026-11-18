@@ -59,5 +59,10 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
         });
+        // Ordering page for clinics not on Nexus (OpticalOrderPageController): its own counters, per address.
+        // Wrong PINs are also counted per page and lock it (OpticalOrderPageService::checkPin).
+        RateLimiter::for('order-page', fn (Request $request) => Limit::perMinute(60)->by('order-page|'.$request->ip()));
+        RateLimiter::for('order-page-pin', fn (Request $request) => Limit::perMinute(10)->by('order-page-pin|'.$request->ip()));
+        RateLimiter::for('order-page-send', fn (Request $request) => Limit::perMinute(20)->by('order-page-send|'.$request->ip()));
     }
 }

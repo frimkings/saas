@@ -463,7 +463,7 @@
             @if($tiers->contains(fn ($t) => $t['extra_branch'] > 0))<div class="addon"><b>Extra branch</b><span>Each extra branch costs the same as your plan, e.g. {{ $tiers->firstWhere('featured', true)['name'] ?? $tiers->first()['name'] }} with 2 branches is {{ $currency }} {{ $fmt(2 * ($tiers->firstWhere('featured', true)['monthly'] ?? $tiers->first()['monthly'])) }} a month.</span></div>@endif
             <div class="addon"><b>SMS credits</b><span>Buy as you need them for reminders, receipts and campaigns. They never expire.</span></div>
             <div class="addon"><b>Staff attendance</b><span>Fingerprint and face terminals, leave, rosters and payroll, from {{ $currency }} {{ $fmt($attendance['sizes'][$attFirst]) }} a month for up to {{ $attFirst }} staff.</span><button type="button" class="foot-link" data-product-link="attendance" data-close>See attendance prices →</button></div>
-            @php($opticalPlan = \App\Models\SubscriptionPlan::where('family_code', \App\Support\Pricing\ClinicalSuitePlans::OPTICAL_FAMILY)->where('is_active', true)->orderByDesc('version')->first())
+            @php($opticalPlan = \App\Support\Pricing\ClinicalSuitePlans::opticalPlan())
             <div class="addon"><b>Optical shop</b><span>Orders, lab, POS and optical stock for an optical shop{{ $opticalPlan ? ', ' . ($opticalPlan->currency ?: $currency) . ' ' . $fmt((float) $opticalPlan->base_price) . ' a month' : '. Ask us for a price' }}.</span></div>
         </div>
         </div>

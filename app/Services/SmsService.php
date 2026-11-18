@@ -116,6 +116,12 @@ class SmsService
             return $this->refused($log, 'skipped', 'SMS notifications are currently paused.');
         }
 
+        // Patient messages come with the plan (Standard and up, the optical shop). A clinic that moved down keeps its
+        // switches on, so the sending itself stops here rather than spending credits the plan does not cover.
+        if (!self::planIncludesPatientMessages()) {
+            return $this->refused($log, 'skipped', 'Patient SMS is not included in your plan.');
+        }
+
         // Surface configuration problems to the caller now rather than failing silently in a worker.
         try {
             $credentials = app(SmsCredentialResolver::class)->resolve($s);
@@ -170,6 +176,12 @@ class SmsService
     }
 
     /** Log an SMS that was not sent (no credit used) and report why. */
+    /** SMS and WhatsApp to patients: with patient messages or SMS campaigns on the plan (or an add-on). */
+    public static function planIncludesPatientMessages(): bool
+    {
+        return LicenseService::has(\App\Support\Feature::PATIENT_MESSAGES) || LicenseService::has(\App\Support\Feature::SMS_CAMPAIGNS);
+    }
+
     private function refused(array $log, string $status, string $reason): array
     {
         $row = SmsLog::create(['status' => $status, 'success' => false, 'error' => $reason] + $log);

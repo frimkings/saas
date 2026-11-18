@@ -165,7 +165,31 @@
                             to <b>{{ $viewPartner->linkedClinic?->name ?? 'a clinic' }}</b>@if($viewPartner->linked_at) since {{ $viewPartner->linked_at->format('d M Y') }}@endif.
                         </p>
                         <p class="pc-hint" style="margin:6px 0 0">{{ $viewPartner->link_status === 'active' ? 'They send orders straight to Incoming Orders: wearer name, phone and prescription.' : 'They can’t send new orders while the link is paused.' }}</p>
-                        @if($canManage)
+                        @if($viewPartner->link_paused_by_platform)
+                            <p class="pc-err" style="margin:6px 0 0">Paused by Nexus support{{ $viewPartner->link_status_reason ? ': '.$viewPartner->link_status_reason : '' }}. Contact support to resume it.</p>
+                        @endif
+                        <div class="rounded-lg border border-slate-200 p-3 mt-3" data-tour="partner-link-terms">
+                            <h4 class="text-sm font-semibold !mb-1">Agreed terms</h4>
+                            <p class="pc-hint" style="margin:0 0 8px">Trade % comes off your own prices on every quote for this clinic. At the credit limit they can’t send new jobs until they pay. The clinic sees these.</p>
+                            @php
+                                $owedNow = (float) $viewLinkOwed;
+                                $limitNow = $viewPartner->credit_limit;
+                            @endphp
+                            <p class="text-sm" style="margin:0 0 8px">Owed on linked jobs: <b>{{ currency() }} {{ number_format($owedNow, 2) }}</b>@if($limitNow !== null) of a {{ currency() }} {{ number_format($limitNow, 2) }} limit @if($owedNow >= $limitNow)<span class="oo-badge oo-b-red">At limit: no new jobs</span>@endif @endif
+                                · Quotes {{ $viewPartner->auto_approve_limit !== null ? 'up to '.currency().' '.number_format($viewPartner->auto_approve_limit, 2).' are approved by the clinic automatically' : 'are approved by the clinic one by one' }}.</p>
+                            @if($canManage)
+                                <form wire:submit="saveTerms" class="pc-2">
+                                    <label class="pc-field"><span>Lenses % off</span><input type="number" min="0" max="90" step="0.5" wire:model="terms.lens" class="ui-input" placeholder="0">@error('terms.lens')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                                    <label class="pc-field"><span>Frames % off</span><input type="number" min="0" max="90" step="0.5" wire:model="terms.frame" class="ui-input" placeholder="0">@error('terms.frame')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                                    <label class="pc-field"><span>Services % off</span><input type="number" min="0" max="90" step="0.5" wire:model="terms.service" class="ui-input" placeholder="0">@error('terms.service')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                                    <label class="pc-field"><span>Credit limit ({{ currency() }})</span><input type="number" min="0" step="0.01" wire:model="terms.credit" class="ui-input" placeholder="No limit">@error('terms.credit')<small class="pc-err">{{ $message }}</small>@enderror</label>
+                                    <div class="full"><button type="submit" class="oo-btn primary" wire:loading.attr="disabled" wire:target="saveTerms">Save terms</button>@if($viewPartner->terms_updated_at)<span class="pc-hint" style="margin-left:8px">Last changed {{ $viewPartner->terms_updated_at->format('d M Y') }}</span>@endif</div>
+                                </form>
+                            @else
+                                <p class="text-sm m-0">Trade discount: {{ $viewPartner->tradeSummary() }} · Credit limit: {{ $limitNow !== null ? currency().' '.number_format($limitNow, 2) : 'none' }}</p>
+                            @endif
+                        </div>
+                        @if($canManage && ! $viewPartner->link_paused_by_platform)
                             <div class="flex flex-wrap gap-2 mt-2.5">
                                 @if($viewPartner->link_status === 'active')
                                     <button type="button" class="oo-btn" wire:click="setLink({{ $viewPartner->id }}, 'paused')">Pause link</button>
@@ -192,6 +216,43 @@
                     @else
                         <p class="pc-hint" style="margin:0">Is this clinic on Nexus too? Link it, and its staff send orders straight to you with the prescription filled in, then follow each job's progress.</p>
                         @if($canManage && $viewPartner->is_active)<button type="button" class="oo-btn mt-2.5" wire:click="createInvite({{ $viewPartner->id }})">Invite to link</button>@endif
+                    @endif
+                    @if(! $viewPartner->hasLink() && $canManage)
+                        <div class="rounded-lg border border-slate-200 p-3 mt-3" data-tour="partner-order-page">
+                            <h4 class="text-sm font-semibold !mb-1">Ordering page (clinic not on Nexus)</h4>
+                            @if($viewPartner->hasOrderPage())
+                                @php
+                                    $pageUrl = route('order-page.show', $viewPartner->page_token);
+                                    $linkText = 'Send us spectacle orders online and follow them here: '.$pageUrl.' — we will give you the PIN separately.';
+                                @endphp
+                                <p class="pc-hint" style="margin:0 0 6px">On. Their staff open the link, enter the PIN, send orders and follow each job. Orders arrive in Incoming Orders.@if($viewPartner->page_last_used_at) Last opened {{ $viewPartner->page_last_used_at->diffForHumans() }}.@endif @if($viewPartner->page_locked_until && $viewPartner->page_locked_until->isFuture())<b class="pc-err">Locked after wrong PINs until {{ $viewPartner->page_locked_until->format('H:i') }}.</b>@endif</p>
+                                <p class="text-xs font-mono break-all m-0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px">{{ $pageUrl }}</p>
+                                @if($shownPin !== '')
+                                    <p class="text-sm" style="margin:8px 0 0">PIN <b class="font-mono" style="font-size:18px;letter-spacing:3px">{{ $shownPin }}</b> <span class="pc-hint">Shown only now. Send it separately from the link.</span></p>
+                                @endif
+                                <div class="flex flex-wrap gap-2 mt-2.5" x-data="{ copied: '' }">
+                                    <button type="button" class="oo-btn" x-on:click="navigator.clipboard?.writeText(@js($linkText)); copied = 'link'; setTimeout(() => copied = '', 2000)"><span x-text="copied === 'link' ? 'Copied' : 'Copy link message'">Copy link message</span></button>
+                                    <a class="oo-btn" target="_blank" rel="noopener" href="https://wa.me/{{ preg_replace('/\D+/', '', (string) $viewPartner->messagingPhone()) }}?text={{ rawurlencode($linkText) }}">WhatsApp the link</a>
+                                    @if($shownPin !== '')<button type="button" class="oo-btn" x-on:click="navigator.clipboard?.writeText(@js('Your PIN for our ordering page: '.$shownPin)); copied = 'pin'; setTimeout(() => copied = '', 2000)"><span x-text="copied === 'pin' ? 'Copied' : 'Copy PIN message'">Copy PIN message</span></button>@endif
+                                </div>
+                                <div class="flex flex-wrap items-end gap-2 mt-2.5">
+                                    <label class="pc-field" style="max-width:150px"><span>New PIN</span><input type="text" inputmode="numeric" maxlength="6" wire:model="pagePin" class="ui-input font-mono" placeholder="Make one up"></label>
+                                    <button type="button" class="oo-btn" wire:click="setOrderPage({{ $viewPartner->id }})">Set new PIN</button>
+                                    <button type="button" class="oo-btn" wire:click="newOrderPageLink({{ $viewPartner->id }})" wire:confirm="Make a new link? The current link stops working at once.">New link</button>
+                                    <button type="button" class="oo-btn danger" wire:click="disableOrderPage({{ $viewPartner->id }})" wire:confirm="Turn off the ordering page? The link and PIN stop working. Orders already sent stay.">Turn off</button>
+                                </div>
+                            @else
+                                <p class="pc-hint" style="margin:0 0 6px">Not on Nexus? Give them a private link and a 6-digit PIN: they send orders with the prescription and follow each job, without an account. You price them as ordinary partner jobs.</p>
+                                @if($viewPartner->is_active)
+                                    <div class="flex flex-wrap items-end gap-2">
+                                        <label class="pc-field" style="max-width:150px"><span>PIN (optional)</span><input type="text" inputmode="numeric" maxlength="6" wire:model="pagePin" class="ui-input font-mono" placeholder="Make one up"></label>
+                                        <button type="button" class="oo-btn primary" wire:click="setOrderPage({{ $viewPartner->id }})">Turn on ordering page</button>
+                                    </div>
+                                @endif
+                            @endif
+                            @error('pagePin')<p class="pc-err">{{ $message }}</p>@enderror
+                            @error('page')<p class="pc-err">{{ $message }}</p>@enderror
+                        </div>
                     @endif
                     @error('invite')<p class="pc-err">{{ $message }}</p>@enderror
                     @error('link')<p class="pc-err">{{ $message }}</p>@enderror

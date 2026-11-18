@@ -181,6 +181,9 @@ trait HasAppointmentBooking
      */
     public function createAppointment($overridePatientId = null)
     {
+        // Booking needs appointments on the plan (a downgraded clinic only finishes the ones it has).
+        if (!\App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)) return false;
+
         // Use override patient ID if provided, otherwise use selected patient
         $patientId = $overridePatientId ?? $this->appointmentPatientId;
         
