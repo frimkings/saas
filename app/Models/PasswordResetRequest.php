@@ -9,15 +9,17 @@ use Illuminate\Support\Facades\Hash;
 
 class PasswordResetRequest extends Model
 {
-    protected $fillable = ['email', 'status', 'approved_by', 'admin_note', 'actioned_at', 'code_hash', 'code_expires_at', 'code_attempts'];
+    protected $fillable = ['email', 'status', 'approved_by', 'admin_note', 'actioned_at', 'code_hash', 'code_expires_at', 'code_attempts', 'link_hash', 'link_expires_at'];
 
-    protected $casts = ['actioned_at' => 'datetime', 'code_expires_at' => 'datetime', 'code_attempts' => 'integer'];
+    protected $casts = ['actioned_at' => 'datetime', 'code_expires_at' => 'datetime', 'code_attempts' => 'integer', 'link_expires_at' => 'datetime'];
 
-    protected $hidden = ['code_hash'];
+    protected $hidden = ['code_hash', 'link_hash'];
 
     /** How long the manager's code works, and how many wrong tries close the request. */
     public const CODE_MINUTES = 30;
     public const CODE_TRIES = 5;
+    /** How long the emailed one-time link works. */
+    public const LINK_MINUTES = 60;
 
     protected static function booted(): void
     {
@@ -64,6 +66,32 @@ class PasswordResetRequest extends Model
         $this->update(['code_hash' => Hash::make($code), 'code_expires_at' => now()->addMinutes(self::CODE_MINUTES), 'code_attempts' => 0]);
 
         return $code;
+    }
+
+    /**
+     * A new one-time link for the approved request, emailed to the staff member's own inbox. Only
+     * its hash is kept; a new link replaces the old one.
+     */
+    public function issueLink(): string
+    {
+        $token = \Illuminate\Support\Str::random(64);
+        $this->update(['link_hash' => hash('sha256', $token), 'link_expires_at' => now()->addMinutes(self::LINK_MINUTES)]);
+
+        return $token;
+    }
+
+    /** The approved request an emailed link belongs to, while the link still works. */
+    public static function forLink(string $token): ?self
+    {
+        if (strlen($token) !== 64) return null;
+        $request = static::withoutGlobalScopes()->where('link_hash', hash('sha256', $token))->first();
+
+        return $request && $request->linkWorks() ? $request : null;
+    }
+
+    public function linkWorks(): bool
+    {
+        return $this->isApproved() && $this->link_hash && $this->link_expires_at && $this->link_expires_at->isFuture();
     }
 
     /** Why the code can't be used ('none', 'expired'), or null when it can be tried. */
