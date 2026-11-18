@@ -88,6 +88,7 @@ class RolePermissionManagerComponent extends Component
 
     public function openCreateRole(): void
     {
+        $this->authorizeSharedEdit();
         $this->editingRoleId        = null;
         $this->roleName             = '';
         $this->dashboardRoute       = '';
@@ -99,6 +100,7 @@ class RolePermissionManagerComponent extends Component
 
     public function openEditRole(int $id): void
     {
+        $this->authorizeSharedEdit();
         $role = Role::with('permissions')->findOrFail($id);
         $this->editingRoleId        = $id;
         $this->roleName             = $role->name;
@@ -111,7 +113,7 @@ class RolePermissionManagerComponent extends Component
 
     public function applyRoleTemplate(string $template): void
     {
-        $this->authorizeRoleManagement();
+        $this->authorizeSharedEdit();
 
         if (!array_key_exists($template, $this->roleTemplates)) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Role template not found.']);
@@ -136,7 +138,7 @@ class RolePermissionManagerComponent extends Component
 
     public function saveRole(): void
     {
-        $this->authorizeRoleManagement();
+        $this->authorizeSharedEdit();
 
         $uniqueRule = 'unique:roles,name' . ($this->editingRoleId ? ",{$this->editingRoleId}" : '');
         $this->validate(['roleName' => "required|string|max:64|{$uniqueRule}"]);
@@ -194,7 +196,7 @@ class RolePermissionManagerComponent extends Component
 
     public function deleteRole(int $id): void
     {
-        $this->authorizeRoleManagement();
+        $this->authorizeSharedEdit();
         $role = Role::withCount('users')->findOrFail($id);
 
         if (in_array($role->name, $this->protectedRoles)) {
@@ -232,7 +234,7 @@ class RolePermissionManagerComponent extends Component
         $this->validate(['userToAssign' => 'required|exists:users,id']);
 
         $role = Role::findOrFail($this->managingRoleId);
-        $user = User::findOrFail($this->userToAssign);
+        $user = $this->clinicStaff()->findOrFail($this->userToAssign);
         $oldRoles = $user->getRoleNames()->all();
 
         $user->assignRole($role);
@@ -254,7 +256,7 @@ class RolePermissionManagerComponent extends Component
         abort_if(!$this->managingRoleId, 404);
 
         $role = Role::findOrFail($this->managingRoleId);
-        $user = User::findOrFail($userId);
+        $user = $this->clinicStaff()->findOrFail($userId);
 
         if ($role->name === 'Super Admin' && $user->id === auth()->id()) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'You cannot remove your own Super Admin role.']);
@@ -277,6 +279,7 @@ class RolePermissionManagerComponent extends Component
 
     public function openCreatePermission(): void
     {
+        $this->authorizeSharedEdit();
         $this->editingPermissionId = null;
         $this->permissionName      = '';
         $this->resetErrorBag();
@@ -285,6 +288,7 @@ class RolePermissionManagerComponent extends Component
 
     public function openEditPermission(int $id): void
     {
+        $this->authorizeSharedEdit();
         $perm = Permission::findOrFail($id);
         $this->editingPermissionId = $id;
         $this->permissionName      = $perm->name;
@@ -294,7 +298,7 @@ class RolePermissionManagerComponent extends Component
 
     public function savePermission(): void
     {
-        $this->authorizeRoleManagement();
+        $this->authorizeSharedEdit();
 
         $uniqueRule = 'unique:permissions,name' . ($this->editingPermissionId ? ",{$this->editingPermissionId}" : '');
         $this->validate(['permissionName' => "required|string|max:128|{$uniqueRule}"]);
@@ -329,7 +333,7 @@ class RolePermissionManagerComponent extends Component
 
     public function deletePermission(int $id): void
     {
-        $this->authorizeRoleManagement();
+        $this->authorizeSharedEdit();
         $perm = Permission::findOrFail($id);
         $name = $perm->name;
         $perm->delete();
@@ -341,7 +345,7 @@ class RolePermissionManagerComponent extends Component
 
     public function createPermissionPreset(string $group): void
     {
-        $this->authorizeRoleManagement();
+        $this->authorizeSharedEdit();
 
         if (!array_key_exists($group, $this->permissionPresets)) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Permission preset not found.']);
@@ -380,6 +384,29 @@ class RolePermissionManagerComponent extends Component
         abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
     }
 
+    /**
+     * Roles and permissions are shared by every clinic, so changing what a role can do, or
+     * adding, renaming or deleting roles and permissions, would change every clinic at once.
+     * Only the platform team may do that; clinics see the page read-only until roles become
+     * per clinic (docs/roles-and-permissions.md).
+     */
+    public function canEditShared(): bool
+    {
+        return (bool) auth()->user()?->is_platform_admin;
+    }
+
+    private function authorizeSharedEdit(): void
+    {
+        $this->authorizeRoleManagement();
+        abort_unless($this->canEditShared(), 403, 'Roles are shared by all clinics and can only be changed by the platform team.');
+    }
+
+    /** Staff of the clinic being worked in; a role is only ever given to or taken from them. */
+    private function clinicStaff()
+    {
+        return User::inCurrentClinic();
+    }
+
     // ── Render ─────────────────────────────────────────────────────────────────
 
     public function render()
@@ -388,7 +415,7 @@ class RolePermissionManagerComponent extends Component
         $permissionUsage = $this->permissionUsageMap($permissions->pluck('name')->all());
         $rolePermissionPreview = $this->rolePermissionPreview($permissions);
         $managingRole = $this->managingRoleId
-            ? Role::with('users.roles')->find($this->managingRoleId)
+            ? Role::with(['users' => fn ($users) => $users->inCurrentClinic()->with('roles')])->find($this->managingRoleId)
             : null;
 
         return view('livewire.admin.role-permission-manager-component', [
@@ -404,6 +431,7 @@ class RolePermissionManagerComponent extends Component
             'rolePermissionPreview' => $rolePermissionPreview,
             'managingRole' => $managingRole,
             'assignableUsers' => User::inCurrentClinic()->with('roles')->orderBy('name')->get(),
+            'canEditShared' => $this->canEditShared(),
         ])->layout('layouts.admin.admin-layout');
     }
 
