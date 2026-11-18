@@ -4,6 +4,14 @@
 
     <x-ui.page-header title="Roles & Permissions" description="What each role can see and do. Give staff a role under Users." />
 
+    @unless($canEditShared)
+    <div class="rounded-lg border px-3 text-sm border-amber-200 bg-amber-50 text-amber-900 py-2 mb-4">
+        <i class="fas fa-lock mr-1"></i>
+        <strong>Roles are set by the Nexus team for now.</strong>
+        The same roles are used by every clinic, so what each role can do can't be changed here. You can still see each role's access and give roles to your own staff (Users). Need a change? Contact support.
+    </div>
+    @endunless
+
     {{-- Tabs --}}
     <div class="mb-4 flex flex-wrap gap-1 border-b border-slate-200" role="tablist" aria-label="Roles and permissions">
         @foreach(['roles' => ['Roles', 'fa-user-tag', $roles->count()], 'permissions' => ['Permissions', 'fa-key', $permissions->count()], 'matrix' => ['Matrix', 'fa-table', null]] as $tabKey => [$tabLabel, $tabIcon, $tabCount])
@@ -20,9 +28,11 @@
     <div class="ui-panel">
         <div class="ui-section-heading">
             <span class="font-semibold text-slate-900">All Roles</span>
+            @if($canEditShared)
             <button wire:click="openCreateRole" class="ui-button ui-button-sm ui-button-primary shadow-none">
                 <i class="fas fa-plus mr-1"></i> New Role
             </button>
+            @endif
         </div>
         <div class="ui-table-wrap">
             <table class="ui-table align-middle mb-0">
@@ -74,16 +84,19 @@
                                 @endif
                             </td>
                             <td class="pr-6 text-right whitespace-nowrap">
+                                @if($canEditShared)
                                 <button wire:click="openEditRole({{ $role->id }})"
                                         class="ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
                                         title="Edit role &amp; permissions">
                                     <i class="fas fa-edit mr-1"></i> Edit
                                 </button>
+                                @endif
                                 <button wire:click="openRoleUsers({{ $role->id }})"
                                         class="ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
                                         title="Assign users">
                                     <i class="fas fa-users mr-1"></i> Users
                                 </button>
+                                @if($canEditShared)
                                 @if(!in_array($role->name, $protectedRoles))
                                     <button onclick="confirmDeleteRole({{ $role->id }}, {{ json_encode($role->name) }}, {{ $role->users_count }})"
                                             class="ui-button ui-button-sm ui-button-danger shadow-none"
@@ -94,6 +107,7 @@
                                     <button class="ui-button ui-button-sm ui-button-secondary shadow-none" disabled title="Protected role">
                                         <i class="fas fa-lock"></i>
                                     </button>
+                                @endif
                                 @endif
                             </td>
                         </tr>
@@ -113,6 +127,7 @@
 
     {{-- ══ PERMISSIONS TAB ════════════════════════════════════════════════════ --}}
     @if($activeTab === 'permissions')
+    @if($canEditShared)
     <div class="ui-panel mb-4">
         <div class="ui-section-heading">
             <div class="font-semibold text-slate-900"><i class="fas fa-layer-group mr-1 text-teal-700"></i> Permission Presets</div>
@@ -144,6 +159,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     <div class="ui-panel">
         <div class="ui-section-heading">
@@ -151,9 +167,11 @@
                 <span class="font-semibold text-slate-900">All Permissions</span>
                 <div class="text-slate-500 text-sm mt-1">Use lowercase with spaces, e.g. <code>manage users</code>, <code>view reports</code></div>
             </div>
+            @if($canEditShared)
             <button wire:click="openCreatePermission" class="ui-button ui-button-sm ui-button-primary shadow-none">
                 <i class="fas fa-plus mr-1"></i> New Permission
             </button>
+            @endif
         </div>
         <div class="ui-table-wrap">
             <table class="ui-table align-middle mb-0">
@@ -197,6 +215,7 @@
                                 @endif
                             </td>
                             <td class="pr-6 text-right whitespace-nowrap">
+                                @if($canEditShared)
                                 <button wire:click="openEditPermission({{ $perm->id }})"
                                         class="ui-button ui-button-sm ui-button-secondary shadow-none mr-1"
                                         title="Rename permission">
@@ -207,6 +226,7 @@
                                         title="Delete permission">
                                     <i class="fas fa-trash"></i>
                                 </button>
+                                @endif
                             </td>
                         </tr>
                     @empty
