@@ -35,6 +35,11 @@ Route::get('/reset-password', [OfflinePasswordResetController::class, 'showReset
                 ->middleware('guest')
                 ->name('password.offline.form');
 
+Route::get('/reset-password/link/{token}', [OfflinePasswordResetController::class, 'openLink'])
+                ->middleware(['guest', 'throttle:10,1'])
+                ->where('token', '[A-Za-z0-9]{64}')
+                ->name('password.offline.link');
+
 Route::post('/reset-password', [OfflinePasswordResetController::class, 'reset'])
                 ->middleware('guest')
                 ->name('password.offline.update');

@@ -119,9 +119,9 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function () { withChart(function () {
             const canvas = document.getElementById('doctorConsultationChart');
-            if (!canvas || !window.Chart) return;
+            if (!canvas) return;
 
             new Chart(canvas.getContext('2d'), {
                 type: 'bar',
@@ -149,6 +149,6 @@
                     }
                 }
             });
-        });
+        }); });
     </script>
 </div>

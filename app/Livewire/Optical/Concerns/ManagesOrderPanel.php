@@ -36,6 +36,14 @@ trait ManagesOrderPanel
     public string $refundAmount = '';
     public string $refundReasonCode = '';
     public string $refundReason = '';
+    public bool $showChangePartnerModal = false;
+    public ?int $changePartnerOrderId = null;
+    public string $changePartnerOrderNumber = '';
+    public string $changePartnerFrom = '';
+    public string $changePartnerTo = '';
+    public string $changePartnerReason = '';
+    public ?int $rejectingPartnerChangeId = null;
+    public string $partnerRejectReason = '';
     public bool $showSendToLabModal = false;
     public ?int $sendToLabOrderId = null;
     public string $labSupplierId = '';
@@ -287,6 +295,65 @@ trait ManagesOrderPanel
         $this->showRefundModal = false;
         $this->refundOrderId = null;
         session()->flash('success', "Order {$order->order_id} refunded and cancelled.".((float) $order->cancellation_fee > 0 ? ' Cancellation fee kept: '.currency().' '.number_format((float) $order->cancellation_fee, 2).'.' : ''));
+    }
+
+    /** A job entered under the wrong partner clinic: the desk asks to move it, a manager approves. */
+    public function openChangePartner($id): void
+    {
+        $this->assertDesk();
+        $order = LensOrder::where('order_source', 'partner')->whereNotIn('status', ['Quotation', 'Cancelled'])->findOrFail((int) $id);
+        $this->changePartnerOrderId = $order->id;
+        $this->changePartnerOrderNumber = $order->order_id;
+        $this->changePartnerFrom = $order->partnerClinic?->name ?? (string) $order->partner_clinic_name;
+        $this->changePartnerTo = '';
+        $this->changePartnerReason = '';
+        $this->resetValidation();
+        $this->showChangePartnerModal = true;
+    }
+
+    public function changePartner(): void
+    {
+        $this->validate([
+            'changePartnerOrderId' => 'required|integer',
+            'changePartnerTo' => 'required|integer',
+            'changePartnerReason' => 'required|string|min:10|max:500',
+        ], [
+            'changePartnerTo.required' => 'Choose the right partner clinic.',
+            'changePartnerReason.required' => 'Say why the partner clinic is being changed.',
+            'changePartnerReason.min' => 'Say why the partner clinic is being changed, in at least 10 characters.',
+        ]);
+        $change = app(OpticalOrderWorkflowService::class)->requestPartnerChange((int) $this->changePartnerOrderId, (int) $this->changePartnerTo, $this->changePartnerReason);
+        $this->showChangePartnerModal = false;
+        $this->changePartnerOrderId = null;
+        $to = $change->toPartner?->name ?? 'the new clinic';
+        session()->flash('success', $change->status === \App\Models\OpticalPartnerChange::APPROVED
+            ? "Order {$this->changePartnerOrderNumber} moved to {$to}."
+            : "Sent to a manager: move order {$this->changePartnerOrderNumber} to {$to}. The job stays as it is until it is approved.");
+    }
+
+    public function approvePartnerChange($changeId): void
+    {
+        $order = app(OpticalOrderWorkflowService::class)->approvePartnerChange((int) $changeId);
+        $this->rejectingPartnerChangeId = null;
+        session()->flash('success', "Approved: order {$order->order_id} moved to {$order->partner_clinic_name}.");
+    }
+
+    public function startRejectPartnerChange($changeId): void
+    {
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
+        $this->rejectingPartnerChangeId = (int) $changeId;
+        $this->partnerRejectReason = '';
+        $this->resetValidation('partnerRejectReason');
+    }
+
+    public function rejectPartnerChange(): void
+    {
+        $this->validate(['rejectingPartnerChangeId' => 'required|integer', 'partnerRejectReason' => 'required|string|min:5|max:500'],
+            ['partnerRejectReason.required' => 'Say why the change is rejected.', 'partnerRejectReason.min' => 'Say why the change is rejected, in at least 5 characters.']);
+        app(OpticalOrderWorkflowService::class)->rejectPartnerChange((int) $this->rejectingPartnerChangeId, $this->partnerRejectReason);
+        $this->rejectingPartnerChangeId = null;
+        $this->partnerRejectReason = '';
+        session()->flash('success', 'Change of partner clinic rejected. The job stays with its clinic.');
     }
 
     public function confirmDeleteOrder($id): void

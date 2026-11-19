@@ -36,6 +36,12 @@ class CashBookComponent extends Component
     public ?int $cancellingId = null;
     public string $cancelReason = '';
 
+    /** Days whose lines are shown, when the period is long enough to be folded into daily totals. */
+    public array $openDays = [];
+
+    /** Up to this many lines, every line shows; above it the book folds into one row per day. */
+    public const FOLD_ABOVE = 50;
+
     protected $queryString = [
         'method' => ['except' => 'cash'],
         'fromDate' => ['except' => ''],
@@ -76,6 +82,16 @@ class CashBookComponent extends Component
     public function selectMethod(string $method): void
     {
         if (array_key_exists($method, app(CashBook::class)->methods())) $this->method = $method;
+        $this->openDays = [];
+    }
+
+    /** Show or hide one day's lines. */
+    public function toggleDay(string $date): void
+    {
+        $date = $this->validDate($date, today());
+        $this->openDays = in_array($date, $this->openDays, true)
+            ? array_values(array_diff($this->openDays, [$date]))
+            : [...$this->openDays, $date];
     }
 
     public function recordMovement(): void
@@ -171,9 +187,26 @@ class CashBookComponent extends Component
         $entries = $book->entries($this->method, $from, $to);
         $balances = collect($methods)->map(fn ($label, $key) => $book->balanceBefore($key, today()->addDay()));
 
+        // A long period folds into one row per day (totals and closing balance); a day's lines
+        // show when it is opened. Short periods show every line as before.
+        $lines = $entries->reject(fn ($entry) => $entry['kind'] === 'opening');
+        $folded = $lines->count() > self::FOLD_ABOVE;
+        $days = $lines->groupBy(fn ($entry) => $entry['date']->toDateString())->map(fn ($dayEntries, $date) => [
+            'date' => Carbon::parse($date),
+            'in' => round($dayEntries->sum('in'), 2),
+            'out' => round($dayEntries->sum('out'), 2),
+            'balance' => $dayEntries->last()['balance'],
+            'count' => $dayEntries->count(),
+            'open' => ! $folded || in_array($date, $this->openDays, true) || ($this->cancellingId && $dayEntries->contains('movement_id', $this->cancellingId)),
+            'entries' => $dayEntries,
+        ]);
+
         return view('livewire.admin.cash-book-component', [
             'methods' => $methods,
             'entries' => $entries,
+            'openingEntry' => $entries->firstWhere('kind', 'opening'),
+            'days' => $days,
+            'folded' => $folded,
             'opening' => $entries->first()['balance'] ?? 0,
             'closing' => $entries->last()['balance'] ?? 0,
             'totalIn' => round($entries->sum('in'), 2),

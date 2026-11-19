@@ -96,6 +96,8 @@ class OpticalOrderCreateComponent extends Component
     public string $stock_lens_key = '';
     /** The lens the customer wants, "design|coating" (e.g. "Single Vision|Photo AR"); '' = any stocked lens. */
     public string $wantedLens = '';
+    /** Stock option key of the lens a partner clinic picked on its ordering page; Check availability selects it. */
+    public string $pickedLensKey = '';
     /** Typed price of each special-order eye of the chosen stock lens (it has no stock price). */
     public array $specialPrices = ['od' => '', 'os' => ''];
     /** The lens a whole pair was switched to special order for, shown with the special-order price. */
@@ -119,6 +121,12 @@ class OpticalOrderCreateComponent extends Component
 
     // Step 8: Review & Notes
     public $notes = '';
+
+    /** A job made from an ordering-page order uses the lens that order held: it is not counted against itself. */
+    public function boot(): void
+    {
+        if ($this->linkRequestId) app()->instance(OpticalLensAvailabilityService::IGNORE_REQUEST_HOLD, (int) $this->linkRequestId);
+    }
 
     public function mount()
     {
@@ -300,6 +308,7 @@ class OpticalOrderCreateComponent extends Component
             return;
         }
         $this->linkRequestId = $request->id;
+        app()->instance(OpticalLensAvailabilityService::IGNORE_REQUEST_HOLD, (int) $request->id);
         $this->paid_amount = 0;
         $this->changeOrderSource('partner');
         $this->choosePartner((int) $request->optical_partner_clinic_id);
@@ -310,8 +319,16 @@ class OpticalOrderCreateComponent extends Component
         $this->fillMeasurements((array) $request->rx);
         if ($request->lens_type) $this->lens_type = $request->lens_type;
         if ($request->frame_choice === 'own_frame') $this->frame_source = 'customer';
+        // The lens the clinic picked on its ordering page is the wanted lens: Check availability selects it.
+        $pick = (array) ($request->lens_choice ?? []);
+        if ($pick) {
+            $wanted = implode('|', array_filter([(string) ($pick['lens_type'] ?? ''), (string) ($pick['coating'] ?? ''), (string) ($pick['form'] ?? '')], fn ($part) => $part !== ''));
+            if (array_key_exists($wanted, $this->wantedLensChoices())) $this->wantedLens = $wanted;
+            $this->pickedLensKey = (string) ($pick['key'] ?? '');
+        }
         $this->notes = collect([
             $request->urgency === 'urgent' ? 'URGENT' : null,
+            $pick ? 'Clinic picked: '.($pick['label'] ?? 'a lens').(isset($pick['price']) ? ' (estimate '.number_format((float) $pick['price'], 2).' a pair after trade %'.(empty($pick['price_shown']) ? ', not shown to them' : '').')' : '') : null,
             $request->lens_notes ? 'Lens: '.$request->lens_notes : null,
             'Frame: '.(\App\Models\OpticalOrderRequest::FRAME_CHOICES[$request->frame_choice] ?? $request->frame_choice).($request->frame_notes ? ' - '.$request->frame_notes : ''),
             $request->notes,
@@ -842,7 +859,10 @@ class OpticalOrderCreateComponent extends Component
         $usable = collect($this->stockLensOptions)->whereIn('status', ['available', 'partial']);
         // Only the wanted lens is chosen for staff; an alternative is always their decision.
         $matching = $usable->where('matches', true);
-        if ($matching->count() === 1) {
+        if ($this->pickedLensKey !== '' && $usable->contains('key', $this->pickedLensKey)) {
+            // The exact lens the partner clinic picked on its ordering page (same design and coating can come in several ranges).
+            $this->selectStockLensOption($this->pickedLensKey);
+        } elseif ($matching->count() === 1) {
             $this->selectStockLensOption($matching->first()['key']);
         } elseif ($matching->isEmpty()) {
             $this->lensAvailability = [

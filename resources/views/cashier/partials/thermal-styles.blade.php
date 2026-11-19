@@ -1,8 +1,14 @@
 <style>
+        /*
+         * Thermal receipts (80mm). A thermal printer prints black dots only: grey, colour and the soft edges of
+         * thin text come out as scattered dots and look faded. So everything here is solid black, bold and no
+         * smaller than 11px, in a plain sans-serif font with thick strokes, and there is no logo (19 Nov 2026).
+         */
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            color: #000 !important;
         }
 
         @page {
@@ -14,8 +20,9 @@
         body {
             background: #fff;
             color: #000;
-            font-family: "DejaVu Sans Mono", "Courier New", monospace;
-            font-size: 10px;
+            font-family: "DejaVu Sans", Arial, Helvetica, sans-serif; /* DejaVu first: the PDF copy needs its ₵ sign */
+            font-size: 12px;
+            font-weight: 700;
             line-height: 1.35;
             margin: 0;
             width: 80mm;
@@ -25,37 +32,49 @@
             padding: 4mm;
         }
 
+        strong,
+        b,
+        th {
+            font-weight: 900;
+        }
+
         .center {
             text-align: center;
         }
 
+        /* Logos print as a dotted smudge on thermal paper: the clinic name is the header. */
         .receipt-logo {
-            max-height: 16mm;
-            max-width: 34mm;
-            object-fit: contain;
-            margin-bottom: 3mm;
+            display: none !important;
         }
 
         .clinic-name {
-            font-size: 15px;
+            font-size: 18px;
             font-weight: 900;
-            letter-spacing: .2px;
-            margin-bottom: 2px;
+            line-height: 1.2;
+            margin-bottom: 3px;
             text-transform: uppercase;
         }
 
         .small {
-            font-size: 9px;
+            font-size: 11px;
+        }
+
+        .doc-title {
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: .5px;
+            margin: 6px 0 3px;
+            text-transform: uppercase;
         }
 
         .divider {
-            border-top: 1px dashed #000;
-            margin: 6px 0;
+            border-top: 2px dashed #000;
+            margin: 7px 0;
         }
 
         .strong-divider {
-            border-top: 2px solid #000;
-            margin: 6px 0;
+            border-top: 3px solid #000;
+            margin: 7px 0;
         }
 
         .section {
@@ -63,8 +82,16 @@
         }
 
         .label {
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 900;
             text-transform: uppercase;
+        }
+
+        .row-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            margin: 3px 0;
         }
 
         table {
@@ -75,27 +102,26 @@
 
         th,
         td {
-            font-size: 9px;
+            font-size: 11px;
             padding: 3px 1px;
             vertical-align: top;
         }
 
         th {
-            border-bottom: 1px solid #000;
-            font-weight: 700;
+            border-bottom: 2px solid #000;
             text-align: left;
         }
 
         /* Full item names: a long one wraps onto the next line within this column. */
         .col-item {
-            width: 47%;
+            width: 44%;
             word-wrap: break-word;
             overflow-wrap: anywhere;
         }
 
         .col-qty {
             text-align: center;
-            width: 11%;
+            width: 10%;
         }
 
         /* Amounts stay on one line (GH₵ 1,300.00); the item name gives way instead. */
@@ -103,12 +129,12 @@
         .col-total {
             text-align: right;
             white-space: nowrap;
-            width: 21%;
+            width: 23%;
         }
 
         .money-row {
             clear: both;
-            font-size: 10px;
+            font-size: 12px;
             margin: 3px 0;
             overflow: hidden;
             width: 100%;
@@ -126,17 +152,30 @@
         }
 
         .grand-total {
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 900;
             margin-top: 5px;
         }
 
+        /* Was grey, which prints as faint dots: secondary lines are told apart by italics instead. */
         .muted {
-            color: #555;
+            font-style: italic;
+        }
+
+        /* Paid / unpaid: a heavy box that reads at a glance (no red or green). */
+        .status-box {
+            border: 3px solid #000;
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin: 8px 0 4px;
+            padding: 5px;
+            text-align: center;
+            text-transform: uppercase;
         }
 
         .footer {
-            font-size: 9px;
+            font-size: 11px;
             margin-top: 10px;
             text-align: center;
         }
@@ -150,33 +189,22 @@
             body {
                 padding: 4mm;
             }
+
+            .no-print {
+                display: none !important;
+            }
         }
 
-        /* ── Refund watermark ────────────────────────────── */
+        /* A faint diagonal watermark does not print on thermal paper: a refunded sale shows the notice box only. */
         .refund-watermark {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-45deg);
-            font-size: 36px;
-            font-weight: 900;
-            color: rgba(220, 38, 38, 0.18);
-            letter-spacing: 4px;
-            text-transform: uppercase;
-            white-space: nowrap;
-            pointer-events: none;
-            z-index: 9999;
-            user-select: none;
-            border: 5px solid rgba(220, 38, 38, 0.18);
-            padding: 6px 14px;
+            display: none;
         }
 
         .refund-notice {
-            border: 2px solid #dc2626;
-            color: #dc2626;
+            border: 3px solid #000;
             text-align: center;
             font-weight: 900;
-            font-size: 11px;
+            font-size: 13px;
             padding: 5px;
             margin: 8px 0 4px;
             letter-spacing: 1px;

@@ -81,10 +81,36 @@
                     <div class="oo-note amber">{{ $clinicBill ? 'The clinic bill still has '.currency().' '.number_format($balance, 2).' to pay for these glasses. Take it at reception or the cashier before handing them over.' : 'Take the remaining '.currency().' '.number_format($balance, 2).' before handing over the glasses.' }}</div>
                 @endif
 
+                @php
+                    $pendingPartnerChange = $o->order_source === 'partner'
+                        ? \App\Models\OpticalPartnerChange::with(['requester:id,name', 'toPartner:id,name'])->where('lens_order_id', $o->id)->where('status', 'pending')->first() : null;
+                @endphp
+                @if($pendingPartnerChange)
+                    <section class="oo-section" data-partner-change style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px">
+                        <h3 style="color:#92400e">Change of partner clinic waiting for a manager</h3>
+                        <p class="text-xs text-slate-700" style="margin:0 0 6px">Move from <strong>{{ $pendingPartnerChange->from_partner_name ?: 'its current clinic' }}</strong> to <strong>{{ $pendingPartnerChange->toPartner?->name ?? 'another clinic' }}</strong> · asked by {{ $pendingPartnerChange->requester?->name ?? 'staff' }}, {{ $pendingPartnerChange->created_at->format('d M, H:i') }}</p>
+                        <p class="text-xs text-slate-600" style="margin:0 0 8px">Reason: {{ $pendingPartnerChange->reason }}</p>
+                        @error('partnerChange')<p class="text-xs text-red-600" style="margin:0 0 6px">{{ $message }}</p>@enderror
+                        @if($isManager)
+                            @if($rejectingPartnerChangeId === $pendingPartnerChange->id)
+                                <form wire:submit.prevent="rejectPartnerChange" class="space-y-2">
+                                    <label for="order-panel-partnerrejectreason" class="block text-xs font-semibold">Why reject it? *</label>
+                                    <textarea id="order-panel-partnerrejectreason" wire:model="partnerRejectReason" rows="2" maxlength="500" class="ui-input w-full" placeholder="For example: the job is from this clinic after all"></textarea>
+                                    @error('partnerRejectReason')<p class="text-xs text-red-600">{{ $message }}</p>@enderror
+                                    <div class="flex gap-2"><button type="submit" class="oo-btn danger">Reject change</button><button type="button" wire:click="$set('rejectingPartnerChangeId', null)" class="oo-btn">Back</button></div>
+                                </form>
+                            @else
+                                <div class="flex gap-2"><button type="button" wire:click="approvePartnerChange({{ $pendingPartnerChange->id }})" class="oo-btn primary">Approve &amp; move job</button><button type="button" wire:click="startRejectPartnerChange({{ $pendingPartnerChange->id }})" class="oo-btn">Reject</button></div>
+                            @endif
+                        @else
+                            <p class="ui-muted m-0 text-xs">The job stays with its current clinic until a manager approves.</p>
+                        @endif
+                    </section>
+                @endif
                 <section class="oo-section">
                     <h3>Details</h3>
                     <dl class="oo-dl">
-                        <dt>Work type</dt><dd>{{ ucfirst(str_replace('_', ' ', $o->work_type ?? 'prescription')) }}@if($o->order_source === 'partner') · partner job{{ $o->partnerClinic || $o->partner_clinic_name ? ' for '.($o->partnerClinic?->name ?? $o->partner_clinic_name) : '' }}{{ $onAccount ? ' (on account)' : '' }}@endif</dd>
+                        <dt>Work type</dt><dd>{{ ucfirst(str_replace('_', ' ', $o->work_type ?? 'prescription')) }}@if($o->order_source === 'partner') · partner job{{ $o->partnerClinic || $o->partner_clinic_name ? ' for '.($o->partnerClinic?->name ?? $o->partner_clinic_name) : '' }}{{ $onAccount ? ' (on account)' : '' }}@if($deskOk && ! $pendingPartnerChange && ! in_array($o->status, ['Quotation', 'Cancelled'], true)) <button type="button" wire:click="openChangePartner({{ $o->id }})" class="oo-btn" style="padding:1px 8px;font-size:11px;margin-left:4px" title="Entered under the wrong partner clinic? {{ $isManager ? 'Move it to the right one.' : 'Ask a manager to move it.' }}">Change clinic</button>@endif @endif</dd>
                         <dt>Frame</dt><dd>{{ $o->own_frame ? "Customer's own frame" : ($o->frameOpticalProduct?->name ?? $o->frameProduct?->name ?? ($o->frame_model_number ?: '—')) }}@if(! $o->own_frame && (float) $o->frame_price > 0) · {{ currency() }} {{ number_format((float) $o->frame_price, 2) }}@endif</dd>
                         <dt>Pickup date</dt><dd>{{ $o->pickUpDate ? \Carbon\Carbon::parse($o->pickUpDate)->format('D, d M Y') : 'Not set' }}</dd>
                         @if($o->sent_to_lab_at)<dt>Lab</dt><dd>{{ $o->labSupplier?->name ?? 'Outside lab' }} · sent {{ $o->sent_to_lab_at->format('d M') }}{{ $o->expected_back_at ? ' · due back '.$o->expected_back_at->format('d M Y') : '' }}@if($o->status === 'Sent to Lab' && $o->expected_back_at?->lt(today())) <span style="color:#b91c1c">(overdue)</span>@endif</dd>@endif
@@ -253,6 +279,24 @@
                 <div><label for="order-panel-refundreason" class="block text-xs font-semibold mb-1">Details *</label><textarea id="order-panel-refundreason" wire:model="refundReason" rows="2" maxlength="500" class="ui-input w-full" placeholder="What happened and what was agreed with the customer"></textarea>
                     @error('refundReason')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
                 <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showRefundModal: false })" class="oo-btn">Keep order</button><button type="submit" wire:confirm="Refund this payment and cancel the order? This cannot be undone." class="oo-btn danger">Refund &amp; cancel</button></div>
+            </form>
+        </div>
+    @endif
+    @if($showChangePartnerModal)
+        @php $approver = $isManager; @endphp
+        <div class="oo-modal-wrap" data-sheet>
+            <form wire:submit.prevent="changePartner" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Change partner clinic · {{ $changePartnerOrderNumber }}</h3>
+                    <p class="text-xs text-slate-600">For a job entered under the wrong clinic. It moves from <strong class="text-slate-900">{{ $changePartnerFrom ?: 'its current clinic' }}</strong> to the clinic you choose, with its payments, stock and lab progress unchanged. Billing follows the new clinic's terms.</p>
+                    @unless($approver)<p class="text-xs text-amber-800" style="margin-top:6px">A manager must approve this. The job stays with its current clinic until then.</p>@endunless
+                </div>
+                <div><label for="order-panel-changepartnerto" class="block text-xs font-semibold mb-1">Right partner clinic *</label>
+                    <select id="order-panel-changepartnerto" wire:model="changePartnerTo" class="ui-input w-full"><option value="">Choose the clinic</option>@foreach(\App\Models\OpticalPartnerClinic::where('is_active', true)->orderBy('name')->get(['id', 'name']) as $partnerOption)@if($partnerOption->name !== $changePartnerFrom)<option value="{{ $partnerOption->id }}">{{ $partnerOption->name }}</option>@endif @endforeach</select>
+                    @error('changePartnerTo')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                <div><label for="order-panel-changepartnerreason" class="block text-xs font-semibold mb-1">Reason *</label><textarea id="order-panel-changepartnerreason" wire:model="changePartnerReason" rows="2" maxlength="500" class="ui-input w-full" placeholder="For example: chosen by mistake at the desk; the job is from this clinic"></textarea>
+                    @error('changePartnerReason')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                <div class="flex justify-end gap-2"><button type="button" x-on:click="dismissLocal($el, $wire, { showChangePartnerModal: false })" class="oo-btn">Keep as is</button><button type="submit" class="oo-btn primary">{{ $approver ? 'Move job' : 'Send for approval' }}</button></div>
             </form>
         </div>
     @endif

@@ -57,6 +57,7 @@ class AttentionItems
         'appt_missed'         => ['Missed today', 'Call to find out, and rebook.', 'appointment'],
         'order_late'          => ['Spectacles past their promised date', 'Chase the lab and tell the patient the new date.', 'lens_order'],
         'lens_unordered'      => ['Special-order lenses not yet ordered', 'Put them on a supplier order in Purchasing, or the job cannot be made.', 'lens_order'],
+        'partner_change'      => ['Partner clinic changes to approve', 'Open the job and approve or reject moving it to another partner clinic.', 'lens_order'],
         'order_due'           => ['Spectacles due soon', 'Check they will be ready on time.', 'lens_order'],
         'order_uncollected'   => ['Ready, not collected', 'Call the patient to come in.', 'lens_order'],
         'scan_unreported'     => ['Paid scans not yet reported', 'Do the scan or finish the report, then add the result on the Scan Desk.', 'scan_order'],
@@ -163,6 +164,14 @@ class AttentionItems
                     // Only managers buy; everyone else is taken to the job.
                     return ['url' => $buyer ? route('optical.purchasing', ['tab' => 'special']) : route('optical.orders')] + $this->orderItem($order, 'lens_unordered', $detail);
                 })->values();
+            // The front desk asked to move a job to another partner clinic; managers decide.
+            if (\App\Support\Access\Access::can('optical.manage')) {
+                $groups['partner_change'] = \App\Models\OpticalPartnerChange::with(['order', 'toPartner:id,name', 'requester:id,name'])
+                    ->where('status', \App\Models\OpticalPartnerChange::PENDING)->oldest()->limit(self::PER_GROUP)->get()
+                    ->filter(fn ($change) => $change->order)
+                    ->map(fn ($change) => $this->orderItem($change->order, 'partner_change', 'From '.($change->from_partner_name ?: 'its clinic').' to '.($change->toPartner?->name ?? 'another clinic')
+                        .' · asked by '.($change->requester?->name ?? 'staff').' '.$change->created_at->format('j M')))->values();
+            }
         }
 
         if ($line === self::CLINIC && \App\Services\LicenseService::has(\App\Support\Feature::DIAGNOSTIC_SCANS)) {
@@ -212,6 +221,7 @@ class AttentionItems
                 'order_due'    => $n('order_due'),
                 'order_late'   => $n('order_late'),
                 'lens_unordered' => $n('lens_unordered'),
+                'partner_changes' => $n('partner_change'),
                 'uncollected'  => $n('order_uncollected'),
                 // Badge: problems, not things merely coming up.
                 'orders'       => $problemOrders,

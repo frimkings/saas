@@ -11,8 +11,9 @@
     <link rel="stylesheet" href="{{ asset('backend/plugins/vendor-css/pikaday.css') }}">
     {{-- SweetAlert: POS checkout confirmations and Managers' discount approval prompts. --}}
     <link rel="stylesheet" href="{{ asset('backend/plugins/sweetalert2/sweetalert2.min.css') }}">
-    <script src="{{ asset('backend/plugins/sweetalert2/sweetalert2.js') }}"></script>
-    <script src="{{ asset('backend/plugins/vendor-js/chart.min.js') }}"></script>
+    {{-- Only used from clicks and events, so it never holds up the page. --}}
+    <script src="{{ asset('backend/plugins/sweetalert2/sweetalert2.js') }}" defer></script>
+    @include('layouts.partials.chart-loader')
     @livewireStyles
     {{-- In the head: the bell and messages widgets subscribe to appPulse as they render. --}}
     @include('layouts.partials.session-scripts')

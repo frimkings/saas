@@ -158,38 +158,38 @@ window.buildAndPrint = function(d) {
     });
     var patientBlock = '';
     if (d.patient) {
-        patientBlock = '<div style="font-size:10px;padding-bottom:6px;border-bottom:1px dashed #000;margin-bottom:6px;"><strong>PATIENT:</strong><br>' + d.patient.name + '<br>Tel: ' + d.patient.contact + '<br>ID: ' + d.patient.pxnumber + '</div>';
+        patientBlock = '<div style="font-size:11px;padding-bottom:6px;border-bottom:1px dashed #000;margin-bottom:6px;"><strong>PATIENT:</strong><br>' + d.patient.name + '<br>Tel: ' + d.patient.contact + '<br>ID: ' + d.patient.pxnumber + '</div>';
     } else if (d.customer_name) {
-        patientBlock = '<div style="font-size:10px;padding-bottom:6px;border-bottom:1px dashed #000;margin-bottom:6px;"><strong>CUSTOMER:</strong><br>' + d.customer_name + '</div>';
+        patientBlock = '<div style="font-size:11px;padding-bottom:6px;border-bottom:1px dashed #000;margin-bottom:6px;"><strong>CUSTOMER:</strong><br>' + d.customer_name + '</div>';
     }
     var subtotalRow = '', discountRow = '';
     if (d.discount_amount && parseFloat(d.discount_amount) > 0) {
-        subtotalRow = '<div style="display:flex;justify-content:space-between;font-size:12px;color:#777;margin-bottom:2px;"><span>SUBTOTAL</span><span>{{ currency() }} ' + parseFloat(d.gross_amount).toFixed(2) + '</span></div>';
+        subtotalRow = '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;"><span>SUBTOTAL</span><span>{{ currency() }} ' + parseFloat(d.gross_amount).toFixed(2) + '</span></div>';
         var discLabel = d.discount_type === 'percentage' ? 'DISCOUNT (' + parseFloat(d.discount_value).toFixed(0) + '%)' : 'DISCOUNT ({{ currency() }} ' + parseFloat(d.discount_value).toFixed(2) + ')';
-        discountRow = '<div style="display:flex;justify-content:space-between;font-size:12px;color:#e67e22;font-weight:bold;margin-bottom:4px;"><span>' + discLabel + '</span><span>-{{ currency() }} ' + parseFloat(d.discount_amount).toFixed(2) + '</span></div>';
+        discountRow = '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;margin-bottom:4px;"><span>' + discLabel + '</span><span>-{{ currency() }} ' + parseFloat(d.discount_amount).toFixed(2) + '</span></div>';
     }
     var paidRow = '';
     if (d.payments && d.payments.length > 0) {
         d.payments.forEach(function(p) {
-            paidRow += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>PAID <span style="font-size:10px;color:#777;text-transform:uppercase;">(' + p.method + ')</span></span><span>{{ currency() }} ' + parseFloat(p.amount).toFixed(2) + '</span></div>';
+            paidRow += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>PAID <span style="font-size:11px;text-transform:uppercase;">(' + p.method + ')</span></span><span>{{ currency() }} ' + parseFloat(p.amount).toFixed(2) + '</span></div>';
         });
         if (d.payments.length > 1) {
-            paidRow += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:2px;font-weight:bold;border-top:1px dashed #999;padding-top:2px;"><span>TOTAL PAID</span><span>{{ currency() }} ' + parseFloat(d.amount_paid).toFixed(2) + '</span></div>';
+            paidRow += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:2px;font-weight:bold;border-top:1px dashed #000;padding-top:2px;"><span>TOTAL PAID</span><span>{{ currency() }} ' + parseFloat(d.amount_paid).toFixed(2) + '</span></div>';
         }
     } else if (parseFloat(d.amount_paid) > 0) {
         paidRow = '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>PAID</span><span>{{ currency() }} ' + parseFloat(d.amount_paid).toFixed(2) + '</span></div>';
     }
     var changeRow  = parseFloat(d.change) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:2px;font-weight:bold;"><span>CHANGE</span><span>{{ currency() }} ' + parseFloat(d.change).toFixed(2) + '</span></div>' : '';
     var insurerRow = d.insurer_name && parseFloat(d.insurer_amount) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:3px;"><span>BILLED TO ' + String(d.insurer_name).toUpperCase() + '</span><span>{{ currency() }} ' + parseFloat(d.insurer_amount).toFixed(2) + '</span></div>' : '';
-    var balanceRow = d.balance && parseFloat(d.balance) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;font-weight:bold;color:#c0392b;border-top:1px dashed #999;padding-top:4px;"><span>BALANCE DUE</span><span>{{ currency() }} ' + parseFloat(d.balance).toFixed(2) + '</span></div>' : '';
+    var balanceRow = d.balance && parseFloat(d.balance) > 0 ? '<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px;font-weight:bold;border-top:1px dashed #000;padding-top:4px;"><span>BALANCE DUE</span><span>{{ currency() }} ' + parseFloat(d.balance).toFixed(2) + '</span></div>' : '';
     var contactLines = '';
     if (d.clinic_contact) contactLines += '<div>Tel: ' + d.clinic_contact + '</div>';
     if (d.clinic_email)   contactLines += '<div>' + d.clinic_email + '</div>';
-    var addressLine = d.clinic_address ? '<div style="font-size:10px;">' + d.clinic_address + '</div>' : '';
-    var logoLine = d.clinic_logo ? '<img src="' + d.clinic_logo + '" style="max-width:35mm;max-height:18mm;object-fit:contain;margin-bottom:4px;">' : '';
+    var addressLine = d.clinic_address ? '<div style="font-size:11px;">' + d.clinic_address + '</div>' : '';
+    var logoLine = ''; // no logo on thermal paper: it prints as a dotted smudge
     var printedAt = d.printed_at || new Date().toLocaleString();
     var receiptContent =
-        '<div style="text-align:center;">' + logoLine + '<div style="font-size:15px;font-weight:900;">' + d.clinic_name + '</div>' + addressLine + contactLines + '</div>'
+        '<div style="text-align:center;">' + logoLine + '<div style="font-size:18px;font-weight:900;">' + d.clinic_name + '</div>' + addressLine + contactLines + '</div>'
         + '<div style="border-top:2px dashed #000;margin:6px 0;"></div>'
         + '<div style="text-align:center;"><strong>TXN#: ' + d.transaction_id + '</strong><br><span style="font-size:12px;">' + d.created_at + '</span></div>'
         + '<div style="border-top:1px dashed #000;margin:6px 0;"></div>'
@@ -208,7 +208,7 @@ window.buildAndPrint = function(d) {
     var printDiv = document.createElement('div');
     printDiv.id = '__pos_receipt_print__';
     printDiv.style.cssText = 'display:block; position:fixed; left:-10000px; top:0; width:80mm; background:#fff; color:#000; z-index:-1;';
-    printDiv.innerHTML = '<div style="font-family:\'Courier New\',monospace;font-size:12px;line-height:1.5;color:#000;background:#fff;width:80mm;padding:4mm;">' + receiptContent + '</div>';
+    printDiv.innerHTML = '<div style="font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:12px;line-height:1.45;color:#000;background:#fff;width:80mm;padding:4mm;">' + receiptContent + '</div>';
     document.body.appendChild(printDiv);
     setTimeout(function() {
         printDiv.style.left = '0';

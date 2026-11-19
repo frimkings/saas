@@ -616,7 +616,7 @@
 
             @if($paymentMethods->isNotEmpty())
             <script>
-            (function() {
+            withChart(function() {
                 var canvas = document.getElementById('pmDonutChart');
                 if (!canvas) return;
                 if (typeof Chart !== 'undefined' && Chart.getChart) {
@@ -679,7 +679,7 @@
                         },
                     },
                 });
-            })();
+            });
             </script>
             @endif
 
@@ -933,6 +933,7 @@ document.addEventListener('livewire:init', function () {
     let chart = null;
 
     function initSalesChart(d) {
+        if (!window.Chart) return withChart(function () { initSalesChart(d); });
         if (!d.labels || !d.labels.length) return;
 
         // Always look up the canvas fresh — it is removed from DOM when the user

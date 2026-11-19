@@ -20,7 +20,7 @@ class OpticalPartnerClinic extends Model
     protected $casts = ['is_active' => 'boolean', 'linked_at' => 'datetime', 'terms_updated_at' => 'datetime',
         'trade_lens_pct' => 'float', 'trade_frame_pct' => 'float', 'trade_service_pct' => 'float',
         'credit_limit' => 'float', 'auto_approve_limit' => 'float', 'link_paused_by_platform' => 'boolean',
-        'page_pin_set_at' => 'datetime', 'page_locked_until' => 'datetime', 'page_last_used_at' => 'datetime'];
+        'page_pin_set_at' => 'datetime', 'page_locked_until' => 'datetime', 'page_last_used_at' => 'datetime', 'page_show_prices' => 'boolean'];
 
     // The ordering-page secret and PIN never leave the server in arrays or JSON.
     protected $hidden = ['page_token', 'page_pin_hash'];

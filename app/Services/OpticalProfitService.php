@@ -32,6 +32,11 @@ class OpticalProfitService
     /** @return array<string, mixed> */
     public function statement(CarbonInterface $from, CarbonInterface $to): array
     {
+        return \App\Support\FinanceCache::remember('optical.profit', $from, $to, fn () => $this->statementLive($from, $to), []);
+    }
+
+    private function statementLive(CarbonInterface $from, CarbonInterface $to): array
+    {
         $range = [$from->copy()->startOfDay(), $to->copy()->endOfDay()];
         $orders = LensOrder::with(['frameOpticalProduct', 'lensOpticalProduct'])
             ->whereBetween('created_at', $range)->whereNotIn('status', ['Quotation', 'Cancelled'])->get();

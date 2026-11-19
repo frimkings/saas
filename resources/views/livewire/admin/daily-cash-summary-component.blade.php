@@ -152,6 +152,7 @@
             var paymentChart = null;
 
             function initPaymentChart(d) {
+                if (!window.Chart) return withChart(function () { initPaymentChart(d); });
                 var canvas = document.getElementById('paymentDonut');
                 if (!canvas) return;
                 if (!d.labels || !d.labels.length) return;

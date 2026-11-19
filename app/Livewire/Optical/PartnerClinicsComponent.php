@@ -241,6 +241,17 @@ class PartnerClinicsComponent extends Component
         session()->flash('success', $first ? 'Ordering page turned on. Send the link and the PIN to the clinic, separately.' : 'New PIN set. The old PIN no longer works.');
     }
 
+    /** Whether the partner's ordering page shows lens prices (after its trade %) in Check lenses. */
+    public function toggleOrderPagePrices(int $id): void
+    {
+        $this->assertManager();
+        app(\App\Services\ClinicAccessService::class)->assertWritable();
+        $partner = OpticalPartnerClinic::findOrFail($id);
+        $partner->forceFill(['page_show_prices' => ! $partner->page_show_prices])->save();
+        \App\Models\AuditTrail::record('optical.order_page_prices', ($partner->page_show_prices ? 'Showing' : 'Hiding').' lens prices on the ordering page for '.$partner->name, $partner);
+        session()->flash('success', $partner->page_show_prices ? 'Their page now shows lens prices.' : 'Their page no longer shows lens prices.');
+    }
+
     public function newOrderPageLink(int $id): void
     {
         $this->assertManager();

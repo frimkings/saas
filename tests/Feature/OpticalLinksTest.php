@@ -734,7 +734,7 @@ class OpticalLinksTest extends TestCase
         $this->assertSame(0, OpticalOrderRequest::count());
 
         $this->post(route('order-page.pin', $token), ['pin' => $pin])->assertRedirect(route('order-page.show', $token));
-        $this->get(route('order-page.show', $token))->assertSee('Your orders')->assertSee('Send a new order');
+        $this->get(route('order-page.show', $token))->assertSee('Your orders')->assertSee('Send order')->assertSee('Check lenses');
 
         // A cylinder needs an axis; then the order goes to Incoming Orders.
         $this->post(route('order-page.send', $token), $this->pageOrder(['od_axis' => '']))->assertSessionHasErrors('od_axis');
@@ -842,5 +842,80 @@ class OpticalLinksTest extends TestCase
         $this->get(route('order-page.show', $otherToken))->assertNotFound();
         // Roadside's page is untouched.
         $this->get(route('order-page.show', $token))->assertSee('Kofi Boateng');
+    }
+
+    /* ---------------------------------------------------------------- Check lenses on the ordering page (19 Nov 2026) */
+
+    /** Stock lenses at the optical centre: "Clear" has both eyes of the page order, "Blue" only the right one. */
+    private function pageLensStock(): void
+    {
+        $receive = fn (string $range, string $sphere, string $power, int $price) => app(\App\Services\OpticalLensReceivingService::class)->receive(
+            ['range' => $range, 'design' => 'Single Vision', 'index' => '1.56', 'coating' => 'AR', 'diameter' => 65, 'sphere' => $sphere, 'power' => $power],
+            1, ['unit_cost' => 20, 'unit_price' => $price]);
+        $receive('Clear', '-1.25', '-0.50', 60);
+        $receive('Clear', '-1.00', '0.00', 50);
+        $receive('Blue', '-1.25', '-0.50', 90);
+    }
+
+    private function signOutAndOpen(string $token, string $pin): void
+    {
+        app(TenantContext::class)->clear();
+        auth()->logout();
+        $this->post(route('order-page.pin', $token), ['pin' => $pin])->assertSessionHasNoErrors();
+    }
+
+    public function test_the_ordering_page_checks_lenses_shows_trade_prices_and_holds_the_pick(): void
+    {
+        [$partner, $token, $pin] = $this->orderPage();
+        $partner->forceFill(['trade_lens_pct' => 10])->save();
+        $this->pageLensStock();
+        $this->signOutAndOpen($token, $pin);
+        $check = fn () => $this->postJson(route('order-page.lenses', $token), $this->pageOrder())->assertOk()->json();
+
+        // Both eyes in stock for Clear, only the right for Blue; prices per pair after the 10% trade discount.
+        $result = $check();
+        $this->assertTrue($result['prices']);
+        $options = collect($result['options'])->keyBy(fn ($o) => str_starts_with($o['label'], 'Clear') ? 'clear' : 'blue');
+        $this->assertSame(['In stock', 'In stock', 99.0], [$options['clear']['od'], $options['clear']['os'], (float) $options['clear']['price']]);
+        $this->assertSame(['In stock', 'Order in'], [$options['blue']['od'], $options['blue']['os']]);
+        // Never the stock counts or product ids.
+        $this->assertSame(['key', 'label', 'od', 'os', 'price'], array_keys($result['options'][0]));
+        $this->postJson(route('order-page.lenses', $token), ['od_sph' => '', 'os_sph' => ''])->assertOk()->assertJsonPath('message', 'Type the prescription first.');
+
+        // Sending with a pick: it travels with the order and holds both Clear lenses.
+        $this->post(route('order-page.send', $token), $this->pageOrder(['lens_choice' => $options['clear']['key']]))->assertSessionHasNoErrors();
+        $request = OpticalOrderRequest::sole();
+        $this->assertSame(['Single Vision', 99.0, 'stock', 'stock'], [$request->lens_choice['lens_type'], (float) $request->lens_choice['price'],
+            $request->lens_choice['eyes']['od']['source'], $request->lens_choice['eyes']['os']['source']]);
+        $this->assertSame([$options['blue']['key']], collect($check()['options'])->pluck('key')->all(), 'the picked lenses are held');
+        $this->post(route('order-page.send', $token), $this->pageOrder(['patient_name' => 'Ama Owusu', 'lens_choice' => $options['clear']['key']]))
+            ->assertSessionHasErrors('lens_choice');
+        $this->assertSame(1, OpticalOrderRequest::count());
+
+        // The optical centre sees the pick, and its own hold does not stop it using those lenses for the job.
+        $this->as('optical');
+        Livewire::test(IncomingRequestsComponent::class)->call('open', $request->id)->assertSee('Picked on their page')->assertSee('R held from stock');
+        Livewire::withQueryParams(['request_id' => $request->id])->test(OpticalOrderCreateComponent::class)
+            ->assertSet('wantedLens', 'Single Vision|AR')->call('checkLensAvailability')->assertSet('stock_lens_key', $options['clear']['key']);
+
+        // Hidden prices: the check still lists the lenses, without a price.
+        $partner->forceFill(['page_show_prices' => false])->save();
+        $this->signOutAndOpen($token, $pin);
+        $hidden = $check();
+        $this->assertFalse($hidden['prices']);
+        $this->assertNull($hidden['options'][0]['price']);
+
+        // Cancelling the order frees the lenses.
+        $this->post(route('order-page.cancel', [$token, $request->id]))->assertSessionHasNoErrors();
+        $this->assertCount(2, $check()['options']);
+    }
+
+    public function test_the_optical_centre_switches_prices_off_for_one_partner(): void
+    {
+        [$partner] = $this->orderPage();
+        $this->assertTrue($partner->fresh()->page_show_prices);
+        Livewire::test(PartnerClinicsComponent::class)->call('openPartner', $partner->id)->assertSee('Show lens prices on their page')
+            ->call('toggleOrderPagePrices', $partner->id);
+        $this->assertFalse($partner->fresh()->page_show_prices);
     }
 }

@@ -43,28 +43,57 @@ class OpticalOrderPageController extends Controller
         return redirect()->route('order-page.show', $token);
     }
 
+    /** The "Check lenses" button: lenses that fit the typed prescription, as JSON for the page. */
+    public function lenses(Request $request, string $token)
+    {
+        $partner = $this->partner($token);
+        if (! $this->signedIn($request, $partner)) return response()->json(['message' => 'Please enter the PIN again.', 'signed_out' => true], 401);
+        $data = $request->validate(self::rxRules(), self::RX_MESSAGES);
+        if (! OpticalOrderPageService::hasPowers($data)) {
+            return response()->json(['options' => [], 'message' => 'Type the prescription first.']);
+        }
+        $options = $this->pages->lensOptions($partner, $data);
+        $optical = $partner->clinic?->name ?? 'The optical centre';
+
+        return response()->json([
+            'options' => $options,
+            'prices' => (bool) $partner->page_show_prices,
+            'currency' => $partner->page_show_prices ? $this->pages->currency($partner) : null,
+            'message' => $options ? null : 'No stock lens fits this prescription. '.$optical.' will quote a special order: you can still send the order.',
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    private const RX_MESSAGES = ['*.between' => 'Check this value: it is outside the usual range.'];
+
+    private static function rxRules(): array
+    {
+        $rx = fn (float $min, float $max) => ['nullable', 'numeric', 'between:'.$min.','.$max];
+
+        return [
+            'od_sph' => $rx(-30, 30), 'od_cyl' => $rx(-10, 10), 'od_axis' => ['nullable', 'integer', 'between:0,180'], 'od_add' => $rx(0, 4),
+            'os_sph' => $rx(-30, 30), 'os_cyl' => $rx(-10, 10), 'os_axis' => ['nullable', 'integer', 'between:0,180'], 'os_add' => $rx(0, 4),
+        ];
+    }
+
     public function send(Request $request, string $token)
     {
         $partner = $this->authorised($request, $token);
-        $rx = fn (float $min, float $max) => ['nullable', 'numeric', 'between:'.$min.','.$max];
-        $data = $request->validate([
+        $data = $request->validate(self::rxRules() + [
             'sender_name' => 'required|string|max:120',
             'patient_name' => 'required|string|max:150',
             'patient_phone' => 'nullable|string|max:50',
             'reference' => 'nullable|string|max:100',
-            'od_sph' => $rx(-30, 30), 'od_cyl' => $rx(-10, 10), 'od_axis' => ['nullable', 'integer', 'between:0,180'], 'od_add' => $rx(0, 4),
-            'os_sph' => $rx(-30, 30), 'os_cyl' => $rx(-10, 10), 'os_axis' => ['nullable', 'integer', 'between:0,180'], 'os_add' => $rx(0, 4),
             'pd' => ['nullable', 'numeric', 'between:40,80'],
             'lens_type' => 'nullable|string|max:60',
+            'lens_choice' => 'nullable|string|max:500',
             'lens_notes' => 'nullable|string|max:1000',
             'frame_choice' => ['required', Rule::in(array_keys(OpticalOrderRequest::FRAME_CHOICES))],
             'frame_notes' => 'nullable|string|max:1000',
             'urgency' => 'nullable|in:normal,urgent',
             'notes' => 'nullable|string|max:2000',
-        ], [
+        ], self::RX_MESSAGES + [
             'sender_name.required' => 'Enter your name, so the optical centre knows who sent it.',
             'patient_name.required' => 'Enter the patient’s name.',
-            '*.between' => 'Check this value: it is outside the usual range.',
         ]);
         foreach (['od', 'os'] as $eye) {
             if (filled($data[$eye.'_cyl'] ?? null) && ! filled($data[$eye.'_axis'] ?? null)) {
@@ -74,7 +103,7 @@ class OpticalOrderPageController extends Controller
         $sent = $this->pages->send($partner, $data);
         $request->session()->put('order_page_sender.'.$partner->id, $data['sender_name']);
 
-        return redirect()->route('order-page.show', $token)->with('sent', 'Order for '.$sent->patient_name.' sent to '.($partner->clinic?->name ?? 'the optical centre').'. Follow it below.');
+        return redirect()->route('order-page.show', $token)->with('sent', 'Order for '.$sent->patient_name.' sent to '.($partner->clinic?->name ?? 'the optical centre').'. Follow it under Your orders.');
     }
 
     public function answer(Request $request, string $token, int $id)

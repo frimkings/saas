@@ -57,6 +57,7 @@
         <div class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 px-5 py-4">
             <div>
                 <h2 class="text-base font-semibold text-slate-900">{{ $methods[$method] ?? $method }}</h2>
+                @if($folded)<p class="mb-1 text-xs text-slate-500" data-tour="cash-book-days">One row per day with its totals and closing balance. Open a day to see its entries.</p>@endif
                 <p class="text-xs text-slate-500">Opening {{ currency() }} {{ $money($opening) }} · in {{ currency() }} {{ $money($totalIn) }} · out {{ currency() }} {{ $money($totalOut) }} · closing <b class="text-slate-800">{{ currency() }} {{ $money($closing) }}</b></p>
             </div>
             <div>
@@ -68,9 +69,32 @@
             <table class="ui-table">
                 <thead><tr><th>Date</th><th>What</th><th>Ref</th><th>By</th><th class="ui-number">In</th><th class="ui-number">Out</th><th class="ui-number">Balance</th><th class="text-right"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
-                    @foreach($entries as $entry)
-                        <tr class="{{ $entry['kind'] === 'opening' ? 'bg-slate-50 italic' : '' }} {{ $entry['cancelled'] ? 'text-slate-400 line-through' : '' }}">
-                            <td class="whitespace-nowrap">{{ $entry['date']->format('d M Y') }}@if(in_array($entry['kind'], ['payment', 'refund'], true))<span class="block text-xs text-slate-500">{{ $entry['date']->format('H:i') }}</span>@endif</td>
+                    @if($openingEntry)
+                        <tr class="bg-slate-50 italic">
+                            <td class="whitespace-nowrap">{{ $openingEntry['date']->format('d M Y') }}</td>
+                            <td>{{ $openingEntry['label'] }}</td><td></td><td></td><td></td><td></td>
+                            <td class="ui-number font-semibold">{{ $money($openingEntry['balance']) }}</td><td></td>
+                        </tr>
+                    @endif
+                    @foreach($days as $dayKey => $day)
+                        @if($folded)
+                            <tr wire:key="day-{{ $dayKey }}" class="bg-slate-50/70">
+                                <td class="whitespace-nowrap font-semibold">{{ $day['date']->format('D d M Y') }}</td>
+                                <td colspan="3">
+                                    <button type="button" wire:click="toggleDay('{{ $dayKey }}')" aria-expanded="{{ $day['open'] ? 'true' : 'false' }}" class="text-left text-sm font-semibold text-teal-800 hover:underline">
+                                        <i class="fas fa-chevron-{{ $day['open'] ? 'down' : 'right' }} mr-1 text-xs" aria-hidden="true"></i>{{ $day['count'] }} {{ \Illuminate\Support\Str::plural('entry', $day['count']) }} · {{ $day['open'] ? 'hide' : 'show' }}
+                                    </button>
+                                </td>
+                                <td class="ui-number font-semibold text-green-700">{{ $day['in'] > 0 ? $money($day['in']) : '' }}</td>
+                                <td class="ui-number font-semibold text-red-700">{{ $day['out'] > 0 ? $money($day['out']) : '' }}</td>
+                                <td class="ui-number font-semibold">{{ $money($day['balance']) }}</td>
+                                <td></td>
+                            </tr>
+                        @endif
+                        @if($day['open'])
+                        @foreach($day['entries'] as $entry)
+                        <tr wire:key="line-{{ $dayKey }}-{{ $loop->index }}" class="{{ $entry['cancelled'] ? 'text-slate-400 line-through' : '' }}">
+                            <td class="whitespace-nowrap {{ $folded ? 'pl-6 text-xs text-slate-500' : '' }}">@unless($folded){{ $entry['date']->format('d M Y') }}@endunless @if(in_array($entry['kind'], ['payment', 'refund'], true))<span class="{{ $folded ? '' : 'block' }} text-xs text-slate-500">{{ $entry['date']->format('H:i') }}</span>@endif</td>
                             <td>{{ $entry['label'] }}</td>
                             <td class="font-mono text-xs">{{ $entry['reference'] }}</td>
                             <td class="text-xs text-slate-500">{{ $entry['by'] }}</td>
@@ -96,8 +120,10 @@
                                 </form>
                             </td></tr>
                         @endif
+                        @endforeach
+                        @endif
                     @endforeach
-                    @if($entries->count() === 1)
+                    @if($days->isEmpty())
                         <tr><td colspan="8" class="ui-empty italic text-slate-500">Nothing moved through {{ $methods[$method] ?? $method }} in this period.</td></tr>
                     @endif
                 </tbody>

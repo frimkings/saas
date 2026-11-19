@@ -15,6 +15,9 @@ class OpticalLensAvailabilityService
     private const COATINGS = ['AR', 'BlueCut', 'Transitions', 'HC'];
     private const INDICES = ['1.56', '1.61', '1.67', '1.74'];
 
+    /** Bound to an ordering-page request id while the optical centre turns that request into a job: its own pick is not held against it. */
+    public const IGNORE_REQUEST_HOLD = 'optical.ignore_request_hold';
+
     /**
      * Stock options priced and sourced per eye. Each lens is one stock unit
      * and is sold at its own per-lens selling price. An eye that the branch
@@ -433,12 +436,29 @@ class OpticalLensAvailabilityService
     private function heldQuantities(array $productIds, ?int $ignoreOrderId): array
     {
         if (! $productIds) return [];
-        return OpticalOrderLensLine::query()
+        $held = OpticalOrderLensLine::query()
             ->where('source', 'stock')->whereIn('status', OpticalOrderLensLine::HOLDING)
             ->whereIn('optical_product_id', $productIds)
             ->when($ignoreOrderId, fn ($query) => $query->where('lens_order_id', '!=', $ignoreOrderId))
             ->selectRaw('optical_product_id, COUNT(*) as held')->groupBy('optical_product_id')
             ->pluck('held', 'optical_product_id')->map(fn ($held) => (int) $held)->all();
+
+        // A lens a partner clinic picked on its ordering page is held until the order is accepted,
+        // turned down or cancelled; the job made from that order uses the lens it held.
+        $ignoreRequest = app()->bound(self::IGNORE_REQUEST_HOLD) ? (int) app(self::IGNORE_REQUEST_HOLD) : null;
+        $picks = \App\Models\OpticalOrderRequest::query()
+            ->where('optical_clinic_id', app(TenantContext::class)->clinicId())
+            ->whereIn('status', \App\Models\OpticalOrderRequest::OPEN)->whereNotNull('lens_choice')
+            ->when($ignoreRequest, fn ($query) => $query->where('id', '!=', $ignoreRequest))
+            ->pluck('lens_choice');
+        foreach ($picks as $pick) {
+            foreach ((array) data_get($pick, 'eyes', []) as $eye) {
+                $id = (int) ($eye['product_id'] ?? 0);
+                if (($eye['source'] ?? null) === 'stock' && in_array($id, $productIds)) $held[$id] = ($held[$id] ?? 0) + 1;
+            }
+        }
+
+        return $held;
     }
 
     private function catalogueProductId(string $key, string $eye, float $sphere, float $power): ?int

@@ -11,10 +11,6 @@
 @endphp
 
     <div class="center">
-        @if($clinicSettings->logoDataUri())
-            <img src="{{ $clinicSettings->logoDataUri() }}" class="receipt-logo" alt="Clinic Logo">
-        @endif
-
         <div class="clinic-name">{{ $clinicSettings->clinic_name ?? 'CLINIC' }}</div>
         @if(!empty($clinicSettings->clinic_address))
             <div class="small">{{ $clinicSettings->clinic_address }}</div>
@@ -56,8 +52,8 @@
                             @if($line['refunded'] > 0)<div class="small muted">({{ $line['refunded'] }} refunded)</div>@endif
                         </td>
                         <td class="col-qty">{{ $line['quantity'] }}</td>
-                        <td class="col-price">{{ $currency }}{{ number_format($line['price'], 2) }}</td>
-                        <td class="col-total">{{ $currency }}{{ number_format($line['subtotal'], 2) }}</td>
+                        <td class="col-price">{{ number_format($line['price'], 2) }}</td>
+                        <td class="col-total">{{ number_format($line['subtotal'], 2) }}</td>
                     </tr>
                 @endforeach
             </tbody>
