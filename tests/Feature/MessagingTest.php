@@ -798,7 +798,7 @@ class MessagingTest extends TestCase
             ->call('setStage', 'queue')->assertSee($queued->order_id)->assertDontSee($onBench->order_id)->assertSee('Start edging')
             ->call('updateStatus', $queued->id, 'In Production')->assertHasNoErrors()
             ->call('setStage', 'bench')->assertSee($queued->order_id)->assertSee('QC pass · ready')
-            ->call('openOrder', $queued->id)->assertSee('Prescription')->assertSee('Print this panel');
+            ->call('openOrder', $queued->id)->assertSee('Prescription')->assertSee('Print (A5)');
         $this->assertSame('In Production', $queued->fresh()->status);
         $page->call('closeOrder')->call('setStage', 'ready')->assertDontSee($queued->order_id);
     }

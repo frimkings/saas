@@ -66,7 +66,7 @@
                         @endphp
                         <tr wire:key="job-{{ $ord->id }}" class="{{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
                             <td><span class="oo-id">{{ $ord->order_id }}</span><span class="oo-sub">{{ $job }}</span></td>
-                            <td><b>{{ $ord->display_customer_name }}</b>@if($ord->order_source === 'partner')<span class="oo-sub" style="color:#6b21a8;font-weight:700">Partner · {{ $ord->partnerClinic?->name ?? $ord->partner_clinic_name }}</span>@elseif($ord->display_customer_phone)<span class="oo-sub">{{ $ord->display_customer_phone }}</span>@endif</td>
+                            <td><b>{{ $ord->display_customer_name }}</b>@if($ord->order_source === 'partner')<span class="oo-sub" style="color:#6b21a8;font-weight:700">Partner · {{ $ord->partnerClinic?->name ?? $ord->partner_clinic_name }}</span>@elseif($ord->display_customer_phone && \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user()))<span class="oo-sub">{{ $ord->display_customer_phone }}</span>@endif</td>
                             <td>
                                 <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ $ord->frame_model_number ?: ($ord->serviceLines->pluck('description')->join(', ') ?: '—') }}</span>
                                 @if($lensSpec !== '')<span class="oo-sub">{{ $lensSpec }}</span>@endif

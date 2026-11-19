@@ -128,6 +128,15 @@ final class OpticalAccess
         return self::isManager($user) || (bool) $user?->can(self::SALES);
     }
 
+    /**
+     * Money (prices, totals, balances, payments) and the customer's phone are for the front desk
+     * and managers. Bench staff (Optician, Lab Technician) see the job, not the till or the customer.
+     */
+    public static function seesMoneyAndContacts(?User $user): bool
+    {
+        return self::desk($user);
+    }
+
     /** Bench work: sending jobs to the lab, glazing, marking ready, receiving lenses. */
     public static function bench(?User $user): bool
     {

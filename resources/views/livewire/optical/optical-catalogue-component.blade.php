@@ -37,7 +37,7 @@
     <x-ui.flash />
 
     <nav class="ct-tabs" data-tour="opt-cat-tabs" role="tablist" aria-label="Catalogue sections">
-        @foreach(['frames' => 'Frames', 'lenses' => 'Lenses', 'lens-prices' => 'Lens prices', 'options' => 'Coatings & options', 'services' => 'Services & prices'] as $key => $label)
+        @foreach(array_filter(['frames' => 'Frames', 'lenses' => 'Lenses', 'lens-prices' => $money ? 'Lens prices' : null, 'options' => 'Coatings & options', 'services' => $money ? 'Services & prices' : null]) as $key => $label)
             <button type="button" role="tab" aria-selected="{{ $activeTab === $key ? 'true' : 'false' }}" class="{{ $activeTab === $key ? 'active' : '' }}" wire:click="setTab('{{ $key }}')">{{ $label }}</button>
         @endforeach
     </nav>
@@ -126,8 +126,8 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="oo-table ct-table w-full" style="min-width:860px">
-                    <colgroup><col class="c-sku"><col class="c-name"><col class="c-cat"><col class="c-price"><col class="c-stock"><col class="c-status"><col class="c-act"></colgroup>
-                    <thead><tr><th>SKU</th><th>Item</th><th>Category</th><th class="oo-num">Price</th><th class="oo-num">In stock</th><th>Status</th><th></th></tr></thead>
+                    <colgroup><col class="c-sku"><col class="c-name"><col class="c-cat">@if($money)<col class="c-price">@endif<col class="c-stock"><col class="c-status"><col class="c-act"></colgroup>
+                    <thead><tr><th>SKU</th><th>Item</th><th>Category</th>@if($money)<th class="oo-num">Price</th>@endif<th class="oo-num">In stock</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                         @forelse($products as $product)
                             @php $qty = $stockByProduct[$product->id]; $reorder = $reorderByProduct[$product->id]; [$bl, $bc] = $stockBadge($qty, $reorder); @endphp
@@ -135,7 +135,7 @@
                                 <td class="ct-sku"><span class="oo-id" style="color:var(--clinic-ink)" title="{{ $product->sku }}">{{ $product->sku }}</span></td>
                                 <td><b>{{ $product->name }}</b>@if($product->brand)<span class="oo-sub">{{ $product->brand }}</span>@endif</td>
                                 <td>{{ $product->categoryLabel() }}</td>
-                                <td class="oo-num"><b>{{ currency() }} {{ number_format((float) $product->selling_price, 2) }}</b></td>
+                                @if($money)<td class="oo-num"><b>{{ currency() }} {{ number_format((float) $product->selling_price, 2) }}</b></td>@endif
                                 <td class="oo-num"><b style="color:{{ $qty <= 0 ? '#b91c1c' : ($qty <= $reorder ? '#92400e' : 'inherit') }}">{{ $qty }}</b><span class="oo-sub">reorder at {{ $reorder }}</span></td>
                                 <td><span class="oo-badge {{ $bc }}">{{ $bl }}</span></td>
                                 <td class="!text-right" onclick="event.stopPropagation()"><button type="button" class="oo-btn" wire:click="openProduct({{ $product->id }})">View</button></td>
@@ -171,15 +171,15 @@
                 <div class="oo-drawer-body">
                     <div class="oo-money">
                         <div><span>In stock</span><b style="color:{{ $qty <= 0 ? '#b91c1c' : ($qty <= $reorder ? '#92400e' : 'inherit') }}">{{ $qty }}</b></div>
-                        <div><span>Selling price</span><b>{{ currency() }} {{ number_format($price, 2) }}</b></div>
-                        <div><span>Margin</span><b>{{ $margin !== null ? $margin.'%' : '—' }}</b></div>
+                        @if($money)<div><span>Selling price</span><b>{{ currency() }} {{ number_format($price, 2) }}</b></div>
+                        <div><span>Margin</span><b>{{ $margin !== null ? $margin.'%' : '—' }}</b></div>@endif
                     </div>
                     @if($qty <= $reorder)<div class="oo-note {{ $qty <= 0 ? 'red' : 'amber' }}">{{ $qty <= 0 ? 'Out of stock at this branch.' : 'At or below the reorder level ('.$reorder.').' }}@if($isManager) Order more from Purchasing, or record a delivery in Receive stock.@endif</div>@endif
                     <section class="oo-section">
                         <h3>Details</h3>
                         <dl class="oo-dl">
                             <dt>Brand</dt><dd>{{ $viewProduct->brand ?: '—' }}</dd>
-                            <dt>Cost price</dt><dd>{{ currency() }} {{ number_format($cost, 2) }}</dd>
+                            @if($money)<dt>Cost price</dt><dd>{{ currency() }} {{ number_format($cost, 2) }}</dd>@endif
                             <dt>Reorder level</dt><dd>{{ $reorder }}</dd>
                             @if($viewProduct->specifications)<dt>Specifications</dt><dd style="white-space:pre-line">{{ $viewProduct->specifications }}</dd>@endif
                             @if($viewProduct->lens_specs)<dt>Lens</dt><dd>{{ collect(['design', 'index', 'coating'])->map(fn ($k) => data_get($viewProduct->lens_specs, $k))->filter()->join(' · ') }}{{ data_get($viewProduct->lens_specs, 'diameter') ? ' · '.data_get($viewProduct->lens_specs, 'diameter').'mm' : '' }}</dd>@endif

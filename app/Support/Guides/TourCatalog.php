@@ -18,7 +18,7 @@ final class TourCatalog
         'attendance.manager' => 3,
         'attendance.head' => 2,
         'attendance.staff' => 1,
-        'optical.dashboard' => 2,
+        'optical.dashboard' => 3,
         'optical.orders' => 1,
         'optical.order-create' => 1,
         'optical.special-order' => 1,
@@ -172,7 +172,7 @@ final class TourCatalog
             ['target' => 'nav-admin', 'title' => 'Admin', 'body' => 'Order rules, staff and their roles, and the audit trail. Each person sees only the parts of the menu their role opens.'],
             ['target' => 'opt-attention', 'title' => 'What needs doing today', 'body' => 'Jobs due or late, glasses not collected, lenses still to order. Managers also see stock lenses held a day or more by jobs not started, with a button to release them (the number of days is under Settings). Click one to go straight to it.'],
             ['target' => 'opt-new-order', 'title' => 'Start here', 'body' => 'New Order takes a prescription job or a quotation step by step. Walk-in POS Sale is for selling something off the shelf.'],
-            ['target' => 'opt-stats', 'title' => 'Today at a glance', 'body' => 'Orders taken today, glasses ready for collection, and money still owed by customers.'],
+            ['target' => 'opt-stats', 'title' => 'Today at a glance', 'body' => 'Orders taken today, glasses ready for collection, and (for the front desk and managers) money still owed by customers. Lab staff see the jobs without prices or customer phone numbers.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
         ]];
     }

@@ -1433,6 +1433,44 @@ class OpticalWorkflowTest extends TestCase
         $this->get(route('optical.lab-workbench'))->assertSee('id="optical-nav-lab"', false)->assertDontSee('Retail POS');
     }
 
+    public function test_bench_staff_see_the_job_but_not_money_or_the_customers_phone(): void
+    {
+        $manager = $this->opticalManager('bench-privacy');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $manager->id, 'name' => 'Private Customer', 'contact' => '0240009911', 'gender' => 'Other']);
+        $order = app(OpticalOrderService::class)->create($this->orderData($patient)); // total 310, 50 paid
+
+        // An Optician in the same shop.
+        $context = app(TenantContext::class);
+        [$clinic, $branch] = [$context->clinic(), $context->branch()];
+        $optician = User::factory()->create();
+        $role = Role::where('name', 'Optician')->firstOrFail();
+        $optician->assignRole($role);
+        $clinic->users()->attach($optician->id, ['status' => 'active', 'is_default' => true]);
+        $branch->users()->attach($optician->id, ['status' => 'active', 'is_default' => true]);
+        DB::table('branch_user_role')->insert(['user_id' => $optician->id, 'branch_id' => $branch->id, 'role_id' => $role->id]);
+        $this->travel(10)->days(); // late and stuck, so it is on Job Tracking
+        $this->flushSession();
+        $this->actingAs($optician);
+        $context->set($optician, $clinic, $branch, [$branch->id]);
+
+        $this->get(route('optical.dashboard'))->assertOk()->assertDontSee('Outstanding Balances')->assertDontSee('Collect &amp; Pay', false)->assertDontSee('260.00');
+        $this->get(route('optical.jobs'))->assertOk()->assertSee('Private Customer')->assertDontSee('0240009911')
+            ->assertDontSee('New date')->assertSee('Open job (lab steps)');
+        Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)->call('openReschedule', $order->id)->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)->call('openOrder', $order->id)
+            ->assertSee($order->order_id)->assertDontSee('0240009911')->assertDontSee('310.00')->assertDontSee('260.00');
+        $this->get(route('optical.orders.docket', $order->id))->assertOk()->assertDontSee('Pricing')->assertDontSee('0240009911')->assertSee('Frame A');
+        Livewire::test(\App\Livewire\Optical\OpticalCatalogueComponent::class)->assertDontSee('Services &amp; prices', false)
+            ->call('setTab', 'services')->assertForbidden();
+
+        // The manager still sees all of it.
+        $this->flushSession();
+        $this->actingAs($manager);
+        $context->set($manager, $clinic, $branch, [$branch->id]);
+        $this->get(route('optical.dashboard'))->assertSee('Outstanding Balances');
+        Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)->call('openOrder', $order->id)->assertSee('0240009911')->assertSee('310.00');
+    }
+
     public function test_menu_is_grouped_by_area_and_each_role_sees_its_own_groups(): void
     {
         // Receptionist (Optical Assistant): the front desk only, open.

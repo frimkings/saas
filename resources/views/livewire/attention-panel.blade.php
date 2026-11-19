@@ -57,7 +57,7 @@
                             <div class="att-detail {{ in_array($rule, ['order_late', 'appt_missed', 'stock_expired'], true) ? 'rot-red' : '' }}">{{ $item['detail'] }}</div>
                         </div>
                         <div class="att-actions">
-                            @if($item['phone'])<a href="tel:{{ preg_replace('/[^\d+]/', '', $item['phone']) }}" title="Call {{ $item['phone'] }}"><i class="fas fa-phone"></i> Call</a>@endif
+                            @if($item['phone'] && $contacts)<a href="tel:{{ preg_replace('/[^\d+]/', '', $item['phone']) }}" title="Call {{ $item['phone'] }}"><i class="fas fa-phone"></i> Call</a>@endif
                             @if($item['url'])<a href="{{ $item['url'] }}">Open</a>@endif
                             @if($rule === 'lens_held')
                                 <button type="button" class="att-done" wire:click="start({{ $args }}, 'release')" title="Free these lenses for sale and other jobs">Release lenses</button>

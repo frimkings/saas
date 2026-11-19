@@ -54,8 +54,15 @@ class OpticalJobsComponent extends Component
             : 'This job was not holding any lenses.');
     }
 
+    /** Promising the customer a new date (and telling them) is front-desk work. */
+    private function authorizeCustomerFacing(): void
+    {
+        abort_unless(\App\Support\OpticalAccess::desk(auth()->user()), 403, 'The front desk does this.');
+    }
+
     public function openReschedule(int $orderId): void
     {
+        $this->authorizeCustomerFacing();
         $order = LensOrder::whereIn('status', OpticalJobTrackingService::OPEN)->findOrFail($orderId);
         $this->rescheduleOrderId = $order->id;
         $this->newPickupDate = today()->addDays(3)->toDateString();
@@ -66,6 +73,7 @@ class OpticalJobsComponent extends Component
 
     public function saveReschedule(): void
     {
+        $this->authorizeCustomerFacing();
         $this->resetValidation();
         $previousDate = \App\Models\LensOrder::whereKey((int) $this->rescheduleOrderId)->value('pickUpDate');
         $order = app(OpticalJobTrackingService::class)->reschedule((int) $this->rescheduleOrderId, $this->newPickupDate, $this->newLabDate ?: null, $this->rescheduleReason);
@@ -127,6 +135,7 @@ class OpticalJobsComponent extends Component
             'tracking' => $tracking,
             'stuckDays' => OpticalSetting::stuckJobDays(),
             'isManager' => $this->isManager(),
+            'desk' => \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user()),
             'rescheduleOrder' => $this->rescheduleOrderId ? LensOrder::find($this->rescheduleOrderId) : null,
             'abandonOrder' => $this->abandonOrderId ? LensOrder::find($this->abandonOrderId) : null,
         ])->layout('layouts.optical');

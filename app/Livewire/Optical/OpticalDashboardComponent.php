@@ -30,12 +30,14 @@ class OpticalDashboardComponent extends Component
             ->get();
         $readyCount = LensOrder::whereIn('status', LensOrder::READY)->count();
 
-        // 3. Outstanding balances: the same jobs as the Orders page's "Balance due" chip
-        $outstandingTotal = (float) (LensOrder::balanceDue()
+        // 3. Outstanding balances: the same jobs as the Orders page's "Balance due" chip.
+        // Money is for the front desk and managers; bench staff don't get it at all.
+        $seesMoney = \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user());
+        $outstandingTotal = $seesMoney ? (float) (LensOrder::balanceDue()
             ->selectRaw('SUM('.LensOrder::TOTAL_SQL.' - COALESCE(paid_amount,0)) as total_debt')
-            ->value('total_debt') ?? 0);
+            ->value('total_debt') ?? 0) : 0.0;
 
-        $outstandingCount = LensOrder::balanceDue()->count();
+        $outstandingCount = $seesMoney ? LensOrder::balanceDue()->count() : 0;
 
         // 4. Low stock items: count them all, list the first 5
         $lowStock = OpticalProduct::with('stocks')->where('is_active', true)
@@ -55,6 +57,8 @@ class OpticalDashboardComponent extends Component
             'readyCount' => $readyCount,
             'outstandingTotal' => $outstandingTotal,
             'outstandingCount' => $outstandingCount,
+            'seesMoney' => $seesMoney,
+            'desk' => \App\Support\OpticalAccess::desk(auth()->user()),
             'lowStockProducts' => $lowStockProducts,
             'lowStockCount' => $lowStockCount,
             'recentOrders' => $recentOrders,

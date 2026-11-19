@@ -30,9 +30,10 @@
                         @foreach($group['rows'] as $row)
                             @php
                                 $order = $row['order'];
-                                $customerLink = $tracking->customerDelayLink($order);
+                                // The customer's phone and messages are for the front desk; the bench sees the job.
+                                $customerLink = $desk ? $tracking->customerDelayLink($order) : null;
                                 $labLink = $tracking->labChaseLink($order);
-                                $phone = $order->isPartnerJob() ? $order->partnerClinic?->messagingPhone() : $order->display_customer_phone;
+                                $phone = ! $desk ? null : ($order->isPartnerJob() ? $order->partnerClinic?->messagingPhone() : $order->display_customer_phone);
                             @endphp
                             <tr wire:key="job-{{ $order->id }}" class="align-top">
                                 <td class="p-3 text-xs font-mono whitespace-nowrap"><button type="button" wire:click="openOrder({{ $order->id }})" class="text-teal-800 underline">{{ $order->order_id }}</button></td>
@@ -50,14 +51,14 @@
                                     <div class="flex flex-wrap justify-end gap-1.5">
                                         @if($customerLink)<a href="{{ $customerLink }}" target="_blank" rel="noopener" class="oo-btn" title="WhatsApp the {{ $order->isPartnerJob() ? 'partner clinic' : 'customer' }} about the delay"><i class="fab fa-whatsapp" aria-hidden="true"></i> {{ $order->isPartnerJob() ? 'Partner' : 'Customer' }}</a>@endif
                                         @if($labLink)<a href="{{ $labLink }}" target="_blank" rel="noopener" class="oo-btn" title="Ask {{ $order->labSupplier->name }} when the job will be back"><i class="fab fa-whatsapp" aria-hidden="true"></i> Chase lab</a>@endif
-                                        <button type="button" wire:click="openReschedule({{ $order->id }})" class="oo-btn">New date</button>
+                                        @if($desk)<button type="button" wire:click="openReschedule({{ $order->id }})" class="oo-btn">New date</button>@endif
                                         {{-- The menu is moved to <body> and pinned to the button: the table's scroll box would otherwise clip it. --}}
                                         <div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
                                             <button type="button" x-ref="more" class="oo-btn" x-on:click="open = ! open" :aria-expanded="open" aria-haspopup="menu" aria-label="More actions for {{ $order->order_id }}">More ▾</button>
                                             <template x-teleport="body">
                                             <div x-show="open" x-cloak x-anchor.bottom-end.offset.4="$refs.more" x-on:click.outside="if (! $refs.more.contains($event.target)) open = false" role="menu"
                                                  class="clinic-ui z-[1050] w-56 rounded-lg border border-slate-200 bg-white p-1 text-left text-xs shadow-lg">
-                                                <button type="button" role="menuitem" wire:click="openOrder({{ $order->id }})" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">Open order (move status, payment)</button>
+                                                <button type="button" role="menuitem" wire:click="openOrder({{ $order->id }})" x-on:click="open = false" class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">{{ $desk ? 'Open order (move status, payment)' : 'Open job (lab steps)' }}</button>
                                                 @if($phone)<a role="menuitem" x-on:click="open = false" href="tel:{{ preg_replace('/[^0-9+]/', '', $phone) }}" class="block rounded px-3 py-2 hover:bg-slate-50">Call {{ $phone }}</a>@endif
                                                 @if($isManager && $row['held']->isNotEmpty() && $order->status === 'Pending')
                                                     <button type="button" role="menuitem" wire:click="releaseLenses({{ $order->id }})" x-on:click="open = false" wire:confirm="Release the lenses held for {{ $order->order_id }} so they can be sold? The job takes a lens again at glazing if one is free." class="block w-full rounded px-3 py-2 text-left hover:bg-slate-50">Release held lenses</button>

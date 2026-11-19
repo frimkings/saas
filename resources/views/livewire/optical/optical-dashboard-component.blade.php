@@ -3,16 +3,18 @@
     <div class="ui-heading">
         <div>
             <h1>Optical Dashboard</h1>
-            <p class="ui-muted">Today's metrics, ready collections, outstanding balances, and inventory alerts.</p>
+            <p class="ui-muted">{{ $seesMoney ? "Today's metrics, ready collections, outstanding balances, and inventory alerts." : "Today's jobs, glasses ready for collection, and stock alerts." }}</p>
         </div>
         <div class="ui-actions">
             <x-guide-tour page="optical.dashboard" />
+            @if($desk)
             <a wire:navigate href="{{ route('optical.orders.create') }}" data-tour="opt-new-order" class="ui-button ui-button-primary">
                 + New Order
             </a>
             <a wire:navigate href="{{ route('optical.pos') }}" class="ui-button ui-button-secondary">
                 Walk-in POS Sale
             </a>
+            @endif
         </div>
     </div>
 
@@ -49,6 +51,7 @@
             <p class="ui-muted">Orders awaiting patient pickup</p>
         </div>
 
+        @if($seesMoney)
         <div class="ui-panel ui-stat">
             <div class="flex items-center justify-between">
                 <span class="ui-muted font-medium uppercase tracking-wider text-xs">Outstanding Balances</span>
@@ -57,6 +60,7 @@
             <div class="ui-value text-red-700">{{ currency() }} {{ number_format($outstandingTotal, 2) }}</div>
             <p class="ui-muted">Total uncollected balances</p>
         </div>
+        @endif
     </div>
 
     <!-- Main Content Grid -->
@@ -68,7 +72,7 @@
                     <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                     Ready for Collection
                 </h2>
-                <a wire:navigate href="{{ route('optical.orders', ['status' => 'Ready for Collection']) }}" class="text-xs font-semibold text-teal-700 hover:underline">View All →</a>
+                @if($desk)<a wire:navigate href="{{ route('optical.orders', ['status' => 'Ready for Collection']) }}" class="text-xs font-semibold text-teal-700 hover:underline">View All →</a>@endif
             </div>
             <div class="ui-table-wrap">
                 <table class="ui-table">
@@ -77,8 +81,8 @@
                             <th>Order ID</th>
                             <th>Customer</th>
                             <th>Frame / Specs</th>
-                            <th class="ui-number">Balance Due</th>
-                            <th class="!text-right">Action</th>
+                            @if($seesMoney)<th class="ui-number">Balance Due</th>
+                            <th class="!text-right">Action</th>@endif
                         </tr>
                     </thead>
                     <tbody>
@@ -87,6 +91,7 @@
                                 <td class="font-semibold">{{ $order->order_id }}</td>
                                 <td>{{ $order->display_customer_name }}</td>
                                 <td class="ui-muted">{{ $order->frame_model_number ?: $order->serviceLines->pluck('description')->join(', ') }}</td>
+                                @if($seesMoney)
                                 <td class="ui-number font-bold {{ ($order->total - $order->paid_amount) > 0 ? 'text-red-700' : 'text-teal-700' }}">
                                     {{ currency() }} {{ number_format(max(0, $order->total - $order->paid_amount), 2) }}
                                 </td>
@@ -95,10 +100,11 @@
                                         Collect & Pay
                                     </a>
                                 </td>
+                                @endif
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="ui-empty">
+                                <td colspan="{{ $seesMoney ? 5 : 3 }}" class="ui-empty">
                                     <p class="ui-muted">No orders currently ready for collection.</p>
                                 </td>
                             </tr>

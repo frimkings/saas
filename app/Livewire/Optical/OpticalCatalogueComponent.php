@@ -402,9 +402,18 @@ class OpticalCatalogueComponent extends Component
         }
     }
 
+    /** Prices are for the front desk and managers; the bench uses the catalogue for stock and powers. */
+    public function seesMoney(): bool
+    {
+        return \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user());
+    }
+
+    public const PRICE_TABS = ['lens-prices', 'services'];
+
     public function setTab($tab)
     {
         abort_unless(in_array($tab, ['frames', 'lenses', 'options', 'lens-prices', 'services'], true), 422);
+        abort_if(in_array($tab, self::PRICE_TABS, true) && ! $this->seesMoney(), 403, 'Prices are for the front desk.');
         $this->activeTab = $tab;
         $this->viewProductId = null;
         $this->showServiceForm = false;
@@ -500,8 +509,10 @@ class OpticalCatalogueComponent extends Component
     /** Only what the open tab shows is loaded: the product list, the lens grid, options or services. */
     public function render()
     {
+        if (in_array($this->activeTab, self::PRICE_TABS, true) && ! $this->seesMoney()) $this->activeTab = 'frames';
         $viewProduct = $this->viewProductId ? OpticalProduct::with('stocks')->find($this->viewProductId) : null;
         $data = [
+            'money' => $this->seesMoney(),
             'viewProduct' => $viewProduct,
             'viewMovements' => $viewProduct ? \App\Models\OpticalProductStockMovement::with('user')->where('optical_product_id', $viewProduct->id)->latest()->limit(8)->get() : collect(),
             'lensOptions' => $this->activeTab === 'options' ? LensOption::all() : collect(),

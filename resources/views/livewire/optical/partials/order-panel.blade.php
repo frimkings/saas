@@ -18,6 +18,8 @@
             // Front desk: money, notices, handing over. Bench: lab steps (App\Support\OpticalAccess).
             $deskOk = \App\Support\OpticalAccess::desk(auth()->user());
             $benchOk = \App\Support\OpticalAccess::bench(auth()->user());
+            // Prices, payments and the customer's phone are the front desk's; the bench sees the job.
+            $money = \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user());
             $stepIsBench = in_array($o->status, ['Pending', 'Sent to Lab', 'In Production'], true);
             $stepAllowed = $stepIsBench ? $benchOk : $deskOk;
             // Orders store their lab docket as JSON in notes; older or hand-written notes stay plain text.
@@ -32,7 +34,7 @@
                     <h2 id="oo-drawer-title"><span class="oo-id" style="font-size:17px">{{ $o->order_id }}</span></h2>
                     <div class="flex flex-wrap items-center gap-2 text-xs ui-muted">
                         <span class="oo-badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
-                        <span><b class="text-slate-800">{{ $o->display_customer_name }}</b>@if($o->display_customer_phone) · {{ $o->display_customer_phone }}@endif</span>
+                        <span><b class="text-slate-800">{{ $o->display_customer_name }}</b>@if($money && $o->display_customer_phone) · {{ $o->display_customer_phone }}@endif</span>
                         <span>· Created {{ $o->created_at?->format('d M Y') }}@if($o->user) by {{ $o->user->name }}@endif</span>
                     </div>
                 </div>
@@ -43,7 +45,7 @@
                 @if($errors->any())<div class="oo-note red" role="alert">{{ $errors->first() }}</div>@endif
 
                 @if($o->status === 'Cancelled')
-                    <div class="oo-note red">Cancelled{{ $o->cancelled_at ? ' on '.$o->cancelled_at->format('d M Y') : '' }}.@if($o->refundLog) Refunded {{ currency() }} {{ number_format((float) $o->refundLog->refunded_amount, 2) }}@if((float) $o->cancellation_fee > 0); fee kept {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}@endif.@elseif((float) $o->cancellation_fee > 0) Deposit kept: {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}.@endif @if($o->cancellation_reason)<span class="block mt-1">{{ $o->cancellation_reason }}</span>@endif</div>
+                    <div class="oo-note red">Cancelled{{ $o->cancelled_at ? ' on '.$o->cancelled_at->format('d M Y') : '' }}.@if(! $money) @elseif($o->refundLog) Refunded {{ currency() }} {{ number_format((float) $o->refundLog->refunded_amount, 2) }}@if((float) $o->cancellation_fee > 0); fee kept {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}@endif.@elseif((float) $o->cancellation_fee > 0) Deposit kept: {{ currency() }} {{ number_format((float) $o->cancellation_fee, 2) }}.@endif @if($o->cancellation_reason)<span class="block mt-1">{{ $o->cancellation_reason }}</span>@endif</div>
                 @elseif($o->status === 'Quotation')
                     <div class="oo-note amber">This is a quotation. Nothing is reserved or charged until it is converted to an order.</div>
                 @else
@@ -55,11 +57,13 @@
                     </ol>
                 @endif
 
+                @if($money)
                 <div class="oo-money">
                     <div><span>Total</span><b>{{ currency() }} {{ number_format($total, 2) }}</b></div>
                     <div><span>Paid</span><b style="color:#047857">{{ currency() }} {{ number_format($paid, 2) }}</b></div>
                     <div><span>Balance</span><b style="color:{{ $balance > 0 && $o->status !== 'Quotation' ? '#b91c1c' : 'inherit' }}">{{ currency() }} {{ number_format($balance, 2) }}</b></div>
                 </div>
+                @endif
 
                 @foreach($awaited as $line)
                     @php $poLine = $o->purchaseOrderLines->first(fn ($pl) => ($pl->eye === $line->eye || $pl->eye === null) && $pl->purchaseOrder?->status !== 'cancelled'); @endphp
@@ -74,10 +78,10 @@
                         @if($open && $benchOk)<button type="button" class="oo-btn warn" wire:click="receiveLens({{ $o->id }}, '{{ $line->eye }}')" wire:confirm="Confirm the {{ strtoupper($line->eye) }} lens has arrived from the supplier?">Mark received</button>@endif
                     </div>
                 @endforeach
-                @if($clinicBill)
+                @if($clinicBill && $money)
                     <div class="oo-note amber" style="background:#f0f9ff;border-color:#bae6fd;color:#075985">Clinic order: the frame and lenses are paid on the patient's clinic bill ({{ strtolower($clinicBill['label']) }}), so payments are taken at reception or the cashier, not here.</div>
                 @endif
-                @if($isReady && $balance > 0 && ! $onAccount)
+                @if($isReady && $balance > 0 && ! $onAccount && $money)
                     <div class="oo-note amber">{{ $clinicBill ? 'The clinic bill still has '.currency().' '.number_format($balance, 2).' to pay for these glasses. Take it at reception or the cashier before handing them over.' : 'Take the remaining '.currency().' '.number_format($balance, 2).' before handing over the glasses.' }}</div>
                 @endif
 
@@ -111,7 +115,7 @@
                     <h3>Details</h3>
                     <dl class="oo-dl">
                         <dt>Work type</dt><dd>{{ ucfirst(str_replace('_', ' ', $o->work_type ?? 'prescription')) }}@if($o->order_source === 'partner') · partner job{{ $o->partnerClinic || $o->partner_clinic_name ? ' for '.($o->partnerClinic?->name ?? $o->partner_clinic_name) : '' }}{{ $onAccount ? ' (on account)' : '' }}@if($deskOk && ! $pendingPartnerChange && ! in_array($o->status, ['Quotation', 'Cancelled'], true)) <button type="button" wire:click="openChangePartner({{ $o->id }})" class="oo-btn" style="padding:1px 8px;font-size:11px;margin-left:4px" title="Entered under the wrong partner clinic? {{ $isManager ? 'Move it to the right one.' : 'Ask a manager to move it.' }}">Change clinic</button>@endif @endif</dd>
-                        <dt>Frame</dt><dd>{{ $o->own_frame ? "Customer's own frame" : ($o->frameOpticalProduct?->name ?? $o->frameProduct?->name ?? ($o->frame_model_number ?: '—')) }}@if(! $o->own_frame && (float) $o->frame_price > 0) · {{ currency() }} {{ number_format((float) $o->frame_price, 2) }}@endif</dd>
+                        <dt>Frame</dt><dd>{{ $o->own_frame ? "Customer's own frame" : ($o->frameOpticalProduct?->name ?? $o->frameProduct?->name ?? ($o->frame_model_number ?: '—')) }}@if($money && ! $o->own_frame && (float) $o->frame_price > 0) · {{ currency() }} {{ number_format((float) $o->frame_price, 2) }}@endif</dd>
                         <dt>Pickup date</dt><dd>{{ $o->pickUpDate ? \Carbon\Carbon::parse($o->pickUpDate)->format('D, d M Y') : 'Not set' }}</dd>
                         @if($o->sent_to_lab_at)<dt>Lab</dt><dd>{{ $o->labSupplier?->name ?? 'Outside lab' }} · sent {{ $o->sent_to_lab_at->format('d M') }}{{ $o->expected_back_at ? ' · due back '.$o->expected_back_at->format('d M Y') : '' }}@if($o->status === 'Sent to Lab' && $o->expected_back_at?->lt(today())) <span style="color:#b91c1c">(overdue)</span>@endif</dd>@endif
                         @if($o->status === 'Quotation' && $o->quote_valid_until)<dt>Quote valid</dt><dd>{{ $o->isQuoteExpired() ? 'Expired' : 'Until' }} {{ $o->quote_valid_until->format('d M Y') }}@if($o->isQuoteExpired()) <span style="color:#b91c1c">· choose prices when converting</span>@endif</dd>@endif
@@ -163,17 +167,17 @@
                     <section class="oo-section">
                         <h3>Items</h3>
                         <table class="oo-lines">
-                            <thead><tr><th>Item</th><th>Status</th><th class="oo-num">Amount</th></tr></thead>
+                            <thead><tr><th>Item</th><th>Status</th>@if($money)<th class="oo-num">Amount</th>@endif</tr></thead>
                             <tbody>
                                 @foreach($o->lensLines as $line)
-                                    <tr><td>{{ strtoupper($line->eye) }} lens{{ $line->power !== null ? ' · '.number_format((float) $line->power, 2) : '' }}<span class="oo-sub">{{ $line->source === 'special_order' ? 'Special order' : 'From stock' }}</span></td><td><span class="oo-badge {{ $line->status === 'ordered' ? 'oo-b-amber' : 'oo-b-grey' }}">{{ ucfirst($line->status ?? '—') }}</span></td><td class="oo-num">{{ $line->unit_price !== null ? currency().' '.number_format((float) $line->unit_price, 2) : '' }}</td></tr>
+                                    <tr><td>{{ strtoupper($line->eye) }} lens{{ $line->power !== null ? ' · '.number_format((float) $line->power, 2) : '' }}<span class="oo-sub">{{ $line->source === 'special_order' ? 'Special order' : 'From stock' }}</span></td><td><span class="oo-badge {{ $line->status === 'ordered' ? 'oo-b-amber' : 'oo-b-grey' }}">{{ ucfirst($line->status ?? '—') }}</span></td>@if($money)<td class="oo-num">{{ $line->unit_price !== null ? currency().' '.number_format((float) $line->unit_price, 2) : '' }}</td>@endif</tr>
                                 @endforeach
-                                @if($o->lensLines->isEmpty() && (float) $o->lens_price > 0)<tr><td>Lenses</td><td></td><td class="oo-num">{{ currency() }} {{ number_format((float) $o->lens_price, 2) }}</td></tr>@endif
-                                @if((float) $o->glazing_fee > 0)<tr><td>Glazing</td><td></td><td class="oo-num">{{ currency() }} {{ number_format((float) $o->glazing_fee, 2) }}</td></tr>@endif
+                                @if($money && $o->lensLines->isEmpty() && (float) $o->lens_price > 0)<tr><td>Lenses</td><td></td><td class="oo-num">{{ currency() }} {{ number_format((float) $o->lens_price, 2) }}</td></tr>@endif
+                                @if((float) $o->glazing_fee > 0)<tr><td>Glazing</td>@if(! $money)<td></td></tr>@else<td></td><td class="oo-num">{{ currency() }} {{ number_format((float) $o->glazing_fee, 2) }}</td></tr>@endif @endif
                                 @foreach($o->serviceLines as $line)
-                                    <tr><td>{{ $line->description }}@if($line->quantity > 1) × {{ $line->quantity }}@endif</td><td></td><td class="oo-num">{{ currency() }} {{ number_format((float) $line->line_total, 2) }}</td></tr>
+                                    <tr><td>{{ $line->description }}@if($line->quantity > 1) × {{ $line->quantity }}@endif</td><td></td>@if($money)<td class="oo-num">{{ currency() }} {{ number_format((float) $line->line_total, 2) }}</td>@endif</tr>
                                 @endforeach
-                                @if((float) $o->discount_amount > 0)<tr><td>Discount</td><td></td><td class="oo-num">− {{ currency() }} {{ number_format((float) $o->discount_amount, 2) }}</td></tr>@endif
+                                @if($money && (float) $o->discount_amount > 0)<tr><td>Discount</td><td></td><td class="oo-num">− {{ currency() }} {{ number_format((float) $o->discount_amount, 2) }}</td></tr>@endif
                             </tbody>
                         </table>
                     </section>
@@ -211,7 +215,8 @@
                     <h3>Documents</h3>
                     <div class="flex flex-wrap gap-2">
                         <a href="{{ route('optical.orders.docket', $o->id) }}" target="_blank" class="oo-btn">Lab docket</a>
-                        <button type="button" class="oo-btn" onclick="window.print()">Print this panel</button>
+                        {{-- The docket is the printable job sheet (A5); printing the panel itself left blank pages. --}}
+                        <a href="{{ route('optical.orders.docket', ['order' => $o->id, 'print' => 1]) }}" target="_blank" class="oo-btn">Print (A5)</a>
                         @if($o->sale_id && $o->status !== 'Cancelled')<a href="{{ route('optical.receipt', $o->sale_id) }}" target="_blank" class="oo-btn">Receipt</a>@endif
                         @if($o->refundLog)<a href="{{ route('refunds.receipt', $o->refundLog) }}" target="_blank" class="oo-btn">Refund receipt</a>@endif
                         @if($o->status === 'Quotation' && $deskOk)<a href="{{ route('optical.orders.create', ['quotation_id' => $o->id]) }}" class="oo-btn">Edit quote</a>@endif

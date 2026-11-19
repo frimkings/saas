@@ -90,6 +90,8 @@ class AttentionPanelComponent extends Component
             'stale'    => $items->counts($this->line)['stale'],
             'staleDays' => AttentionItems::thresholds()['stale_days'],
             'tidyUrl'  => $optical ? route('optical.attention.old-orders') : route('attention.old-orders'),
+            // Bench staff in the optical shop see the jobs, not the customer's phone.
+            'contacts' => ! $optical || \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user()),
             'canWriteOff' => \App\Support\Access\Access::can('stock.write_off'),
         ]);
 

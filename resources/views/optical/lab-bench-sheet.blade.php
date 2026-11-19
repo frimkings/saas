@@ -79,7 +79,7 @@
                 <div class="right">Due: @if($due)<span class="{{ $late ? 'late' : '' }}">{{ $due->format('D d M Y') }}{{ $late ? ' · LATE' : '' }}</span>@else — @endif</div>
             </div>
             <div class="grid">
-                <p><span class="label">Customer:</span> {{ $order->display_customer_name }}@if($order->display_customer_phone) · {{ $order->display_customer_phone }}@endif</p>
+                <p><span class="label">Customer:</span> {{ $order->display_customer_name }}@if($order->display_customer_phone && \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user())) · {{ $order->display_customer_phone }}@endif</p>
                 <p><span class="label">Work:</span> {{ $order->work_type === 'service' ? 'Optical service' : 'Prescription glasses' }}@if($order->serviceLines->isNotEmpty()) · {{ $order->serviceLines->map(fn ($line) => $line->description.($line->quantity > 1 ? ' × '.$line->quantity : ''))->implode(', ') }}@endif</p>
                 @if($order->partner_clinic_name)<p><span class="label">Partner clinic:</span> {{ $order->partner_clinic_name }}</p>@endif
                 @if(data_get($details, 'reference'))<p><span class="label">Reference:</span> {{ data_get($details, 'reference') }}</p>@endif

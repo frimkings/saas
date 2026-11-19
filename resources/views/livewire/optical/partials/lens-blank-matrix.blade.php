@@ -136,7 +136,8 @@
                     </strong>
                     <span class="block text-[11px] text-slate-500">
                         {{ $matrixDesign }} · {{ $matrixEyeSpecific ? 'ADD' : 'CYL' }} columns ·
-                        @if($matrixPrice){{ currency() }} {{ number_format((float) $matrixPrice->pair_price, 2) }}/pair{{ $matrixPrice->rules->isNotEmpty() ? '*' : '' }}@else<button type="button" wire:click="setTab('lens-prices')" class="underline">set price</button>@endif
+                        @if(! \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user()))stock and powers
+                        @elseif($matrixPrice){{ currency() }} {{ number_format((float) $matrixPrice->pair_price, 2) }}/pair{{ $matrixPrice->rules->isNotEmpty() ? '*' : '' }}@else<button type="button" wire:click="setTab('lens-prices')" class="underline">set price</button>@endif
                         · <span wire:loading.remove wire:target="$refresh">updated {{ $matrixRefreshedAt->format('H:i') }}</span><span wire:loading wire:target="$refresh">refreshing…</span>
                     </span>
                 </div>
