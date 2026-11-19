@@ -231,7 +231,7 @@ class ClinicNavigation
         if ($workspace === 'administration') {
             $menu[] = ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
                 ['label' => 'Users', 'route' => 'admin.users'],
-                ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $has(Feature::CUSTOM_ROLES)],
+                ['label' => 'What each role can do', 'route' => 'admin.roles-permissions', 'show' => $has(Feature::CUSTOM_ROLES)],
                 ['label' => 'Attendance', 'route' => 'admin.attendance', 'active' => 'admin.attendance*', 'show' => \App\Services\LicenseService::has(Feature::ATTENDANCE)],
                 ['label' => 'Login History', 'route' => 'admin.login-history', 'show' => $has(Feature::AUDIT_TRAIL)],
                 ['label' => 'Audit Trail', 'route' => 'admin.audit-trail', 'show' => $has(Feature::AUDIT_TRAIL)],

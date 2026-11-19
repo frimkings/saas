@@ -52,6 +52,7 @@ final class TourCatalog
         'platform.announcements' => 1,
         'platform.usage' => 1,
         'platform.links' => 1,
+        'platform.roles' => 1,
         'platform.imports-other' => 2,
         'platform.analytics' => 1,
         'platform.support' => 1,
@@ -520,6 +521,11 @@ final class TourCatalog
                 ['target' => 'ol-filter', 'title' => 'Find a link', 'body' => 'Show linked, paused, ended or every link, or only those that need attention: a disputed payment, a credit limit reached, or a pause you made.'],
                 ['target' => 'ol-list', 'title' => 'Every link', 'body' => 'Each row shows the agreed terms (trade %, credit limit, auto-approval), jobs, money owed and payments. Click one for its latest jobs and payments.'],
                 ['title' => 'Step in when needed', 'body' => 'In a link\'s details you can pause it with a reason (new jobs stop, and only you can resume it) or end it. Both clinics see your reason. Jobs already sent carry on.'],
+            ]],
+            'platform.roles' => ['Roles', [
+                ['target' => 'rl-cards', 'title' => 'The shared roles', 'body' => 'Every clinic uses the same roles. Each card says what the role is for and how many active people hold it across all clinics. Clinics see Super Admin as Owner.'],
+                ['target' => 'rl-matrix', 'title' => 'Exactly what each gives', 'body' => 'Every permission against every role, the same table clinics see. To change a role, your developers change it in code, so it is tested before it reaches clinics.'],
+                ['target' => 'rl-clinics', 'title' => 'Clinic by clinic', 'body' => 'Who holds which role in each clinic, and how many single permissions owners and managers have switched on or off for one person on their Access page.'],
             ]],
             'platform.usage' => ['Clinic Usage', [
                 ['target' => 'cu-period', 'title' => 'Pick a period', 'body' => 'Every figure is a total for the days you pick: this month so far, last month, the last 30 or 7 days, any earlier month ("A month…"), or your own dates ("From – to…"). Nothing is deleted, so past months stay here. Enter your hosting bill to see what each clinic costs to host.'],

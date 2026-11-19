@@ -26,12 +26,14 @@ final class RoleMap
     private const MANAGEMENT = [
         'optical_centres.manage', 'scans.export', 'clinical.task_center', 'diagnoses.manage',
         'sales.manage', 'dayclose.manage', 'cashbook.view', 'expenses.manage', 'quotations.manage',
-        'ledger.view', 'insurance.manage',
+        'ledger.view', 'insurance.manage', 'insurance.payments',
         'approve.discounts', 'approve.refunds', 'approve.revokes',
         'inventory.manage', 'inventory.movements', 'purchasing.manage', 'lens_report.view',
         'dashboard.view', 'messages.recall', 'messages.logs',
         'sales.refund_any', 'pos.all_open_sales', 'receipts.view_all', 'scans.manage', 'spectacles.override',
         'attendance.manage', 'audit.view', 'branches.manage', 'optical.manage',
+        // Held through old database permissions until phase 5; now part of the role itself.
+        'staff.manage', 'roles.view',
     ];
 
     /** @return list<string> */

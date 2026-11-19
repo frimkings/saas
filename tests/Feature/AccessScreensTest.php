@@ -76,6 +76,15 @@ class AccessScreensTest extends TestCase
         'Secretary' => ['optical-links.accept'],
     ];
 
+    /**
+     * Screens a role deliberately gained since the snapshot (phase 5, 2026-11-19): live Managers
+     * held "manage users" and "record insurer payments" as database permissions, now part of the
+     * Manager role itself, and Managers may see the read-only role guide.
+     */
+    private const GAINED = [
+        'Manager' => ['admin.users', 'admin.insurance.payments', 'admin.roles-permissions'],
+    ];
+
     /** Removed: pointed at a POS method that no longer existed (500 for everyone). */
     private const REMOVED = ['GET livewire/ajax-patients'];
 
@@ -88,8 +97,9 @@ class AccessScreensTest extends TestCase
                 if (in_array($name, self::REMOVED, true)) {
                     continue;
                 }
-                $old = $this->oldAllows($route['conditions'], $user, $role)
-                    && ! in_array($name, self::DELIBERATE[$role] ?? [], true);
+                $old = ($this->oldAllows($route['conditions'], $user, $role)
+                    && ! in_array($name, self::DELIBERATE[$role] ?? [], true))
+                    || in_array($name, self::GAINED[$role] ?? [], true);
                 $new = Access::allowsRoute($user, $name);
                 if ($old !== $new) {
                     $differences[] = "{$role} on {$name}: before ".($old ? 'yes' : 'no').', now '.($new ? 'yes' : 'no');
@@ -100,15 +110,19 @@ class AccessScreensTest extends TestCase
         $this->assertSame([], $differences);
     }
 
-    public function test_legacy_database_permissions_still_open_their_screens(): void
+    /** Phase 5: old database permissions no longer count; a per-person switch does the same job. */
+    public function test_old_database_permissions_no_longer_open_screens_but_switches_do(): void
     {
-        foreach (['record insurer payments' => 'admin.insurance.payments', 'manage users' => 'admin.users'] as $legacy => $route) {
+        foreach (['record insurer payments' => ['admin.insurance.payments', 'insurance.payments'], 'manage users' => ['admin.users', 'staff.manage']] as $legacy => [$route, $key]) {
             $role = Role::firstOrCreate(['name' => 'Legacy '.$legacy, 'guard_name' => 'web']);
             $role->givePermissionTo(Permission::firstOrCreate(['name' => $legacy, 'guard_name' => 'web']));
             $user = User::factory()->create();
             $user->assignRole($role);
+            $user = $user->fresh();
 
-            $this->assertTrue(Access::allowsRoute($user, $route), "{$legacy} should still open {$route}");
+            $this->assertFalse(Access::allowsRoute($user, $route), "{$legacy} on its own no longer opens {$route}");
+            \App\Support\Access\PersonalAccess::set($user, $key, true, null);
+            $this->assertTrue(Access::allowsRoute($user, $route), "a switch for {$key} opens {$route}");
             $this->assertFalse(Access::allowsRoute($user, 'admin.settings'));
         }
     }

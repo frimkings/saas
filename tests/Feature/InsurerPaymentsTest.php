@@ -249,7 +249,8 @@ class InsurerPaymentsTest extends TestCase
 
         $this->actingAs($cashier)->get(route('admin.insurance.payments'))->assertForbidden();
 
-        $cashier->givePermissionTo(InsurerPayment::PERMISSION);
+        // Given to this one cashier on their Access page.
+        \App\Support\Access\PersonalAccess::set($cashier, 'insurance.payments', true, null);
         $this->actingAs($cashier->fresh())->get(route('admin.insurance.payments'))->assertOk();
     }
 

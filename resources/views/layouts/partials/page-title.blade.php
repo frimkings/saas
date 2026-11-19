@@ -26,7 +26,7 @@
         'admin.refund-approvals'               => 'Refund Approvals',
         'admin.clearance-revoke-approvals'    => 'Clearance Revoke Approvals',
         'admin.password-reset-approvals'      => 'Password Reset Approvals',
-        'admin.roles-permissions'       => 'Roles & Permissions',
+        'admin.roles-permissions'       => 'What each role can do',
         'admin.attendance'              => 'Attendance',
         'admin.attendance.departments'  => 'Attendance Departments',
         'admin.attendance.roster-page'  => 'Roster',

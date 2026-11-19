@@ -21,14 +21,23 @@ final class PersonalAccess
         return app(TenantContext::class)->clinicId() ?? 0;
     }
 
+    /**
+     * Rows that count here. Hosted (tenancy on): this clinic's only. A single-business install
+     * (tenancy off) has one clinic, which isn't always resolved, so every row of the person counts.
+     */
+    private static function here($query)
+    {
+        return config('tenancy.enabled') ? $query->where('clinic_id', self::clinicId()) : $query;
+    }
+
     /** @return array<string, bool> permission => switched on (true) / off (false), this clinic */
     public static function overrides(User $user): array
     {
         $clinicId = self::clinicId();
 
-        return app(RequestMemo::class)->remember("personal-access:{$clinicId}:{$user->id}", function () use ($clinicId, $user) {
+        return app(RequestMemo::class)->remember("personal-access:{$clinicId}:{$user->id}", function () use ($user) {
             try {
-                return DB::table(self::TABLE)->where('clinic_id', $clinicId)->where('user_id', $user->id)
+                return self::here(DB::table(self::TABLE))->where('user_id', $user->id)
                     ->pluck('granted', 'permission')->map(fn ($granted) => (bool) $granted)->all();
             } catch (\Illuminate\Database\QueryException) {
                 return []; // table not migrated yet: roles alone decide
@@ -44,12 +53,7 @@ final class PersonalAccess
     /** What the person's role(s) give, ignoring their own switches. */
     public static function fromRole(User $user, string $permission): bool
     {
-        if (RoleMap::grants($user->getRoleNames(), $permission)) {
-            return true;
-        }
-        $legacy = Permissions::legacyNames($permission);
-
-        return $legacy !== [] && $user->getAllPermissions()->pluck('name')->intersect($legacy)->isNotEmpty();
+        return RoleMap::grants($user->getRoleNames(), $permission);
     }
 
     /**
@@ -60,11 +64,10 @@ final class PersonalAccess
     {
         $clinicId = self::clinicId();
         $before = self::override($user, $permission);
-        $key = ['clinic_id' => $clinicId, 'user_id' => $user->id, 'permission' => $permission];
-        if ($granted === null) {
-            DB::table(self::TABLE)->where($key)->delete();
-        } else {
-            DB::table(self::TABLE)->updateOrInsert($key, ['granted' => $granted, 'set_by' => $by, 'updated_at' => now(), 'created_at' => now()]);
+        self::here(DB::table(self::TABLE))->where('user_id', $user->id)->where('permission', $permission)->delete();
+        if ($granted !== null) {
+            DB::table(self::TABLE)->insert(['clinic_id' => $clinicId, 'user_id' => $user->id, 'permission' => $permission,
+                'granted' => $granted, 'set_by' => $by, 'created_at' => now(), 'updated_at' => now()]);
         }
         self::forget($user);
 
@@ -79,7 +82,7 @@ final class PersonalAccess
     /** Clears every switch for this person in this clinic (e.g. when they leave it). */
     public static function clear(User $user): void
     {
-        DB::table(self::TABLE)->where('clinic_id', self::clinicId())->where('user_id', $user->id)->delete();
+        self::here(DB::table(self::TABLE))->where('user_id', $user->id)->delete();
         self::forget($user);
     }
 

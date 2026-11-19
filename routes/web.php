@@ -28,7 +28,7 @@ use App\Livewire\Secretary\AppointmentsComponent;
 use App\Livewire\Secretary\PatientsComponent;
 use App\Livewire\Secretary\SpectaclesComponent;
 use App\Livewire\Admin\UserRoleManagerComponent;
-use App\Livewire\Admin\RolePermissionManagerComponent;
+use App\Livewire\Admin\RoleGuideComponent;
 use App\Livewire\Admin\PasswordResetApprovalsComponent;
 use App\Livewire\Admin\DiscountApprovalsComponent;
 use App\Livewire\Admin\RefundApprovalsComponent;
@@ -114,6 +114,7 @@ Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform/announcements', \App\Livewire\Platform\AnnouncementsComponent::class)->name('platform.announcements');
     Route::get('/platform/usage', \App\Livewire\Platform\ClinicUsageComponent::class)->name('platform.usage');
     Route::get('/platform/optical-links', \App\Livewire\Platform\OpticalLinksComponent::class)->name('platform.optical-links');
+    Route::get('/platform/roles', \App\Livewire\Platform\RolesComponent::class)->name('platform.roles');
     Route::get('/platform/subscription-analytics',\App\Livewire\Platform\SubscriptionAnalyticsComponent::class)->name('platform.subscription-analytics');
     Route::get('/platform/subscription-analytics.csv', [\App\Http\Controllers\Platform\SubscriptionAnalyticsExportController::class,'csv'])->name('platform.subscription-analytics.csv');
     Route::get('/platform/billing-report.csv', [\App\Http\Controllers\Platform\BillingReportController::class,'csv'])->name('platform.billing-report.csv');
@@ -434,7 +435,7 @@ Route::get('admin/insurance/payments', \App\Livewire\Admin\InsurerPaymentsCompon
 
 Route::get('admin/users', UserRoleManagerComponent::class)->middleware(['auth', 'access'])->name('admin.users');
 Route::get('admin/users/{user}/access', \App\Livewire\Admin\PersonAccessComponent::class)->middleware(['auth', 'access'])->name('admin.users.access');
-Route::get('admin/roles-permissions', RolePermissionManagerComponent::class)->middleware(['auth', 'access'])->name('admin.roles-permissions')->middleware('feature:custom_roles');
+Route::get('admin/roles-permissions', RoleGuideComponent::class)->middleware(['auth', 'access'])->name('admin.roles-permissions')->middleware('feature:custom_roles');
 Route::get('admin/password-reset-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'password_reset']))->middleware(['auth', 'access'])->name('admin.password-reset-approvals');
 
 Route::middleware(['auth', 'access'])->group(function () {

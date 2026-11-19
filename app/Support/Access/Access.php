@@ -6,8 +6,8 @@ use App\Models\User;
 
 /**
  * The one question every screen and action asks: may this person do this? A person may when one
- * of their roles carries the permission (RoleMap), or when they hold one of its legacy database
- * permissions, unless their own switch in this clinic says otherwise (PersonalAccess).
+ * of their roles carries the permission (RoleMap), unless their own switch in this clinic says
+ * otherwise (PersonalAccess). The Owner may always.
  */
 final class Access
 {

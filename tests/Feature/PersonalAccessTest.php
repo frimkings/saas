@@ -63,6 +63,7 @@ class PersonalAccessTest extends TestCase
 
     public function test_switches_belong_to_one_clinic(): void
     {
+        config(['tenancy.enabled' => true]); // hosted: each clinic keeps its own switches
         $cashier = $this->person('Cashier');
         DB::table('clinic_user_permissions')->insert(['clinic_id' => 999999, 'user_id' => $cashier->id, 'permission' => 'expenses.manage',
             'granted' => true, 'created_at' => now(), 'updated_at' => now()]);
@@ -91,7 +92,7 @@ class PersonalAccessTest extends TestCase
             ->set('choices.expenses__manage', 'on')->set('choices.pos__sell', 'off')
             ->call('save')->assertHasNoErrors();
 
-        $this->assertSame(['expenses.manage' => true, 'pos.sell' => false], PersonalAccess::overrides($cashier));
+        $this->assertEqualsCanonicalizing(['expenses.manage' => true, 'pos.sell' => false], PersonalAccess::overrides($cashier));
         $this->assertDatabaseHas('audit_trails', ['event' => 'staff.access_changed', 'auditable_id' => $cashier->id]);
     }
 

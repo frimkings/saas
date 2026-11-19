@@ -226,7 +226,7 @@ Questions this table raises (decide before phase 2, not phase 1):
 | **2. Owner rename, tidy roles ✓** | Clinics see "Owner" for Super Admin (stored name kept for imports, old records and the platform side); Staff kept and labelled "Staff (attendance only)" — see section 7 | Role names |
 | **3. Money rules ✓** | Maker–checker (never approve your own request, Owner excepted); approval permissions per queue; discount limit per role at both tills and on optical orders | Yes |
 | **4. Access tab (per person) ✓** | On the staff page: role + per-person switches grouped like the menu, "from role / this person" columns, "what can they see" preview, plan-locked switches greyed out, audit lines, owner email when access goes up | Yes |
-| **5. Platform role tool** | The Roles & Permissions page moves to the platform side for the Nexus team, built on the catalogue; clinics keep a read-only "what each role can do" page | Clinics: read-only page |
+| **5. Platform role tool ✓ (view only)** | The Roles & Permissions page moves to the platform side for the Nexus team, built on the catalogue; clinics keep a read-only "what each role can do" page | Clinics: read-only page |
 
 ## 6. Decisions needed from you
 
@@ -409,3 +409,28 @@ Full suite: 1275 tests pass.
   edits to shared roles (section 0) are left as they are.
 - Tests: `PersonalAccessTest` (8). Browser: Owner switched Expenses on for the test Cashier → their
   menu preview gained Expenses and they could open it; back to role → refused again.
+
+**Phase 5 — done 2026-11-19 (view only, as decided).** Needs `migrate` (2026_11_19_000003 moves the
+old role edits to switches; run after 000001 and 000002).
+- **Roles stay in code.** Changing what a role can do is a change to `RoleMap`, reviewed, tested and
+  deployed. Nothing in the app edits roles any more.
+- **Platform → Roles** (`platform/roles`): a card per role (what it's for, how many active people
+  hold it across clinics), the full permission-by-role table, and a clinic-by-clinic table of who
+  holds which role plus the per-person switches each clinic has made.
+- **Clinic → Staff & Security → What each role can do** (same route `admin.roles-permissions`, still
+  behind the Custom roles plan feature): read-only cards and table, Owner first, pointing to the
+  Access page for one-person changes. Owners and now Managers (`roles.view`) can open it. The old
+  Roles & Permissions editor (`RolePermissionManagerComponent`) and its lock test are removed.
+- **Old database permissions retired.** The migration gives a per-person switch to each person who
+  relied on an old edit their role doesn't cover, then takes the old permissions off roles and people
+  (optical permissions untouched). On the local copy of live data: 18 people in 9 clinics (all
+  Secretaries / Cashiers) got "Record insurer payments" switches; Managers and Owners needed none.
+  `Access` now reads only the role map and switches; the legacy names left the catalogue.
+- **Managers' role now includes** "Staff and their roles" and "Record insurer payments" (they held
+  both through database permissions on live) and "See what each role can do".
+- Offline / single-business installs (tenancy off): a person's switches count whatever clinic id
+  they were saved under, so migrated switches work there too.
+- The role tables also list the optical screens' own permissions (sales desk, lab, stock, reports) so the
+  optical roles don't look empty; picking one role lists only what it gives.
+- Tests: `RolePagesTest` (4), screen snapshot test records Manager's three gained screens, old
+  custom-role and editor tests removed.

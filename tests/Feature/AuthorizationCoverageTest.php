@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureScreenAccess;
 use App\Livewire\Admin\RefundApprovalsComponent;
-use App\Livewire\Admin\RolePermissionManagerComponent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Request;
@@ -63,11 +62,12 @@ class AuthorizationCoverageTest extends TestCase
             'secretary cannot open administration' => ['admin.dashboard', 'Secretary', false],
             'cashier cannot open administration' => ['admin.dashboard', 'Cashier', false],
 
-            'super admin manages role definitions' => ['admin.roles-permissions', 'Super Admin', true],
-            'manager cannot manage role definitions' => ['admin.roles-permissions', 'Manager', false],
-            'doctor cannot manage role definitions' => ['admin.roles-permissions', 'Doctor', false],
-            'secretary cannot manage role definitions' => ['admin.roles-permissions', 'Secretary', false],
-            'cashier cannot manage role definitions' => ['admin.roles-permissions', 'Cashier', false],
+            // Read-only since phase 5: owners and managers see what each role can do.
+            'super admin sees what each role can do' => ['admin.roles-permissions', 'Super Admin', true],
+            'manager sees what each role can do' => ['admin.roles-permissions', 'Manager', true],
+            'doctor cannot see the role guide' => ['admin.roles-permissions', 'Doctor', false],
+            'secretary cannot see the role guide' => ['admin.roles-permissions', 'Secretary', false],
+            'cashier cannot see the role guide' => ['admin.roles-permissions', 'Cashier', false],
         ];
     }
 
@@ -91,41 +91,6 @@ class AuthorizationCoverageTest extends TestCase
         }
 
         $this->assertGreaterThan(0, $checkedRoutes, 'No protected role-area routes were discovered.');
-    }
-
-    public function test_custom_roles_receive_only_pages_granted_by_direct_permissions(): void
-    {
-        $manageUsers = Permission::firstOrCreate(['name' => 'manage users', 'guard_name' => 'web']);
-        $manageBilling = Permission::firstOrCreate(['name' => 'manage billing', 'guard_name' => 'web']);
-
-        $userAdministrator = $this->userWithRole('HR Administrator', [$manageUsers]);
-        $billingSupervisor = $this->userWithRole('Billing Supervisor', [$manageBilling]);
-        $unprivileged = $this->userWithRole('Front Desk Custom');
-
-        $this->assertTrue($this->routeAuthorizationAllows('admin.users', $userAdministrator));
-        $this->assertFalse($this->routeAuthorizationAllows('admin.dashboard', $userAdministrator));
-
-        $this->assertTrue($this->routeAuthorizationAllows('admin.approvals', $billingSupervisor));
-        $this->assertFalse($this->routeAuthorizationAllows('admin.users', $billingSupervisor));
-
-        $this->assertFalse($this->routeAuthorizationAllows('admin.users', $unprivileged));
-        $this->assertFalse($this->routeAuthorizationAllows('admin.approvals', $unprivileged));
-    }
-
-    public function test_role_management_action_rechecks_super_admin_authority(): void
-    {
-        $superAdmin = $this->userWithRole('Super Admin');
-        $component = Livewire::actingAs($superAdmin)
-            ->test(RolePermissionManagerComponent::class)
-            ->set('roleName', 'Unauthorized Role');
-
-        $superAdmin->removeRole('Super Admin');
-        $superAdmin->unsetRelation('roles');
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $component->call('saveRole')->assertForbidden();
-
-        $this->assertDatabaseMissing('roles', ['name' => 'Unauthorized Role']);
     }
 
     public function test_refund_action_rechecks_manager_authority(): void
