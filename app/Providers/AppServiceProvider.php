@@ -47,6 +47,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->registerIndexedDateFilters();
 
+        // Kept report figures for past months refresh when a row dated in them changes.
+        \Illuminate\Support\Facades\Event::listen(['eloquent.saved: *', 'eloquent.deleted: *'], function (string $event, array $payload): void {
+            if (($payload[0] ?? null) instanceof \Illuminate\Database\Eloquent\Model) \App\Support\FinanceCache::touched($payload[0]);
+        });
+
         $attachLicenseGuard = function ($connection): void {
             $connection->beforeExecuting(function ($sql): void {
                 app(\App\Support\Licensing\ClinicWriteGuard::class)->check($sql);

@@ -25,6 +25,11 @@ class OpticalReportService
     /** Sales made in the period: jobs ordered, accessories sold at the counter, and fees kept on cancelled jobs. */
     public function sales(Carbon $from, Carbon $to): array
     {
+        return \App\Support\FinanceCache::remember('optical.sales', $from, $to, fn () => $this->salesLive($from, $to), []);
+    }
+
+    private function salesLive(Carbon $from, Carbon $to): array
+    {
         $range = $this->range($from, $to);
         $orders = LensOrder::whereBetween('created_at', $range)->whereNotIn('status', ['Quotation', 'Cancelled'])
             ->selectRaw('COUNT(*) as jobs, SUM(COALESCE(frame_price,0)) as frames, SUM(COALESCE(lens_price,0)+COALESCE(glazing_fee,0)) as lenses, SUM(COALESCE(service_total,0)) as services, SUM(COALESCE(discount_amount,0)) as discounts, SUM(COALESCE(paid_amount,0)) as paid')
@@ -74,6 +79,11 @@ class OpticalReportService
     /** Sales per day (per month over long ranges) for the trend chart. */
     public function trend(Carbon $from, Carbon $to, Collection $fees): array
     {
+        return \App\Support\FinanceCache::remember('optical.trend', $from, $to, fn () => $this->trendLive($from, $to, $fees), [md5(serialize($fees->all()))]);
+    }
+
+    private function trendLive(Carbon $from, Carbon $to, Collection $fees): array
+    {
         $range = $this->range($from, $to);
         $monthly = $from->diffInDays($to) > 62;
         $key = fn ($date) => Carbon::parse($date)->format($monthly ? 'Y-m' : 'Y-m-d');
@@ -97,6 +107,11 @@ class OpticalReportService
 
     /** Money received and refunded in the period: by method, by staff member and by day. */
     public function cash(Carbon $from, Carbon $to): array
+    {
+        return \App\Support\FinanceCache::remember('optical.cash', $from, $to, fn () => $this->cashLive($from, $to), []);
+    }
+
+    private function cashLive(Carbon $from, Carbon $to): array
     {
         $range = $this->range($from, $to);
         $opticalSales = Sales::withTrashed()->where('business_line', 'optical')->select('id');
@@ -164,6 +179,11 @@ class OpticalReportService
     /** Remakes, what free remakes cost in lenses, and why they were needed. */
     public function remakes(Carbon $from, Carbon $to, int $jobs): array
     {
+        return \App\Support\FinanceCache::remember('optical.remakes', $from, $to, fn () => $this->remakesLive($from, $to, $jobs), [$jobs]);
+    }
+
+    private function remakesLive(Carbon $from, Carbon $to, int $jobs): array
+    {
         $remakes = LensOrder::with('lensLines.product')->whereNotNull('remake_of_id')
             ->whereNotIn('status', ['Quotation', 'Cancelled'])->whereBetween('created_at', $this->range($from, $to))->get();
         $free = $remakes->where('remake_charge', 'free');
@@ -182,6 +202,11 @@ class OpticalReportService
 
     /** Best sellers by value, stock products only. */
     public function topProducts(Carbon $from, Carbon $to, int $limit = 10): Collection
+    {
+        return \App\Support\FinanceCache::remember('optical.top-products', $from, $to, fn () => $this->topProductsLive($from, $to, $limit), [$limit]);
+    }
+
+    private function topProductsLive(Carbon $from, Carbon $to, int $limit = 10): Collection
     {
         return SaleItem::with('opticalProduct')->whereNotNull('optical_product_id')->whereBetween('created_at', $this->range($from, $to))
             ->selectRaw('optical_product_id, SUM(dispensed_quantity - refunded_quantity) as units, SUM((dispensed_quantity - refunded_quantity) * selling_price) as gross')

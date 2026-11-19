@@ -67,6 +67,28 @@ class CashBookAndDayCloseTest extends TestCase
             ->set('openingCounts.cash', (string) $cash)->call('startBook')->assertHasNoErrors();
     }
 
+    public function test_a_long_period_folds_into_one_row_per_day(): void
+    {
+        Livewire::test(CashBookComponent::class)->set('startDate', today()->subDays(3)->toDateString())
+            ->set('openingCounts.cash', '0')->call('startBook')->assertHasNoErrors();
+        foreach (range(1, CashBookComponent::FOLD_ABOVE + 5) as $i) {
+            $sale = $this->sale('TXF-'.$i, 10);
+            // Spread over today and yesterday.
+            if ($i % 2) PaymentTransaction::where('sale_id', $sale->id)->update(['created_at' => now()->subDay()->setTime(10, 0)]);
+        }
+        $page = Livewire::test(CashBookComponent::class)->set('fromDate', today()->subDays(3)->toDateString())
+            ->assertViewHas('folded', true)->assertSee('Open a day to see its entries')->assertDontSee('TXF-2<')->assertDontSee('TXF-2 ');
+        $this->assertCount(2, $page->viewData('days'));
+        $page->assertViewHas('closing', (CashBookComponent::FOLD_ABOVE + 5) * 10.0);
+
+        // Opening today shows its lines; yesterday's stay folded.
+        $page->call('toggleDay', today()->toDateString())->assertSee('TXF-2')->assertDontSee('TXF-1<');
+        $page->call('toggleDay', today()->toDateString())->assertDontSee('TXF-2 ');
+
+        // A short period lists every line as before.
+        Livewire::test(CashBookComponent::class)->set('fromDate', today()->toDateString())->assertViewHas('folded', false)->assertSee('TXF-2');
+    }
+
     public function test_the_cash_book_runs_a_balance_from_payments_refunds_expenses_and_banking(): void
     {
         $this->startBook(200);

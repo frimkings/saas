@@ -33,7 +33,7 @@ final class TourCatalog
         'clinic.queue' => 2,
         'clinic.sales' => 4,
         'clinic.day-close' => 2,
-        'clinic.cash-book' => 1,
+        'clinic.cash-book' => 2,
         'clinic.settings' => 1,
         'clinic.insurers' => 1,
         'clinic.claims' => 1,
@@ -443,6 +443,7 @@ final class TourCatalog
             ['title' => 'Where the money is', 'body' => 'A running balance for the cash drawer, the MoMo wallet, card settlements and every other method, built from payments, refunds, expenses and what you record by hand.'],
             ['target' => 'cash-book-start', 'title' => 'Start the book', 'body' => 'Count the drawer once and enter it. Balances are worked out from that day on.'],
             ['target' => 'cash-book-balances', 'title' => 'One book per method', 'body' => 'What each method holds now. Click one to see its entries.'],
+            ['target' => 'cash-book-days', 'title' => 'One row per day', 'body' => 'Over a long period the book shows each day\'s money in, money out and closing balance. Open a day to see its entries; a short period lists every entry.'],
             ['target' => 'cash-book-record', 'title' => 'Money moved by hand', 'body' => 'Record cash banked, handed to the owner or added to the drawer. A mistake is cancelled with a reason and stays on the book, crossed out.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
