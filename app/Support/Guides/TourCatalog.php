@@ -26,7 +26,7 @@ final class TourCatalog
         'optical.catalogue' => 1,
         'optical.pos' => 2,
         'optical.requests' => 4,
-        'clinic.dashboard' => 5,
+        'clinic.dashboard' => 6,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
         'clinic.pos' => 3,
@@ -282,7 +282,7 @@ final class TourCatalog
             ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'What happened today: sales, consultations and prescriptions waiting, and more figures below on plans that include them. Click a figure to open what is behind it.'],
             ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'The money pages your plan includes: sales records and the daily cash summary, and on bigger plans sales reports, expenses, the cash book and day close, outstanding balances, the income statement and each patient\'s ledger.'
                 .(\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS) ? ' Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count. Nobody approves their own request.'.($owner ? ' Voids and payment corrections are yours alone to approve, and you set each role\'s discount limit under Settings.' : '') : '')],
-            ['target' => 'nav-staff-security', 'title' => 'Staff & Security', 'body' => 'Users and their roles, login history and the audit trail. Each person sees only the parts of the menu their role opens.'],
+            ['target' => 'nav-staff-security', 'title' => 'Staff & Security', 'body' => 'Users and their roles, login history and the audit trail. Each person sees only the parts of the menu their role opens. The shield button on a user opens their Access: switch single things on or off for that person.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
         ]];
     }

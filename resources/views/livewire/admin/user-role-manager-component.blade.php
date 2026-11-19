@@ -248,6 +248,12 @@
                                     <i class="fas fa-edit"></i>
                                 </button>
 
+                                <a href="{{ route('admin.users.access', $user) }}" @if($loop->first) data-tour="users-access" @endif
+                                    class="ui-button ui-button-sm ui-button-secondary"
+                                    title="Access: what this person can open and do">
+                                    <i class="fas fa-user-shield"></i>
+                                </a>
+
                                 <button wire:click="openResetPassword({{ $user->id }})"
                                     class="ui-button ui-button-sm ui-button-secondary"
                                     title="Reset password">

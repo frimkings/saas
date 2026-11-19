@@ -7,7 +7,7 @@ use App\Models\User;
 /**
  * The one question every screen and action asks: may this person do this? A person may when one
  * of their roles carries the permission (RoleMap), or when they hold one of its legacy database
- * permissions. Per-person switches per clinic come in phase 4.
+ * permissions, unless their own switch in this clinic says otherwise (PersonalAccess).
  */
 final class Access
 {
@@ -18,13 +18,19 @@ final class Access
             return false;
         }
 
-        if (RoleMap::grants($user->getRoleNames(), $permission)) {
+        $roles = $user->getRoleNames();
+        // The Owner can't be switched off anything.
+        if ($roles->contains(RoleMap::OWNER)) {
             return true;
         }
 
-        $legacy = Permissions::legacyNames($permission);
+        // This person's own switch in this clinic wins over their role (phase 4).
+        $switch = PersonalAccess::override($user, $permission);
+        if ($switch !== null) {
+            return $switch;
+        }
 
-        return $legacy !== [] && $user->getAllPermissions()->pluck('name')->intersect($legacy)->isNotEmpty();
+        return PersonalAccess::fromRole($user, $permission);
     }
 
     /** @param iterable<string> $permissions any one is enough */

@@ -433,6 +433,7 @@ Route::middleware(['auth', 'access'])->prefix('admin/communications')->group(fun
 Route::get('admin/insurance/payments', \App\Livewire\Admin\InsurerPaymentsComponent::class)->middleware(['auth', 'access'])->name('admin.insurance.payments')->middleware('feature-or-leftover:insurance');
 
 Route::get('admin/users', UserRoleManagerComponent::class)->middleware(['auth', 'access'])->name('admin.users');
+Route::get('admin/users/{user}/access', \App\Livewire\Admin\PersonAccessComponent::class)->middleware(['auth', 'access'])->name('admin.users.access');
 Route::get('admin/roles-permissions', RolePermissionManagerComponent::class)->middleware(['auth', 'access'])->name('admin.roles-permissions')->middleware('feature:custom_roles');
 Route::get('admin/password-reset-approvals', fn() => redirect()->route('admin.approvals', ['type' => 'password_reset']))->middleware(['auth', 'access'])->name('admin.password-reset-approvals');
 

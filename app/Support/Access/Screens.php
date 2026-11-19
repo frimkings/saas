@@ -114,6 +114,7 @@ final class Screens
 
         // Staff, settings, billing
         'admin.users' => ['staff.manage'],
+        'admin.users.access' => ['staff.manage'],
         'admin.roles-permissions' => ['roles.view'],
         'admin.attendance.departments' => ['attendance.manage'],
         'admin.audit-trail' => ['audit.view'],

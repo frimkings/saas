@@ -496,6 +496,8 @@ class UserRoleManagerComponent extends Component
             $branchIds = $this->currentClinic()->branches()->pluck('id');
             DB::table('branch_user_role')->where('user_id', $user->id)->whereIn('branch_id', $branchIds)->delete();
             DB::table('clinic_user')->where('clinic_id', $this->currentClinic()->id)->where('user_id', $user->id)->update(['is_default' => false]);
+            // Their own access switches here go too: if they come back, they start from their role.
+            \App\Support\Access\PersonalAccess::clear($user);
         });
         app(ClinicMembershipManager::class)->ensureDefault($user);
         AuditTrail::record('staff.removed', 'Removed staff member '.$user->name.' from this clinic', $user, [], ['status' => 'left'], null, true);

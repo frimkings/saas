@@ -225,7 +225,7 @@ Questions this table raises (decide before phase 2, not phase 1):
 | **1. Foundation** (part A done: routes) | Permission catalogue + screen map + role map in code; routes, menu, tours and tests read it; role names replaced by permission checks; roles = today's access (minus the clinic edits you choose to undo); tests prove no one gains or loses access | No |
 | **2. Owner rename, tidy roles ✓** | Clinics see "Owner" for Super Admin (stored name kept for imports, old records and the platform side); Staff kept and labelled "Staff (attendance only)" — see section 7 | Role names |
 | **3. Money rules ✓** | Maker–checker (never approve your own request, Owner excepted); approval permissions per queue; discount limit per role at both tills and on optical orders | Yes |
-| **4. Access tab (per person)** | On the staff page: role + per-person switches grouped like the menu, "from role / this person" columns, "what can they see" preview, plan-locked switches greyed out, audit lines, owner email when access goes up | Yes |
+| **4. Access tab (per person) ✓** | On the staff page: role + per-person switches grouped like the menu, "from role / this person" columns, "what can they see" preview, plan-locked switches greyed out, audit lines, owner email when access goes up | Yes |
 | **5. Platform role tool** | The Roles & Permissions page moves to the platform side for the Nexus team, built on the catalogue; clinics keep a read-only "what each role can do" page | Clinics: read-only page |
 
 ## 6. Decisions needed from you
@@ -388,3 +388,24 @@ Full suite: 1275 tests pass.
 - Unchanged: plans without approvals still apply discounts and refunds at once. Optical order
   cancellations refund at once by whoever may cancel (not an approval queue).
 - Tests: `MoneyRulesTest` (9); one optical order test now gives its user a desk role. Full suite: 1286 tests, the 2 failures (unlisted-role default, role-less test user) fixed and their file rerun. Tours: clinic POS, optical POS, clinic dashboard bumped.
+
+**Phase 4 — done 2026-11-19 (per-person access).** Needs `migrate` (2026_11_19_000002:
+`clinic_user_permissions`).
+- **Access page per person:** Users → shield button → `admin/users/{user}/access`. Every permission
+  in the catalogue, grouped like section 3, with "From role" (✓ / –) and "This person" (As role / On
+  for them / Off for them). "Not in your plan" rows are greyed and can't be changed. "What they can
+  see" shows their menu with the saved access. "Back to role" clears the switches you may change.
+- **How it counts:** `Access::allows` = Owner → always; else this person's switch in this clinic,
+  if any; else their role (and legacy database permissions). Pages, menus and actions all follow,
+  because they all ask `Access`. Switches are per clinic (`clinic_user_permissions`, read once per
+  request) and survive role changes; removing someone from a clinic clears theirs there.
+- **Who may switch** (decided 2026-11-19, design defaults): the Owner, anything; Managers, only
+  permissions they hold themselves and never approvals; nobody changes their own access or the
+  Owner's. "Give or take the Owner role" is never switchable.
+- **Audit and email:** each save writes `staff.access_changed` (before/after) to the audit trail;
+  when someone gains access their role didn't give, the Owner gets "Staff member given more access".
+- **Not changed:** the optical screens' own permissions (optical sales / lab / stock / reports) are
+  still role-based through `OpticalAccess`; only `optical.manage` is switchable. The old clinic
+  edits to shared roles (section 0) are left as they are.
+- Tests: `PersonalAccessTest` (8). Browser: Owner switched Expenses on for the test Cashier → their
+  menu preview gained Expenses and they could open it; back to role → refused again.

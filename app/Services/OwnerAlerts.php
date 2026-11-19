@@ -308,6 +308,31 @@ class OwnerAlerts
             (auth()->user()?->name ?? 'Someone') . " gave {$staff->name} " . implode(' and ', array_intersect(self::ADMIN_ROLES, $roles)) . ' access. They can now manage staff and see the business figures.', $roles);
     }
 
+    /**
+     * Someone's own access went up (phase 4 switches): the owner hears about every increase.
+     *
+     * @param  list<string>  $added  permission labels switched on beyond the role
+     */
+    public function accessIncreased(User $staff, array $added): void
+    {
+        $clinic = $this->currentClinic();
+        if (! $clinic || ! $added) return;
+
+        $details = [
+            'Name' => $staff->name,
+            'Email' => $staff->email,
+            'Now allowed' => implode('; ', array_slice($added, 0, 10)) . (count($added) > 10 ? '; and ' . (count($added) - 10) . ' more' : ''),
+            'Done by' => auth()->user()?->name,
+        ];
+
+        $this->notice($clinic, 'staff_access_increased', "staff:access:{$staff->id}:" . now()->format('YmdHisv'),
+            'Staff member given more access',
+            (auth()->user()?->name ?? 'Someone') . " gave {$staff->name} access beyond their role.",
+            array_filter($details),
+            'View their access', route('admin.users.access', $staff),
+            "If you didn't expect this, check with " . (auth()->user()?->name ?? 'your team') . '.');
+    }
+
     /** Someone was removed from the clinic's staff. */
     public function staffRemoved(User $staff): void
     {
