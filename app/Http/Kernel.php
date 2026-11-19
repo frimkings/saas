@@ -32,6 +32,7 @@ class Kernel extends HttpKernel
     protected $middlewareGroups = [
         'web' => [
             // Per-clinic usage for Platform → Usage; wraps the tenant middleware below.
+            \App\Http\Middleware\LoadTestProfile::class,
             \App\Http\Middleware\MeterClinicUsage::class,
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
