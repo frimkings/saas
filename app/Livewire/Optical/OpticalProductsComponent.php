@@ -18,7 +18,85 @@ use Livewire\WithFileUploads;
 
 class OpticalProductsComponent extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithPagination, WithFileUploads, Concerns\TicksRows;
+
+    /** '' | 'price' | 'category': the small form under the bar. */
+    public string $bulkMode = '';
+    public string $bulkPriceMode = 'percent';
+    public string $bulkPriceValue = '';
+    public string $bulkCategory = 'frame';
+
+    public function openBulk(string $mode): void
+    {
+        $this->assertManager();
+        abort_unless(in_array($mode, ['price', 'category'], true), 422);
+        $this->bulkMode = $mode;
+        $this->bulkPriceValue = '';
+        $this->resetValidation();
+    }
+
+    private function tickedProducts()
+    {
+        return OpticalProduct::whereIn('id', $this->tickedIds())->orderBy('name')->get();
+    }
+
+    /** Activate or deactivate every ticked product. */
+    public function bulkSetActive(bool $active): void
+    {
+        $this->assertManager();
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $done = [];
+        foreach ($this->tickedProducts() as $product) {
+            if ((bool) $product->is_active === $active) continue;
+            $product->is_active = $active;
+            \App\Models\AuditTrail::recordSave($product, 'optical.product', 'optical product '.$product->sku);
+            $done[] = $product->sku;
+        }
+        $this->report($active ? 'Activate' : 'Deactivate', $done, [], [], $done ? null : 'They were already '.($active ? 'active' : 'inactive').'.');
+    }
+
+    /** Set one selling price, or raise / lower every ticked price by a percentage (rounded to 2 places). */
+    public function bulkPrice(): void
+    {
+        $this->assertManager();
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $this->validate([
+            'bulkPriceMode' => 'required|in:percent,set',
+            'bulkPriceValue' => $this->bulkPriceMode === 'percent' ? 'required|numeric|between:-90,500' : 'required|numeric|min:0|max:1000000',
+        ], [], ['bulkPriceValue' => $this->bulkPriceMode === 'percent' ? 'percentage' : 'price']);
+        $done = [];
+        foreach ($this->tickedProducts() as $product) {
+            $new = $this->bulkPriceMode === 'set' ? round((float) $this->bulkPriceValue, 2)
+                : round((float) $product->selling_price * (1 + (float) $this->bulkPriceValue / 100), 2);
+            if (abs($new - (float) $product->selling_price) < 0.005) continue;
+            $product->selling_price = $new;
+            \App\Models\AuditTrail::recordSave($product, 'optical.product', 'optical product '.$product->sku);
+            $done[] = $product->sku.' → '.number_format($new, 2);
+        }
+        $this->bulkMode = '';
+        $this->report('Selling price', $done, [], [], $this->bulkPriceMode === 'percent'
+            ? ((float) $this->bulkPriceValue >= 0 ? 'Up ' : 'Down ').abs((float) $this->bulkPriceValue).'%. Orders already made keep their prices.'
+            : 'Orders already made keep their prices.');
+    }
+
+    /** Move every ticked product to another category (frames, lenses, accessories). */
+    public function bulkMoveCategory(): void
+    {
+        $this->assertManager();
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $this->validate(['bulkCategory' => 'required|in:'.implode(',', array_keys(OpticalProduct::TYPES))]);
+        $done = $skipped = [];
+        foreach ($this->tickedProducts() as $product) {
+            if ($product->type === $this->bulkCategory) continue;
+            // Lenses carry powers and lens details; they can't become frames or accessories here.
+            if ($product->isLens() && $product->lens_specs) { $skipped[] = $product->sku.': a stock lens with powers stays a lens'; continue; }
+            $product->type = $this->bulkCategory;
+            \App\Models\AuditTrail::recordSave($product, 'optical.product', 'optical product '.$product->sku);
+            $done[] = $product->sku;
+        }
+        $this->bulkMode = '';
+        $this->report('Move to '.OpticalProduct::TYPES[$this->bulkCategory], $done, $skipped);
+    }
 
     public string $search = '';
     public string $categoryFilter = '';
@@ -51,9 +129,9 @@ class OpticalProductsComponent extends Component
     public bool $showImport = false;
     public $importFile;
 
-    public function updatedSearch(): void { $this->resetPage(); }
-    public function updatedCategoryFilter(): void { $this->resetPage(); }
-    public function updatedStockFilter(): void { $this->resetPage(); }
+    public function updatedSearch(): void { $this->resetPage(); $this->selected = []; }
+    public function updatedCategoryFilter(): void { $this->resetPage(); $this->selected = []; }
+    public function updatedStockFilter(): void { $this->resetPage(); $this->selected = []; }
 
     public function clearFilters(): void
     {
@@ -284,6 +362,8 @@ class OpticalProductsComponent extends Component
 
         return view('livewire.optical.optical-products-component', [
             'products' => $products,
+            'isManager' => \App\Support\Access\Access::can('optical.manage'),
+            'tickedCount' => count($this->tickedIds()),
             'activeCount' => $summary->where('is_active', true)->count(),
             'inventoryValue' => $summary->sum(fn ($p) => ($p->stocks->first()?->quantity ?? 0) * (float) $p->selling_price),
             'lowStockCount' => $summary->filter(fn ($p) => $p->is_active && ($p->stocks->first()?->quantity ?? 0) <= ($p->stocks->first()?->reorder_level ?? 5))->count(),

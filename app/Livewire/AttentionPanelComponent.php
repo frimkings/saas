@@ -34,6 +34,43 @@ class AttentionPanelComponent extends Component
         $this->compact = $compact;
     }
 
+    /** On the full page: items ticked for one action together, as "rule|type|id". */
+    public array $ticked = [];
+    public string $bulkNote = '';
+    public ?string $bulkResult = null;
+
+    /**
+     * Mark done, snooze or release (held-lens jobs) every ticked item, with one optional note. Each
+     * goes through the same rules as its own buttons; what doesn't apply is skipped.
+     */
+    public function bulk(string $action, AttentionItems $items): void
+    {
+        abort_unless(in_array($action, [AttentionAction::DONE, AttentionAction::SNOOZED, self::RELEASE], true), 422);
+        $this->validate(['bulkNote' => 'nullable|string|max:500']);
+        $done = 0;
+        $skipped = [];
+        foreach (array_slice(array_unique($this->ticked), 0, 100) as $key) {
+            [$rule, $type, $id] = explode('|', (string) $key) + [null, null, null];
+            if (! $rule || ! ctype_digit((string) $id)) continue;
+            if ($action === self::RELEASE && $rule !== 'lens_held') { $skipped[] = 'not a held-lens job'; continue; }
+            if ($action === AttentionAction::DONE && in_array($rule, ['stock_expired', 'lens_held'], true)) { $skipped[] = $rule === 'lens_held' ? 'held-lens jobs are released or snoozed' : 'expired stock is removed, not marked done'; continue; }
+            try {
+                $action === self::RELEASE
+                    ? app(\App\Services\OpticalJobTrackingService::class)->releaseHeldLenses((int) $id, $this->bulkNote)
+                    : $items->act((string) $rule, (int) $id, $action, $this->bulkNote, (string) $type);
+                $done++;
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = collect($e->errors())->flatten()->first();
+            }
+        }
+        $items->forgetCounts();
+        $this->ticked = [];
+        $this->bulkNote = '';
+        $verb = match ($action) { AttentionAction::DONE => 'marked done', AttentionAction::SNOOZED => 'snoozed until tomorrow', default => 'released' };
+        $this->bulkResult = $done.' '.\Illuminate\Support\Str::plural('item', $done).' '.$verb.'.'
+            .($skipped ? ' '.count($skipped).' skipped: '.implode('; ', array_unique($skipped)).'.' : '');
+    }
+
     public function start(string $rule, string $type, int $id, string $action): void
     {
         $this->acting = "{$rule}|{$type}|{$id}|{$action}";
@@ -91,6 +128,7 @@ class AttentionPanelComponent extends Component
             'staleDays' => AttentionItems::thresholds()['stale_days'],
             'tidyUrl'  => $optical ? route('optical.attention.old-orders') : route('attention.old-orders'),
             // Bench staff in the optical shop see the jobs, not the customer's phone.
+            'canRelease' => $optical && \App\Support\Access\Access::can('optical.manage'),
             'contacts' => ! $optical || \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user()),
             'canWriteOff' => \App\Support\Access\Access::can('stock.write_off'),
         ]);

@@ -17,6 +17,36 @@
             @endforeach
         </div>
 
+        <div class="px-4 pt-3 space-y-2" data-tour="opt-jobs-bulk">
+            @include('livewire.optical.partials.bulk-report', ['report' => $bulkReport])
+            @if($tickedCount)
+                <div class="oo-bulkbar" role="region" aria-label="Ticked jobs">
+                    <b>{{ $tickedCount }} ticked</b>
+                    @if($isManager)<button type="button" class="oo-btn" wire:click="bulkReleaseLenses" wire:confirm="Release the stock lenses held by the ticked jobs not started yet? They can be sold or used for other jobs; each job takes a lens again at glazing if one is free.">Release held lenses</button>@endif
+                    @if($desk)<button type="button" class="oo-btn" wire:click="openBulk('date')">New date</button>@endif
+                    <button type="button" class="oo-btn" wire:click="chaseLabs"><i class="fab fa-whatsapp" aria-hidden="true"></i> Chase labs</button>
+                    @if($isManager)<button type="button" class="oo-btn danger" wire:click="openBulk('close')">Close as abandoned</button>@endif
+                    <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+                </div>
+                @if($bulkMode === 'date')
+                    <form wire:submit.prevent="bulkNewDate" class="ui-panel p-3 flex flex-wrap items-end gap-3">
+                        <label class="text-xs font-semibold">New pickup date<input type="date" wire:model="bulkPickupDate" min="{{ today()->toDateString() }}" class="ui-input mt-1"></label>
+                        <label class="text-xs font-semibold flex-1" style="min-width:240px">Reason (on each job's history)<input type="text" wire:model="bulkReason" maxlength="500" class="ui-input mt-1 w-full" placeholder="e.g. Lab delay on lenses"></label>
+                        <button type="submit" class="oo-btn primary">Set for {{ $tickedCount }} {{ \Illuminate\Support\Str::plural('job', $tickedCount) }}</button>
+                        <button type="button" class="oo-btn" wire:click="$set('bulkMode', '')">Cancel</button>
+                        @error('bulkPickupDate')<p class="w-full text-xs text-red-600">{{ $message }}</p>@enderror @error('bulkReason')<p class="w-full text-xs text-red-600">{{ $message }}</p>@enderror
+                    </form>
+                @elseif($bulkMode === 'close')
+                    <form wire:submit.prevent="bulkClose" class="ui-panel p-3 flex flex-wrap items-end gap-3">
+                        <label class="text-xs font-semibold flex-1" style="min-width:280px">Why are they abandoned?<input type="text" wire:model="bulkReason" maxlength="500" class="ui-input mt-1 w-full" placeholder="e.g. Customers unreachable for over 30 days"></label>
+                        <button type="submit" class="oo-btn danger" wire:confirm="Close {{ $tickedCount }} {{ \Illuminate\Support\Str::plural('job', $tickedCount) }} as abandoned? Deposits are kept as the jobs' fees.">Close {{ $tickedCount }}</button>
+                        <button type="button" class="oo-btn" wire:click="$set('bulkMode', '')">Cancel</button>
+                        @error('bulkReason')<p class="w-full text-xs text-red-600">{{ $message }}</p>@enderror
+                    </form>
+                @endif
+            @endif
+        </div>
+
         @forelse($groups as $bucket => $group)
             <details class="border-b border-slate-100 last:border-0" @if($bucket !== 'old' || $groups->count() === 1) open @endif wire:key="bucket-{{ $bucket }}-{{ $filter }}">
                 <summary class="cursor-pointer bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -25,7 +55,10 @@
                 </summary>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
-                        <thead class="text-xs uppercase text-slate-500"><tr><th class="p-3 text-left">Job</th><th class="p-3 text-left">Customer</th><th class="p-3 text-left">Status</th><th class="p-3 text-left">Why it is listed</th><th class="p-3 !text-right">Actions</th></tr></thead>
+                        <thead class="text-xs uppercase text-slate-500"><tr><th class="p-3 w-10"><input type="checkbox" class="oo-check" aria-label="Tick every job in this group"
+                            x-data="{ ids: @js($group['rows']->map(fn ($row) => (string) $row['order']->id)->values()) }"
+                            x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                            x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th><th class="p-3 text-left">Job</th><th class="p-3 text-left">Customer</th><th class="p-3 text-left">Status</th><th class="p-3 text-left">Why it is listed</th><th class="p-3 !text-right">Actions</th></tr></thead>
                         <tbody class="divide-y divide-slate-100">
                         @foreach($group['rows'] as $row)
                             @php
@@ -36,6 +69,7 @@
                                 $phone = ! $desk ? null : ($order->isPartnerJob() ? $order->partnerClinic?->messagingPhone() : $order->display_customer_phone);
                             @endphp
                             <tr wire:key="job-{{ $order->id }}" class="align-top">
+                                <td class="p-3"><input type="checkbox" class="oo-check" value="{{ $order->id }}" wire:model.live="selected" aria-label="Tick {{ $order->order_id }}"></td>
                                 <td class="p-3 text-xs font-mono whitespace-nowrap"><button type="button" wire:click="openOrder({{ $order->id }})" class="text-teal-800 underline">{{ $order->order_id }}</button></td>
                                 <td class="p-3 text-xs">{{ $order->display_customer_name }}@if($phone)<span class="block text-slate-500">{{ $phone }}</span>@endif</td>
                                 <td class="p-3 text-xs">{{ \App\Support\Optical\OrderPresenter::badge($order->status)[0] }}@if($order->labSupplier)<span class="block text-slate-500">{{ $order->labSupplier->name }}</span>@endif</td>

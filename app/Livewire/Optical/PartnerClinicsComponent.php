@@ -45,6 +45,7 @@ class PartnerClinicsComponent extends Component
 
     public function setStatus(string $status): void
     {
+        $this->selected = [];
         abort_unless(in_array($status, ['active', 'archived', 'all'], true), 422);
         $this->statusFilter = $status;
         $this->resetPage();
@@ -188,6 +189,40 @@ class PartnerClinicsComponent extends Component
         session()->flash('success', 'Partner clinic saved.');
     }
 
+    use Concerns\TicksRows;
+
+    /** Archive every ticked partner (managers). Their orders stay available. */
+    public function bulkArchive(): void
+    {
+        $this->assertManager();
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $done = [];
+        foreach (OpticalPartnerClinic::whereIn('id', $this->tickedIds())->where('is_active', true)->orderBy('name')->get() as $partner) {
+            $partner->is_active = false;
+            \App\Models\AuditTrail::recordSave($partner, 'optical.partner_clinic', 'partner clinic '.$partner->name.' (archived)');
+            $done[] = $partner->name;
+        }
+        $this->report('Archive', $done, [], [], 'Existing orders remain available.');
+    }
+
+    /**
+     * This month's statement for every ticked partner, as WhatsApp messages ready to send (one
+     * button each). Partners with no WhatsApp number, or who asked not to be contacted, are listed.
+     */
+    public function bulkStatements(): void
+    {
+        $service = app(\App\Services\OpticalPartnerAccountService::class);
+        [$from, $to] = [now()->startOfMonth(), now()];
+        $links = $skipped = [];
+        foreach (OpticalPartnerClinic::whereIn('id', $this->tickedIds())->orderBy('name')->get() as $partner) {
+            $url = $partner->notify_via === 'none' ? null : \App\Support\Messaging\WhatsAppLink::to($partner->messagingPhone(),
+                PartnerStatementComponent::message($partner, $service->statement($partner, $from, $to), $service->balance($partner), $from, $to));
+            $url ? $links[] = ['url' => $url, 'label' => $partner->name] : $skipped[] = $partner->name.': '.($partner->notify_via === 'none' ? 'asked not to be contacted' : 'no WhatsApp number');
+        }
+        $this->bulkReport = ['title' => 'Statements for '.$from->format('M Y'), 'done' => array_map(fn ($link) => $link['label'], $links), 'skipped' => $skipped,
+            'note' => $links ? 'Press each button to open its message in WhatsApp, then send.' : null, 'links' => $links];
+    }
+
     public function archive(int $id): void
     {
         $this->assertManager();
@@ -316,6 +351,8 @@ class PartnerClinicsComponent extends Component
 
         return view('livewire.optical.partner-clinics-component', [
             'partners' => $partners,
+            'tickedCount' => count($this->tickedIds()),
+            'canManage' => \App\Support\Access\Access::can('optical.manage'),
             'balances' => $owed,
             'jobs' => $jobs,
             'counts' => ['active' => $all->where('is_active', true)->count(), 'archived' => $all->where('is_active', false)->count(), 'all' => $all->count()],

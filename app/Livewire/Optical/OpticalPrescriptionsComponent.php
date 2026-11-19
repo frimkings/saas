@@ -165,6 +165,26 @@ class OpticalPrescriptionsComponent extends Component
                 ->orWhere('prescriber_name', 'like', $term)->orWhere('prescriber_clinic', 'like', $term)));
     }
 
+    use Concerns\TicksRows;
+
+    /** The ticked prescriptions as a CSV: number, date, customer, source, prescriber and both eyes. */
+    public function exportTicked()
+    {
+        $rows = \App\Models\OpticalPrescription::with('patient')->whereIn('id', $this->tickedIds())->latest()->get();
+        $eye = fn ($m, $side) => trim(implode(' ', array_filter([data_get($m, "$side.sph"), data_get($m, "$side.cyl"),
+            filled(data_get($m, "$side.axis")) ? 'x'.data_get($m, "$side.axis") : null, filled(data_get($m, "$side.add")) ? 'add '.data_get($m, "$side.add") : null], fn ($v) => filled($v))));
+
+        return response()->streamDownload(function () use ($rows, $eye) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Rx', 'Date', 'Customer', 'Phone', 'Source', 'Prescriber', 'Right (OD)', 'Left (OS)', 'PD']);
+            foreach ($rows as $rx) {
+                fputcsv($out, ['RX-'.$rx->id, ($rx->prescribed_at ?? $rx->created_at)?->format('Y-m-d'), $rx->patient?->name, $rx->patient?->contact,
+                    $rx->source, $rx->prescriber_name, $eye($rx->measurements, 'od'), $eye($rx->measurements, 'os'), data_get($rx->measurements, 'pd')]);
+            }
+            fclose($out);
+        }, 'Optical_Prescriptions_'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
     public function render()
     {
         $prescriptions = $this->query()->with(['patient', 'creator'])->withCount('orders')

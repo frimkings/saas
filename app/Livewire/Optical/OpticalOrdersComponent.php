@@ -9,7 +9,7 @@ use Livewire\WithPagination;
 
 class OpticalOrdersComponent extends Component
 {
-    use WithPagination, ManagesOrderPanel;
+    use WithPagination, ManagesOrderPanel, Concerns\TicksRows, Concerns\SendsTickedToLab;
 
     public string $searchTerm = '';
     public string $statusFilter = '';
@@ -37,12 +37,16 @@ class OpticalOrdersComponent extends Component
         'creatorFilter' => ['except' => ''],
     ];
 
-    public function updatingSearchTerm(): void { $this->resetPage(); }
-    public function updatingStatusFilter(): void { $this->resetPage(); }
+    // A new search or filter starts a new selection, so nothing hidden stays ticked.
+    public function updatingSearchTerm(): void { $this->resetPage(); $this->selected = []; }
+    public function updatingStatusFilter(): void { $this->resetPage(); $this->selected = []; }
 
     public function updated($name): void
     {
-        if (in_array($name, ['dateField', 'dateFrom', 'dateTo', 'sourceFilter', 'partnerFilter', 'creatorFilter'], true)) $this->resetPage();
+        if (in_array($name, ['dateField', 'dateFrom', 'dateTo', 'sourceFilter', 'partnerFilter', 'creatorFilter'], true)) {
+            $this->resetPage();
+            $this->selected = [];
+        }
         // A partner clinic only makes sense for partner jobs.
         if ($name === 'sourceFilter' && $this->sourceFilter !== 'partner') $this->partnerFilter = '';
     }
@@ -127,6 +131,8 @@ class OpticalOrdersComponent extends Component
             ->latest()->paginate(10);
 
         return view('livewire.optical.optical-orders-component', [
+            'ticked' => $this->selected ? LensOrder::whereIn('id', $this->tickedIds())->get(['id', 'status']) : collect(),
+            'canBench' => \App\Support\OpticalAccess::bench(auth()->user()),
             'orders' => $orders,
             // Clinic spectacle orders are paid on the consultation bill; show that bill's figures.
             'clinicBills' => $orders->getCollection()->filter(fn ($o) => \App\Support\Optical\ClinicSpectacleBilling::appliesTo($o))

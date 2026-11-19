@@ -87,6 +87,13 @@ class PartnerStatementComponent extends Component
         session()->flash('success', "Payment {$payment->receipt_number} of ".currency()." ".number_format((float) $payment->amount, 2).' recorded against '.$payment->allocations->count().' '.\Illuminate\Support\Str::plural('job', $payment->allocations->count()).'.');
     }
 
+    /** The statement as a WhatsApp message (also sent in bulk from Partner Clinics). */
+    public static function message(\App\Models\OpticalPartnerClinic $partner, array $statement, float $balance, Carbon $from, Carbon $to): string
+    {
+        return "Hello {$partner->name}, your account statement from ".$from->format('d M Y').' to '.$to->format('d M Y').': opening '.currency().' '.number_format($statement['opening'], 2)
+            .', jobs '.currency().' '.number_format($statement['charges'], 2).', payments '.currency().' '.number_format($statement['payments'], 2).'. Balance due: '.currency().' '.number_format($balance, 2).'. Thank you.';
+    }
+
     public function render()
     {
         $partner = $this->partner();
@@ -96,8 +103,7 @@ class PartnerStatementComponent extends Component
         if ($from->gt($to)) [$from, $to] = [$to, $from];
         $statement = $service->statement($partner, $from, $to);
         $balance = $service->balance($partner);
-        $message = "Hello {$partner->name}, your account statement from ".$from->format('d M Y').' to '.$to->format('d M Y').': opening '.currency().' '.number_format($statement['opening'], 2)
-            .', jobs '.currency().' '.number_format($statement['charges'], 2).', payments '.currency().' '.number_format($statement['payments'], 2).'. Balance due: '.currency().' '.number_format($balance, 2).'. Thank you.';
+        $message = self::message($partner, $statement, $balance, $from, $to);
 
         return view('livewire.optical.partner-statement-component', [
             'partner' => $partner,

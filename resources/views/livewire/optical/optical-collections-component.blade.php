@@ -77,10 +77,23 @@
         @endif
     </div>
 
+    @include('livewire.optical.partials.bulk-report', ['report' => $bulkReport])
+    @if($tickedCount)
+        <div class="oo-bulkbar" role="region" aria-label="Ticked orders" data-tour="opt-collect-bulk">
+            <b>{{ $tickedCount }} ticked</b>
+            @if($sms['available'])
+                <button type="button" class="oo-btn primary" wire:click="bulkSms" wire:loading.attr="disabled" wire:target="bulkSms"
+                        wire:confirm="Text {{ $tickedCount }} {{ \Illuminate\Support\Str::plural('customer', $tickedCount) }}? Those not told yet get the ready message, the rest a reminder. Each SMS uses credit.">Send SMS ({{ $tickedCount }})</button>
+            @else<span class="ui-muted text-xs">SMS isn't set up for this shop: use WhatsApp on each row.</span>@endif
+            <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+        </div>
+    @endif
+
     <div class="ui-panel overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr><th class="p-3 text-left">Order</th><th class="p-3 text-left">Notify</th><th class="p-3 text-left">Waiting</th><th class="p-3 !text-right">Balance</th><th class="p-3 text-left">Told</th><th class="p-3 !text-right">Remind</th><th class="p-3 !text-right">Hand over</th></tr>
+                <tr><th class="p-3 w-10"><input type="checkbox" class="oo-check" aria-label="Tick every order shown"
+                        x-on:change="const ids = [...$root.querySelectorAll('tr[data-id]')].filter(row => shows(row)).map(row => row.dataset.id); $wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th><th class="p-3 text-left">Order</th><th class="p-3 text-left">Notify</th><th class="p-3 text-left">Waiting</th><th class="p-3 !text-right">Balance</th><th class="p-3 text-left">Told</th><th class="p-3 !text-right">Remind</th><th class="p-3 !text-right">Hand over</th></tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse($orders as $ord)
@@ -92,7 +105,8 @@
                         $kind = $ord->ready_notified_at ? \App\Services\OpticalCollectionNotifier::REMINDER : \App\Services\OpticalCollectionNotifier::READY;
                         $whatsApp = $notifier->whatsAppLink($ord, $kind);
                     @endphp
-                    <tr wire:key="awaiting-{{ $ord->id }}" x-show="shows($el)" data-days="{{ $days }}" data-balance="{{ $balance }}" data-partner="{{ $ord->isPartnerJob() ? $ord->partner_clinic_id : 'own' }}" data-search="{{ mb_strtolower(implode(' ', [$ord->order_id, $ord->customer_name, $ord->customer_phone, $ord->patient?->name, $ord->patient?->contact, $ord->partnerClinic?->name])) }}" class="cursor-pointer hover:bg-slate-50 {{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
+                    <tr wire:key="awaiting-{{ $ord->id }}" data-id="{{ $ord->id }}" x-show="shows($el)" data-days="{{ $days }}" data-balance="{{ $balance }}" data-partner="{{ $ord->isPartnerJob() ? $ord->partner_clinic_id : 'own' }}" data-search="{{ mb_strtolower(implode(' ', [$ord->order_id, $ord->customer_name, $ord->customer_phone, $ord->patient?->name, $ord->patient?->contact, $ord->partnerClinic?->name])) }}" class="cursor-pointer hover:bg-slate-50 {{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
+                        <td class="p-3" onclick="event.stopPropagation()"><input type="checkbox" class="oo-check" value="{{ $ord->id }}" wire:model.live="selected" aria-label="Tick {{ $ord->order_id }}"></td>
                         <td class="p-3"><span class="font-mono font-bold text-teal-800">{{ $ord->order_id }}</span>@if($ord->isPartnerJob())<span class="block text-xs text-slate-500">Wearer: {{ $ord->customer_name ?: '—' }}@if($ord->partnerReference()) · ref {{ $ord->partnerReference() }}@endif</span>@endif</td>
                         <td class="p-3">
                             <span class="font-medium text-slate-900">{{ $recipient['name'] ?? $ord->display_customer_name }}</span>
@@ -131,9 +145,9 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="ui-empty p-8 !text-center"><p class="ui-muted text-sm">No glasses are waiting for collection.</p></td></tr>
+                    <tr><td colspan="8" class="ui-empty p-8 !text-center"><p class="ui-muted text-sm">No glasses are waiting for collection.</p></td></tr>
                 @endforelse
-                @if($orders->isNotEmpty())<tr x-show="count() === 0" x-cloak><td colspan="7" class="ui-empty p-8 !text-center"><p class="ui-muted text-sm">No waiting glasses match these filters.</p></td></tr>@endif
+                @if($orders->isNotEmpty())<tr x-show="count() === 0" x-cloak><td colspan="8" class="ui-empty p-8 !text-center"><p class="ui-muted text-sm">No waiting glasses match these filters.</p></td></tr>@endif
             </tbody>
         </table>
     </div>

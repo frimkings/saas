@@ -18,7 +18,37 @@ use Livewire\Component;
  */
 class OpticalCollectionsComponent extends Component
 {
-    use ManagesOrderPanel;
+    use ManagesOrderPanel, Concerns\TicksRows;
+
+    /**
+     * Text every ticked customer at once: the "ready" message if they haven't been told yet, a
+     * reminder otherwise. A partner clinic gets one reminder covering all its waiting jobs.
+     * Anyone without SMS (no phone, prefers WhatsApp, asked not to be told) is skipped.
+     */
+    public function bulkSms(): void
+    {
+        $this->assertDesk();
+        $notifier = app(OpticalCollectionNotifier::class);
+        abort_unless(SmsAvailability::check()['available'] ?? false, 422, 'SMS is not available for this shop.');
+        $done = $skipped = $keep = [];
+        $partnersDone = [];
+        foreach ($this->awaiting()->whereIn('id', $this->tickedIds())->get() as $order) {
+            if ($order->isPartnerJob() && $order->partner_clinic_id && $order->ready_notified_at && in_array($order->partner_clinic_id, $partnersDone, true)) {
+                $done[] = $order->order_id.' (in the partner\'s reminder)';
+                continue;
+            }
+            $kind = $order->ready_notified_at ? OpticalCollectionNotifier::REMINDER : OpticalCollectionNotifier::READY;
+            $result = $notifier->smsAllowed($order) ? $notifier->sendSms($order, $kind) : ['success' => false, 'error' => $notifier->recipient($order)['phone'] ?? null ? 'Prefers WhatsApp or asked not to be told.' : 'No phone number on the order.'];
+            if ($result['success']) {
+                $done[] = $order->order_id;
+                if ($order->isPartnerJob() && $kind === OpticalCollectionNotifier::REMINDER) $partnersDone[] = $order->partner_clinic_id;
+            } else {
+                $skipped[] = $order->order_id.': '.($result['error'] ?? 'not sent');
+                $keep[] = $order->id;
+            }
+        }
+        $this->report('SMS to customers', $done, $skipped, $keep);
+    }
 
 
     /** Short note for the status-change flash message about the automatic ready SMS. */
@@ -75,6 +105,7 @@ class OpticalCollectionsComponent extends Component
 
         return view('livewire.optical.optical-collections-component', [
             'orders' => $orders,
+            'tickedCount' => count($this->tickedIds()),
             'notifier' => app(OpticalCollectionNotifier::class),
             'sms' => SmsAvailability::check(),
             'money' => $owed,

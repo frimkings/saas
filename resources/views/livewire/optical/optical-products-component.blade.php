@@ -1,4 +1,5 @@
 <div class="clinic-ui ui-page space-y-6">
+    @include('livewire.optical.partials.order-ui')
     <x-optical.catalogue-tabs />
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -33,12 +34,44 @@
             @if($search !== '' || $categoryFilter !== '' || $stockFilter !== '')<button type="button" wire:click="clearFilters" class="ui-button whitespace-nowrap">Clear filters</button>@endif
         </div>
         <div class="px-4 pb-3 text-xs text-slate-500" aria-live="polite">{{ $products->total() }} {{ \Illuminate\Support\Str::plural('product', $products->total()) }} found <span wire:loading wire:target="search,categoryFilter,stockFilter" class="ml-2 text-teal-700">Searching…</span></div>
+        <div class="px-4 pb-3 space-y-2" data-tour="opt-products-bulk">
+            @include('livewire.optical.partials.bulk-report', ['report' => $bulkReport])
+            @if($isManager && $tickedCount)
+                <div class="oo-bulkbar" role="region" aria-label="Ticked products">
+                    <b>{{ $tickedCount }} ticked</b>
+                    <button type="button" class="oo-btn" wire:click="bulkSetActive(true)">Activate</button>
+                    <button type="button" class="oo-btn" wire:click="bulkSetActive(false)" wire:confirm="Deactivate {{ $tickedCount }} {{ \Illuminate\Support\Str::plural('product', $tickedCount) }}? They stop showing for sale; stock and history are kept.">Deactivate</button>
+                    <button type="button" class="oo-btn" wire:click="openBulk('price')">Change price</button>
+                    <button type="button" class="oo-btn" wire:click="openBulk('category')">Move category</button>
+                    <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+                </div>
+                @if($bulkMode === 'price')
+                    <form wire:submit.prevent="bulkPrice" class="ui-panel p-3 flex flex-wrap items-end gap-3">
+                        <label class="text-xs font-semibold">How<select wire:model.live="bulkPriceMode" class="ui-input mt-1"><option value="percent">Raise or lower by %</option><option value="set">Set one price</option></select></label>
+                        <label class="text-xs font-semibold">{{ $bulkPriceMode === 'percent' ? 'Percent (e.g. 10 or -5)' : 'New selling price ('.currency().')' }}<input type="number" step="0.01" wire:model="bulkPriceValue" class="ui-input mt-1 !w-40"></label>
+                        <button type="submit" class="oo-btn primary" wire:confirm="Change the selling price of {{ $tickedCount }} {{ \Illuminate\Support\Str::plural('product', $tickedCount) }}?">Apply</button>
+                        <button type="button" class="oo-btn" wire:click="$set('bulkMode', '')">Cancel</button>
+                        @error('bulkPriceValue')<p class="w-full text-xs text-red-600">{{ $message }}</p>@enderror
+                    </form>
+                @elseif($bulkMode === 'category')
+                    <form wire:submit.prevent="bulkMoveCategory" class="ui-panel p-3 flex flex-wrap items-end gap-3">
+                        <label class="text-xs font-semibold">Move to<select wire:model="bulkCategory" class="ui-input mt-1">@foreach(\App\Models\OpticalProduct::TYPES as $typeKey => $typeLabel)<option value="{{ $typeKey }}">{{ $typeLabel }}</option>@endforeach</select></label>
+                        <button type="submit" class="oo-btn primary">Move {{ $tickedCount }}</button>
+                        <button type="button" class="oo-btn" wire:click="$set('bulkMode', '')">Cancel</button>
+                    </form>
+                @endif
+            @endif
+        </div>
         <div class="ui-table-wrap"><table class="ui-table w-full">
-            <thead><tr><th>SKU Barcode</th><th>Product Name &amp; Specifications</th><th>Category</th><th>Cost Price</th><th>Selling Price (Markup)</th><th>In Stock</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr>@if($isManager)<th class="w-10"><input type="checkbox" class="oo-check" aria-label="Tick every product on this page"
+                    x-data="{ ids: @js($products->pluck('id')->map(fn ($id) => (string) $id)->values()) }"
+                    x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                    x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th>@endif<th>SKU Barcode</th><th>Product Name &amp; Specifications</th><th>Category</th><th>Cost Price</th><th>Selling Price (Markup)</th><th>In Stock</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
                 @forelse($products as $product)
                     @php $balance = $product->stocks->first(); $qty = $balance?->quantity ?? 0; $reorder = $balance?->reorder_level ?? 5; $markup = (float) $product->cost_price > 0 ? ((float) $product->selling_price - (float) $product->cost_price) / (float) $product->cost_price * 100 : 0; @endphp
                     <tr wire:key="optical-product-{{ $product->id }}">
+                        @if($isManager)<td><input type="checkbox" class="oo-check" value="{{ $product->id }}" wire:model.live="selected" aria-label="Tick {{ $product->sku }}"></td>@endif
                         <td class="font-mono text-xs font-semibold">{{ $product->sku }}</td>
                         @php
                             $described = $product->lens_specs ?? $product->details ?? [];
@@ -55,7 +88,7 @@
                         <td><div class="flex gap-2 text-xs">@access('optical.manage')<button type="button" wire:click="edit({{ $product->id }})" class="text-amber-700 underline">Edit</button><button type="button" wire:click="delete({{ $product->id }})" wire:confirm="Archive this optical product?" class="text-red-700 underline">Delete</button>@else — @endaccess</div></td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="ui-empty">No optical products found. Add a product to begin tracking optical stock.</td></tr>
+                    <tr><td colspan="{{ $isManager ? 9 : 8 }}" class="ui-empty">No optical products found. Add a product to begin tracking optical stock.</td></tr>
                 @endforelse
             </tbody>
         </table></div>

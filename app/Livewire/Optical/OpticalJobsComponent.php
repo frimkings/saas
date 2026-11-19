@@ -39,6 +39,7 @@ class OpticalJobsComponent extends Component
     {
         abort_unless(array_key_exists($filter, OpticalJobTrackingService::FILTERS), 422);
         $this->filter = $filter;
+        $this->selected = [];
     }
 
     private function isManager(): bool
@@ -58,6 +59,108 @@ class OpticalJobsComponent extends Component
     private function authorizeCustomerFacing(): void
     {
         abort_unless(\App\Support\OpticalAccess::desk(auth()->user()), 403, 'The front desk does this.');
+    }
+
+    use Concerns\TicksRows;
+
+    /** '' | 'date' | 'close': the small form under the bar for a bulk new date or closing jobs. */
+    public string $bulkMode = '';
+    public string $bulkPickupDate = '';
+    public string $bulkReason = '';
+
+    public function openBulk(string $mode): void
+    {
+        abort_unless(in_array($mode, ['date', 'close'], true), 422);
+        $mode === 'date' ? $this->authorizeCustomerFacing() : abort_unless($this->isManager(), 403);
+        $this->bulkMode = $mode;
+        $this->bulkPickupDate = today()->addDays(3)->toDateString();
+        $this->bulkReason = '';
+        $this->resetValidation();
+    }
+
+    private function tickedOpen()
+    {
+        return LensOrder::whereIn('status', OpticalJobTrackingService::OPEN)->whereIn('id', $this->tickedIds())->with(['patient', 'partnerClinic', 'labSupplier', 'lensLines'])->orderBy('id')->get();
+    }
+
+    /** Free the stock lenses every ticked job not yet started is holding (managers). */
+    public function bulkReleaseLenses(): void
+    {
+        abort_unless($this->isManager(), 403);
+        $tracking = app(OpticalJobTrackingService::class);
+        $done = $skipped = $keep = [];
+        foreach ($this->tickedOpen() as $order) {
+            try {
+                $released = $tracking->releaseHeldLenses($order->id);
+                $released > 0 ? $done[] = $order->order_id : $skipped[] = $order->order_id.': not holding any lenses';
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = $order->order_id.': '.collect($e->errors())->flatten()->first();
+                $keep[] = $order->id;
+            }
+        }
+        $this->report('Release held lenses', $done, $skipped, $keep);
+    }
+
+    /** One new pickup date and reason for every ticked job; customers are texted when "Order Delay" SMS is on. */
+    public function bulkNewDate(): void
+    {
+        $this->authorizeCustomerFacing();
+        $this->validate(['bulkPickupDate' => 'required|date|after_or_equal:today', 'bulkReason' => 'required|string|min:3|max:500'],
+            [], ['bulkPickupDate' => 'new pickup date', 'bulkReason' => 'reason']);
+        $tracking = app(OpticalJobTrackingService::class);
+        $done = $skipped = $keep = $links = [];
+        $texted = 0;
+        foreach ($this->tickedOpen() as $order) {
+            try {
+                $previous = $order->pickUpDate;
+                $updated = $tracking->reschedule($order->id, $this->bulkPickupDate, null, $this->bulkReason)->fresh(['patient', 'partnerClinic']);
+                $done[] = $order->order_id;
+                if (app(\App\Services\Messaging\FollowUpSms::class)->orderDateChanged($updated, $previous)) $texted++;
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = $order->order_id.': '.collect($e->errors())->flatten()->first();
+                $keep[] = $order->id;
+            }
+        }
+        $this->bulkMode = '';
+        $this->report('New pickup date', $done, $skipped, $keep,
+            'Now due '.\Illuminate\Support\Carbon::parse($this->bulkPickupDate)->format('d M Y').'.'.($done ? ' '.$texted.' of '.count($done).' customers texted'.($texted < count($done) ? ' (use WhatsApp on each row for the rest).' : '.') : ''));
+    }
+
+    /** Close every ticked job as abandoned, with one reason (managers). */
+    public function bulkClose(): void
+    {
+        abort_unless($this->isManager(), 403);
+        $this->validate(['bulkReason' => 'required|string|min:10|max:500'], [], ['bulkReason' => 'reason']);
+        $workflow = app(OpticalOrderWorkflowService::class);
+        $done = $skipped = $keep = [];
+        foreach ($this->tickedOpen() as $order) {
+            try {
+                $workflow->closeAbandoned($order->id, $this->bulkReason);
+                $done[] = $order->order_id;
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = $order->order_id.': '.collect($e->errors())->flatten()->first();
+                $keep[] = $order->id;
+            }
+        }
+        $this->bulkMode = '';
+        $this->report('Close as abandoned', $done, $skipped, $keep);
+    }
+
+    /** One WhatsApp per lab asking about all its ticked jobs. */
+    public function chaseLabs(): void
+    {
+        $links = $skipped = [];
+        $atLab = $this->tickedOpen()->where('status', 'Sent to Lab');
+        foreach ($this->tickedOpen()->where('status', '!=', 'Sent to Lab') as $order) $skipped[] = $order->order_id.': not at an outside lab';
+        foreach ($atLab->groupBy('lab_supplier_id') as $jobs) {
+            $lab = $jobs->first()->labSupplier;
+            if (! $lab) { foreach ($jobs as $order) $skipped[] = $order->order_id.': no lab recorded'; continue; }
+            $list = $jobs->map(fn ($order) => '- '.$order->order_id.($order->sent_to_lab_at ? ' (sent '.$order->sent_to_lab_at->format('j M').($order->expected_back_at ? ', due '.$order->expected_back_at->format('j M') : '').')' : ''))->implode("\n");
+            $url = \App\Support\Messaging\WhatsAppLink::to($lab->phone, 'Hello '.($lab->contact_person ?: $lab->name).', please can you update us on these jobs?'."\n".$list."\n".'When can we expect them back? — '.(app(\App\Support\Tenancy\TenantContext::class)->clinic()?->name ?? 'the optical shop'));
+            $url ? $links[] = ['url' => $url, 'label' => 'Chase '.$lab->name.' ('.$jobs->count().')'] : $skipped[] = $lab->name.': no WhatsApp number';
+        }
+        $this->bulkReport = ['title' => 'Chase labs', 'done' => array_map(fn ($link) => $link['label'], $links), 'skipped' => $skipped,
+            'note' => $links ? 'Open each message below and press send in WhatsApp.' : null, 'links' => $links];
     }
 
     public function openReschedule(int $orderId): void
@@ -136,6 +239,7 @@ class OpticalJobsComponent extends Component
             'stuckDays' => OpticalSetting::stuckJobDays(),
             'isManager' => $this->isManager(),
             'desk' => \App\Support\OpticalAccess::seesMoneyAndContacts(auth()->user()),
+            'tickedCount' => count($this->tickedIds()),
             'rescheduleOrder' => $this->rescheduleOrderId ? LensOrder::find($this->rescheduleOrderId) : null,
             'abandonOrder' => $this->abandonOrderId ? LensOrder::find($this->abandonOrderId) : null,
         ])->layout('layouts.optical');

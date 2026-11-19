@@ -34,6 +34,9 @@
         .oo-table col.c-order{width:140px}.oo-table col.c-cust{width:165px}.oo-table col.c-work{width:auto}.oo-table col.c-amt{width:130px}.oo-table col.c-pick{width:105px}.oo-table col.c-status{width:120px}.oo-table col.c-act{width:250px}
         .oo-table td{overflow-wrap:anywhere}
         .oo-overlay{position:fixed;inset:0;z-index:1040;background:rgb(15 23 42 / .45)}
+        .oo-check{width:18px;height:18px;cursor:pointer;accent-color:var(--clinic-accent)}
+        .oo-bulkbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;background:#f0fdfa;border:1px solid var(--clinic-accent);border-radius:12px;box-shadow:0 6px 18px rgb(15 23 42 / .12)}
+        .oo-bulkbar .oo-btn[disabled]{opacity:.45;cursor:not-allowed}
         .oo-drawer{position:fixed;top:0;right:0;z-index:1041;height:100dvh;width:min(620px,100vw);background:#fff;display:flex;flex-direction:column;box-shadow:-16px 0 40px rgb(15 23 42 / .2);animation:ooSlide .18s ease-out;outline:none}
         @keyframes ooSlide{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
         @media(prefers-reduced-motion:reduce){.oo-drawer{animation:none}}

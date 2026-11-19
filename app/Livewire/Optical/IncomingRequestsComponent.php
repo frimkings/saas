@@ -12,7 +12,33 @@ use Livewire\WithPagination;
 /** Spectacle orders sent in by linked clinics, waiting to be turned into partner jobs. */
 class IncomingRequestsComponent extends Component
 {
-    use WithPagination;
+    use WithPagination, Concerns\TicksRows;
+
+    /**
+     * Start the jobs for every ticked quote the clinics have approved, at the approved price on
+     * their account (the same as "Start job" on one). New orders still open the order form one by
+     * one, because each is priced there.
+     */
+    public function bulkStartJobs(): void
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $links = app(OpticalLinkService::class);
+        $done = $skipped = $keep = [];
+        foreach ($this->tickedIds() as $id) {
+            try {
+                $request = $links->incomingRequest($id);
+                if ($request->status !== 'approved') { $skipped[] = ($request->patient_name ?: 'Order').': not an approved quote'; continue; }
+                $order = $links->startJob($request);
+                $done[] = $order->order_id.' ('.$request->senderLabel().')';
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = 'Request '.$id.': '.collect($e->errors())->flatten()->first();
+                $keep[] = $id;
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+                $skipped[] = 'Request '.$id.': '.($e->getMessage() ?: 'cannot be started');
+            }
+        }
+        $this->report('Start jobs', $done, $skipped, $keep, $done ? 'On each clinic\'s account at the approved price.' : null);
+    }
 
     public string $tab = 'new';
     public ?int $viewId = null;
@@ -42,6 +68,7 @@ class IncomingRequestsComponent extends Component
         abort_unless(array_key_exists($tab, self::TABS), 422);
         $this->tab = $tab;
         $this->viewId = null;
+        $this->selected = [];
         $this->resetPage();
     }
 
@@ -126,6 +153,7 @@ class IncomingRequestsComponent extends Component
 
         return view('livewire.optical.incoming-requests-component', [
             'requests' => $requests,
+            'tickedCount' => count($this->tickedIds()),
             'counts' => $counts,
             'viewRequest' => $this->viewId ? (clone $base)->with('sender:id,name', 'remakeOf')->find($this->viewId) : null,
         ])->layout('layouts.optical');

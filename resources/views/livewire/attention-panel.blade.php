@@ -40,9 +40,27 @@
             @if($compact && $total)<a href="{{ $allUrl }}" class="text-sm">See all &rarr;</a>@endif
         </div>
 
+        @if($page && $bulkResult)<div class="att-stale" role="status" style="border-top:0;border-bottom:1px solid #eef1f5;border-radius:0">{{ $bulkResult }} <button type="button" class="text-xs underline" wire:click="$set('bulkResult', null)">Close</button></div>@endif
+        @if($page && $ticked)
+            {{-- Several items at once (full page only). --}}
+            <div class="att-stale" role="region" aria-label="Ticked items" style="position:sticky;top:0;z-index:5;border-top:0;border-bottom:1px solid #eef1f5;border-radius:0;background:#f0fdfa">
+                <b>{{ count($ticked) }} ticked</b>
+                <input type="text" wire:model="bulkNote" maxlength="500" placeholder="Note for all of them (optional)" class="ui-input text-sm" style="flex:1;min-width:180px">
+                <span class="att-actions">
+                    <button type="button" class="att-done" wire:click="bulk('done')">Done</button>
+                    <button type="button" wire:click="bulk('snoozed')">Snooze till tomorrow</button>
+                    @if($canRelease)<button type="button" class="att-done" wire:click="bulk('release')" wire:confirm="Release the held lenses of the ticked jobs?">Release lenses</button>@endif
+                    <button type="button" wire:click="$set('ticked', [])">Clear</button>
+                </span>
+            </div>
+        @endif
+
         @forelse($groups as $rule => $group)
             <div class="att-group" wire:key="att-g-{{ $rule }}">
-                <h6>{{ $group['title'] }} <span class="text-slate-500 font-normal">({{ $group['items']->count() }})</span></h6>
+                <h6>@if($page)<input type="checkbox" class="mr-1 align-middle" aria-label="Tick every item in {{ $group['title'] }}"
+                        x-data="{ keys: @js($group['items']->map(fn ($i) => $i['rule'].'|'.$i['type'].'|'.$i['id'])->values()) }"
+                        x-bind:checked="keys.length && keys.every(k => $wire.ticked.includes(k))"
+                        x-on:change="$wire.ticked = $event.target.checked ? [...new Set([...$wire.ticked, ...keys])] : $wire.ticked.filter(k => ! keys.includes(k))">@endif{{ $group['title'] }} <span class="text-slate-500 font-normal">({{ $group['items']->count() }})</span></h6>
                 <div class="att-hint">{{ $group['hint'] }}</div>
 
                 @foreach($perGroup ? $group['items']->take($perGroup) : $group['items'] as $item)
@@ -52,7 +70,8 @@
                         $args = "'{$item['rule']}', '{$item['type']}', {$item['id']}";
                     @endphp
                     <div class="att-item" wire:key="att-{{ $key }}">
-                        <div style="min-width:0">
+                        @if($page)<input type="checkbox" value="{{ $key }}" wire:model.live="ticked" aria-label="Tick {{ $item['title'] }}" style="margin-top:3px;flex:none">@endif
+                        <div style="min-width:0;flex:1">
                             <div class="att-title">{{ $item['title'] }}</div>
                             <div class="att-detail {{ in_array($rule, ['order_late', 'appt_missed', 'stock_expired'], true) ? 'rot-red' : '' }}">{{ $item['detail'] }}</div>
                         </div>

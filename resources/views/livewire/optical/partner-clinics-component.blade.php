@@ -42,10 +42,24 @@
                 <button type="button" wire:click="setStatus('{{ $key }}')" class="oo-chip {{ $statusFilter === $key ? 'active' : '' }}" aria-pressed="{{ $statusFilter === $key ? 'true' : 'false' }}">{{ $label }}<b>{{ $counts[$key] }}</b></button>
             @endforeach
         </div>
+        <div class="px-4 pt-3 space-y-2" data-tour="partner-bulk">
+            @include('livewire.optical.partials.bulk-report', ['report' => $bulkReport])
+            @if($tickedCount)
+                <div class="oo-bulkbar" role="region" aria-label="Ticked partner clinics">
+                    <b>{{ $tickedCount }} ticked</b>
+                    <button type="button" class="oo-btn primary" wire:click="bulkStatements"><i class="fab fa-whatsapp" aria-hidden="true"></i> This month's statements</button>
+                    @if($canManage)<button type="button" class="oo-btn" wire:click="bulkArchive" wire:confirm="Archive {{ $tickedCount }} partner {{ \Illuminate\Support\Str::plural('clinic', $tickedCount) }}? Their orders stay available.">Archive</button>@endif
+                    <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+                </div>
+            @endif
+        </div>
         <div class="overflow-x-auto">
             <table class="oo-table pc-table w-full" style="min-width:900px">
-                <colgroup><col class="c-name"><col class="c-contact"><col class="c-terms"><col class="c-jobs"><col class="c-owed"><col class="c-act"></colgroup>
-                <thead><tr><th>Clinic</th><th>Contact</th><th>Billing</th><th>Open jobs</th><th class="oo-num">Owed</th><th class="!text-right">Actions</th></tr></thead>
+                <colgroup><col style="width:40px"><col class="c-name"><col class="c-contact"><col class="c-terms"><col class="c-jobs"><col class="c-owed"><col class="c-act"></colgroup>
+                <thead><tr><th><input type="checkbox" class="oo-check" aria-label="Tick every partner shown"
+                        x-data="{ ids: @js($partners->pluck('id')->map(fn ($id) => (string) $id)->values()) }"
+                        x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                        x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th><th>Clinic</th><th>Contact</th><th>Billing</th><th>Open jobs</th><th class="oo-num">Owed</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($partners as $partner)
                         @php
@@ -54,6 +68,7 @@
                             $owed = $balances[$partner->id] ?? 0;
                         @endphp
                         <tr wire:key="partner-{{ $partner->id }}" class="{{ $viewPartnerId === $partner->id ? 'oo-active' : '' }}" wire:click="openPartner({{ $partner->id }})">
+                            <td onclick="event.stopPropagation()"><input type="checkbox" class="oo-check" value="{{ $partner->id }}" wire:model.live="selected" aria-label="Tick {{ $partner->name }}"></td>
                             <td><b>{{ $partner->name }}</b>@if(! $partner->is_active) <span class="oo-badge oo-b-grey">Archived</span>@endif @if($partner->hasLink()) <span class="oo-badge {{ $partner->link_status === 'active' ? 'oo-b-green' : 'oo-b-grey' }}" title="Sends orders online">{{ $partner->link_status === 'active' ? 'Linked' : 'Link paused' }}</span>@endif @if($linkPaymentsWaiting->get($partner->id)) <span class="oo-badge oo-b-amber">Payment to confirm</span>@endif @if($partner->address)<span class="oo-sub" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">{{ $partner->address }}</span>@endif</td>
                             <td>{{ $partner->contact_person ?: '—' }}<span class="oo-sub">{{ $partner->phone ?: ($partner->email ?: 'No contact details') }}</span></td>
                             <td><span class="oo-badge {{ $partner->billing_terms === 'on_account' ? 'oo-b-purple' : 'oo-b-grey' }}">{{ $partner->billing_terms === 'on_account' ? 'On account' : 'Pay on order' }}</span></td>
@@ -67,7 +82,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="ui-empty"><p class="ui-muted text-sm">{{ $search || $owingOnly || $statusFilter !== 'active' ? 'No partner clinics match these filters.' : 'No partner clinics yet.' }}</p></td></tr>
+                        <tr><td colspan="7" class="ui-empty"><p class="ui-muted text-sm">{{ $search || $owingOnly || $statusFilter !== 'active' ? 'No partner clinics match these filters.' : 'No partner clinics yet.' }}</p></td></tr>
                     @endforelse
                 </tbody>
             </table>

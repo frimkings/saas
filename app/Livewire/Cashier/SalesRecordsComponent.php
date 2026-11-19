@@ -13,7 +13,7 @@ use Carbon\Carbon;
 
 class SalesRecordsComponent extends Component
 {
-    use WithPagination;
+    use WithPagination, \App\Livewire\Optical\Concerns\TicksRows;
     #[\Livewire\Attributes\Locked]
     public string $businessLine = 'clinic';
 
@@ -300,13 +300,16 @@ class SalesRecordsComponent extends Component
         $this->normalizeFilters();
         [$fromDate, $toDate] = $this->dateRange();
 
-        $fileName = ucfirst($this->businessLine) . '_Sales_Report_' . $this->fromDate . '_to_' . $this->toDate . '.csv';
+        $ticked = $this->tickedIds();
+        $fileName = ucfirst($this->businessLine) . '_Sales_Report_' . $this->fromDate . '_to_' . $this->toDate . ($ticked ? '_'.count($ticked).'_ticked' : '') . '.csv';
         
         $query = Sales::select('id', 'transaction_id', 'total_amount', 'amount_paid', 'payment_status', 'is_refunded', 'patient_id', 'customer_name', 'user_id', 'created_at',
                 'discount_type', 'discount_value', 'discount_amount', 'discount_approved_by')
             ->where('business_line', $this->businessLine)
             ->with(['patient:id,name', 'user:id,name', 'approvedBy:id,name'])
-            ->whereBetween('created_at', [$fromDate, $toDate]);
+            ->whereBetween('created_at', [$fromDate, $toDate])
+            // Ticked rows only, when any are ticked (optical Sales Records).
+            ->when($ticked, fn ($q) => $q->whereIn('id', $ticked));
         $this->scanScope($query);
 
         if ($this->filterRefunded !== null) {

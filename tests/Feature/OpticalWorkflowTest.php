@@ -1517,6 +1517,55 @@ class OpticalWorkflowTest extends TestCase
         $this->assertLessThan(strpos($html, $a->order_id), strpos($html, $b->order_id));
     }
 
+    public function test_ticked_rows_across_the_optical_suite(): void
+    {
+        $manager = $this->opticalManager('bulk-suite');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $manager->id, 'name' => 'Suite Customer', 'contact' => '0240007722', 'gender' => 'Other']);
+        [$a, $b] = [app(OpticalOrderService::class)->create($this->orderData($patient)), app(OpticalOrderService::class)->create($this->orderData($patient))];
+        $lab = \App\Models\Supplier::create(['name' => 'North Lab', 'phone' => '0244000333', 'is_active' => true]);
+
+        // Orders: send both to one lab; the dockets print together.
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)
+            ->set('selected', [(string) $a->id, (string) $b->id])->assertSee('Print dockets (2)')->assertSee('Send to lab (2)')
+            ->call('openBulkSendToLab')->set('bulkLabSupplierId', (string) $lab->id)->call('bulkSendToLab')
+            ->assertSet('selected', [])->assertSee('Message North Lab the list');
+        $this->assertSame(['Sent to Lab', 'Sent to Lab'], [$a->fresh()->status, $b->fresh()->status]);
+
+        // Job Tracking: one WhatsApp per lab, then a new date for both, then close one as abandoned.
+        $this->travel(10)->days();
+        $jobs = Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)
+            ->set('selected', [(string) $a->id, (string) $b->id])->call('chaseLabs');
+        $this->assertSame('Chase North Lab (2)', $jobs->get('bulkReport')['links'][0]['label']);
+        $jobs->set('selected', [(string) $a->id, (string) $b->id])->call('openBulk', 'date')
+            ->set('bulkPickupDate', today()->addDays(4)->toDateString())->set('bulkReason', 'Lab delay on lenses')->call('bulkNewDate');
+        $this->assertSame(today()->addDays(4)->toDateString(), \Carbon\Carbon::parse($a->fresh()->pickUpDate)->toDateString());
+        $jobs->set('selected', [(string) $b->id])->call('openBulk', 'close')->set('bulkReason', 'short')->call('bulkClose')->assertHasErrors('bulkReason')
+            ->set('bulkReason', 'Customer unreachable for weeks')->call('bulkClose');
+        $this->assertSame('Cancelled', $b->fresh()->status);
+
+        // Products: price up 10%, move category, deactivate.
+        $frame = OpticalProduct::create(['name' => 'Bulk Frame', 'type' => 'frame', 'sku' => 'BULK-1', 'selling_price' => 200, 'cost_price' => 80, 'is_active' => true]);
+        $case = OpticalProduct::create(['name' => 'Bulk Case', 'type' => 'frame', 'sku' => 'BULK-2', 'selling_price' => 30, 'cost_price' => 10, 'is_active' => true]);
+        $products = Livewire::test(\App\Livewire\Optical\OpticalProductsComponent::class)
+            ->set('selected', [(string) $frame->id, (string) $case->id])->call('openBulk', 'price')
+            ->set('bulkPriceMode', 'percent')->set('bulkPriceValue', '10')->call('bulkPrice');
+        $this->assertEquals([220.0, 33.0], [(float) $frame->fresh()->selling_price, (float) $case->fresh()->selling_price]);
+        $products->set('selected', [(string) $case->id])->call('openBulk', 'category')->set('bulkCategory', 'accessory')->call('bulkMoveCategory');
+        $this->assertSame('accessory', $case->fresh()->type);
+        $products->set('selected', [(string) $frame->id, (string) $case->id])->call('bulkSetActive', false);
+        $this->assertFalse($frame->fresh()->is_active);
+
+        // Partner clinics: this month's statements as WhatsApp messages, then archive.
+        $north = OpticalPartnerClinic::create(['name' => 'North Clinic', 'phone' => '0244000444', 'notify_via' => 'whatsapp', 'is_active' => true]);
+        $quiet = OpticalPartnerClinic::create(['name' => 'Quiet Clinic', 'notify_via' => 'none', 'is_active' => true]);
+        $partners = Livewire::test(\App\Livewire\Optical\PartnerClinicsComponent::class)
+            ->set('selected', [(string) $north->id, (string) $quiet->id])->call('bulkStatements');
+        $this->assertSame(['North Clinic'], $partners->get('bulkReport')['done']);
+        $this->assertStringContainsString('asked not to be contacted', $partners->get('bulkReport')['skipped'][0]);
+        $partners->set('selected', [(string) $north->id, (string) $quiet->id])->call('bulkArchive');
+        $this->assertFalse($north->fresh()->is_active);
+    }
+
     public function test_bench_staff_can_bulk_move_but_not_hand_over(): void
     {
         $this->opticalStaff('bulk-optician', 'Optician');

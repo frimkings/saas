@@ -26,13 +26,29 @@
                 <button type="button" wire:click="setTab('{{ $key }}')" class="oo-chip {{ $tab === $key ? 'active' : '' }}" aria-pressed="{{ $tab === $key ? 'true' : 'false' }}">{{ $label }}<b>{{ $counts[$key] }}</b></button>
             @endforeach
         </div>
+        @if($tab === 'quotes')
+            <div class="px-4 pt-3 space-y-2" data-tour="ir-bulk">
+                @include('livewire.optical.partials.bulk-report', ['report' => $bulkReport])
+                @if($tickedCount)
+                    <div class="oo-bulkbar" role="region" aria-label="Ticked quotes">
+                        <b>{{ $tickedCount }} ticked</b>
+                        <button type="button" class="oo-btn primary" wire:click="bulkStartJobs" wire:confirm="Start {{ $tickedCount }} {{ \Illuminate\Support\Str::plural('job', $tickedCount) }} at the approved prices, on each clinic's account?">Start jobs ({{ $tickedCount }})</button>
+                        <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+                    </div>
+                @endif
+            </div>
+        @endif
         <div class="overflow-x-auto">
             <table class="oo-table ir-table w-full" style="min-width:820px">
-                <colgroup><col class="c-when"><col class="c-from"><col class="c-rx"><col class="c-state"><col class="c-act"></colgroup>
-                <thead><tr><th>Sent</th><th>From</th><th>Wearer &amp; prescription</th><th>Status</th><th class="!text-right"></th></tr></thead>
+                <colgroup>@if($tab === 'quotes')<col style="width:40px">@endif<col class="c-when"><col class="c-from"><col class="c-rx"><col class="c-state"><col class="c-act"></colgroup>
+                <thead><tr>@if($tab === 'quotes')<th title="Approved quotes can be started together"><input type="checkbox" class="oo-check" aria-label="Tick every approved quote on this page"
+                        x-data="{ ids: @js($requests->where('status', 'approved')->pluck('id')->map(fn ($id) => (string) $id)->values()) }"
+                        x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                        x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th>@endif<th>Sent</th><th>From</th><th>Wearer &amp; prescription</th><th>Status</th><th class="!text-right"></th></tr></thead>
                 <tbody>
                     @forelse($requests as $request)
                         <tr wire:key="ir-{{ $request->id }}" class="{{ $viewId === $request->id ? 'oo-active' : '' }}" wire:click="open({{ $request->id }})">
+                            @if($tab === 'quotes')<td onclick="event.stopPropagation()">@if($request->status === 'approved')<input type="checkbox" class="oo-check" value="{{ $request->id }}" wire:model.live="selected" aria-label="Tick the approved quote for {{ $request->patient_name }}">@endif</td>@endif
                             <td>{{ $request->created_at->format('d M Y') }}<span class="oo-sub">{{ $request->created_at->format('H:i') }}</span></td>
                             <td><b>{{ $request->senderLabel() }}</b><span class="oo-sub">Ref {{ $request->sender_reference ?: '—' }}</span></td>
                             <td><b>{{ $request->patient_name }}</b>@if($request->urgency === 'urgent') <span class="oo-badge oo-b-red">Urgent</span>@endif @if($request->isRemake())<span class="oo-badge oo-b-amber">Remake</span>@endif
@@ -43,7 +59,7 @@
                             <td class="!text-right" onclick="event.stopPropagation()"><button type="button" class="oo-btn" wire:click="open({{ $request->id }})">View</button></td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="ui-empty"><p class="ui-muted text-sm">{{ $tab === 'new' ? 'No new orders. Linked clinics send them from their Spectacles page.' : 'Nothing here.' }}</p></td></tr>
+                        <tr><td colspan="{{ $tab === 'quotes' ? 6 : 5 }}" class="ui-empty"><p class="ui-muted text-sm">{{ $tab === 'new' ? 'No new orders. Linked clinics send them from their Spectacles page.' : 'Nothing here.' }}</p></td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -46,11 +46,27 @@
             <a href="{{ route('optical.collections') }}" wire:navigate data-tour="opt-collections" class="oo-link" style="margin-left:auto">Awaiting collection &amp; reminders →</a>
         </div>
 
+        <div class="px-4 pt-3 space-y-2" data-tour="opt-order-bulk">
+            @include('livewire.optical.partials.bulk-report', ['report' => $bulkReport])
+            @if($ticked->isNotEmpty())
+                @php $waiting = $ticked->where('status', 'Pending')->count(); @endphp
+                <div class="oo-bulkbar" role="region" aria-label="Ticked orders">
+                    <b>{{ $ticked->count() }} ticked</b>
+                    <a href="{{ route('optical.orders.dockets', ['ids' => implode(',', $ticked->pluck('id')->all()), 'print' => 1]) }}" target="_blank" class="oo-btn" title="One A5 docket per page. Choose 2 pages per sheet in the print dialog to fit two on an A4.">Print dockets ({{ $ticked->count() }})</a>
+                    @if($canBench)<button type="button" class="oo-btn primary" wire:click="openBulkSendToLab" @disabled(! $waiting)>Send to lab ({{ $waiting }})</button>@endif
+                    <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+                </div>
+            @endif
+        </div>
         <div class="overflow-x-auto" data-tour="opt-order-list">
             <table class="oo-table w-full">
-                <colgroup><col class="c-order"><col class="c-cust"><col class="c-work"><col class="c-amt"><col class="c-pick"><col class="c-status"><col class="c-act"></colgroup>
+                <colgroup><col style="width:40px"><col class="c-order"><col class="c-cust"><col class="c-work"><col class="c-amt"><col class="c-pick"><col class="c-status"><col class="c-act"></colgroup>
                 <thead>
                     <tr>
+                        <th><input type="checkbox" class="oo-check" aria-label="Tick every order on this page"
+                                   x-data="{ ids: @js($orders->pluck('id')->map(fn ($id) => (string) $id)->values()) }"
+                                   x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                                   x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th>
                         <th>Order</th>
                         <th>Customer</th>
                         <th>Work</th>
@@ -76,6 +92,7 @@
                             $canTakePayment = $ord->sale_id && ! in_array($ord->status, ['Quotation', 'Cancelled'], true);
                         @endphp
                         <tr wire:key="order-{{ $ord->id }}" class="{{ $viewOrderId === $ord->id ? 'oo-active' : '' }}" wire:click="openOrder({{ $ord->id }})">
+                            <td onclick="event.stopPropagation()"><input type="checkbox" class="oo-check" value="{{ $ord->id }}" wire:model.live="selected" aria-label="Tick {{ $ord->order_id }}"></td>
                             <td>
                                 <span class="oo-id" style="{{ $ord->status === 'Quotation' ? 'color:#6b21a8' : '' }}">{{ $ord->order_id }}</span>
                                 <span class="oo-sub">{{ $ord->created_at?->format('d M Y') }}@if($ord->user) · by {{ $ord->user->name }}@endif @if($ord->remakeOf) · <span style="color:#92400e;font-weight:700">Remake</span>@endif</span>
@@ -112,7 +129,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="ui-empty"><p class="ui-muted text-sm">No orders match these filters.</p>@if($narrowed || $statusFilter)<button type="button" class="oo-btn" wire:click="clearFilters">Clear filters</button>@endif</td></tr>
+                        <tr><td colspan="8" class="ui-empty"><p class="ui-muted text-sm">No orders match these filters.</p>@if($narrowed || $statusFilter)<button type="button" class="oo-btn" wire:click="clearFilters">Clear filters</button>@endif</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -120,5 +137,6 @@
         <div class="p-3 border-t border-slate-200">{{ $orders->links() }}</div>
     </div>
 
+    @include('livewire.optical.partials.bulk-send-to-lab', ['count' => $ticked->where('status', 'Pending')->count()])
     @include('livewire.optical.partials.order-panel')
 </div>

@@ -71,13 +71,24 @@
             @endforeach
         </div>
         <div class="overflow-x-auto">
+        @if(count($selected))
+            <div class="oo-bulkbar" role="region" aria-label="Ticked prescriptions" style="margin:8px 0">
+                <b>{{ count($selected) }} ticked</b>
+                <button type="button" class="oo-btn primary" wire:click="exportTicked">Export ticked (CSV)</button>
+                <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+            </div>
+        @endif
             <table class="oo-table rx-table w-full" style="min-width:1140px">
                 <colgroup><col class="c-rx"><col class="c-cust"><col class="c-src"><col class="c-by"><col class="c-eye"><col class="c-eye"><col class="c-act"></colgroup>
-                <thead><tr><th>Rx</th><th>Customer</th><th>Source</th><th>Prescriber</th><th>Right (OD)</th><th>Left (OS)</th><th class="!text-right">Actions</th></tr></thead>
+                <thead><tr><th style="width:40px"><input type="checkbox" class="oo-check" aria-label="Tick every prescription on this page"
+                    x-data="{ ids: @js($prescriptions->pluck('id')->map(fn ($id) => (string) $id)->values()) }"
+                    x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                    x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th><th>Rx</th><th>Customer</th><th>Source</th><th>Prescriber</th><th>Right (OD)</th><th>Left (OS)</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($prescriptions as $rx)
                         @php [$srcLabel, $srcClass] = $sourceBadge[$rx->source] ?? [ucfirst((string) $rx->source), 'oo-b-grey']; @endphp
                         <tr wire:key="rx-{{ $rx->id }}" class="{{ $viewRxId === $rx->id ? 'oo-active' : '' }}" wire:click="openRx({{ $rx->id }})">
+                            <td onclick="event.stopPropagation()"><input type="checkbox" class="oo-check" value="{{ $rx->id }}" wire:model.live="selected" aria-label="Tick RX-{{ $rx->id }}"></td>
                             <td><span class="oo-id">RX-{{ $rx->id }}</span><span class="oo-sub">{{ ($rx->prescribed_at ?? $rx->created_at)?->format('d M Y') }}</span></td>
                             <td><b>{{ $rx->patient?->name ?? 'Customer unavailable' }}</b>@if($rx->patient?->contact)<span class="oo-sub">{{ $rx->patient->contact }}</span>@endif</td>
                             <td><span class="oo-badge {{ $srcClass }}">{{ $srcLabel }}</span>@if($rx->verified_at)<span class="oo-sub" style="color:#047857;font-weight:700">Verified</span>@endif</td>
@@ -92,7 +103,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="ui-empty"><p class="ui-muted text-sm">{{ $searchTerm || $sourceFilter ? 'No prescriptions match these filters.' : 'No prescriptions yet.' }}</p></td></tr>
+                        <tr><td colspan="8" class="ui-empty"><p class="ui-muted text-sm">{{ $searchTerm || $sourceFilter ? 'No prescriptions match these filters.' : 'No prescriptions yet.' }}</p></td></tr>
                     @endforelse
                 </tbody>
             </table>

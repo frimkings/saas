@@ -19,13 +19,13 @@ final class TourCatalog
         'attendance.head' => 2,
         'attendance.staff' => 1,
         'optical.dashboard' => 3,
-        'optical.orders' => 1,
+        'optical.orders' => 2,
         'optical.order-create' => 1,
         'optical.special-order' => 1,
         'optical.lab' => 2,
         'optical.catalogue' => 1,
         'optical.pos' => 2,
-        'optical.requests' => 5,
+        'optical.requests' => 6,
         'clinic.dashboard' => 6,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
@@ -183,6 +183,7 @@ final class TourCatalog
         return ['key' => 'optical.requests', 'title' => 'Incoming Orders', 'steps' => [
             ['target' => 'incoming-orders', 'title' => 'Orders from linked clinics', 'body' => 'Clinics you linked under Partner Clinics send their spectacle orders here, with the wearer’s name, phone and prescription. Open one to accept it: the order form opens with the prescription filled in, and you price the job as a partner order. Or ask the clinic a question, or turn it down with a reason they will see.'],
             ['title' => 'Quotes, then the job', 'body' => 'Pricing a job sends the clinic a quote; it waits under Quotes. Once they approve it, open it and press Start the job: it goes on their account at the approved price, with no deposit. A free job, such as a free remake, starts straight away.'],
+            ['title' => 'Several approved quotes', 'body' => 'Under Quotes, tick the approved ones to start all their jobs at once, at the approved prices on each clinic\x27s account.'],
             ['title' => 'Agreed terms', 'body' => 'Under Partner Clinics, open a linked clinic to set its trade % off your prices for lenses, frames and services, and a credit limit. The trade % comes off every quote for them on its own line. At the credit limit they can’t send new jobs until they pay. If the clinic approves quotes automatically up to an amount, a quote within it starts the job at once.'],
             ['title' => 'Clinics not on Nexus', 'body' => 'Under Partner Clinics, open a partner that is not on Nexus and turn on its ordering page: you get a private link and set a 6-digit PIN to send them separately. They send orders with the prescription and follow each job there, without an account. Their orders arrive here marked "ordering page"; you price them as ordinary partner jobs, with no quote to approve. On the page they can press Check lenses to see which of your stock lenses fit, "In stock" or "Order in" per eye (never the counts), with prices after their trade % unless you switch prices off for that partner. A lens they pick is held for them until you accept the order, and the order form selects it when you check availability. If they join Nexus later and link, their orders move to their account.'],
             ['title' => 'Remakes and payments', 'body' => 'A clinic can ask for a remake of glasses you made; accept it to open the remake form and choose free or charged. When a clinic records a payment to you, confirm it on their card under Partner Clinics.'],
@@ -198,7 +199,7 @@ final class TourCatalog
             ['target' => 'opt-order-filters', 'title' => 'Narrow the list', 'body' => 'By the day it was ordered or is due for pickup, where it came from, and who took it.'],
             ['target' => 'opt-order-status', 'title' => 'Where each order is', 'body' => 'Quotations, in the lab, ready, collected and more. The count on each tells you how many.'],
             ['target' => 'opt-collections', 'title' => 'Waiting to be collected', 'body' => 'Glasses that are ready, with the reminder texts sent to customers.'],
-            ['target' => 'opt-order-list', 'title' => 'Open an order', 'body' => 'Click an order to take a payment, move it on (to the lab, ready, collected), print the docket or turn a quotation into an order.'],
+            ['target' => 'opt-order-list', 'title' => 'Open an order', 'body' => 'Click an order to take a payment, move it on (to the lab, ready, collected), print the docket or turn a quotation into an order. Tick several to print their dockets together or send them to one lab.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

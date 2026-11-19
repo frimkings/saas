@@ -44,14 +44,27 @@
             <label class="oo-f"><span>Status</span><select wire:model.live="filterRefunded" class="ui-input text-sm"><option value="">All</option><option value="0">Not refunded</option><option value="1">Refunded</option></select></label>
             <div class="oo-presets"><span class="ui-muted" wire:loading.delay wire:target="searchTerm,fromDate,toDate,filterRefunded,resetFilters">Updating…</span></div>
         </div>
+        @if(count($selected))
+            <div class="oo-bulkbar" role="region" aria-label="Ticked sales" style="margin-bottom:8px">
+                <b>{{ count($selected) }} ticked</b>
+                <button type="button" class="oo-btn primary" wire:click="exportCSV">Export ticked (CSV)</button>
+                @foreach(\App\Models\Sales::whereIn('id', array_slice(array_map('intval', $selected), 0, 20))->pluck('id') as $saleId)<a class="oo-btn" href="{{ route('optical.receipt', $saleId) }}" target="_blank" style="display:none" data-receipt></a>@endforeach
+                <button type="button" class="oo-btn" x-data x-on:click="$root.closest('[role=region]').querySelectorAll('[data-receipt]').forEach(link => window.open(link.href, '_blank'))" title="Opens each receipt in its own tab (up to 20); allow pop-ups if the browser asks.">Open receipts</button>
+                <button type="button" class="oo-btn ml-auto" wire:click="clearSelection">Clear</button>
+            </div>
+        @endif
         <div class="overflow-x-auto">
             <table class="oo-table sr-table w-full" style="min-width:1000px">
                 <colgroup><col class="c-date"><col class="c-rcpt"><col class="c-cust"><col class="c-items"><col class="c-amt"><col class="c-status"><col class="c-act"></colgroup>
-                <thead><tr><th>Date</th><th>Receipt</th><th>Customer</th><th>Items</th><th class="oo-num">Amount</th><th>Status</th><th class="!text-right">Actions</th></tr></thead>
+                <thead><tr><th style="width:40px"><input type="checkbox" class="oo-check" aria-label="Tick every sale on this page"
+                    x-data="{ ids: @js($sales->pluck('id')->map(fn ($id) => (string) $id)->values()) }"
+                    x-bind:checked="ids.length && ids.every(id => $wire.selected.includes(id))"
+                    x-on:change="$wire.selected = $event.target.checked ? [...new Set([...$wire.selected, ...ids])] : $wire.selected.filter(id => ! ids.includes(id))"></th><th>Date</th><th>Receipt</th><th>Customer</th><th>Items</th><th class="oo-num">Amount</th><th>Status</th><th class="!text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($sales as $sale)
                         @php [$sl, $sc] = $statusOf($sale); $count = $sale->items->count(); @endphp
                         <tr wire:key="sale-{{ $sale->id }}" :class="$wire.panelSaleId === {{ $sale->id }} && 'oo-active'" x-on:click="$wire.$set('panelSaleId', {{ $sale->id }}, false)">
+                            <td x-on:click.stop><input type="checkbox" class="oo-check" value="{{ $sale->id }}" wire:model.live="selected" aria-label="Tick {{ $sale->transaction_id }}"></td>
                             <td>{{ $sale->created_at->format('d M Y') }}<span class="oo-sub">{{ $sale->created_at->format('H:i') }}</span></td>
                             <td><span class="oo-id">{{ $sale->transaction_id }}</span>@if($sale->user)<span class="oo-sub">by {{ $sale->user->name }}</span>@endif</td>
                             <td><b>{{ $sale->customer_display_name }}</b></td>
@@ -66,7 +79,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="ui-empty"><p class="ui-muted text-sm">No optical sales in this period.</p></td></tr>
+                        <tr><td colspan="8" class="ui-empty"><p class="ui-muted text-sm">No optical sales in this period.</p></td></tr>
                     @endforelse
                 </tbody>
             </table>
