@@ -63,7 +63,7 @@ class Feature
     const PATIENT_LEDGER       = 'patient_ledger';
     const INSURANCE            = 'insurance';            // co-pay, coverage rules, claims, insurer payments
     const INVENTORY_ALERTS     = 'inventory_alerts';     // inventory alerts and expiring stock notices
-    const PRODUCT_IMPORT       = 'product_import';       // product CSV import/export and the lens catalogue
+    const PRODUCT_IMPORT       = 'product_import';       // product CSV import/export (the lens catalogue is on every clinic plan)
     const PURCHASING           = 'purchasing';           // suppliers, purchase orders, stock transfers
     const PATIENT_MESSAGES     = 'patient_messages';     // SMS templates and credits, WhatsApp, clinic links
     const STAFF_MESSAGES       = 'staff_messages';       // the staff messages inbox

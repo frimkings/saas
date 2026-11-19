@@ -53,6 +53,7 @@ class ProductsComponent extends Component
 
     public function mount()
     {
+        if (request()->boolean('lenses')) $this->showLensCatalog = true;
         $this->resetForm();
     }
 
@@ -127,11 +128,23 @@ class ProductsComponent extends Component
         $this->resetValidation();
     }
 
+    /** The lens catalogue is part of every clinic plan: refraction dispensing needs a lens type. */
     public function toggleLensCatalog()
     {
-        abort_if(!\App\Services\LicenseService::has(\App\Support\Feature::PRODUCT_IMPORT), 403);
         $this->showLensCatalog = !$this->showLensCatalog;
         $this->cancelLensOption();
+    }
+
+    /** Adds the common lens types this clinic doesn't have yet (Single Vision, Bifocal, Progressive). */
+    public function addCommonLensTypes(): void
+    {
+        $clinicId = LensOption::clinicIdForWrite();
+        abort_if($clinicId === null, 403);
+        $added = \App\Support\ClinicStarterData::addLensTypes((int) $clinicId);
+        $this->showLensCatalog = true;
+        $this->dispatch('notify', ...['type' => 'success', 'message' => $added
+            ? "{$added} common lens types added. Edit or remove any you don't use."
+            : 'You already have all the common lens types.']);
     }
 
     public function saveLensOption()

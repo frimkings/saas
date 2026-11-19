@@ -145,7 +145,7 @@ class PlanProduct
         Feature::PATIENT_LEDGER => ['Patient ledger', self::CLINIC],
         Feature::INSURANCE => ['Insurance (co-pay, claims, insurer payments)', self::CLINIC],
         Feature::INVENTORY_ALERTS => ['Inventory alerts & expiring stock', self::CLINIC],
-        Feature::PRODUCT_IMPORT => ['Product import/export & lens catalogue', self::CLINIC],
+        Feature::PRODUCT_IMPORT => ['Product import/export', self::CLINIC],
         Feature::PURCHASING => ['Suppliers, purchase orders & stock transfers', self::CLINIC],
         Feature::PATIENT_MESSAGES => ['SMS messages, WhatsApp & clinic links', self::CLINIC],
         Feature::STAFF_MESSAGES => ['Staff messages', self::CLINIC],

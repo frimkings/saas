@@ -51,7 +51,8 @@ class ClinicStarterDataTest extends TestCase
         $this->assertDatabaseMissing('diagnoses', ['name' => 'Interstitual Keratitis']);
         $this->assertSame(['Drugs' => 'drug', 'Frames' => 'frame', 'Lenses' => 'lens', 'Others' => 'product', 'Services' => 'service'],
             DB::table('categories')->where('clinic_id', $clinic->id)->orderBy('name')->pluck('type', 'name')->all());
-        $this->assertSame(['diagnoses' => count(ClinicStarterData::DIAGNOSES), 'categories' => 5],
+        $this->assertSame(collect(ClinicStarterData::LENS_TYPES)->flatten()->count(), DB::table('lens_options')->where('clinic_id', $clinic->id)->count(), 'Every clinic gets the common lens types.');
+        $this->assertSame(['diagnoses' => count(ClinicStarterData::DIAGNOSES), 'categories' => 5, 'lens_types' => 19],
             PlatformAuditLog::where('action', 'CLINIC_ONBOARDED')->where('clinic_id', $clinic->id)->firstOrFail()->new_values['starter_data']);
     }
 

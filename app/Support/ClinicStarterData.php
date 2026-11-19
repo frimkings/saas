@@ -60,6 +60,38 @@ class ClinicStarterData
         'Others' => ['product', 'Anything that is not a drug, frame, lens or service'],
     ];
 
+    /**
+     * Common lens types and coatings for the refraction's "Lens Type & Coating" (dispensing needs
+     * one). Every clinic plan gets them; a manager edits them under Products → Lens catalog.
+     */
+    public const LENS_TYPES = [
+        'Single Vision' => ['SV Clear', 'SV Hard Coat', 'SV AR', 'SV Photo AR', 'SV Blue AR', 'SV Blue Block', 'SV Blue Block Photo', 'SV Special Order'],
+        'Bifocal' => ['Bifocal Clear', 'Bifocal AR', 'Bifocal Photo AR', 'Bifocal Blue Block', 'Special Order Bifocal'],
+        'Progressive' => ['Progressive Clear', 'Progressive AR', 'Progressive Photo AR', 'Progressive Blue Block', 'Progressive Blue Block Photo', 'Special Order Progressive'],
+    ];
+
+    /** Adds the common lens types a clinic doesn't have yet; returns how many were added. */
+    public static function addLensTypes(int $clinicId): int
+    {
+        $have = DB::table('lens_options')->where('clinic_id', $clinicId)->get(['family', 'display_name'])
+            ->map(fn ($row) => $row->family.'|'.mb_strtolower($row->display_name))->all();
+        $now = now();
+        $rows = [];
+        foreach (self::LENS_TYPES as $family => $names) {
+            foreach ($names as $name) {
+                if (! in_array($family.'|'.mb_strtolower($name), $have, true)) {
+                    $rows[] = ['clinic_id' => $clinicId, 'family' => $family, 'display_name' => $name, 'created_at' => $now, 'updated_at' => $now];
+                }
+            }
+        }
+        if ($rows) {
+            DB::table('lens_options')->insert($rows);
+            \Illuminate\Support\Facades\Cache::forget(\App\Support\Tenancy\TenantCache::key('patient-records:lens-options:v2'));
+        }
+
+        return count($rows);
+    }
+
     /** Only businesses with the clinic are offered the lists. */
     public static function offeredFor(string $product): bool
     {
@@ -77,6 +109,9 @@ class ClinicStarterData
             DB::table('categories')->insert(array_map(fn ($name, $c) => ['clinic_id' => $clinicId, 'user_id' => $userId, 'name' => $name, 'type' => $c[0], 'description' => $c[1], 'is_active' => true, 'created_at' => $now, 'updated_at' => $now], array_keys(self::CATEGORIES), self::CATEGORIES));
         }
 
-        return ['diagnoses' => $diagnoses ? count(self::DIAGNOSES) : 0, 'categories' => $categories ? count(self::CATEGORIES) : 0];
+        // Lens types always: without one, a refraction that needs glasses can't be saved.
+        $lensTypes = self::addLensTypes($clinicId);
+
+        return ['diagnoses' => $diagnoses ? count(self::DIAGNOSES) : 0, 'categories' => $categories ? count(self::CATEGORIES) : 0, 'lens_types' => $lensTypes];
     }
 }

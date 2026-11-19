@@ -109,7 +109,9 @@
       </select>
       @if($lensOptions->isEmpty())
        {{-- Each clinic sets up its own lens types. --}}
-       <small class="mt-1 block text-xs text-amber-700">No lens types yet. A manager adds them under Products → Lens catalog.</small>
+       <small class="mt-1 block text-xs text-amber-700">No lens types yet.
+        @if(\App\Support\Access\Access::can('inventory.manage'))<a href="{{ route('admin.product', ['lenses' => 1]) }}" target="_blank" class="underline font-semibold">Open the Lens catalog</a> and press "Add common lens types", then come back and pick one.
+        @else Ask the owner or a manager to open Products → Lens catalog and press "Add common lens types".@endif</small>
       @endif
      </div>
     </div>

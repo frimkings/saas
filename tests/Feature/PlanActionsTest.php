@@ -71,9 +71,15 @@ class PlanActionsTest extends TestCase
         $this->paidSale();
 
         Livewire::test(SalesRecordsComponent::class)->call('exportCSV')->assertForbidden();
-        foreach (['toggleLensCatalog', 'exportCsv', 'downloadTemplate', 'importCsv'] as $action) {
+        foreach (['exportCsv', 'downloadTemplate', 'importCsv'] as $action) {
             Livewire::test(ProductsComponent::class)->call($action)->assertForbidden();
         }
+        // The lens catalogue is on every clinic plan: a refraction needing glasses needs a lens type.
+        Livewire::test(ProductsComponent::class)->call('toggleLensCatalog')->assertSet('showLensCatalog', true)
+            ->call('addCommonLensTypes');
+        $this->assertSame(19, \App\Models\LensOption::count());
+        Livewire::test(ProductsComponent::class)->call('addCommonLensTypes');
+        $this->assertSame(19, \App\Models\LensOption::count(), 'Only the missing ones are added.');
 
         Livewire::test(POSComponent::class)->set('discountValue', 10)->call('requestDiscountApproval')->assertSet('discountValue', 0)->assertSet('discountAmount', 0);
         $this->assertSame(0, DiscountApprovalRequest::count());
