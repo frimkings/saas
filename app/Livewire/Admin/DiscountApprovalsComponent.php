@@ -54,6 +54,11 @@ class DiscountApprovalsComponent extends Component
         $request = DiscountApprovalRequest::where('status', DiscountApprovalRequest::STATUS_PENDING)
             ->findOrFail($requestId);
 
+        if ($problem = \App\Support\Access\MakerChecker::problem($u, $request->cashier_id)) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $problem]);
+            return;
+        }
+
         if (!$this->requestCartIsStillOpen($request)) {
             $request->delete();
 

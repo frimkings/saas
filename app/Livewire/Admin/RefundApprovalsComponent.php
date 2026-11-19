@@ -67,7 +67,7 @@ class RefundApprovalsComponent extends Component
 
         $log = RefundLog::where('status', RefundLog::STATUS_PENDING)
             ->findOrFail($id);
-        if ($problem = $this->voidDecisionProblem($log)) {
+        if ($problem = \App\Support\Access\MakerChecker::problem(auth()->user(), $log->initiated_by) ?? $this->voidDecisionProblem($log)) {
             $this->dispatch('notify', ...['type' => 'error', 'message' => $problem]);
             return;
         }

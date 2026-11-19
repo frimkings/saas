@@ -59,12 +59,16 @@
                                         </td>
                                         <td class="text-right text-green-700 font-semibold">{{ currency() }} {{ number_format($request->final_amount, 2) }}</td>
                                         <td class="text-right">
+                                            @if(\App\Support\Access\MakerChecker::problem(auth()->user(), $request->cashier_id))
+                                            <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600 mr-1" title="{{ \App\Support\Access\MakerChecker::MESSAGE }}"><i class="fas fa-user mr-1"></i>Your request</span>
+                                            @else
                                             <button type="button"
                                                     wire:click="approveRequest({{ $request->id }})"
                                                     class="ui-button ui-button-sm ui-button-primary"
                                                     title="{{ ($pendingDuplicateProductIds[$request->id] ?? collect())->isNotEmpty() ? 'Approving this will reject duplicate pending requests for the same product.' : 'Approve discount request' }}">
                                                 <i class="fas fa-check mr-1"></i>Approve
                                             </button>
+                                            @endif
                                             <button type="button" wire:click="rejectRequest({{ $request->id }})" class="ui-button ui-button-sm ui-button-danger">
                                                 <i class="fas fa-times mr-1"></i>Reject
                                             </button>

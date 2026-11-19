@@ -131,8 +131,8 @@ class OpticalPosComponent extends Component
     }
 
     /**
-     * Discount in money off the whole sale. Staff may give up to the shop limit; a manager
-     * can give more.
+     * Discount in money off the whole sale, up to the seller's limit for this till (set per role
+     * by the Owner; the Owner has none). Above it a Manager or the Owner rings the sale up.
      */
     private function checkedDiscount(float $subtotal): float
     {
@@ -141,9 +141,9 @@ class OpticalPosComponent extends Component
         if ($discount > $subtotal) {
             throw ValidationException::withMessages(['discount' => 'The discount cannot be more than the sale.']);
         }
-        $limit = \App\Models\OpticalSetting::posMaxDiscountPercent();
-        if ($discount > round($subtotal * $limit / 100, 2) && ! \App\Support\Access\Access::can('approve.discounts')) {
-            throw ValidationException::withMessages(['discount' => "Discounts over {$limit}% need a manager."]);
+        if (! \App\Support\Access\DiscountLimits::allows(auth()->user(), \App\Support\Access\DiscountLimits::OPTICAL, $discount, $subtotal)) {
+            $limit = \App\Support\Access\DiscountLimits::forUser(auth()->user(), \App\Support\Access\DiscountLimits::OPTICAL);
+            throw ValidationException::withMessages(['discount' => "Your limit is {$limit}% of the sale. A Manager or the Owner must ring up a bigger discount."]);
         }
         return $discount;
     }
@@ -165,7 +165,7 @@ class OpticalPosComponent extends Component
             'subtotal' => $subtotal,
             'discountShown' => $discount,
             'total' => $subtotal - $discount,
-            'discountLimit' => \App\Models\OpticalSetting::posMaxDiscountPercent(),
+            'discountLimit' => \App\Support\Access\DiscountLimits::forUser(auth()->user(), \App\Support\Access\DiscountLimits::OPTICAL),
             'methods' => PaymentMethods::active(PaymentMethods::OPTICAL),
         ])->layout('layouts.optical');
     }

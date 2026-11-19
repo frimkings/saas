@@ -121,6 +121,9 @@
                                         </div>
                                     </div>
 
+                                    @if(\App\Support\Access\MakerChecker::problem(auth()->user(), $log->initiated_by))
+                                            <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600 mr-1" title="{{ \App\Support\Access\MakerChecker::MESSAGE }}"><i class="fas fa-user mr-1"></i>Your request</span>
+                                            @else
                                     <button type="button"
                                             wire:click="confirmApprove({{ $log->id }})"
                                             wire:confirm="Approve this refund request? It will be queued for processing."
@@ -128,6 +131,7 @@
                                             title="Approve refund request">
                                         <i class="fas fa-check mr-1"></i> Approve
                                     </button>
+                                    @endif
                                     <button wire:click="openRejectModal({{ $log->id }})"
                                             class="ui-button ui-button-sm ui-button-danger shadow-none"
                                             title="Reject">

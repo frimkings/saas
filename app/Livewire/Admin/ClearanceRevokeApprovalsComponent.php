@@ -51,8 +51,13 @@ class ClearanceRevokeApprovalsComponent extends Component
 
     public function approve(int $id): void
     {
+        abort_unless(\App\Support\Access\Access::can('approve.revokes'), 403);
         $log = ClearanceRevokeLog::with('clearance')->findOrFail($id);
-        $result = app(\App\Services\ClearanceRevoker::class)->approve($log);
+        if ($problem = \App\Support\Access\MakerChecker::problem(auth()->user(), $log->requested_by)) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $problem]);
+            return;
+        }
+        $result =app(\App\Services\ClearanceRevoker::class)->approve($log);
         if (!$result['ok']) {
             $this->dispatch('notify', ...['type' => str_starts_with($result['message'], 'Cannot') ? 'error' : 'warning', 'message' => $result['message']]);
             return;
@@ -95,6 +100,7 @@ class ClearanceRevokeApprovalsComponent extends Component
 
     public function confirmReject(): void
     {
+        abort_unless(\App\Support\Access\Access::can('approve.revokes'), 403);
         $this->validate(['rejectionReason' => 'required|string|min:5|max:500']);
 
         $log = ClearanceRevokeLog::with('clearance.patient')->findOrFail($this->rejectingLogId);

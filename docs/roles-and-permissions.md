@@ -224,7 +224,7 @@ Questions this table raises (decide before phase 2, not phase 1):
 | **Hotfix ✓** | Lock the shared Roles & Permissions page (section 0) — done, awaiting merge | Page read-only |
 | **1. Foundation** (part A done: routes) | Permission catalogue + screen map + role map in code; routes, menu, tours and tests read it; role names replaced by permission checks; roles = today's access (minus the clinic edits you choose to undo); tests prove no one gains or loses access | No |
 | **2. Owner rename, tidy roles ✓** | Clinics see "Owner" for Super Admin (stored name kept for imports, old records and the platform side); Staff kept and labelled "Staff (attendance only)" — see section 7 | Role names |
-| **3. Money rules** | Maker–checker (never approve your own request); approval permissions per queue; discount limit per role in both POS screens | Yes |
+| **3. Money rules ✓** | Maker–checker (never approve your own request, Owner excepted); approval permissions per queue; discount limit per role at both tills and on optical orders | Yes |
 | **4. Access tab (per person)** | On the staff page: role + per-person switches grouped like the menu, "from role / this person" columns, "what can they see" preview, plan-locked switches greyed out, audit lines, owner email when access goes up | Yes |
 | **5. Platform role tool** | The Roles & Permissions page moves to the platform side for the Nexus team, built on the catalogue; clinics keep a read-only "what each role can do" page | Clinics: read-only page |
 
@@ -363,3 +363,28 @@ Full suite: 1275 tests pass.
   as cleaners or drivers). There is no job role to move them to, so it stays with a clearer label.
 - Manager and clinical records: unchanged (no access), as today. Secretary / Cashier insurer
   payments: still the clinic edits from section 0, undecided.
+
+**Phase 3 — done 2026-11-19 (money rules).** Needs `migrate` (2026_11_19_000001: `settings.discount_limits`).
+- **Discount limits** (`App\Support\Access\DiscountLimits`): the Owner sets, per role, the most each
+  may take off a sale without approval at the clinic till and the optical till (Settings → Discount
+  Limits, and Optical Settings → Discount limits). Owner: no limit. Two roles: the higher limit.
+  Defaults keep the old behaviour: Manager 100%; Secretary, Cashier, Optical Assistant 0% at the
+  clinic till and the shop's old "largest POS discount" setting (10%) at the optical till. That old
+  field left Optical Settings; it is only the default now. Roles not in the table get the same
+  default as desk roles (a role with no till access never reaches a till anyway).
+- **Clinic till:** within the limit, Apply uses the discount at once (recorded as approved by the
+  seller); above it, the usual request goes to a Manager or the Owner. Managers no longer approve
+  every discount of their own automatically — only within their limit (100% unless lowered).
+- **Optical till and optical orders:** above the limit the sale or order is refused with "a Manager
+  or the Owner must…". Orders made from a quotation keep the quotation's discount. Agreed trade
+  discounts don't count.
+- **Maker–checker** (`MakerChecker`): nobody approves their own discount, refund/void or clearance
+  revoke — on the queues, the managers' pop-up and the manager sign-in at the till. The Owner is
+  the exception, so a one-owner clinic never gets stuck. Own requests show "Your request" in the
+  queues instead of Approve. Payment corrections, password resets and spectacle renewals are
+  Owner-only queues already.
+- Approval queues each check their own permission on every action (clearance revokes now too); the
+  till sign-in checks the approver's roles in this branch through the role map, not role names.
+- Unchanged: plans without approvals still apply discounts and refunds at once. Optical order
+  cancellations refund at once by whoever may cancel (not an approval queue).
+- Tests: `MoneyRulesTest` (9); one optical order test now gives its user a desk role. Full suite: 1286 tests, the 2 failures (unlisted-role default, role-less test user) fixed and their file rerun. Tours: clinic POS, optical POS, clinic dashboard bumped.

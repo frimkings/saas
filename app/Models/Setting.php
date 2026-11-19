@@ -48,6 +48,7 @@ class Setting extends Model
         'clinic_email',
         'backup_extra_paths',
         'report_enabled',
+        'discount_limits',
         'report_frequency',
         'report_day',
         'report_time',
@@ -111,6 +112,7 @@ class Setting extends Model
 
     protected $casts = [
         'backup_extra_paths'         => 'array',
+        'discount_limits'          => 'array',
         'visit_receipts_enabled'     => 'boolean',
         'report_enabled'             => 'boolean',
         'report_day'                 => 'integer',

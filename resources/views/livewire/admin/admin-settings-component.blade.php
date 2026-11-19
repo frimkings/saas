@@ -27,6 +27,12 @@
                 <i class="fas fa-bell mr-1"></i> Reminders
             </a>
         </li>
+        <li class="">
+            <a class="block px-3 py-2 {{ $activeTab === 'discounts' ? 'active' : '' }}"
+               wire:click.prevent="setTab('discounts')" href="#">
+                <i class="fas fa-percent mr-1"></i> Discount Limits
+            </a>
+        </li>
         @if($this->canManageFullBackups())<li class="">
             <a class="block px-3 py-2 {{ $activeTab === 'backup' ? 'active' : '' }}"
                wire:click.prevent="setTab('backup')" href="#">
@@ -57,6 +63,8 @@
             @livewire('admin.receipt-settings-component', [], key('tab-receipts'))
         @elseif($activeTab === 'reminders')
             @livewire('admin.reminder-settings-component', [], key('tab-reminders'))
+        @elseif($activeTab === 'discounts')
+            @livewire('admin.discount-limits-component', [], key('tab-discounts'))
         @elseif($activeTab === 'backup')
             @livewire('admin.backup-manager-component', [], key('tab-backup'))
         @elseif($activeTab === 'report')
