@@ -62,7 +62,7 @@
         <div class="{{ $optionRow }}" style="gap:.25rem">
             <span class="text-slate-500 font-semibold">Send</span>
             <input type="number" min="1" max="90" wire:model="renewalReminderDays" class="{{ $numberInput }}" style="width:70px" aria-label="Days before the renewal date">
-            <span class="text-slate-500">days before the renewal date (reminders wait for Super Admin approval).</span>
+            <span class="text-slate-500">days before the renewal date (reminders wait for the Owner's approval).</span>
             <button type="button" wire:click="saveRenewalSettings" class="ui-button ui-button-sm ui-button-secondary ml-2">Save timing</button>
         </div>
         @error('renewalReminderDays') <span class="text-red-700 text-sm block">{{ $message }}</span> @enderror

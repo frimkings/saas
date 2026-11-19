@@ -141,7 +141,7 @@
                         Request Submitted
                     </div>
                     <p style="font-size:.875rem;color:#9a3412;margin:0;line-height:1.5;">
-                        Your password reset request has been submitted and is <strong>awaiting Super Admin approval</strong>.
+                        Your password reset request has been submitted and is <strong>awaiting the clinic owner's approval</strong>.
                         Once approved, return here and enter your email to proceed.
                     </p>
                 </div>
@@ -157,7 +157,7 @@
                         Pending Approval
                     </div>
                     <p style="font-size:.875rem;color:#1e40af;margin:0;line-height:1.5;">
-                        Your request is still <strong>under review</strong>. Please contact your Super Admin or check back later.
+                        Your request is still <strong>under review</strong>. Please contact your clinic owner or check back later.
                         Once approved, enter your email again to set a new password.
                     </p>
                 </div>

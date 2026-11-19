@@ -565,7 +565,7 @@ window.printReceiptFromDom = function(event) {
                                     <i class="fas fa-check-circle"></i> Approved by {{ $discountApprovedBy }}
                                     <span class="ms-auto">−{{ currency() }} {{ number_format($discountAmount, 2) }}</span>
                                 @elseif($pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending')
-                                    <i class="fas fa-clock"></i> Sent to Manager/Super Admin
+                                    <i class="fas fa-clock"></i> Sent to Manager/Owner
                                     <button type="button" class="pos-disc-remove" wire:click="removeDiscount">
                                         Sell without discount
                                     </button>
@@ -1004,7 +1004,7 @@ window.printReceiptFromDom = function(event) {
                 &nbsp;&rarr;&nbsp;
                 <strong>−{{ currency() }} {{ number_format($discountAmount, 2) }}</strong>
             </div>
-            <p class="pos-approval-hint">A <strong>Manager</strong> or <strong>Super Admin</strong> must sign in to authorise this discount.</p>
+            <p class="pos-approval-hint">A <strong>Manager</strong> or the <strong>Owner</strong> must sign in to authorise this discount.</p>
 
             @if($approvalError)
                 <div class="pos-approval-error">
@@ -1013,7 +1013,7 @@ window.printReceiptFromDom = function(event) {
             @endif
 
             <div class="pos-field">
-                <label for="pos-approvalemail">Manager / Super Admin Email</label>
+                <label for="pos-approvalemail">Manager / Owner email</label>
                 <div class="pos-input-group">
                     <i class="fas fa-envelope"></i>
                     <input id="pos-approvalemail" type="email" wire:model="approvalEmail" placeholder="manager@example.com" autocomplete="off">

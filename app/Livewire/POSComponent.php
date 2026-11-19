@@ -1306,7 +1306,7 @@ class POSComponent extends Component
 
         $this->dispatch('notify', ...[
             'type' => 'success',
-            'message' => 'Discount approval request sent to Manager/Super Admin.',
+            'message' => 'Discount approval request sent to a Manager or the Owner.',
         ]);
         return;
     }
@@ -1378,7 +1378,7 @@ class POSComponent extends Component
 
         if (!\App\Support\Access\Access::allows($approver, 'approve.discounts')) {
             RateLimiter::hit($throttleKey, decay: 600);
-            $this->approvalError    = 'This account does not have permission to approve discounts. A Manager or Super Admin is required.';
+            $this->approvalError    = 'This account does not have permission to approve discounts. A Manager or the Owner is required.';
             $this->approvalPassword = '';
             return;
         }

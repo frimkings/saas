@@ -204,7 +204,7 @@ class UserRoleManagerComponent extends Component
         $attendanceOnly = \App\Support\OpticalMode::attendanceOnly();
         if ($attendanceOnly) Role::firstOrCreate(['name' => 'Staff', 'guard_name' => 'web']);
         $availableRoles = Role::query()->when(! $this->actsAsSuperAdmin(), fn ($query) => $query->where('name', '!=', 'Super Admin'))
-            ->when($attendanceOnly, fn ($query) => $query->whereIn('name', ['Staff', 'Manager', 'Super Admin']))->orderBy('name')->get();
+            ->when($attendanceOnly, fn ($query) => $query->whereIn('name', ['Staff', 'Manager', 'Super Admin']))->get()->sortBy(fn ($role) => \App\Support\Access\RoleNames::sortKey($role->name))->values();
 
         $clinicUsers = User::query()->whereHas('clinics', fn ($query) => $query->whereKey($clinic->id)->whereIn('clinic_user.status', self::CURRENT_MEMBER_STATUSES));
         $memberships = DB::table('clinic_user')->where('clinic_id', $clinic->id);
@@ -469,7 +469,7 @@ class UserRoleManagerComponent extends Component
                         $user->date_of_birth ? $user->date_of_birth->format('Y-m-d') : '—',
                         $user->department    ?? '—',
                         $user->hire_date     ? $user->hire_date->format('Y-m-d') : '—',
-                        $user->roles->pluck('name')->implode(' | '),
+                        \App\Support\Access\RoleNames::labels($user->roles->pluck('name'), ' | '),
                         $user->membership_status === 'active' ? 'Active' : 'Inactive',
                         $user->latestLogin ? $user->latestLogin->login_at->toDateTimeString() : 'Never',
                         $user->latestLogin ? $user->latestLogin->ip_address : 'N/A',
@@ -656,7 +656,7 @@ class UserRoleManagerComponent extends Component
 
             $roleName = Role::whereRaw('LOWER(name) = ?', [$roleKey])->value('name');
             if ($roleName === 'Super Admin' && ! $this->actsAsSuperAdmin()) {
-                $results['errors'][] = "Row {$rowNum}: only a Super Admin can give the Super Admin role — skipped.";
+                $results['errors'][] = "Row {$rowNum}: only an Owner can give the Owner role — skipped.";
                 $results['skipped']++;
                 continue;
             }
@@ -760,7 +760,7 @@ class UserRoleManagerComponent extends Component
                 : ($this->branchRoles[$branchId] ?? $this->branchRoles[(string) $branchId] ?? []);
             $roles = array_values(array_unique(array_intersect($roles, $validRoles)));
             if (in_array('Super Admin', $roles, true) && ! $this->actsAsSuperAdmin()) {
-                $this->addError($this->roleAssignmentMode === 'shared' ? 'selectedRoles' : "branchRoles.{$branchId}", 'Only a Super Admin can give the Super Admin role.');
+                $this->addError($this->roleAssignmentMode === 'shared' ? 'selectedRoles' : "branchRoles.{$branchId}", 'Only an Owner can give the Owner role.');
                 return null;
             }
             if ($roles === []) {
@@ -784,7 +784,7 @@ class UserRoleManagerComponent extends Component
         $user = User::query()->whereKey($id)
             ->whereHas('clinics', fn ($query) => $query->whereKey($this->currentClinic()->id)->whereIn('clinic_user.status', self::CURRENT_MEMBER_STATUSES))
             ->firstOrFail();
-        abort_if(! $this->actsAsSuperAdmin() && $this->isSuperAdminHere($user), 403, 'Only a Super Admin can change a Super Admin account.');
+        abort_if(! $this->actsAsSuperAdmin() && $this->isSuperAdminHere($user), 403, 'Only an Owner can change an Owner account.');
 
         return $user;
     }

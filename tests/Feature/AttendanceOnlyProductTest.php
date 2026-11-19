@@ -136,7 +136,7 @@ class AttendanceOnlyProductTest extends TestCase
         foreach (['Doctor', 'Secretary', 'Cashier', 'Manager'] as $name) {
             Role::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
-        Livewire::test(UserRoleManagerComponent::class)->assertViewHas('availableRoles', fn ($roles) => $roles->pluck('name')->all() === ['Manager', 'Staff', 'Super Admin']);
+        Livewire::test(UserRoleManagerComponent::class)->assertViewHas('availableRoles', fn ($roles) => $roles->pluck('name')->all() === ['Super Admin', 'Manager', 'Staff']);
 
         $staff = User::factory()->create();
         $role = Role::where('name', 'Staff')->firstOrFail();

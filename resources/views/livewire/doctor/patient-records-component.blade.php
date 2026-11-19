@@ -1613,7 +1613,7 @@
                                                                 </button>
                                                             @else
                                                                 <button type="button" class="ui-button ui-button-sm ui-button-secondary" disabled
-                                                                    title="Only Super Admin can delete uploads">
+                                                                    title="Only the Owner can delete uploads">
                                                                     <i class="fas fa-lock"></i>
                                                                 </button>
                                                             @endif

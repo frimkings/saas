@@ -27,7 +27,7 @@ class SubscriptionQuotaService
         $quota = $this->usage($clinic)['users'];
         if ($quota['limit'] !== null && $quota['used'] + 1 > $quota['limit']) {
             $price = (float) (app(ClinicAddonService::class)->catalogue($clinic)->get(\App\Support\Feature::EXTRA_USER)['price'] ?? 0);
-            throw ValidationException::withMessages(['subscription' => "The clinic has used all {$quota['limit']} of its users. Ask your clinic's Super Admin to add an extra user"
+            throw ValidationException::withMessages(['subscription' => "The clinic has used all {$quota['limit']} of its users. Ask your clinic's owner to add an extra user"
                 . ($price > 0 ? ' (' . number_format($price, 2) . ' a month each)' : '') . ' or upgrade the plan under Subscription.']);
         }
     }
@@ -45,7 +45,7 @@ class SubscriptionQuotaService
         $quota = $this->usage($clinic)['storage_mb'];
         // A plan with no scan storage (0 MB) and no storage packs: say how to get it rather than "allowance reached".
         if ($quota['limit'] !== null && (float) $quota['limit'] <= 0) {
-            throw ValidationException::withMessages(['subscription' => 'Scans and attachments come with the Standard plan and above, or with a scan storage pack. Ask your clinic\'s Super Admin to upgrade or add one under Subscription.']);
+            throw ValidationException::withMessages(['subscription' => 'Scans and attachments come with the Standard plan and above, or with a scan storage pack. Ask your clinic\'s owner to upgrade or add one under Subscription.']);
         }
         $this->assertAvailable($quota,$incomingBytes/1048576,'storage');
     }

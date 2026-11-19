@@ -214,7 +214,7 @@ screens that are manager-only today (purchasing, expenses, profit, settings, aud
 
 Questions this table raises (decide before phase 2, not phase 1):
 - **Manager can't open the doctor's screens today.** Should managers see clinical records?
-- **Staff** has no access to anything but login-only pages. Remove it and move its 8 users?
+- **Staff** has no access to anything but login-only pages. ~~Remove it and move its 8 users?~~ Kept (phase 2): it is the role for attendance-only clinics and for clock-in-only people at full clinics.
 - **Secretary / Cashier recording insurer payments** — keep or remove?
 
 ## 5. Phases
@@ -223,7 +223,7 @@ Questions this table raises (decide before phase 2, not phase 1):
 |---|---|---|
 | **Hotfix ✓** | Lock the shared Roles & Permissions page (section 0) — done, awaiting merge | Page read-only |
 | **1. Foundation** (part A done: routes) | Permission catalogue + screen map + role map in code; routes, menu, tours and tests read it; role names replaced by permission checks; roles = today's access (minus the clinic edits you choose to undo); tests prove no one gains or loses access | No |
-| **2. Owner rename, tidy roles** | Super Admin → Owner for clinics (Super Admin kept for the platform); Staff removed and its users moved; answers to the section 4 questions applied | Role names |
+| **2. Owner rename, tidy roles ✓** | Clinics see "Owner" for Super Admin (stored name kept for imports, old records and the platform side); Staff kept and labelled "Staff (attendance only)" — see section 7 | Role names |
 | **3. Money rules** | Maker–checker (never approve your own request); approval permissions per queue; discount limit per role in both POS screens | Yes |
 | **4. Access tab (per person)** | On the staff page: role + per-person switches grouped like the menu, "from role / this person" columns, "what can they see" preview, plan-locked switches greyed out, audit lines, owner email when access goes up | Yes |
 | **5. Platform role tool** | The Roles & Permissions page moves to the platform side for the Nexus team, built on the catalogue; clinics keep a read-only "what each role can do" page | Clinics: read-only page |
@@ -347,3 +347,19 @@ Nine single-role users, local test clinic 20: every menu link opened for every r
 guarded pages answered as the screen map says (Diagnostic Scans refused for everyone: plan
 add-on). Main searches work (POS, patients, clearance). Managers' menu now lists Users.
 Full suite: 1275 tests pass.
+
+**Phase 2 — done 2026-11-19 (Owner name, Staff kept).**
+- `App\Support\Access\RoleNames` turns stored names into what clinics see: Super Admin → **Owner**,
+  Staff → **Staff (attendance only)**. Role lists put Owner first, then Manager, then A–Z.
+- Clinic screens use it: Users page (filter, badges, role ticks, branch roles, CSV export), admin
+  dashboard sign-ins, profile, the read-only Roles page. Wording in messages and hints now says
+  "Owner" / "the clinic owner" (POS discount approval, clearance revoke, password reset, stock
+  expiry, scans/user limits, delete buttons).
+- **The stored role is still `Super Admin`** (`RoleMap::OWNER`): imports, `clinic_user.clinic_role`,
+  notifications and Gate::before all key on it, so renaming the data would touch 60+ places and old
+  imported records for no visible gain. The platform screens keep saying "Super Admin".
+- **Staff was not removed.** The data showed it is in use: attendance-only clinics offer only
+  Staff / Manager / Owner, and 14 people at full clinics hold only Staff (clock-in-only staff such
+  as cleaners or drivers). There is no job role to move them to, so it stays with a clearer label.
+- Manager and clinical records: unchanged (no access), as today. Secretary / Cashier insurer
+  payments: still the clinic edits from section 0, undecided.

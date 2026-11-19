@@ -67,7 +67,7 @@
                 <div class="mt-1" style="display:flex;gap:.4rem;flex-wrap:wrap">
                     @foreach($roles as $role)
                         <span style="background:rgba(255,255,255,.25);color:#fff;padding:.2rem .75rem;border-radius:50px;font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase">
-                            {{ $role }}
+                            {{ \App\Support\Access\RoleNames::label($role) }}
                         </span>
                     @endforeach
                 </div>
@@ -144,7 +144,7 @@
                                     <span class="flex items-center border border-slate-300 px-2 text-sm bg-slate-50 text-slate-500" title="Contact admin to change"><i class="fas fa-lock"></i></span>
                                 </div>
                             </div>
-                            <small class="text-slate-500">Contact a Super Admin to change your email.</small>
+                            <small class="text-slate-500">Contact the clinic owner to change your email.</small>
                         </div>
                     </div>
 
@@ -485,7 +485,7 @@
                     <div class="flex items-center p-2 mb-2 rounded-md"
                          style="background:{{ $rColor }}18;border-left:3px solid {{ $rColor }}">
                         <i class="{{ $rIcon }} mr-2" style="color:{{ $rColor }};width:16px"></i>
-                        <span class="font-semibold text-sm" style="color:{{ $rColor }}">{{ $role }}</span>
+                        <span class="font-semibold text-sm" style="color:{{ $rColor }}">{{ \App\Support\Access\RoleNames::label($role) }}</span>
                     </div>
                     @endforeach
                 </div>

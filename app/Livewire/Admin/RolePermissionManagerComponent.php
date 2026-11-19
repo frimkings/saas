@@ -259,7 +259,7 @@ class RolePermissionManagerComponent extends Component
         $user = $this->clinicStaff()->findOrFail($userId);
 
         if ($role->name === 'Super Admin' && $user->id === auth()->id()) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'You cannot remove your own Super Admin role.']);
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'You cannot remove your own Owner role.']);
             return;
         }
 

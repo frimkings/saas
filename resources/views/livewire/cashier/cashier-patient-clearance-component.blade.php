@@ -413,7 +413,7 @@
             </div>
             <div class="space-y-3 p-5">
                 @if($requestingRevokeName)
-                    <p class="text-sm">Submitting a revoke request for <strong>{{ $requestingRevokeName }}</strong>. A manager or Super Admin must approve it before the clearance is removed.</p>
+                    <p class="text-sm">Submitting a revoke request for <strong>{{ $requestingRevokeName }}</strong>. A Manager or the Owner must approve it before the clearance is removed.</p>
                 @endif
                 <div>
                     <label for="revoke-reason" class="{{ $label }}">Reason <span class="text-red-600">*</span></label>

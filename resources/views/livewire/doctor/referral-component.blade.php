@@ -156,7 +156,7 @@
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 @else
-                                <button class="ui-button ui-button-sm ui-button-secondary ml-1" disabled title="Only Super Admin can delete">
+                                <button class="ui-button ui-button-sm ui-button-secondary ml-1" disabled title="Only the Owner can delete">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 @endif

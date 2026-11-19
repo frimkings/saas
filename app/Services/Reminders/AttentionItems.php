@@ -61,7 +61,7 @@ class AttentionItems
         'order_uncollected'   => ['Ready, not collected', 'Call the patient to come in.', 'lens_order'],
         'scan_unreported'     => ['Paid scans not yet reported', 'Do the scan or finish the report, then add the result on the Scan Desk.', 'scan_order'],
         'scan_unsent'         => ['Scan results not sent to the referrer', 'The patient agreed to share them. Send them from the Scan Desk.', 'scan_order'],
-        'stock_expired'       => ['Expired stock', 'Take it off the shelf now. A Super Admin removes it from stock.', 'stock'],
+        'stock_expired'       => ['Expired stock', 'Take it off the shelf now. The Owner removes it from stock.', 'stock'],
         'stock_expiring_soon' => ['Expiring within 30 days', 'Use or sell these first, or return them to the supplier.', 'stock'],
         'stock_expiring'      => ['Expiring soon', 'Plan to use or sell these before they expire.', 'stock'],
     ];
