@@ -3188,4 +3188,183 @@ class OpticalWorkflowTest extends TestCase
         $this->get(route('optical.lab-workbench.print', ['stage' => 'nonsense', 'searchTerm' => 'no such job']))->assertOk()
             ->assertSee('All open work')->assertSee('No jobs match these workbench filters.');
     }
+
+    /** A partner service job (frame screws) with a deposit, as the order form saves it. */
+    private function partnerJob(OpticalPartnerClinic $partner, float $paid = 0): LensOrder
+    {
+        $service = $this->pricedService('screws_'.$partner->id.'_'.LensOrder::count(), 10, false, true);
+        return app(OpticalOrderService::class)->create([
+            'order_source' => 'partner', 'partner_id' => $partner->id, 'bill_to' => 'partner', 'work_type' => 'service',
+            'services' => [['service_id' => $service->id, 'quantity' => 1]],
+            'frame_model_number' => 'Customer frame', 'frame_price' => 0, 'lens_price' => 0, 'glazing_fee' => 0, 'discount_amount' => 0,
+            'paid_amount' => $paid, 'payment_method' => 'cash', 'pickup_date' => now()->addWeek()->toDateString(),
+            'docket' => ['frame_source' => 'customer', 'reference' => 'JOB-'.LensOrder::count()],
+        ]);
+    }
+
+    public function test_manager_moves_a_job_entered_under_the_wrong_partner_clinic(): void
+    {
+        $this->opticalManager('wrong-partner');
+        $wrong = OpticalPartnerClinic::create(['name' => 'Finney Hospital', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $right = OpticalPartnerClinic::create(['name' => 'Vision SCC', 'billing_terms' => 'pay_on_order', 'is_active' => true]);
+        $order = $this->partnerJob($wrong, 1);
+        $this->assertSame('Finney Hospital', $order->sale->customer_name);
+
+        $panel = Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $order->id)->assertSee('Change clinic')
+            ->call('openChangePartner', $order->id)->assertSet('showChangePartnerModal', true)->assertSee('Change partner clinic')
+            ->set('changePartnerTo', (string) $right->id)->set('changePartnerReason', 'short')->call('changePartner')->assertHasErrors('changePartnerReason');
+        $panel->set('changePartnerReason', 'Chosen by mistake at the desk')->call('changePartner')->assertHasNoErrors()->assertSet('showChangePartnerModal', false);
+
+        $order->refresh();
+        $this->assertSame([$right->id, 'Vision SCC', 'pay_on_order', 'Pending', 1.0, 10.0],
+            [$order->partner_clinic_id, $order->partner_clinic_name, $order->partner_billing_terms, $order->status, (float) $order->paid_amount, $order->total]);
+        $this->assertSame('Vision SCC', $order->sale->fresh()->customer_name);
+        $accounts = app(\App\Services\OpticalPartnerAccountService::class);
+        $this->assertCount(0, $accounts->billedOrders($wrong));
+        $this->assertSame([$order->id], $accounts->billedOrders($right)->pluck('id')->all());
+        $change = \App\Models\OpticalPartnerChange::sole();
+        $this->assertSame(['approved', auth()->id(), auth()->id()], [$change->status, $change->requested_by, $change->decided_by]);
+        $audit = \App\Models\AuditTrail::where('event', 'optical.order_partner_changed')->sole();
+        $this->assertStringContainsString('from Finney Hospital to Vision SCC: Chosen by mistake at the desk', $audit->description);
+        $this->assertSame($wrong->id, $audit->old_values['partner_clinic_id']);
+
+        // Moving it to the clinic it is already with is refused.
+        $this->expectsValidationOn(fn () => app(OpticalOrderWorkflowService::class)->requestPartnerChange($order->id, $right->id, 'Chosen by mistake again'));
+    }
+
+    public function test_partner_change_is_refused_once_the_partner_paid_or_when_a_linked_clinic_sent_the_job(): void
+    {
+        $this->opticalManager('wrong-partner-guards');
+        $wrong = OpticalPartnerClinic::create(['name' => 'Finney Hospital', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $right = OpticalPartnerClinic::create(['name' => 'Vision SCC', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $workflow = app(OpticalOrderWorkflowService::class);
+        $clinicId = app(TenantContext::class)->clinicId();
+        $branchId = app(TenantContext::class)->branchId();
+
+        // The partner already paid against the job: refund and cancel instead.
+        $paid = $this->partnerJob($wrong);
+        $paymentId = DB::table('optical_partner_payments')->insertGetId(['clinic_id' => $clinicId, 'branch_id' => $branchId, 'optical_partner_clinic_id' => $wrong->id,
+            'receipt_number' => 'PP-1', 'amount' => 10, 'payment_method' => 'cash', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('optical_partner_payment_allocations')->insert(['clinic_id' => $clinicId, 'branch_id' => $branchId, 'optical_partner_payment_id' => $paymentId,
+            'lens_order_id' => $paid->id, 'amount' => 10, 'created_at' => now(), 'updated_at' => now()]);
+        try {
+            $workflow->requestPartnerChange($paid->id, $right->id, 'Chosen by mistake at the desk');
+            $this->fail('A job the partner paid against was moved.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('Refund and cancel it', $e->errors()['changePartnerTo'][0]);
+        }
+
+        // Sent from a linked clinic's account: that clinic is fixed.
+        $linked = $this->partnerJob($wrong);
+        DB::table('optical_order_requests')->insert(['sender_clinic_id' => $clinicId, 'optical_clinic_id' => $clinicId, 'optical_partner_clinic_id' => $wrong->id,
+            'patient_name' => 'Linked Wearer', 'rx' => '{}', 'status' => 'accepted', 'lens_order_id' => $linked->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->expectsValidationOn(fn () => $workflow->requestPartnerChange($linked->id, $right->id, 'Chosen by mistake at the desk'));
+
+        // Cancelled jobs are not moved.
+        $cancelled = $this->partnerJob($wrong);
+        $workflow->cancel($cancelled->id);
+        $this->expectsValidationOn(fn () => $workflow->requestPartnerChange($cancelled->id, $right->id, 'Chosen by mistake at the desk'));
+        try {
+            Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openChangePartner', $cancelled->id);
+            $this->fail('The change dialog opened for a cancelled job.');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->assertSame(3, LensOrder::where('partner_clinic_id', $wrong->id)->count());
+        $this->assertSame(0, \App\Models\AuditTrail::where('event', 'optical.order_partner_changed')->count());
+    }
+
+    public function test_front_desk_asks_to_change_the_partner_and_a_manager_approves_or_rejects(): void
+    {
+        // The front desk: a Secretary with optical sales, as the 2026-11-17 roles set it up.
+        \Spatie\Permission\Models\Permission::firstOrCreate(['name' => \App\Support\OpticalAccess::SALES, 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'Secretary', 'guard_name' => 'web'])->givePermissionTo(\App\Support\OpticalAccess::SALES);
+        $desk = $this->opticalStaff('wrong-partner-desk', 'Secretary');
+        $wrong = OpticalPartnerClinic::create(['name' => 'Finney Hospital', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $right = OpticalPartnerClinic::create(['name' => 'Vision SCC', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $job = $this->partnerJob($wrong);
+        $other = $this->partnerJob($wrong);
+        $paid = $this->partnerJob($wrong, 1);
+
+        // The desk asks; the job does not move yet.
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)->assertSee('Change clinic')
+            ->call('openChangePartner', $job->id)->assertSee('A manager must approve this.')->assertSee('Send for approval')
+            ->set('changePartnerTo', (string) $right->id)->set('changePartnerReason', 'Chosen by mistake at the desk')->call('changePartner')->assertHasNoErrors()
+            ->call('openOrder', $job->id)->assertSee('Change of partner clinic waiting for a manager')->assertSee('The job stays with its current clinic until a manager approves.')
+            ->assertDontSee('Approve &amp; move job', false)->assertDontSee('Change clinic');
+        $change = \App\Models\OpticalPartnerChange::sole();
+        $this->assertSame([\App\Models\OpticalPartnerChange::PENDING, $desk->id, 'Finney Hospital'], [$change->status, $change->requested_by, $change->from_partner_name]);
+        $this->assertSame($wrong->id, $job->fresh()->partner_clinic_id);
+        $workflow = app(OpticalOrderWorkflowService::class);
+        $this->expectsValidationOn(fn () => $workflow->requestPartnerChange($job->id, $right->id, 'Asking a second time'));
+        foreach ([fn () => $workflow->approvePartnerChange($change->id), fn () => $workflow->rejectPartnerChange($change->id, 'Not my call')] as $decide) {
+            try {
+                $decide();
+                $this->fail('The front desk decided its own request.');
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+                $this->assertSame(403, $e->getStatusCode());
+            }
+        }
+        $workflow->requestPartnerChange($other->id, $right->id, 'Chosen by mistake at the desk too');
+
+        // A paid job: the desk is still told to ask a manager to refund and cancel it.
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $paid->id)
+            ->assertSee('This order has payments. Ask a manager to refund and cancel it.')->assertDontSee('Refund &amp; cancel', false)
+            ->call('confirmDeleteOrder', $paid->id)->assertHasErrors('order')->assertSet('showDeleteOrderModal', false)->assertSet('showRefundModal', false);
+        $this->assertSame('Pending', $paid->fresh()->status);
+
+        // The manager sees both requests in Needs attention, approves one and rejects the other.
+        $manager = User::factory()->create();
+        $manager->assignRole(Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']));
+        $clinic = Clinic::where('slug', 'wrong-partner-desk')->firstOrFail();
+        $branch = $clinic->branches()->firstOrFail();
+        $clinic->users()->attach($manager->id, ['status' => 'active', 'is_default' => true]);
+        $branch->users()->attach($manager->id, ['status' => 'active', 'is_default' => true]);
+        $this->actingAs($manager);
+        app(TenantContext::class)->set($manager, $clinic, $branch, [$branch->id]);
+        $attention = app(\App\Services\Reminders\AttentionItems::class);
+        $attention->forgetCounts();
+        $groups = $attention->groups(\App\Services\Reminders\AttentionItems::OPTICAL);
+        $this->assertSame([$job->id, $other->id], $groups['partner_change']['items']->pluck('id')->all());
+        $this->assertStringContainsString('From Finney Hospital to Vision SCC', $groups['partner_change']['items'][0]['detail']);
+
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)->assertSee('Approve &amp; move job', false)
+            ->call('approvePartnerChange', $change->id)->assertHasNoErrors();
+        $this->assertSame([$right->id, 'Vision SCC'], [$job->fresh()->partner_clinic_id, $job->fresh()->partner_clinic_name]);
+        $this->assertSame([\App\Models\OpticalPartnerChange::APPROVED, $manager->id], [$change->fresh()->status, $change->fresh()->decided_by]);
+        $this->assertStringContainsString('approved by '.$manager->name, \App\Models\AuditTrail::where('event', 'optical.order_partner_changed')->sole()->description);
+
+        $second = \App\Models\OpticalPartnerChange::where('lens_order_id', $other->id)->sole();
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $other->id)
+            ->call('startRejectPartnerChange', $second->id)->set('partnerRejectReason', 'no')->call('rejectPartnerChange')->assertHasErrors('partnerRejectReason')
+            ->set('partnerRejectReason', 'The job is from Finney after all')->call('rejectPartnerChange')->assertHasNoErrors()
+            ->assertDontSee('Change of partner clinic waiting for a manager');
+        $this->assertSame([\App\Models\OpticalPartnerChange::REJECTED, 'The job is from Finney after all', $wrong->id],
+            [$second->fresh()->status, $second->fresh()->rejection_reason, $other->fresh()->partner_clinic_id]);
+        $this->expectsValidationOn(fn () => $workflow->approvePartnerChange($second->id));
+        $attention->forgetCounts();
+        $this->assertArrayNotHasKey('partner_change', $attention->groups(\App\Services\Reminders\AttentionItems::OPTICAL));
+    }
+
+    public function test_approval_checks_the_job_again_when_the_partner_paid_in_the_meantime(): void
+    {
+        $this->opticalManager('wrong-partner-recheck');
+        $wrong = OpticalPartnerClinic::create(['name' => 'Finney Hospital', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $right = OpticalPartnerClinic::create(['name' => 'Vision SCC', 'billing_terms' => 'on_account', 'is_active' => true]);
+        $job = $this->partnerJob($wrong);
+        // A request the desk left waiting.
+        $change = \App\Models\OpticalPartnerChange::create(['lens_order_id' => $job->id, 'from_partner_clinic_id' => $wrong->id, 'from_partner_name' => $wrong->name,
+            'to_partner_clinic_id' => $right->id, 'reason' => 'Chosen by mistake at the desk', 'status' => 'pending']);
+        $clinicId = app(TenantContext::class)->clinicId();
+        $branchId = app(TenantContext::class)->branchId();
+        $paymentId = DB::table('optical_partner_payments')->insertGetId(['clinic_id' => $clinicId, 'branch_id' => $branchId, 'optical_partner_clinic_id' => $wrong->id,
+            'receipt_number' => 'PP-2', 'amount' => 10, 'payment_method' => 'cash', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('optical_partner_payment_allocations')->insert(['clinic_id' => $clinicId, 'branch_id' => $branchId, 'optical_partner_payment_id' => $paymentId,
+            'lens_order_id' => $job->id, 'amount' => 10, 'created_at' => now(), 'updated_at' => now()]);
+
+        Livewire::test(\App\Livewire\Optical\OpticalOrdersComponent::class)->call('openOrder', $job->id)
+            ->call('approvePartnerChange', $change->id)->assertHasErrors('partnerChange')->assertSee('Refund and cancel it');
+        $this->assertSame([$wrong->id, 'pending'], [$job->fresh()->partner_clinic_id, $change->fresh()->status]);
+    }
 }

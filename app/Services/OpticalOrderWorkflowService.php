@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AuditTrail;
 use App\Models\LensOrder;
+use App\Models\OpticalPartnerChange;
 use App\Models\OpticalSetting;
 use App\Models\RefundLog;
 use App\Models\PaymentTransaction;
@@ -274,6 +275,132 @@ class OpticalOrderWorkflowService
                 $order, ['status' => $was], ['status' => 'Cancelled', 'total' => $order->total], $order->patient_id, true);
             return $order;
         });
+    }
+
+    /**
+     * Ask to move a partner job that was entered under the wrong partner clinic to the right one.
+     * The front desk asks and a manager approves; a manager's own request is approved at once.
+     * The job, its stock, payments and lab progress stay as they are; only the clinic it belongs
+     * to and is billed to changes. Not for jobs a linked clinic sent (the sender is fixed) or jobs
+     * the partner has already paid against: refund and cancel those instead.
+     */
+    public function requestPartnerChange(int $id, int $partnerId, string $reason): OpticalPartnerChange
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $user = auth()->user();
+        abort_unless(\App\Support\OpticalAccess::desk($user), 403, 'Only the front desk or a manager can ask to change the partner clinic.');
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 10 || mb_strlen($reason) > 500) {
+            throw ValidationException::withMessages(['changePartnerReason' => 'Say why the partner clinic is being changed, in at least 10 characters.']);
+        }
+        $manager = (bool) $user?->hasAnyRole(['Manager', 'Super Admin']);
+        return DB::transaction(function () use ($id, $partnerId, $reason, $manager) {
+            $order = LensOrder::lockForUpdate()->findOrFail($id);
+            $partner = $this->movablePartner($order, $partnerId);
+            if (OpticalPartnerChange::where('lens_order_id', $order->id)->where('status', OpticalPartnerChange::PENDING)->exists()) {
+                throw ValidationException::withMessages(['changePartnerTo' => 'A change of partner clinic is already waiting for a manager on this job.']);
+            }
+            $change = OpticalPartnerChange::create([
+                'lens_order_id' => $order->id, 'from_partner_clinic_id' => $order->partner_clinic_id,
+                'from_partner_name' => $order->partnerClinic?->name ?? $order->partner_clinic_name,
+                'to_partner_clinic_id' => $partner->id, 'reason' => $reason,
+                'status' => OpticalPartnerChange::PENDING, 'requested_by' => auth()->id(),
+            ]);
+            if ($manager) {
+                $this->applyPartnerChange($change, $order, $partner);
+            } else {
+                AuditTrail::record('optical.order_partner_change_requested', "Asked to move optical order {$order->order_id} from ".($change->from_partner_name ?: 'an unknown clinic')." to {$partner->name}: {$reason}",
+                    $order, ['partner_clinic_id' => $order->partner_clinic_id], ['to_partner_clinic_id' => $partner->id, 'reason' => $reason], $order->patient_id, true);
+            }
+            return $change;
+        });
+    }
+
+    /** A manager approves a pending change: the job moves, checked again as it is now. */
+    public function approvePartnerChange(int $changeId): LensOrder
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can approve a change of partner clinic.');
+        return DB::transaction(function () use ($changeId) {
+            $change = OpticalPartnerChange::lockForUpdate()->findOrFail($changeId);
+            if ($change->status !== OpticalPartnerChange::PENDING) {
+                throw ValidationException::withMessages(['partnerChange' => 'This change has already been decided.']);
+            }
+            $order = LensOrder::lockForUpdate()->findOrFail($change->lens_order_id);
+            try {
+                $partner = $this->movablePartner($order, (int) $change->to_partner_clinic_id);
+            } catch (ValidationException $e) {
+                throw ValidationException::withMessages(['partnerChange' => $e->errors()['changePartnerTo'][0] ?? 'This job can no longer be moved.']);
+            }
+            return $this->applyPartnerChange($change, $order, $partner);
+        });
+    }
+
+    /** A manager rejects a pending change; the job stays with its clinic. */
+    public function rejectPartnerChange(int $changeId, string $reason): OpticalPartnerChange
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can reject a change of partner clinic.');
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 5 || mb_strlen($reason) > 500) {
+            throw ValidationException::withMessages(['partnerRejectReason' => 'Say why the change is rejected, in at least 5 characters.']);
+        }
+        return DB::transaction(function () use ($changeId, $reason) {
+            $change = OpticalPartnerChange::with('order', 'toPartner')->lockForUpdate()->findOrFail($changeId);
+            if ($change->status !== OpticalPartnerChange::PENDING) {
+                throw ValidationException::withMessages(['partnerChange' => 'This change has already been decided.']);
+            }
+            $change->update(['status' => OpticalPartnerChange::REJECTED, 'decided_by' => auth()->id(), 'decided_at' => now(), 'rejection_reason' => $reason]);
+            $order = $change->order;
+            AuditTrail::record('optical.order_partner_change_rejected', "Rejected moving optical order {$order?->order_id} to ".($change->toPartner?->name ?? 'another clinic').": {$reason}",
+                $order, [], ['to_partner_clinic_id' => $change->to_partner_clinic_id, 'rejection_reason' => $reason], $order?->patient_id, true);
+            return $change;
+        });
+    }
+
+    /** The partner clinic a job may be moved to, or a validation error saying why not. */
+    private function movablePartner(LensOrder $order, int $partnerId): \App\Models\OpticalPartnerClinic
+    {
+        if ($order->order_source !== 'partner') {
+            throw ValidationException::withMessages(['changePartnerTo' => 'Only partner clinic jobs have a partner clinic to change.']);
+        }
+        if ($order->status === 'Quotation') {
+            throw ValidationException::withMessages(['changePartnerTo' => 'Edit the quotation to choose a different partner clinic.']);
+        }
+        if ($order->status === 'Cancelled') {
+            throw ValidationException::withMessages(['changePartnerTo' => 'This job is cancelled.']);
+        }
+        $partner = \App\Models\OpticalPartnerClinic::where('is_active', true)->find($partnerId);
+        if (! $partner) throw ValidationException::withMessages(['changePartnerTo' => 'Choose an active partner clinic.']);
+        if ((int) $order->partner_clinic_id === $partner->id) {
+            throw ValidationException::withMessages(['changePartnerTo' => 'The job is already with '.$partner->name.'.']);
+        }
+        if (\App\Models\OpticalOrderRequest::withoutGlobalScopes()->where('lens_order_id', $order->id)->exists()) {
+            throw ValidationException::withMessages(['changePartnerTo' => "This job was sent from a linked clinic's account, so its clinic can't be changed here. Ask that clinic to cancel it and send it again."]);
+        }
+        if (\App\Models\OpticalPartnerPaymentAllocation::withoutGlobalScopes()->where('lens_order_id', $order->id)->exists()) {
+            throw ValidationException::withMessages(['changePartnerTo' => 'A payment from '.($order->partner_clinic_name ?: 'the partner clinic').' is already applied to this job. Refund and cancel it, then enter the job again under the right clinic.']);
+        }
+        return $partner;
+    }
+
+    private function applyPartnerChange(OpticalPartnerChange $change, LensOrder $order, \App\Models\OpticalPartnerClinic $partner): LensOrder
+    {
+        $before = ['partner_clinic_id' => $order->partner_clinic_id, 'partner_clinic_name' => $order->partner_clinic_name, 'partner_billing_terms' => $order->partner_billing_terms];
+        $order->partner_clinic_id = $partner->id;
+        $order->partner_clinic_name = $partner->name;
+        $order->partner_billing_terms = $partner->billing_terms;
+        $order->save();
+        // The job's sale is in the partner's name when the partner is billed.
+        if ($order->sale_id && $order->bill_to === 'partner') {
+            Sales::whereKey($order->sale_id)->update(['customer_name' => $partner->name]);
+        }
+        $change->update(['status' => OpticalPartnerChange::APPROVED, 'decided_by' => auth()->id(), 'decided_at' => now()]);
+        $asked = (int) $change->requested_by !== (int) auth()->id() ? ' (asked by '.($change->requester?->name ?? 'staff').', approved by '.auth()->user()?->name.')' : '';
+        AuditTrail::record('optical.order_partner_changed', "Optical order {$order->order_id} moved from ".($before['partner_clinic_name'] ?: 'an unknown clinic')." to {$partner->name}{$asked}: {$change->reason}",
+            $order, $before, ['partner_clinic_id' => $partner->id, 'partner_clinic_name' => $partner->name, 'partner_billing_terms' => $partner->billing_terms,
+                'reason' => $change->reason, 'requested_by' => $change->requested_by, 'approved_by' => auth()->id()], $order->patient_id, true);
+        return $order;
     }
 
     /**

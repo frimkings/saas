@@ -37,6 +37,7 @@
                 @if($attentionSummary['appt_missed'])<li><strong style="color:#b91c1c">{{ $attentionSummary['appt_missed'] }}</strong> missed today</li>@endif
                 @if($attentionSummary['order_late'])<li><strong style="color:#b91c1c">{{ $attentionSummary['order_late'] }}</strong> {{ \Illuminate\Support\Str::plural('spectacle order', $attentionSummary['order_late']) }} past the promised date</li>@endif
                 @if($attentionSummary['lens_unordered'] ?? 0)<li><strong style="color:#92400e">{{ $attentionSummary['lens_unordered'] }}</strong> {{ \Illuminate\Support\Str::plural('job', $attentionSummary['lens_unordered']) }} with special-order lenses not yet ordered</li>@endif
+                @if($attentionSummary['partner_changes'] ?? 0)<li><strong style="color:#92400e">{{ $attentionSummary['partner_changes'] }}</strong> {{ \Illuminate\Support\Str::plural('change', $attentionSummary['partner_changes']) }} of partner clinic waiting for your approval</li>@endif
                 @if($attentionSummary['order_due'])<li><strong>{{ $attentionSummary['order_due'] }}</strong> due soon</li>@endif
                 @if($attentionSummary['uncollected'])<li><strong>{{ $attentionSummary['uncollected'] }}</strong> ready but not collected</li>@endif
                 @if($attentionSummary['stock_expired'] ?? 0)<li><strong style="color:#b91c1c">{{ $attentionSummary['stock_expired'] }}</strong> expired stock {{ \Illuminate\Support\Str::plural('batch', $attentionSummary['stock_expired']) }} still on the shelf</li>@endif
