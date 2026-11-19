@@ -280,6 +280,11 @@ let renderedTrendJson = null;
 
 function refreshPatientClinicalTrendCharts() {
     if (typeof Chart === 'undefined') {
+        // Chart.js is loaded only by pages that draw a chart: fetch it when this page has a chart to draw.
+        const hasCanvas = ['visualAcuityTrendChart', 'iopTrendChart'].some(function (id) {
+            return document.getElementById(id);
+        });
+        if (hasCanvas && window.withChart) window.withChart(refreshPatientClinicalTrendCharts);
         return;
     }
 
