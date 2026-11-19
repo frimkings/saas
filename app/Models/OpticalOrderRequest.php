@@ -40,9 +40,9 @@ class OpticalOrderRequest extends Model
         'refraction_id', 'sender_reference', 'patient_name', 'patient_phone', 'rx', 'lens_type', 'lens_notes', 'frame_choice',
         'frame_notes', 'urgency', 'notes', 'status', 'query_message', 'query_answer', 'reject_reason', 'lens_order_id',
         'order_number', 'order_status', 'status_updated_at', 'handled_by', 'kind', 'remake_of_request_id', 'remake_reason',
-        'source', 'sender_name'];
+        'source', 'sender_name', 'lens_choice'];
 
-    protected $casts = ['rx' => 'array', 'status_updated_at' => 'datetime', 'quote_lines' => 'array', 'quote_total' => 'decimal:2',
+    protected $casts = ['rx' => 'array', 'lens_choice' => 'array', 'status_updated_at' => 'datetime', 'quote_lines' => 'array', 'quote_total' => 'decimal:2',
         'quote_valid_until' => 'date', 'quoted_at' => 'datetime', 'approved_at' => 'datetime', 'order_total' => 'decimal:2',
         'order_paid' => 'decimal:2', 'order_cancelled_at' => 'datetime', 'auto_approved' => 'boolean'];
 

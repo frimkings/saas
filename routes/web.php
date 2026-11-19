@@ -89,6 +89,7 @@ Route::prefix('order/{token}')->where(['token' => '[A-Za-z0-9]{40}', 'id' => '[0
     Route::get('/', [\App\Http\Controllers\OpticalOrderPageController::class, 'show'])->name('order-page.show');
     Route::post('/pin', [\App\Http\Controllers\OpticalOrderPageController::class, 'pin'])->middleware('throttle:order-page-pin')->name('order-page.pin');
     Route::post('/', [\App\Http\Controllers\OpticalOrderPageController::class, 'send'])->middleware('throttle:order-page-send')->name('order-page.send');
+    Route::post('/lenses', [\App\Http\Controllers\OpticalOrderPageController::class, 'lenses'])->name('order-page.lenses');
     Route::post('/jobs/{id}/answer', [\App\Http\Controllers\OpticalOrderPageController::class, 'answer'])->name('order-page.answer');
     Route::post('/jobs/{id}/cancel', [\App\Http\Controllers\OpticalOrderPageController::class, 'cancel'])->name('order-page.cancel');
     Route::post('/leave', [\App\Http\Controllers\OpticalOrderPageController::class, 'leave'])->name('order-page.leave');

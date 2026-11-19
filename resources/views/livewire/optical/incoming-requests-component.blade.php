@@ -99,7 +99,7 @@
                 <section class="oo-section">
                     <h3>Order</h3>
                     <dl class="oo-dl">
-                        <dt>Lens</dt><dd>{{ $viewRequest->lens_type ?: '—' }}@if($viewRequest->lens_notes)<span class="oo-sub" style="white-space:pre-line">{{ $viewRequest->lens_notes }}</span>@endif</dd>
+                        <dt>Lens</dt><dd>{{ $viewRequest->lens_type ?: '—' }}@if(data_get($viewRequest->lens_choice, 'label'))<span class="oo-sub">Picked on their page: <b>{{ data_get($viewRequest->lens_choice, 'label') }}</b> ({{ collect(data_get($viewRequest->lens_choice, 'eyes', []))->map(fn ($eye, $side) => ($side === 'od' ? 'R' : 'L').' '.(($eye['source'] ?? '') === 'stock' ? 'held from stock' : 'order in'))->implode(', ') }})</span>@endif @if($viewRequest->lens_notes)<span class="oo-sub" style="white-space:pre-line">{{ $viewRequest->lens_notes }}</span>@endif</dd>
                         <dt>Frame</dt><dd>{{ \App\Models\OpticalOrderRequest::FRAME_CHOICES[$viewRequest->frame_choice] ?? $viewRequest->frame_choice }}@if($viewRequest->frame_notes)<span class="oo-sub" style="white-space:pre-line">{{ $viewRequest->frame_notes }}</span>@endif</dd>
                         <dt>Urgency</dt><dd>{{ $viewRequest->urgency === 'urgent' ? 'Urgent' : 'Normal' }}</dd>
                         <dt>Notes</dt><dd style="white-space:pre-line">{{ $viewRequest->notes ?: '—' }}</dd>

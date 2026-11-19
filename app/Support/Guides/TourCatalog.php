@@ -25,7 +25,7 @@ final class TourCatalog
         'optical.lab' => 1,
         'optical.catalogue' => 1,
         'optical.pos' => 2,
-        'optical.requests' => 4,
+        'optical.requests' => 5,
         'clinic.dashboard' => 5,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
@@ -183,7 +183,7 @@ final class TourCatalog
             ['target' => 'incoming-orders', 'title' => 'Orders from linked clinics', 'body' => 'Clinics you linked under Partner Clinics send their spectacle orders here, with the wearer’s name, phone and prescription. Open one to accept it: the order form opens with the prescription filled in, and you price the job as a partner order. Or ask the clinic a question, or turn it down with a reason they will see.'],
             ['title' => 'Quotes, then the job', 'body' => 'Pricing a job sends the clinic a quote; it waits under Quotes. Once they approve it, open it and press Start the job: it goes on their account at the approved price, with no deposit. A free job, such as a free remake, starts straight away.'],
             ['title' => 'Agreed terms', 'body' => 'Under Partner Clinics, open a linked clinic to set its trade % off your prices for lenses, frames and services, and a credit limit. The trade % comes off every quote for them on its own line. At the credit limit they can’t send new jobs until they pay. If the clinic approves quotes automatically up to an amount, a quote within it starts the job at once.'],
-            ['title' => 'Clinics not on Nexus', 'body' => 'Under Partner Clinics, open a partner that is not on Nexus and turn on its ordering page: you get a private link and set a 6-digit PIN to send them separately. They send orders with the prescription and follow each job there, without an account. Their orders arrive here marked "ordering page"; you price them as ordinary partner jobs, with no quote to approve. If they join Nexus later and link, their orders move to their account.'],
+            ['title' => 'Clinics not on Nexus', 'body' => 'Under Partner Clinics, open a partner that is not on Nexus and turn on its ordering page: you get a private link and set a 6-digit PIN to send them separately. They send orders with the prescription and follow each job there, without an account. Their orders arrive here marked "ordering page"; you price them as ordinary partner jobs, with no quote to approve. On the page they can press Check lenses to see which of your stock lenses fit, "In stock" or "Order in" per eye (never the counts), with prices after their trade % unless you switch prices off for that partner. A lens they pick is held for them until you accept the order, and the order form selects it when you check availability. If they join Nexus later and link, their orders move to their account.'],
             ['title' => 'Remakes and payments', 'body' => 'A clinic can ask for a remake of glasses you made; accept it to open the remake form and choose free or charged. When a clinic records a payment to you, confirm it on their card under Partner Clinics.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'The clinic follows each job as you move it through the lab. Take this tour again at any time from here.'],
         ]];

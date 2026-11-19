@@ -235,6 +235,10 @@
                                     <a class="oo-btn" target="_blank" rel="noopener" href="https://wa.me/{{ preg_replace('/\D+/', '', (string) $viewPartner->messagingPhone()) }}?text={{ rawurlencode($linkText) }}">WhatsApp the link</a>
                                     @if($shownPin !== '')<button type="button" class="oo-btn" x-on:click="navigator.clipboard?.writeText(@js('Your PIN for our ordering page: '.$shownPin)); copied = 'pin'; setTimeout(() => copied = '', 2000)"><span x-text="copied === 'pin' ? 'Copied' : 'Copy PIN message'">Copy PIN message</span></button>@endif
                                 </div>
+                                <label class="flex items-center gap-2 mt-2.5 text-sm" style="cursor:pointer">
+                                    <input type="checkbox" @checked($viewPartner->page_show_prices) wire:click="toggleOrderPagePrices({{ $viewPartner->id }})">
+                                    <span>Show lens prices on their page <span class="pc-hint">(after their trade %). Stock shows only as "In stock" or "Order in".</span></span>
+                                </label>
                                 <div class="flex flex-wrap items-end gap-2 mt-2.5">
                                     <label class="pc-field" style="max-width:150px"><span>New PIN</span><input type="text" inputmode="numeric" maxlength="6" wire:model="pagePin" class="ui-input font-mono" placeholder="Make one up"></label>
                                     <button type="button" class="oo-btn" wire:click="setOrderPage({{ $viewPartner->id }})">Set new PIN</button>
