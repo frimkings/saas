@@ -288,9 +288,17 @@ Route::get('/optical/orders/create', \App\Livewire\Optical\OpticalOrderCreateCom
 // Orders sent online by linked clinics (App\Services\OpticalLinks\OpticalLinkService).
 Route::get('/optical/incoming', \App\Livewire\Optical\IncomingRequestsComponent::class)->name('optical.requests');
 Route::get('/optical/orders/{order}/docket', function (int $order) {
-    $order = \App\Models\LensOrder::with(['patient', 'opticalPrescription', 'frameProduct', 'lensProduct', 'frameOpticalProduct', 'lensOpticalProduct', 'user'])->findOrFail($order);
-    return view('optical.order-docket', compact('order'));
+    $orders = collect([\App\Models\LensOrder::with(\App\Models\LensOrder::DOCKET_RELATIONS)->findOrFail($order)]);
+    return view('optical.order-docket', compact('orders'));
 })->name('optical.orders.docket');
+// Several dockets in one print, one A5 page each (ticked on the lab workbench): ?ids=1,2,3
+Route::get('/optical/dockets', function (\Illuminate\Http\Request $request) {
+    $ids = collect(explode(',', (string) $request->query('ids')))->map(fn ($id) => (int) $id)->filter()->unique()->take(\App\Livewire\Optical\OpticalLabWorkbenchComponent::BULK_LIMIT);
+    $found = \App\Models\LensOrder::with(\App\Models\LensOrder::DOCKET_RELATIONS)->whereIn('id', $ids)->get()->keyBy('id');
+    $orders = $ids->map(fn ($id) => $found->get($id))->filter()->values(); // in the order they were ticked
+    abort_if($orders->isEmpty(), 404);
+    return view('optical.order-docket', compact('orders'));
+})->name('optical.orders.dockets');
 Route::get('/optical/orders', \App\Livewire\Optical\OpticalOrdersComponent::class)->name('optical.orders');
 Route::get('/optical/lab-workbench', \App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->name('optical.lab-workbench');
 Route::get('/optical/lab-workbench/print', fn (\Illuminate\Http\Request $request) => \App\Livewire\Optical\OpticalLabWorkbenchComponent::printSheet($request))->name('optical.lab-workbench.print');

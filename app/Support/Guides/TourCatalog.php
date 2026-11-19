@@ -22,7 +22,7 @@ final class TourCatalog
         'optical.orders' => 1,
         'optical.order-create' => 1,
         'optical.special-order' => 1,
-        'optical.lab' => 1,
+        'optical.lab' => 2,
         'optical.catalogue' => 1,
         'optical.pos' => 2,
         'optical.requests' => 5,
@@ -242,6 +242,7 @@ final class TourCatalog
             ['target' => 'opt-lab-stages', 'title' => 'One stage at a time', 'body' => 'All open work, or only the jobs at one stage, with how many are waiting at each.'],
             ['target' => 'opt-lab-search', 'title' => 'Find a job', 'body' => 'By job number, customer, partner, frame or service, or by the kind of work.'],
             ['target' => 'opt-lab-list', 'title' => 'Work a job', 'body' => 'Each job shows its lenses and whether special-order ones have arrived. Mark a lens as arrived, move the job on, or click it for the full docket.'],
+            ['target' => 'opt-lab-select', 'title' => 'Several at once', 'body' => 'Tick jobs (or this box for the whole page) to start edging, send them to one lab, pass QC or print their dockets together. A job that cannot move is skipped with the reason and stays ticked. After sending to a lab you can WhatsApp the lab the whole list.'],
             ['target' => 'opt-lab-print', 'title' => 'On paper', 'body' => 'Print the list for the bench.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];

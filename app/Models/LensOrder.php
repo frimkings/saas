@@ -99,6 +99,9 @@ class LensOrder extends Model
     /** Ready to collect: the Optical Suite marks "Ready for Collection", the clinic Spectacles page "Ready". */
     public const READY = ['Ready for Collection', 'Ready'];
 
+    /** What a printed docket reads. */
+    public const DOCKET_RELATIONS = ['patient', 'opticalPrescription', 'frameProduct', 'lensProduct', 'frameOpticalProduct', 'lensOpticalProduct', 'user', 'serviceLines', 'lensLines', 'remakeOf'];
+
     /** At an outside or in-house lab, under either page's status names. */
     public const AT_LAB = ['Sent to Lab', 'In Lab', 'In Production'];
 

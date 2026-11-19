@@ -52,6 +52,7 @@ final class OpticalAccess
         'optical.orders.create' => [self::SALES],
         'optical.requests' => [self::SALES],
         'optical.orders.docket' => [self::SALES, self::LAB],
+        'optical.orders.dockets' => [self::SALES, self::LAB],
         'optical.lab-workbench' => [self::LAB],
         'optical.lab-workbench.print' => [self::LAB],
         'optical.collections' => [self::SALES],

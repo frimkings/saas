@@ -1051,7 +1051,7 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame($frame->id, $order->frame_optical_product_id);
         $this->assertSame(4, OpticalProductStock::where('optical_product_id', $frame->id)->firstOrFail()->quantity);
         $this->assertDatabaseHas('sale_items', ['sale_id' => $order->sale_id, 'optical_product_id' => $frame->id, 'product_id' => null]);
-        $this->assertStringContainsString('FRM-10', view('optical.order-docket', ['order' => $order])->render());
+        $this->assertStringContainsString('FRM-10', view('optical.order-docket', ['orders' => collect([$order])])->render());
 
         app(OpticalOrderWorkflowService::class)->cancel($order->id);
         $this->assertSame(5, OpticalProductStock::where('optical_product_id', $frame->id)->firstOrFail()->quantity);
@@ -1469,6 +1469,61 @@ class OpticalWorkflowTest extends TestCase
         $context->set($manager, $clinic, $branch, [$branch->id]);
         $this->get(route('optical.dashboard'))->assertSee('Outstanding Balances');
         Livewire::test(\App\Livewire\Optical\OpticalJobsComponent::class)->call('openOrder', $order->id)->assertSee('0240009911')->assertSee('310.00');
+    }
+
+    public function test_workbench_moves_ticked_jobs_together_and_skips_what_cannot_move(): void
+    {
+        $manager = $this->opticalManager('bulk-bench');
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $manager->id, 'name' => 'Bulk Customer', 'contact' => '0240007711', 'gender' => 'Other']);
+        [$a, $b, $c] = [app(OpticalOrderService::class)->create($this->orderData($patient)), app(OpticalOrderService::class)->create($this->orderData($patient)), app(OpticalOrderService::class)->create($this->orderData($patient))];
+        $lab = \App\Models\Supplier::create(['name' => 'Rx Lab', 'phone' => '0244000222', 'contact_person' => 'Kofi', 'lead_time_days' => 3, 'is_active' => true]);
+
+        // A job whose special-order lenses haven't arrived can't start: skipped with the reason, still ticked.
+        $bench = Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)
+            // The list shows with nothing ticked, and without the bar.
+            ->assertSee($a->order_id)->assertSee($c->order_id)->assertDontSee('wb-bulkbar wb-noprint', false)
+            ->set('selected', [(string) $c->id])->assertSee('1 ticked')->assertSee($a->order_id)
+            ->call('bulkMove', 'In Production')
+            ->assertSet('selected', [(string) $c->id])->assertSet('bulkReport.done', []);
+        $this->assertStringContainsString('as received before glazing', $bench->get('bulkReport')['skipped'][0]);
+        // Lenses in: it starts. The other two go to the lab together; this one is then skipped.
+        foreach (['od', 'os'] as $eye) app(OpticalOrderWorkflowService::class)->receiveSpecialOrderLens($c->id, $eye);
+        $bench->call('bulkMove', 'In Production')->assertSet('selected', [])->assertSet('bulkReport.done', [$c->order_id]);
+        $bench->set('selected', [(string) $a->id, (string) $b->id, (string) $c->id])
+            ->call('openBulkSendToLab')->set('bulkLabSupplierId', (string) $lab->id)->call('bulkSendToLab')
+            ->assertSet('selected', [(string) $c->id], 'The one that could not go stays ticked.');
+        $report = $bench->get('bulkReport');
+        $this->assertSame([$a->order_id, $b->order_id], $report['done']);
+        $this->assertStringContainsString('not at', implode(' ', $report['skipped']).' not at');
+        $this->assertSame(['Sent to Lab', 'Sent to Lab', 'In Production'], [$a->fresh()->status, $b->fresh()->status, $c->fresh()->status]);
+        $this->assertSame($lab->id, $a->fresh()->lab_supplier_id);
+        $this->assertSame(today()->addDays(3)->toDateString(), $a->fresh()->expected_back_at->toDateString(), 'Due back after the lab lead time.');
+        // One message to the lab lists both jobs with their powers.
+        $message = rawurldecode((string) $report['labLink']);
+        $this->assertStringStartsWith('https://wa.me/', $report['labLink']);
+        $this->assertStringContainsString('2 jobs', $message);
+        $this->assertStringContainsString($a->order_id.' · R +1.00', $message);
+        $this->assertStringContainsString($b->order_id, $message);
+
+        // QC pass only for the job on the bench; the others are not at that step.
+        $bench->set('selected', [(string) $a->id, (string) $c->id])->call('bulkMove', 'Ready for Collection');
+        $this->assertSame([$c->order_id], $bench->get('bulkReport')['done']);
+        $this->assertSame('Ready for Collection', $c->fresh()->status);
+        $this->assertSame('Sent to Lab', $a->fresh()->status);
+
+        // Their dockets print together, one A5 page each, in the order ticked.
+        $html = $this->get(route('optical.orders.dockets', ['ids' => $b->id.','.$a->id]))->assertOk()->assertSee('Print 2 dockets')->getContent();
+        $this->assertSame(2, substr_count($html, '<main>'));
+        $this->assertLessThan(strpos($html, $a->order_id), strpos($html, $b->order_id));
+    }
+
+    public function test_bench_staff_can_bulk_move_but_not_hand_over(): void
+    {
+        $this->opticalStaff('bulk-optician', 'Optician');
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('bulkMove', 'Collected')->assertStatus(422);
+        $this->opticalStaff('bulk-desk', 'Optical Assistant');
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('bulkMove', 'In Production')->assertForbidden();
+        Livewire::test(\App\Livewire\Optical\OpticalLabWorkbenchComponent::class)->call('openBulkSendToLab')->assertForbidden();
     }
 
     public function test_menu_is_grouped_by_area_and_each_role_sees_its_own_groups(): void
@@ -2415,7 +2470,7 @@ class OpticalWorkflowTest extends TestCase
         $data['measurements']['od'] += ['pd' => '31.5', 'hgt' => '19'];
         $order = app(OpticalOrderService::class)->create($data);
         $this->assertSame(['+1.00', '31.5', '19'], [data_get($order->prescription_snapshot, 'od.sph'), data_get($order->prescription_snapshot, 'od.pd'), data_get($order->prescription_snapshot, 'od.hgt')]);
-        $this->assertStringContainsString('<td>31.5</td>', view('optical.order-docket', ['order' => $order])->render());
+        $this->assertStringContainsString('<td>31.5</td>', view('optical.order-docket', ['orders' => collect([$order])])->render());
     }
 
     public function test_combined_rx_lens_check_and_order_reservation_use_current_branch_stock(): void
