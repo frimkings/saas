@@ -19,6 +19,6 @@ class ReceiptItemNamesTest extends TestCase
 
         // The item column keeps its width and wraps, so quantities and prices stay aligned.
         $styles = file_get_contents($views.'cashier/partials/thermal-styles.blade.php');
-        $this->assertMatchesRegularExpression('/\.col-item\s*\{[^}]*width:\s*47%;[^}]*overflow-wrap:\s*anywhere;/', $styles);
+        $this->assertMatchesRegularExpression('/\.col-item\s*\{[^}]*width:\s*44%;[^}]*overflow-wrap:\s*anywhere;/', $styles);
     }
 }

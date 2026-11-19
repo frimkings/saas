@@ -21,10 +21,6 @@
 @endif
 
     <div class="center">
-        @if(!empty($clinicSettings) && $clinicSettings->logoDataUri())
-            <img src="{{ $clinicSettings->logoDataUri() }}" class="receipt-logo" alt="Clinic Logo">
-        @endif
-
         <div class="clinic-name">{{ $clinicSettings->clinic_name ?? 'PHARMACY POS' }}</div>
         @if(!empty($clinicSettings->clinic_address))
             <div class="small">{{ $clinicSettings->clinic_address }}</div>
@@ -51,7 +47,7 @@
     <div class="refund-notice">
         &#9888; THIS SALE HAS BEEN REFUNDED &#9888;
         @if($sale->refunded_at)
-        <div style="font-size:8px; font-weight:400; margin-top:2px;">
+        <div class="small" style="margin-top:2px;">
             Refunded on {{ \Carbon\Carbon::parse($sale->refunded_at)->format('M d, Y h:i A') }}
         </div>
         @endif
@@ -89,8 +85,8 @@
                 <tr>
                     <td class="col-item">{{ $item->display_product_name }}</td>
                     <td class="col-qty">{{ $item->shown_quantity }}</td>
-                    <td class="col-price">{{ $currency }}{{ number_format($item->selling_price, 2) }}</td>
-                    <td class="col-total">{{ $currency }}{{ number_format($item->shown_subtotal, 2) }}</td>
+                    <td class="col-price">{{ number_format($item->selling_price, 2) }}</td>
+                    <td class="col-total">{{ number_format($item->shown_subtotal, 2) }}</td>
                 </tr>
             @endforeach
         </tbody>
