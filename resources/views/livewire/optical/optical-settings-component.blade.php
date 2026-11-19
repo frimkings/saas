@@ -45,6 +45,7 @@
                     <x-ui.field label="Standard Lens Warranty (Months)" name="warranty_months" type="number" wire:model="warranty_months" required />
                     <x-ui.field label="Quotations valid for (days)" name="quote_validity_days" type="number" min="1" max="365" wire:model="quote_validity_days" required />
                     <x-ui.field label="A job is stuck after (days without a status change)" name="stuck_job_days" type="number" min="1" max="365" wire:model="stuck_job_days" required />
+                    <x-ui.field label="Ask to release lenses held by a job not started after (days)" name="lens_hold_prompt_days" type="number" min="1" max="60" wire:model="lens_hold_prompt_days" required />
                 </div>
 
                 <div class="ui-field">

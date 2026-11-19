@@ -9,7 +9,7 @@ class OpticalSetting extends Model
 {
     use BelongsToClinic;
 
-    protected $fillable = ['min_deposit_percentage', 'warranty_months', 'optical_disclaimer', 'ready_sms_auto', 'collection_reminder_schedule', 'stuck_job_days', 'quote_validity_days', 'pos_max_discount_percent'];
+    protected $fillable = ['min_deposit_percentage', 'warranty_months', 'optical_disclaimer', 'ready_sms_auto', 'collection_reminder_schedule', 'stuck_job_days', 'quote_validity_days', 'pos_max_discount_percent', 'lens_hold_prompt_days'];
 
     protected $casts = ['ready_sms_auto' => 'boolean', 'collection_reminder_schedule' => 'array'];
 
@@ -28,6 +28,12 @@ class OpticalSetting extends Model
     public static function stuckJobDays(): int
     {
         return max(1, (int) (static::first()?->stuck_job_days ?? 7));
+    }
+
+    /** Days a job not yet started may hold stock lenses before Needs attention asks to release them. */
+    public static function lensHoldPromptDays(): int
+    {
+        return max(1, (int) (static::first()?->lens_hold_prompt_days ?? 1));
     }
 
     /** Days a quotation's prices hold. */

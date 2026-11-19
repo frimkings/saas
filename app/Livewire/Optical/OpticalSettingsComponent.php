@@ -15,6 +15,7 @@ class OpticalSettingsComponent extends Component
     /** Days after "ready" to send pickup reminders, e.g. "3, 10, 30". Blank = off. */
     public string $reminder_schedule = '7, 14, 21';
     public $stuck_job_days = 7;
+    public $lens_hold_prompt_days = 1;
     public $quote_validity_days = 30;
     public $pos_max_discount_percent = 10;
 
@@ -28,6 +29,7 @@ class OpticalSettingsComponent extends Component
             $this->ready_sms_auto = (bool) $settings->ready_sms_auto;
             $this->reminder_schedule = implode(', ', $settings->reminderSchedule());
             $this->stuck_job_days = $settings->stuck_job_days ?? 7;
+            $this->lens_hold_prompt_days = $settings->lens_hold_prompt_days ?? 1;
             $this->quote_validity_days = $settings->quote_validity_days ?? 30;
             $this->pos_max_discount_percent = $settings->pos_max_discount_percent ?? 10;
         }
@@ -42,6 +44,7 @@ class OpticalSettingsComponent extends Component
             'ready_sms_auto' => 'boolean',
             'reminder_schedule' => 'nullable|string|max:100',
             'stuck_job_days' => 'required|integer|between:1,365',
+            'lens_hold_prompt_days' => 'required|integer|between:1,60',
             'quote_validity_days' => 'required|integer|between:1,365',
             'pos_max_discount_percent' => 'required|integer|between:0,100',
         ]);
@@ -54,6 +57,7 @@ class OpticalSettingsComponent extends Component
             'ready_sms_auto' => $this->ready_sms_auto,
             'collection_reminder_schedule' => $schedule,
             'stuck_job_days' => (int) $this->stuck_job_days,
+            'lens_hold_prompt_days' => (int) $this->lens_hold_prompt_days,
             'quote_validity_days' => (int) $this->quote_validity_days,
             'pos_max_discount_percent' => (int) $this->pos_max_discount_percent,
         ];

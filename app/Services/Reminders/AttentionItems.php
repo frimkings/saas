@@ -58,6 +58,7 @@ class AttentionItems
         'order_late'          => ['Spectacles past their promised date', 'Chase the lab and tell the patient the new date.', 'lens_order'],
         'lens_unordered'      => ['Special-order lenses not yet ordered', 'Put them on a supplier order in Purchasing, or the job cannot be made.', 'lens_order'],
         'partner_change'      => ['Partner clinic changes to approve', 'Open the job and approve or reject moving it to another partner clinic.', 'lens_order'],
+        'lens_held'           => ['Lenses held by jobs not started', 'These stock lenses can\'t be sold or used for another job while held. Release them, or snooze if the job starts soon. A released job takes a lens again at glazing if one is free.', 'lens_order'],
         'order_due'           => ['Spectacles due soon', 'Check they will be ready on time.', 'lens_order'],
         'order_uncollected'   => ['Ready, not collected', 'Call the patient to come in.', 'lens_order'],
         'scan_unreported'     => ['Paid scans not yet reported', 'Do the scan or finish the report, then add the result on the Scan Desk.', 'scan_order'],
@@ -166,6 +167,23 @@ class AttentionItems
                 })->values();
             // The front desk asked to move a job to another partner clinic; managers decide.
             if (\App\Support\Access\Access::can('optical.manage')) {
+                // Stock lenses held by a job nobody has started yet: managers release them (or keep them).
+                $since = $now->copy()->subDays(\App\Models\OpticalSetting::lensHoldPromptDays());
+                $groups['lens_held'] = $orders()->where('status', 'Pending')
+                    ->whereHas('lensLines', fn ($lines) => $lines->where('source', 'stock')->where('status', 'held')->where('created_at', '<=', $since))
+                    ->with(['lensLines' => fn ($lines) => $lines->where('source', 'stock')->where('status', 'held')->with('product:id,name')])
+                    ->oldest()->limit(self::PER_GROUP)->get()
+                    ->map(function ($order) {
+                        $lines = $order->lensLines;
+                        $heldSince = $lines->min('created_at');
+                        $names = $lines->map(fn ($line) => $line->product?->name ?? 'lens');
+                        $what = $lines->count() === 2 && $names->unique()->count() === 1
+                            ? 'Both eyes: '.$names->first()
+                            : $lines->map(fn ($line) => ($line->eye === 'od' ? 'R' : 'L').': '.($line->product?->name ?? 'lens'))->implode(' · ');
+
+                        return ['url' => route('optical.jobs')] + $this->orderItem($order, 'lens_held', $what.' · held since '.$heldSince->format('j M')
+                            .' ('.$this->daysAgo($heldSince).')'.($order->pickUpDate ? ' · promised '.Carbon::parse($order->pickUpDate)->format('j M') : ''));
+                    })->values();
                 $groups['partner_change'] = \App\Models\OpticalPartnerChange::with(['order', 'toPartner:id,name', 'requester:id,name'])
                     ->where('status', \App\Models\OpticalPartnerChange::PENDING)->oldest()->limit(self::PER_GROUP)->get()
                     ->filter(fn ($change) => $change->order)
@@ -222,6 +240,7 @@ class AttentionItems
                 'order_late'   => $n('order_late'),
                 'lens_unordered' => $n('lens_unordered'),
                 'partner_changes' => $n('partner_change'),
+                'lens_held'    => $n('lens_held'),
                 'uncollected'  => $n('order_uncollected'),
                 // Badge: problems, not things merely coming up.
                 'orders'       => $problemOrders,

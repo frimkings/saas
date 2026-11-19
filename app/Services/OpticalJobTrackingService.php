@@ -171,12 +171,12 @@ class OpticalJobTrackingService
      * Free the stock lenses a stuck job is holding so they can be sold. The job keeps its
      * plan: when it goes to glazing it takes a lens again if one is free.
      */
-    public function releaseHeldLenses(int $orderId): int
+    public function releaseHeldLenses(int $orderId, ?string $note = null): int
     {
         app(ClinicAccessService::class)->assertWritable('optical');
         abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can release lenses held for a job.');
 
-        return DB::transaction(function () use ($orderId) {
+        return DB::transaction(function () use ($orderId, $note) {
             $order = LensOrder::lockForUpdate()->findOrFail($orderId);
             if ($order->status !== 'Pending') {
                 throw ValidationException::withMessages(['release' => 'Only jobs not yet glazed are holding lenses.']);
@@ -184,7 +184,7 @@ class OpticalJobTrackingService
             $released = OpticalOrderLensLine::where('lens_order_id', $order->id)->where('source', 'stock')->where('status', 'held')
                 ->update(['status' => 'released']);
             if ($released > 0) {
-                AuditTrail::record('optical.lenses_released', "Released {$released} held lens(es) from stuck job {$order->order_id}", $order, force: true);
+                AuditTrail::record('optical.lenses_released', "Released {$released} held lens(es) from job {$order->order_id}".(trim((string) $note) !== '' ? ' — '.trim((string) $note) : ''), $order, force: true);
             }
 
             return $released;

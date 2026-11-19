@@ -59,7 +59,9 @@
                         <div class="att-actions">
                             @if($item['phone'])<a href="tel:{{ preg_replace('/[^\d+]/', '', $item['phone']) }}" title="Call {{ $item['phone'] }}"><i class="fas fa-phone"></i> Call</a>@endif
                             @if($item['url'])<a href="{{ $item['url'] }}">Open</a>@endif
-                            @if($rule !== 'stock_expired')
+                            @if($rule === 'lens_held')
+                                <button type="button" class="att-done" wire:click="start({{ $args }}, 'release')" title="Free these lenses for sale and other jobs">Release lenses</button>
+                            @elseif($rule !== 'stock_expired')
                                 <button type="button" class="att-done" wire:click="start({{ $args }}, 'done')" @if($stock) title="Noted: hide it until it gets closer to expiry" @endif>{{ $stock ? 'Noted' : 'Done' }}</button>
                             @endif
                             <button type="button" wire:click="start({{ $args }}, 'snoozed')" title="Hide until tomorrow">Snooze</button>
@@ -74,11 +76,13 @@
                             <input type="text" wire:model="note" maxlength="500" autofocus placeholder="{{ match ($mode) {
                                 'done' => $stock ? 'e.g. Moved to the front, selling first (optional)' : 'What happened? e.g. Called, coming Friday (optional)',
                                 'writeoff' => 'e.g. Disposed of, returned to supplier (optional)',
+                                'release' => 'Why? e.g. Customer not coming back, will re-order (optional)',
                                 default => 'Why snooze? (optional)',
                             } }}">
                             <button type="submit" @if($mode === 'writeoff') style="background:#b91c1c;border-color:#b91c1c" @endif>{{ match ($mode) {
                                 'done' => $stock ? 'Mark noted' : 'Mark done',
                                 'writeoff' => 'Remove ' . ($item['quantity'] ?? '') . ' from stock',
+                                'release' => 'Release the held lenses',
                                 default => 'Snooze till tomorrow',
                             } }}</button>
                             <button type="button" class="att-cancel" wire:click="cancel">Cancel</button>

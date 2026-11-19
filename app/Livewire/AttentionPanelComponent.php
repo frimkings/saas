@@ -18,12 +18,13 @@ class AttentionPanelComponent extends Component
     public bool $compact = false;
     public bool $page = false;
 
-    /** The item being acted on: "rule|type|id|action" (action: done, snoozed or writeoff). */
+    /** The item being acted on: "rule|type|id|action" (action: done, snoozed, writeoff or release). */
     public ?string $acting = null;
     public string $note = '';
 
     private const COMPACT_PER_GROUP = 3;
     private const WRITE_OFF = 'writeoff';
+    private const RELEASE = 'release';
 
     public function mount(?string $line = null, bool $compact = false): void
     {
@@ -56,6 +57,13 @@ class AttentionPanelComponent extends Component
         if ($action === self::WRITE_OFF) {
             $removed = $items->writeOff((string) $type, (int) $id, $this->note);
             $message = $removed > 0 ? "Removed {$removed} from stock." : 'Cleared: none of this batch was left in stock.';
+        } elseif ($action === self::RELEASE) {
+            abort_unless($rule === 'lens_held', 422);
+            $released = app(\App\Services\OpticalJobTrackingService::class)->releaseHeldLenses((int) $id, $this->note);
+            $items->forgetCounts();
+            $message = $released > 0
+                ? $released.' '.\Illuminate\Support\Str::plural('lens', $released).' released for sale. The job takes a lens again at glazing if one is free.'
+                : 'This job was no longer holding any lenses.';
         } else {
             $items->act((string) $rule, (int) $id, (string) $action, $this->note, (string) $type);
             $message = $action === AttentionAction::DONE ? 'Marked as dealt with.' : 'Snoozed until tomorrow.';

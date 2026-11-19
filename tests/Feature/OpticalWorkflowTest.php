@@ -3009,6 +3009,29 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame(['od' => 'consumed', 'os' => 'consumed'], $order->lensLines()->pluck('status', 'eye')->all());
     }
 
+    public function test_needs_attention_asks_to_release_lenses_held_a_day_by_a_job_not_started(): void
+    {
+        \App\Models\OpticalSetting::create(['warranty_months' => 0, 'min_deposit_percentage' => 0, 'lens_hold_prompt_days' => 1]);
+        [$order, $lens] = $this->stockLensOrder('hold-prompt', ['od' => ['sph' => '+0.25'], 'os' => ['sph' => '+0.25']], 2);
+        $items = app(\App\Services\Reminders\AttentionItems::class);
+        $this->assertArrayNotHasKey('lens_held', $items->groups('optical'), 'Not on the first day.');
+
+        $this->travel(25)->hours();
+        $group = $items->groups('optical')['lens_held'] ?? null;
+        $this->assertNotNull($group);
+        $this->assertSame($order->id, $group['items']->first()['id']);
+        $this->assertStringContainsString('Both eyes: ', $group['items']->first()['detail']);
+
+        // Released from the prompt, with a note on the job's history.
+        Livewire::test(\App\Livewire\AttentionPanelComponent::class, ['line' => 'optical'])
+            ->call('start', 'lens_held', 'lens_order', $order->id, 'release')
+            ->set('note', 'Customer not coming back')->call('confirm');
+        $this->assertSame(2, app(\App\Services\OpticalProductInventoryService::class)->available($lens), 'Free for other jobs again.');
+        $this->assertSame(['od' => 'released', 'os' => 'released'], $order->lensLines()->pluck('status', 'eye')->all());
+        $this->assertDatabaseHas('audit_trails', ['event' => 'optical.lenses_released', 'description' => "Released 2 held lens(es) from job {$order->order_id} — Customer not coming back"]);
+        $this->assertArrayNotHasKey('lens_held', $items->groups('optical'), 'Gone once released.');
+    }
+
     public function test_job_tracking_lists_each_job_once_with_every_reason_and_can_set_a_new_date(): void
     {
         \App\Models\OpticalSetting::create(['warranty_months' => 0, 'min_deposit_percentage' => 0, 'stuck_job_days' => 7]);
