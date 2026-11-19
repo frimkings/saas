@@ -1,6 +1,6 @@
 @php
     $money = fn ($amount) => currency().' '.number_format((float) $amount, 2);
-    $isManager = auth()->user()->hasAnyRole(['Manager', 'Super Admin']);
+    $isManager = \App\Support\Access\Access::can('expenses.manage', 'optical.manage');
     $change = $previousTotal > 0 ? ($totalInRange - $previousTotal) / $previousTotal * 100 : null;
     $splitTotal = max(0.01, (float) $categoryTotals->sum('total'));
     $filtered = $categoryId !== '' || $search !== '' || $receipt !== '';

@@ -26,7 +26,7 @@ class AttendanceExportController extends Controller
 
         if ($format === 'payroll') {
             // Pay is for the owner's eyes: not managers.
-            abort_unless($request->user()?->hasRole('Super Admin') && \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_PAYROLL), 403);
+            abort_unless(\App\Support\Access\Access::allows($request->user(), 'attendance.payroll') && \App\Services\LicenseService::has(\App\Support\Feature::ATTENDANCE_PAYROLL), 403);
 
             return app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->csv($first, $last);
         }

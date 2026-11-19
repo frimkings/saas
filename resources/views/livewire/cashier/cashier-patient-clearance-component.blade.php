@@ -321,7 +321,7 @@
                                             </button>
                                         @endforeach
                                         {{-- A new clinic has none until someone adds them; say where. --}}
-                                        <p id="clr-service-empty" class="px-3 py-4 text-center text-slate-500" style="display:none;">@if($services->isEmpty())No services yet. @if(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']))Add one under <a href="{{ route('admin.product') }}" class="font-semibold text-teal-700 underline">Products</a>, in the Services category.@else A manager adds them under Products, in the Services category.@endif @else No service matches @endif</p>
+                                        <p id="clr-service-empty" class="px-3 py-4 text-center text-slate-500" style="display:none;">@if($services->isEmpty())No services yet. @if(\App\Support\Access\Access::can('inventory.manage'))Add one under <a href="{{ route('admin.product') }}" class="font-semibold text-teal-700 underline">Products</a>, in the Services category.@else A manager adds them under Products, in the Services category.@endif @else No service matches @endif</p>
                                     </div>
                                     <button type="button" class="mt-2 text-sm font-semibold text-red-700 hover:underline" data-id="unpaid" data-label="✗ Unpaid (no charge)"
                                             onclick="window.pickService(this)">✗ Clear as unpaid (no charge)</button>

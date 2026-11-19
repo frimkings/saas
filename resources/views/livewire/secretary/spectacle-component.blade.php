@@ -435,7 +435,7 @@
                                 </button>
                             @endforeach
                         </div>
-                        @if(auth()->user()->hasAnyRole(['Manager','Super Admin']))
+                        @if(\App\Support\Access\Access::can('spectacles.override'))
                             <label class="so-form-field mt-2"><span>Override reason (required only to skip a stage)</span><input aria-label="Reason for authorized override" type="text" wire:model="statusOverrideReason" placeholder="Reason for authorized override"></label>
                         @endif
 

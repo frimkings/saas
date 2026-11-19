@@ -153,7 +153,7 @@
                     <p class="{{ $label }}">Location link</p>
                     <p class="text-sm text-slate-600">
                         Set with the clinic's other links in
-                        @if(auth()->user()?->hasRole('Super Admin'))
+                        @if(\App\Support\Access\Access::can('settings.manage'))
                             <a href="{{ route('admin.settings', ['tab' => 'links']) }}" class="text-teal-700 underline">Settings &rarr; Clinic Links</a>;
                         @else
                             Settings &rarr; Clinic Links;
@@ -163,11 +163,11 @@
                 </div>
                 <p class="text-sm text-slate-600">
                     Reminder, confirmation and follow-up wording (for both SMS and WhatsApp) comes from the
-                    @role('Super Admin')
+                    @access('messages.patients')
                         <a href="{{ route('admin.messages') }}" class="text-teal-700 underline">SMS Templates</a>.
                     @else
                         SMS Templates in Settings.
-                    @endrole
+                    @endaccess
                     Links (location, WhatsApp, review, social) come from Settings &rarr; Clinic Links.
                 </p>
                 <div class="max-w-xs">

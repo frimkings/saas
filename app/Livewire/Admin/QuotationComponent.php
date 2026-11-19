@@ -303,7 +303,7 @@ class QuotationComponent extends Component
 
     public function confirmDelete(int $id): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('records.delete'), 403);
         $q = Quotation::findOrFail($id);
         $this->dispatch('show-confirm', ...[
             'id'      => $id,
@@ -314,7 +314,7 @@ class QuotationComponent extends Component
 
     public function deleteQuotation(int $id): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('records.delete'), 403);
         $q = Quotation::findOrFail($id);
         AuditTrail::record('quotation.deleted', "Soft-deleted quotation {$q->quotation_number} for {$q->patient_name}", $q, force: true);
         $q->delete(); // soft delete — model uses SoftDeletes

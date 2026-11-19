@@ -142,7 +142,7 @@ final class OpticalAccess
 
     public static function isManager(?User $user): bool
     {
-        return (bool) $user?->hasAnyRole(self::MANAGERS);
+        return \App\Support\Access\Access::allows($user, 'optical.manage');
     }
 
     /** Can this person open this optical route? */

@@ -55,9 +55,9 @@ class AllApprovalsComponent extends Component
             'discount'            => \App\Support\Access\Access::allows($user, 'approve.discounts'),
             'refund'              => \App\Support\Access\Access::allows($user, 'approve.refunds'),
             'revoke'              => \App\Support\Access\Access::allows($user, 'approve.revokes'),
-            'password_reset',
-            'correction',
-            'spectacle_renewal'  => $user?->hasRole('Super Admin'),
+            'password_reset'      => \App\Support\Access\Access::allows($user, 'approve.password_resets'),
+            'correction'          => \App\Support\Access\Access::allows($user, 'approve.corrections'),
+            'spectacle_renewal'   => \App\Support\Access\Access::allows($user, 'approve.spectacle_renewals'),
             default              => false,
         };
     }

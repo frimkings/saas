@@ -20,8 +20,7 @@ class DiscountApprovalNoticeController extends Controller
             return false;
         }
 
-        $routeGate = $user->hasAnyRole(['Manager', 'Super Admin'])
-            || $user->can('manage billing') || $user->can('approve clearance revoke');
+        $routeGate = \App\Support\Access\Access::allowsAny($user, ['approve.discounts', 'approve.refunds', 'approve.revokes']);
 
         return $routeGate && (new static)->canHandleDiscountApprovals()
             && app(ClinicAccessService::class)->access('approvals')['allowed'];
@@ -143,7 +142,7 @@ class DiscountApprovalNoticeController extends Controller
     {
         $user = auth()->user();
 
-        return (bool) ($user?->hasRole(['Manager', 'Super Admin']) || $user?->can('manage billing') || $user?->can('approve discounts'));
+        return (bool) \App\Support\Access\Access::allows($user, 'approve.discounts');
     }
 
     private function requestCartIds(DiscountApprovalRequest $request)

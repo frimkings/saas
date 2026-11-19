@@ -114,13 +114,13 @@
                                        title="Download PDF">
                                         <i class="fas fa-file-pdf"></i>
                                     </a>
-                                    @hasrole('Super Admin')
+                                    @access('records.delete')
                                     <button wire:click="confirmDelete({{ $q->id }})"
                                             class="ui-button ui-button-sm ui-button-danger ml-1"
                                             title="Delete (soft)">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    @endhasrole
+                                    @endaccess
                                 </td>
                             </tr>
                         @empty

@@ -12,9 +12,9 @@
                 <td>{{ $import->active_lines === 0 ? 'Reversed' : ($import->active_lines < $import->receipt_lines ? 'Partially reversed' : 'Received') }}</td>
                 <td>{{ $import->created_at->format('d M Y H:i') }}<div>{{ $import->user?->name }}</div></td>
                 <td><button type="button" wire:click="viewImport({{ $import->id }})" class="underline">View receipt</button>
-                    @hasanyrole('Manager|Super Admin')@if($import->active_lines > 0)
+                    @access('optical.manage')@if($import->active_lines > 0)
                         <button type="button" wire:click="reverseImport({{ $import->id }})" wire:confirm="Reverse all remaining stock receipts in this import? All lines must have enough stock. This records offsetting ledger entries." class="text-red-700 underline ml-2">Reverse import</button>
-                    @endif@endhasanyrole
+                    @endif@endaccess
                 </td>
             </tr>
         @empty<tr><td colspan="7">No tracked imports found.</td></tr>@endforelse</tbody>

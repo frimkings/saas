@@ -23,13 +23,13 @@ class OwnerEmailsComponent extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('settings.manage'), 403);
     }
 
     /** Send yesterday's daily summary now, to check the owner email works. */
     public function sendTest(OwnerSummaryService $summaries): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('settings.manage'), 403);
         $clinic = app(TenantContext::class)->requireClinic();
         if (! OwnerMailer::ownerEmail($clinic)) {
             $this->dispatch('notify', type: 'error', message: 'Add an owner email under Subscription → Billing profile first.');

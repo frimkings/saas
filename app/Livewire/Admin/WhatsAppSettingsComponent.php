@@ -26,7 +26,7 @@ class WhatsAppSettingsComponent extends Component
 
     public function mount(): void
     {
-        if (!Auth::user()->hasRole('Super Admin')) return;
+        if (!\App\Support\Access\Access::can('messages.patients')) return;
 
         $s = Setting::getSettings();
         $this->whatsappEnabled  = (bool) ($s->whatsapp_enabled ?? false);

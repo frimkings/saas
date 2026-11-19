@@ -30,6 +30,7 @@ final class RoleMap
         'approve.discounts', 'approve.refunds', 'approve.revokes',
         'inventory.manage', 'inventory.movements', 'purchasing.manage', 'lens_report.view',
         'dashboard.view', 'messages.recall', 'messages.logs',
+        'sales.refund_any', 'pos.all_open_sales', 'receipts.view_all', 'scans.manage', 'spectacles.override',
         'attendance.manage', 'audit.view', 'branches.manage', 'optical.manage',
     ];
 
@@ -39,8 +40,8 @@ final class RoleMap
         return match ($role) {
             self::OWNER => Permissions::keys(),
             'Manager' => [...self::TILL, ...self::FRONT_DESK, ...self::MANAGEMENT],
-            'Secretary' => [...self::TILL, ...self::FRONT_DESK],
-            'Cashier' => [...self::TILL, 'scans.desk', 'dayclose.manage'],
+            'Secretary' => [...self::TILL, ...self::FRONT_DESK, 'receipts.view_all'],
+            'Cashier' => [...self::TILL, 'scans.desk', 'dayclose.manage', 'sales.refund_own'],
             'Doctor' => self::CLINICAL,
             default => [],
         };

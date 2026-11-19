@@ -11,6 +11,6 @@ trait RequiresSuperAdmin
 {
     public function mountRequiresSuperAdmin(): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('messages.patients', 'messages.broadcast'), 403);
     }
 }

@@ -1605,7 +1605,7 @@
                                                             <a href="{{ $document->url }}" target="_blank" class="ui-button ui-button-sm ui-button-secondary">
                                                                 <i class="fas fa-eye"></i>
                                                             </a>
-                                                            @if(auth()->user()->hasRole('Super Admin'))
+                                                            @if(\App\Support\Access\Access::can('records.delete'))
                                                                 <button wire:click="deletePatientDocument({{ $document->id }})"
                                                                     wire:confirm="Delete this document?"
                                                                     class="ui-button ui-button-sm ui-button-danger">

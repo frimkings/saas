@@ -1,6 +1,6 @@
 {{-- The patient's earlier prescriptions here and from the previous software (PatientRecordsComponent::getPreviousMedicationsProperty). --}}
 @if($previousMedications->isNotEmpty())
-    @php($canMatchNames = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']))
+    @php($canMatchNames = \App\Support\Access\Access::can('inventory.manage'))
     <div class="ui-panel mt-4" x-data="{ all: false }" aria-labelledby="previous-medications-title">
         <div class="ui-section-heading">
             <h6 class="mb-0 font-semibold" id="previous-medications-title">

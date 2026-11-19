@@ -189,7 +189,7 @@ class ExpensesComponent extends Component
     /** Not paid this time (or paid elsewhere): move on to the next due date. */
     public function skipRecurring(int $id): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->assertWritable();
         $recurring = $this->lineRecurring()->where('is_active', true)->findOrFail($id);
         $skipped = $recurring->next_due_date->format('d M Y');
@@ -200,7 +200,7 @@ class ExpensesComponent extends Component
 
     public function stopRecurring(int $id): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->assertWritable();
         $recurring = $this->lineRecurring()->findOrFail($id);
         $recurring->update(['is_active' => false]);
@@ -325,7 +325,7 @@ class ExpensesComponent extends Component
 
     public function confirmDelete(int $id): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
 
         $this->dispatch('show-delete-confirmation', ...[
             'id'     => $id,
@@ -335,7 +335,7 @@ class ExpensesComponent extends Component
 
     public function deleteExpense(int $id): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->assertWritable();
 
         $expense = $this->lineExpenses()->findOrFail($id);
@@ -406,14 +406,14 @@ class ExpensesComponent extends Component
 
     public function openCreateCategory(): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->resetCategoryForm();
         $this->showCategoryModal = true;
     }
 
     public function openEditCategory(int $id): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $cat = ExpenseCategory::findOrFail($id);
         $this->categoryEditId      = $id;
         $this->isEditingCategory   = true;
@@ -429,7 +429,7 @@ class ExpensesComponent extends Component
 
     public function saveCategory(): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->assertWritable();
 
         $clinicId = ExpenseCategory::clinicIdForWrite();
@@ -460,7 +460,7 @@ class ExpensesComponent extends Component
 
     public function toggleCategoryActive(int $id): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->assertWritable();
         $cat = ExpenseCategory::findOrFail($id);
         $cat->update(['is_active' => !$cat->is_active]);
@@ -469,7 +469,7 @@ class ExpensesComponent extends Component
     /** One-click starter categories for a new optical shop. */
     public function addDefaultCategories(): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can($this->isOptical() ? 'optical.manage' : 'expenses.manage'), 403);
         $this->assertWritable();
         // A one-click start for a clinic or shop with no categories yet; each can rename or add its own.
         foreach ($this->isOptical() ? self::DEFAULT_OPTICAL_CATEGORIES : self::DEFAULT_CLINIC_CATEGORIES as $name) {
@@ -614,12 +614,12 @@ class ExpensesComponent extends Component
         // Where this line's expenses are reported: the optical P&L or the clinic income statement.
         $statementLink = $this->isOptical()
             ? ['label' => 'Profit & Loss', 'url' => route('optical.profit', ['from' => $from->toDateString(), 'to' => $to->toDateString()])]
-            : (LicenseService::has(Feature::ADVANCED_REPORTS) && (auth()->user()?->hasRole('Super Admin') || auth()->user()?->can('manage billing'))
+            : (LicenseService::has(Feature::ADVANCED_REPORTS) && \App\Support\Access\Access::can('reports.finance')
                 ? ['label' => 'Income statement', 'url' => route('admin.income-statement', ['fromDate' => $this->fromDate, 'toDate' => $this->toDate])]
                 : null);
         $isOptical = $this->isOptical();
         // Expenses brought over from the clinic's previous software live on a page of their own (owners only).
-        $hasLegacyExpenses = ! $isOptical && auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) && LegacyExpense::query()->exists();
+        $hasLegacyExpenses = ! $isOptical && \App\Support\Access\Access::can('expenses.manage') && LegacyExpense::query()->exists();
 
         return view('livewire.admin.expenses-component', compact(
             'expenses', 'categories', 'allCategories', 'sectionLabels',

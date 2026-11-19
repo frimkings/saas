@@ -481,7 +481,7 @@ class OpticalLinkService
 
     public function canManageLinks(?User $user): bool
     {
-        return (bool) $user?->hasAnyRole(['Super Admin', 'Manager']);
+        return \App\Support\Access\Access::allows($user, 'optical_centres.manage');
     }
 
     private function senderRequest(int $id): OpticalOrderRequest

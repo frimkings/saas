@@ -22,7 +22,7 @@ class LicenseComponent extends Component
 
     public function activate(): void
     {
-        abort_unless(Auth::user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('billing.manage'), 403);
         abort_if(app(\App\Services\ClinicAccessService::class)->hosted(), 403);
         $key = trim($this->licenseKey);
 

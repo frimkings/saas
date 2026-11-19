@@ -24,10 +24,13 @@ final class Permissions
         'optical_centres.manage' => ['Optical centres: links, invitations and money owed', 'Patients & front desk', []],
         'scans.desk' => ['Diagnostic scans: front desk', 'Patients & front desk', []],
         'scans.export' => ['Diagnostic scans: export report', 'Patients & front desk', []],
+        'scans.manage' => ['Diagnostic scans: prices, commission and partners', 'Patients & front desk', []],
+        'spectacles.override' => ['Override a spectacle order status (with a reason)', 'Patients & front desk', []],
 
         // Clinical
         'clinical.queue' => ["Doctor's dashboard and queue", 'Clinical', []],
-        'clinical.records' => ['Consultations, refraction and patient records', 'Clinical', []],
+        'clinical.records' => ['Consultations, refraction and patient records', 'Clinical', ['view medical records']],
+        'records.delete' => ['Delete patient documents, letters and quotations; cancel any scan order', 'Clinical', []],
         'clinical.referrals' => ['Referrals', 'Clinical', []],
         'clinical.print' => ['Clinical PDFs, prescriptions and visit cards', 'Clinical', []],
         'clinical.task_center' => ['Clinical task centre', 'Clinical', []],
@@ -46,18 +49,26 @@ final class Permissions
         'ledger.view' => ['Patient ledger', 'Sales & money', []],
         'insurance.manage' => ['Insurers, claims and receivables', 'Sales & money', []],
         'insurance.payments' => ['Record insurer payments', 'Sales & money', ['record insurer payments']],
+        'sales.refund_any' => ['Request refunds on any sale', 'Sales & money', []],
+        'sales.refund_own' => ['Request refunds on sales they made', 'Sales & money', []],
+        'receipts.view_all' => ['See every receipt, not only their own', 'Sales & money', []],
+        'pos.all_open_sales' => ["Continue other staff's open sales at the till", 'Sales & money', []],
+        'cashbook.correct' => ['Correct the cash book and reopen closed days', 'Sales & money', []],
 
         // Approvals (maker–checker comes in phase 3)
-        'approve.discounts' => ['Approve discounts', 'Approvals', ['manage billing']],
+        'approve.discounts' => ['Approve discounts (and give larger ones without asking)', 'Approvals', ['manage billing', 'approve discounts']],
         'approve.refunds' => ['Approve refunds', 'Approvals', ['manage billing']],
         'approve.revokes' => ['Approve clearance revokes', 'Approvals', ['manage billing', 'approve clearance revoke']],
         'approve.password_resets' => ['Approve password resets', 'Approvals', []],
+        'approve.corrections' => ['Approve payment corrections and voids', 'Approvals', []],
+        'approve.spectacle_renewals' => ['Approve early spectacle renewals', 'Approvals', []],
 
         // Stock & purchasing
         'inventory.manage' => ['Products and categories', 'Stock & purchasing', []],
         'inventory.movements' => ['Stock movements and alerts', 'Stock & purchasing', []],
         'purchasing.manage' => ['Suppliers, purchase orders and transfers', 'Stock & purchasing', []],
         'lens_report.view' => ['Lens outstanding report', 'Stock & purchasing', []],
+        'stock.write_off' => ['Write off expired or lost stock', 'Stock & purchasing', []],
 
         // Reports
         'dashboard.view' => ['Admin dashboard (business overview)', 'Reports', []],
@@ -73,8 +84,11 @@ final class Permissions
 
         // Staff, settings, billing
         'staff.manage' => ['Staff and their roles', 'Staff & settings', ['manage users']],
+        'staff.grant_owner' => ['Give or take the Owner role', 'Staff & settings', []],
         'roles.view' => ['See what each role can do', 'Staff & settings', []],
-        'attendance.manage' => ['Attendance departments', 'Staff & settings', []],
+        'attendance.manage' => ['Attendance: all departments and their settings', 'Staff & settings', []],
+        'attendance.payroll' => ['Attendance payroll and pay rates', 'Staff & settings', []],
+        'attendance.emails' => ['Clock-in emails', 'Staff & settings', []],
         'audit.view' => ['Audit trail and login history', 'Staff & settings', []],
         'branches.manage' => ['Branches', 'Staff & settings', []],
         'settings.manage' => ['Clinic settings', 'Staff & settings', []],

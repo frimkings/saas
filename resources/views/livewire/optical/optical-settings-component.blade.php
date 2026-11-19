@@ -1,6 +1,6 @@
 @php
-    $isManager = auth()->user()?->hasAnyRole(['Super Admin', 'Manager']);
-    $isOwner = auth()->user()?->hasRole('Super Admin');
+    $isManager = \App\Support\Access\Access::can('optical.manage');
+    $isOwner = \App\Support\Access\Access::can('settings.manage');
     // One tab per section; the URL hash keeps the tab across reloads (#payments, #reminders, ...).
     $tabs = array_filter([
         'general' => ['General', 'fa-sliders-h', true],

@@ -1309,7 +1309,7 @@ class OpticalOrderCreateComponent extends Component
                 })->orderBy('name')->limit(10)->get()
                 : collect(),
             // The special-order tour tells managers how to order the lens themselves.
-            'specialTourContext' => ['buyer' => (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])],
+            'specialTourContext' => ['buyer' => \App\Support\Access\Access::can('optical.manage')],
             // Every active partner: the picker filters them in the browser.
             'partners' => OpticalPartnerClinic::where('is_active', true)->orderBy('name')->get(),
             'prescriptions' => $this->patient_id ? OpticalPrescription::where('patient_id', $this->patient_id)->latest()->get() : collect(),

@@ -68,7 +68,7 @@
                 @if($staffPack)
                     You can add {{ $staffPack['size'] }} more staff for {{ $staffPack['currency'] }} {{ number_format($staffPack['price'], 2) }} a month.
                     @if($staffPack['asked'])<span class="ml-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium">Asked for; waiting</span>
-                    @elseif(auth()->user()->hasRole('Super Admin'))<button type="button" class="ui-button ui-button-primary ml-1 !py-1 !text-xs" wire:click="requestPart('{{ \App\Support\Feature::ATTENDANCE_STAFF_PACK }}')">Ask for more staff</button>@endif
+                    @elseif(\App\Support\Access\Access::can('billing.manage'))<button type="button" class="ui-button ui-button-primary ml-1 !py-1 !text-xs" wire:click="requestPart('{{ \App\Support\Feature::ATTENDANCE_STAFF_PACK }}')">Ask for more staff</button>@endif
                 @elseif($nextSize && $nextSize['special'])
                     To follow more, ask us for a quote: larger teams have special pricing.
                 @elseif($nextSize)
@@ -855,7 +855,7 @@
     @if($showMore)
         <x-ui.modal title="More attendance features" state="showMore">
             <div class="space-y-3 p-4">
-                <p class="!mb-0 text-sm text-slate-600">These parts of attendance are not in your plan. Each can be added on its own for a monthly price{{ auth()->user()->hasRole('Super Admin') ? '' : '; the owner can ask for them' }}.</p>
+                <p class="!mb-0 text-sm text-slate-600">These parts of attendance are not in your plan. Each can be added on its own for a monthly price{{ \App\Support\Access\Access::can('billing.manage') ? '' : '; the owner can ask for them' }}.</p>
                 @foreach($locked as $part)
                     <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3" wire:key="locked-{{ $part['feature'] }}">
                         <div class="min-w-[14rem] flex-1">
@@ -865,7 +865,7 @@
                         <div class="text-right">
                             @if($part['price'] !== null)<p class="!mb-1 text-sm font-semibold text-slate-800">{{ $part['currency'] }} {{ number_format($part['price'], 2) }} a month</p>@endif
                             @if($part['asked'])<span class="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900">Asked for; waiting</span>
-                            @elseif($part['price'] !== null && auth()->user()->hasRole('Super Admin'))<x-ui.button type="button" variant="primary" wire:click="requestPart('{{ $part['feature'] }}')" wire:loading.attr="disabled">Ask for it</x-ui.button>
+                            @elseif($part['price'] !== null && \App\Support\Access\Access::can('billing.manage'))<x-ui.button type="button" variant="primary" wire:click="requestPart('{{ $part['feature'] }}')" wire:loading.attr="disabled">Ask for it</x-ui.button>
                             @else<span class="text-xs text-slate-500">Contact us to add it</span>@endif
                         </div>
                     </div>

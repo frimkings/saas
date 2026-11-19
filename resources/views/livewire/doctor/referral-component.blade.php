@@ -151,7 +151,7 @@
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 @endif
-                                @if(auth()->user()->hasRole('Super Admin'))
+                                @if(\App\Support\Access\Access::can('records.delete'))
                                 <button wire:click="confirmDelete({{ $ref->id }})" class="ui-button ui-button-sm ui-button-danger ml-1" title="Delete">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>

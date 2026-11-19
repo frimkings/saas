@@ -142,7 +142,7 @@ class OpticalPosComponent extends Component
             throw ValidationException::withMessages(['discount' => 'The discount cannot be more than the sale.']);
         }
         $limit = \App\Models\OpticalSetting::posMaxDiscountPercent();
-        if ($discount > round($subtotal * $limit / 100, 2) && ! auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])) {
+        if ($discount > round($subtotal * $limit / 100, 2) && ! \App\Support\Access\Access::can('approve.discounts')) {
             throw ValidationException::withMessages(['discount' => "Discounts over {$limit}% need a manager."]);
         }
         return $discount;

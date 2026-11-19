@@ -39,7 +39,7 @@ class DiagnosticScansComponent extends Component
     /** Prices, commission rates and partners' payout details are a manager's to change. */
     public static function canManage(): bool
     {
-        return (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+        return \App\Support\Access\Access::can('scans.manage');
     }
 
     public function render()

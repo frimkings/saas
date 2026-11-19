@@ -24,6 +24,6 @@
         }
     } catch (\Throwable) {}
 @endphp
-@if($subscriptionNotice)<div class="alert alert-{{ $subscriptionNotice[0] }} rounded-0 mb-0 py-2 text-center"><i class="fas fa-exclamation-triangle mr-1"></i>{{ $subscriptionNotice[1] }} @hasrole('Super Admin')<a href="{{ route('admin.subscription') }}" class="alert-link ml-2">Open Subscription &amp; Billing</a>@endhasrole</div>@endif
+@if($subscriptionNotice)<div class="alert alert-{{ $subscriptionNotice[0] }} rounded-0 mb-0 py-2 text-center"><i class="fas fa-exclamation-triangle mr-1"></i>{{ $subscriptionNotice[1] }} @access('billing.manage')<a href="{{ route('admin.subscription') }}" class="alert-link ml-2">Open Subscription &amp; Billing</a>@endaccess</div>@endif
 @endif
 @endauth

@@ -535,7 +535,7 @@ public $isEditingAppointment = false;
 
     public function deletePatientDocument($documentId)
     {
-        abort_unless(Auth::user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('records.delete'), 403);
 
         $document = PatientDocument::where('patient_id', $this->patient->id)->findOrFail($documentId);
         $oldValues = $document->only(['document_type', 'title', 'file_path']);

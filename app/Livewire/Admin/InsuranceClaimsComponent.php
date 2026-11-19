@@ -446,7 +446,7 @@ class InsuranceClaimsComponent extends Component
         $outstandingSum  = InsuranceClaim::whereIn('status', ['approved', 'partially_approved'])
                              ->sum(DB::raw('GREATEST(COALESCE(approved_amount, claim_amount) - amount_received, 0)'));
         $statusClaim     = $this->statusClaimId ? InsuranceClaim::with('insurer')->find($this->statusClaimId) : null;
-        $canRecordPayments = auth()->user()?->hasRole('Super Admin') || auth()->user()?->can(InsurerPayment::PERMISSION);
+        $canRecordPayments = \App\Support\Access\Access::can('insurance.payments');
         $pendingPreAuth  = InsuranceClaim::where('pre_auth_status', 'pending')->count();
 
         return view('livewire.admin.insurance-claims-component', compact(

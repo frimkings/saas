@@ -187,6 +187,6 @@ class DayCloseComponent extends Component
             'isOwner' => DayCloseService::isOwner(),
             'recent' => DayClose::with('closer:id,name')->latest('business_date')->limit(10)->get(),
             'branch' => $branch,
-        ])->layout(...(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) ? ['layouts.admin.admin-layout'] : ['layouts.clinic', ['menu' => 'reception']]));
+        ])->layout(...(\App\Support\Access\Access::can('dashboard.view') ? ['layouts.admin.admin-layout'] : ['layouts.clinic', ['menu' => 'reception']]));
     }
 }

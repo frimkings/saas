@@ -728,7 +728,7 @@ class UserRoleManagerComponent extends Component
     {
         $user = auth()->user();
 
-        return (bool) ($user?->hasRole('Super Admin') || $user?->can('manage users'));
+        return \App\Support\Access\Access::allows($user, 'staff.manage');
     }
 
     /**
@@ -737,7 +737,7 @@ class UserRoleManagerComponent extends Component
      */
     private function actsAsSuperAdmin(): bool
     {
-        return (bool) auth()->user()?->hasRole('Super Admin');
+        return \App\Support\Access\Access::can('staff.grant_owner');
     }
 
     private function isSuperAdminHere(User $user): bool

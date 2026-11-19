@@ -14,7 +14,7 @@ class AttendanceScope
 {
     public static function manager(?User $user): bool
     {
-        return (bool) $user?->hasAnyRole(['Super Admin', 'Manager']);
+        return \App\Support\Access\Access::allows($user, 'attendance.manage');
     }
 
     /** Ids of the departments at this branch the person heads. */

@@ -365,7 +365,7 @@ class SalesRecordsComponent extends Component
         $sale = Sales::where('business_line', $this->businessLine)->with('items.product')->findOrFail($saleId);
         $user = auth()->user();
         abort_unless(
-            $user?->hasAnyRole(['Manager', 'Super Admin']) || ($user?->hasRole('Cashier') && $sale->user_id === $user->id),
+            \App\Support\Access\Access::allows($user, 'sales.refund_any') || (\App\Support\Access\Access::allows($user, 'sales.refund_own') && $sale->user_id === $user->id),
             403,
             'You may only request refunds for transactions you created.'
         );
@@ -427,7 +427,7 @@ class SalesRecordsComponent extends Component
         $sale = Sales::where('business_line', $this->businessLine)->with('items')->findOrFail($this->initiatingRefundSale->id);
         $user = auth()->user();
         abort_unless(
-            $user?->hasAnyRole(['Manager', 'Super Admin']) || ($user?->hasRole('Cashier') && $sale->user_id === $user->id),
+            \App\Support\Access\Access::allows($user, 'sales.refund_any') || (\App\Support\Access\Access::allows($user, 'sales.refund_own') && $sale->user_id === $user->id),
             403,
             'You may only request refunds for transactions you created.'
         );
@@ -652,7 +652,7 @@ class SalesRecordsComponent extends Component
             // Scan sales are tagged with their Scan Desk order.
             'scanOrders' => $this->businessLine === 'clinic' ? \App\Models\ScanOrder::withTrashed()->whereIn('sale_id', $sales->pluck('id'))->pluck('order_number', 'sale_id') : collect(),
             // Payments brought over from the clinic's previous software have a page of their own (owners only).
-            'hasLegacyPayments' => $this->businessLine === 'clinic' && auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])
+            'hasLegacyPayments' => $this->businessLine === 'clinic' && \App\Support\Access\Access::can('sales.manage')
                 && \App\Models\PatientLegacyPayment::query()->exists(),
         ])->layout($layout, ['menu' => 'reception']);
     }

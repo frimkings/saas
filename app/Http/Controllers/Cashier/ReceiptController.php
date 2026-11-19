@@ -91,7 +91,7 @@ class ReceiptController extends Controller
 
         // Cashiers can only view receipts for their own sales, or ones they took a payment on (a visit
         // bill opened at clearance by the front desk and paid at the till).
-        if ($user->hasRole('Cashier')) {
+        if (! \App\Support\Access\Access::allows($user, 'receipts.view_all')) {
             $query->where(fn ($q) => $q->where('user_id', $user->id)
                 ->orWhereHas('paymentTransactions', fn ($p) => $p->where('collected_by', $user->id)));
         }

@@ -381,7 +381,7 @@ class RolePermissionManagerComponent extends Component
 
     private function authorizeRoleManagement(): void
     {
-        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('roles.view'), 403);
     }
 
     /**

@@ -26,15 +26,14 @@ final class ClinicSetup
         if (Guides::seen(self::GUIDE)) return null;
         // Only steps the plan includes, and buttons only to pages this person can open (Settings is the owner's).
         $user = auth()->user();
-        $owner = (bool) $user?->hasRole('Super Admin');
-        $settings = $owner ? route('admin.settings') : null;
+        $settings = \App\Support\Access\Access::allowsRoute($user, 'admin.settings') ? route('admin.settings') : null;
         $steps = array_values(array_filter([
             ['key' => 'details', 'title' => 'Your clinic\'s details', 'body' => 'Address, phone number, email and logo, and the initials patient numbers start with (VS-2611-042). They go on receipts, reports and the texts patients get. Set the initials before your first patient: they can\'t change after.',
                 'done' => ! Setting::getSettings()->needsSetup(), 'url' => $settings, 'button' => 'Settings'],
             ['key' => 'products', 'title' => 'Add what you charge for', 'body' => 'Consultation fees, drugs, drops and other items, each in a category with its price and stock.',
                 'done' => Product::query()->exists(), 'url' => route('admin.product'), 'button' => 'Products'],
             ['key' => 'staff', 'title' => 'Invite your staff', 'body' => 'Give each person a role: Secretary for the front desk, Cashier for payments, Doctor for consultations, Manager to run the clinic. Each then sees only their part of the menu.',
-                'done' => User::query()->inCurrentClinic()->count() > 1, 'url' => $owner || $user?->can('manage users') ? route('admin.users') : null, 'button' => 'Users'],
+                'done' => User::query()->inCurrentClinic()->count() > 1, 'url' => \App\Support\Access\Access::allowsRoute($user, 'admin.users') ? route('admin.users') : null, 'button' => 'Users'],
             LicenseService::has(Feature::CASH_BOOK) ? ['key' => 'cash-book', 'title' => 'Start the cash book', 'body' => 'Count the cash drawer once and enter it. From then on the cash book and the day close know what each till should hold.',
                 'done' => CashMovement::query()->where('type', CashMovement::OPENING)->whereNull('cancelled_at')->exists(), 'url' => route('admin.cash-book'), 'button' => 'Cash book'] : null,
         ]));

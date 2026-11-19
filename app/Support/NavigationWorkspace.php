@@ -14,21 +14,24 @@ class NavigationWorkspace
         // One set of pages, so nothing to switch between.
         if (OpticalMode::attendanceOnly()) return [];
         $workspaces = [];
-        $manager = $user->hasAnyRole(['Manager', 'Super Admin']);
+        $may = fn (string $permission) => \App\Support\Access\Access::allows($user, $permission);
+        $manager = $may('dashboard.view');
         if ($manager) {
             $workspaces['administration'] = ['Administration', 'admin.dashboard'];
         }
         if (! OpticalMode::opticalOnly() && app(ClinicAccessService::class)->access('clinical')['allowed']) {
+            // Each person's clinical start page, by what their roles let them do.
             $route = match (true) {
                 $manager => 'admin.clinical-task-center',
-                $user->hasRole('Doctor') => 'doctor.dashboard',
-                $user->hasRole('Secretary') => 'secretary.dashboard',
-                $user->hasRole('Cashier') => 'cashier.seller-desk',
+                $may('clinical.queue') => 'doctor.dashboard',
+                $may('patients.view') => 'secretary.dashboard',
+                $may('pos.sell') => 'cashier.seller-desk',
                 default => null,
             };
             if ($route) $workspaces['clinical'] = ['Clinical', $route];
         }
-        if ($user->hasAnyRole(['Secretary', 'Cashier', 'Optician', 'Manager', 'Super Admin'])
+        // Optical staff and the clinic roles that also work the optical desk or bench.
+        if (\App\Support\OpticalAccess::any($user)
             && app(ClinicAccessService::class)->access('optical')['allowed']) {
             $workspaces['optical'] = ['Optical', 'optical.dashboard'];
         }

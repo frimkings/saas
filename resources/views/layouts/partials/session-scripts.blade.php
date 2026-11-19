@@ -175,7 +175,7 @@ window.appPulse = (function () {
     };
 })();
 
-@if(auth()->user()?->hasRole(['Manager', 'Super Admin']))
+@if(\App\Support\Access\Access::can('approve.discounts'))
 (function () {
     var approveUrl = '{{ route("discount-approval-notices.approve", ["discountRequest" => "__REQUEST_ID__"]) }}';
     var rejectUrl = '{{ route("discount-approval-notices.reject", ["discountRequest" => "__REQUEST_ID__"]) }}';

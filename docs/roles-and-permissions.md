@@ -264,9 +264,42 @@ Questions this table raises (decide before phase 2, not phase 1):
   allows, refused or redirected otherwise) and checks every role's menu only links to pages it can
   open; `AccessScreensTest` lists the deliberate changes against the old snapshot.
 
-**Phase 1 part B, part 2 — next.** The remaining role-name checks guard single actions inside
-pages (owner-only deletes and settings, attendance payroll, quotation status, refunds…) and a few
-layout choices (`sharedLayout`, `NavigationWorkspace`). They move to permissions per action.
+**Phase 1 part B, part 2 — done 2026-11-18 (actions inside pages).**
+- About 150 action checks moved from role names to permissions across ~75 files (Livewire
+  components, services, controllers, middleware, views). Views use `@access('perm') … @endaccess`
+  or `Access::can('perm')`.
+- New action permissions (who has them by default):
+
+| Permission | What | Default |
+|---|---|---|
+| `records.delete` | Delete patient documents, letters, quotations; cancel any scan order | Owner |
+| `stock.write_off` | Write off expired / lost stock | Owner |
+| `cashbook.correct` | Correct the cash book, reopen closed days | Owner |
+| `approve.corrections` | Approve payment corrections and voids | Owner |
+| `approve.spectacle_renewals` | Approve early spectacle renewals | Owner |
+| `attendance.payroll` | Payroll and pay rates (incl. staff import with pay) | Owner |
+| `attendance.emails` | Clock-in emails | Owner |
+| `staff.grant_owner` | Give or take the Owner role | Owner |
+| `sales.refund_any` | Request refunds on any sale | Owner, Manager |
+| `sales.refund_own` | Request refunds on own sales | Cashier |
+| `pos.all_open_sales` | Continue other staff's open sales at the till | Owner, Manager |
+| `receipts.view_all` | See every receipt, not only their own | Owner, Manager, Secretary |
+| `scans.manage` | Scan prices, commission, partners | Owner, Manager |
+| `spectacles.override` | Override a spectacle order status (with a reason) | Owner, Manager |
+
+- Existing permissions now also guard their actions: optical manager actions → `optical.manage`;
+  expense edits → `expenses.manage` (`optical.manage` on the optical side); discounts above the
+  limit and approver checks → `approve.discounts`; insurer payments → `insurance.payments`;
+  SMS / WhatsApp settings → `messages.patients`; billing, add-ons, licence notices →
+  `billing.manage`; clinic settings, receipts, owner emails, links → `settings.manage`.
+- Layout and workspace choices (admin layout, doctor vs reception menu, workspace switcher,
+  profile quick links, communications menu, setup guide) follow permissions.
+- Kept on purpose (who someone *is*, not what they may do): the owner passes every check; platform
+  news goes to clinic owners; "is the person being edited an owner"; a doctor opening a record
+  needs its patient; landing page by role. `AccessActionsTest` fails if a new role-name check
+  appears anywhere else.
+- Visible change: a Manager who holds the old "manage users" permission now sees **Users** in the
+  menu (they could already open it).
 
 ### Browser check per role — 2026-11-18 (after phase 1A)
 
@@ -307,3 +340,10 @@ refused for everyone because the scans add-on isn't part of "all features" — a
 Opticians are now refused every till page; Staff's menu shows only Dashboard and Needs Attention;
 Managers' menu no longer lists Reports, Income / Combined statement or Settings.
 Full suite: 1272 tests pass.
+
+### Browser check per role — after phase 1B part 2 (2026-11-19)
+
+Nine single-role users, local test clinic 20: every menu link opened for every role; all 100
+guarded pages answered as the screen map says (Diagnostic Scans refused for everyone: plan
+add-on). Main searches work (POS, patients, clearance). Managers' menu now lists Users.
+Full suite: 1275 tests pass.

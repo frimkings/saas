@@ -52,7 +52,7 @@
                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-600">Withdrawn</span>
                     @elseif($state === 'unbilled')
                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">Waiting to pay</span>
-                        @if($order->source === 'internal' && ((int) $order->ordered_by === auth()->id() || auth()->user()->hasRole('Super Admin')))
+                        @if($order->source === 'internal' && ((int) $order->ordered_by === auth()->id() || \App\Support\Access\Access::can('records.delete')))
                             <button type="button" wire:click="withdraw({{ $order->id }})" wire:confirm="Withdraw scan order {{ $order->order_number }}?" class="ui-button ui-button-sm ui-button-link text-red-700">Withdraw</button>
                         @endif
                     @else

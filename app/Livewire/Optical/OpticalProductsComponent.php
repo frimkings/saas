@@ -63,13 +63,13 @@ class OpticalProductsComponent extends Component
 
     private function assertManager(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
         app(ClinicAccessService::class)->assertWritable('optical');
     }
 
     private function assertManagerRole(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
     }
 
     public function downloadTemplate()
@@ -115,7 +115,7 @@ class OpticalProductsComponent extends Component
     public function mount(): void
     {
         // Deep link from the catalogue's item panel: /optical/products?edit=ID
-        if (ctype_digit((string) request()->query('edit')) && auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])
+        if (ctype_digit((string) request()->query('edit')) && \App\Support\Access\Access::can('optical.manage')
             && OpticalProduct::whereKey((int) request()->query('edit'))->exists()) {
             $this->edit((int) request()->query('edit'));
         }

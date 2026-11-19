@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\ClinicAccessService;
 use App\Support\NavigationWorkspace;
+use App\Support\OpticalAccess;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use App\Support\Tenancy\RoleDashboardResolver;
 use Illuminate\Database\Eloquent\Collection;
 use Spatie\Permission\Models\Role;
@@ -12,19 +14,27 @@ use Tests\TestCase;
 
 class NavigationWorkspaceTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->mock(ClinicAccessService::class, function ($mock) {
             $mock->shouldReceive('access')->andReturn(['allowed' => true, 'read_only' => false]);
         });
+        // Real roles with the optical permissions the migrations give them: the optical workspace
+        // follows those permissions (desk = optical sales, bench = optical lab).
+        foreach (['Super Admin', 'Manager', 'Secretary', 'Cashier', 'Doctor'] as $role) {
+            Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
+        }
+        OpticalAccess::installRoles();
     }
 
     private function staff(string $role): User
     {
         $user = new User(['name' => 'Navigation test']);
         $user->id = 42;
-        $user->setRelation('roles', new Collection([new Role(['name' => $role, 'guard_name' => 'web'])]));
+        $user->setRelation('roles', new Collection([Role::findByName($role, 'web')]));
         return $user;
     }
 

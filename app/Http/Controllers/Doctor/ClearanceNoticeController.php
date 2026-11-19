@@ -14,7 +14,7 @@ class ClearanceNoticeController extends Controller
     /** The doctor routes' own checks: Doctor or Super Admin role, and a clinic (not optical-only) plan. */
     public static function mayPoll(?User $user): bool
     {
-        return $user !== null && $user->hasRole(['Doctor', 'Super Admin'])
+        return $user !== null && \App\Support\Access\Access::allows($user, 'clinical.queue')
             && ! OpticalMode::opticalOnly()
             && app(ClinicAccessService::class)->access('clinical')['allowed'];
     }

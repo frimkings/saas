@@ -228,19 +228,19 @@ class AdminDashboardComponent extends Component
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         $opticalOnly = \App\Support\OpticalMode::opticalOnly();
         // Sales reports and the income statement open for the owner and staff given "manage billing".
-        $money = (bool) ($user?->hasRole('Super Admin') || $user?->can('manage billing'));
+        $money = \App\Support\Access\Access::allows($user, 'reports.sales');
 
         return view('livewire.admin.admin-dashboard-component', [
             // Plans without the business overview get Today only.
             'overview' => $opticalOnly || $has(\App\Support\Feature::BUSINESS_OVERVIEW),
             'canReports' => $optical || ($money && ($has(\App\Support\Feature::SALES_REPORTS) || $has(\App\Support\Feature::SALES_REPORTS_MONTH))),
-            'canUsers' => (bool) ($user?->hasRole('Super Admin') || $user?->can('manage users')),
+            'canUsers' => \App\Support\Access\Access::allows($user, 'staff.manage'),
             'canAudit' => $has(\App\Support\Feature::AUDIT_TRAIL),
-            'patientsLink' => $user?->hasAnyRole(['Doctor', 'Super Admin']) ? route('doctor.all-records') : route('secretary.patients'),
+            'patientsLink' => \App\Support\Access\Access::allows($user, 'clinical.records') ? route('doctor.all-records') : route('secretary.patients'),
             'canAppointments' => $has(\App\Support\Feature::APPOINTMENTS),
             'canAttention' => $has(\App\Support\Feature::NEEDS_ATTENTION),
-            'setup' => $user?->hasAnyRole(['Super Admin', 'Manager']) ? \App\Support\Guides\ClinicSetup::for() : null,
-            'owner' => (bool) $user?->hasRole('Super Admin'),
+            'setup' => \App\Support\Access\Access::allows($user, 'dashboard.view') ? \App\Support\Guides\ClinicSetup::for() : null,
+            'owner' => \App\Support\Access\Access::allows($user, 'settings.manage'),
             'lineLabels' => [BusinessLine::CLINIC => 'Clinic', BusinessLine::OPTICAL => 'Optical', self::COMBINED => 'Combined'],
             // Where each money card leads for the chosen business.
             'statementLink' => match (true) {

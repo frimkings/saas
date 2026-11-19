@@ -88,7 +88,7 @@
             <a href="{{ route('admin.insurance.claims') }}" class="ui-button ui-button-sm ui-button-secondary ml-auto">
               <i class="fas fa-file-medical mr-1"></i>Manage claims
             </a>
-            @if(auth()->user()?->hasRole('Super Admin') || auth()->user()?->can(\App\Models\InsurerPayment::PERMISSION))
+            @if(\App\Support\Access\Access::can('insurance.payments'))
               <a href="{{ route('admin.insurance.payments', array_filter(['insurer' => $insurerFilter])) }}" class="ui-button ui-button-sm ui-button-primary">
                 <i class="fas fa-money-check-alt mr-1"></i>Record payment
               </a>

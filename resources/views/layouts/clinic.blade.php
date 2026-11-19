@@ -25,7 +25,7 @@
     // Livewire pages pass menu as layout data; <x-clinic-layout menu="…"> passes it as an attribute.
     $menuName = $menu ?? (isset($attributes) ? $attributes->get('menu') : null) ?? 'reception';
     // Super Admins and Managers keep their own menu on reception and doctor pages too.
-    if (auth()->user()?->hasAnyRole(['Super Admin', 'Manager'])) $menuName = 'admin';
+    if (\App\Support\Access\Access::can('dashboard.view')) $menuName = 'admin';
     $menu = \App\Support\ClinicNavigation::menu($menuName);
     $settings = \App\Models\Setting::getSettings();
     $tenant = app(\App\Support\Tenancy\TenantContext::class);

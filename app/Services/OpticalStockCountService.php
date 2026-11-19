@@ -184,6 +184,6 @@ class OpticalStockCountService
     private function assertManager(): void
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can start, approve or cancel stock counts.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can start, approve or cancel stock counts.');
     }
 }

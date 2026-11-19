@@ -10,7 +10,7 @@
         .ct-check{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0}
     </style>
     @php
-        $isManager = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+        $isManager = \App\Support\Access\Access::can('optical.manage');
         $stockBadge = fn ($qty, $reorder) => $qty <= 0 ? ['Out of stock', 'oo-b-red'] : ($qty <= $reorder ? ['Low stock', 'oo-b-amber'] : ['In stock', 'oo-b-green']);
     @endphp
 
@@ -50,11 +50,11 @@
         <div class="ui-panel p-5 space-y-4">
             <div class="flex items-center justify-between gap-3">
                 <div><h2 class="font-bold text-slate-900">Service price list</h2><p class="text-xs text-slate-500">Activate a service after setting its price. Saved orders keep their original charge; editing a quotation uses current prices.</p></div>
-                @hasanyrole('Manager|Super Admin')<button type="button" x-on:click="openLocal($wire, { editingServiceId: null, serviceName: '', servicePrice: '', serviceRequiresRx: false, serviceRequiresFrame: false, serviceActive: true, showServiceForm: true }, $root.querySelector('[data-service-form]'))" class="ui-button ui-button-primary">+ Add service</button>@endhasanyrole
+                @access('optical.manage')<button type="button" x-on:click="openLocal($wire, { editingServiceId: null, serviceName: '', servicePrice: '', serviceRequiresRx: false, serviceRequiresFrame: false, serviceActive: true, showServiceForm: true }, $root.querySelector('[data-service-form]'))" class="ui-button ui-button-primary">+ Add service</button>@endaccess
             </div>
             <div class="ui-table-wrap"><table class="ui-table w-full"><thead><tr><th>Service</th><th>Needs Rx</th><th>Needs frame</th><th class="ui-number">Price</th><th>Status</th><th>Action</th></tr></thead><tbody>
                 @foreach($opticalServices as $service)
-                    <tr @if($isManager) x-on:click="openLocal($wire, {{ \Illuminate\Support\Js::from(['editingServiceId' => $service->id, 'serviceName' => $service->name, 'servicePrice' => (string) $service->price, 'serviceRequiresRx' => (bool) $service->requires_rx, 'serviceRequiresFrame' => (bool) $service->requires_frame, 'serviceActive' => (bool) $service->is_active, 'showServiceForm' => true]) }}, $root.querySelector('[data-service-form]'))" style="cursor:pointer" @endif><td class="font-semibold">{{ $service->name }}</td><td>{{ $service->requires_rx ? 'Yes' : 'No' }}</td><td>{{ $service->requires_frame ? 'Yes' : 'No' }}</td><td class="ui-number">{{ currency() }} {{ number_format((float) $service->price, 2) }}</td><td>{{ $service->is_active ? 'Active' : 'Inactive' }}</td><td>@hasanyrole('Manager|Super Admin')<button type="button" x-on:click.stop="$el.closest('tr').click()" class="text-teal-700 font-semibold underline">Edit</button>@endhasanyrole</td></tr>
+                    <tr @if($isManager) x-on:click="openLocal($wire, {{ \Illuminate\Support\Js::from(['editingServiceId' => $service->id, 'serviceName' => $service->name, 'servicePrice' => (string) $service->price, 'serviceRequiresRx' => (bool) $service->requires_rx, 'serviceRequiresFrame' => (bool) $service->requires_frame, 'serviceActive' => (bool) $service->is_active, 'showServiceForm' => true]) }}, $root.querySelector('[data-service-form]'))" style="cursor:pointer" @endif><td class="font-semibold">{{ $service->name }}</td><td>{{ $service->requires_rx ? 'Yes' : 'No' }}</td><td>{{ $service->requires_frame ? 'Yes' : 'No' }}</td><td class="ui-number">{{ currency() }} {{ number_format((float) $service->price, 2) }}</td><td>{{ $service->is_active ? 'Active' : 'Inactive' }}</td><td>@access('optical.manage')<button type="button" x-on:click.stop="$el.closest('tr').click()" class="text-teal-700 font-semibold underline">Edit</button>@endaccess</td></tr>
                 @endforeach
             </tbody></table></div>
         </div>

@@ -26,7 +26,7 @@ class DayCloseService
 
     public static function isOwner(): bool
     {
-        return (bool) auth()->user()?->hasRole('Super Admin');
+        return \App\Support\Access\Access::can('cashbook.correct');
     }
 
     public function find(CarbonInterface|string $date): ?DayClose

@@ -174,7 +174,7 @@ class OpticalJobTrackingService
     public function releaseHeldLenses(int $orderId): int
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can release lenses held for a job.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can release lenses held for a job.');
 
         return DB::transaction(function () use ($orderId) {
             $order = LensOrder::lockForUpdate()->findOrFail($orderId);

@@ -165,7 +165,7 @@ class SmsSettingsComponent extends Component
 
     public function buyBundle(int $bundleId): void
     {
-        abort_unless(app(ClinicAccessService::class)->hosted() && Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(app(ClinicAccessService::class)->hosted() && \App\Support\Access\Access::can('messages.patients'), 403);
         $invoice = app(SmsCreditService::class)->requestBundle(
             app(TenantContext::class)->requireClinic(),
             SmsBundle::active()->findOrFail($bundleId)
@@ -180,7 +180,7 @@ class SmsSettingsComponent extends Component
     /** The clinic's own amount; the browser only previews the credits, the service works them out. */
     public function requestTopUp($amount): void
     {
-        abort_unless(app(ClinicAccessService::class)->hosted() && Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(app(ClinicAccessService::class)->hosted() && \App\Support\Access\Access::can('messages.patients'), 403);
         if (!is_numeric($amount)) {
             $this->addError('topUpAmount', 'Enter an amount in GHS.');
             return;
@@ -197,7 +197,7 @@ class SmsSettingsComponent extends Component
 
     public function cancelBundleRequest(int $invoiceId): void
     {
-        abort_unless(app(ClinicAccessService::class)->hosted() && Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(app(ClinicAccessService::class)->hosted() && \App\Support\Access\Access::can('messages.patients'), 403);
         $clinicId = app(TenantContext::class)->requireClinic()->id;
         app(SmsCreditService::class)->cancelRequest(PlatformInvoice::where('clinic_id', $clinicId)->findOrFail($invoiceId), $clinicId);
 

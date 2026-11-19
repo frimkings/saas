@@ -1235,7 +1235,7 @@ class POSComponent extends Component
 
         // Without approvals (plans below Pro) the cashier's discount applies at once, as a manager's always does.
         $approvalsOn = \App\Services\LicenseService::has(\App\Support\Feature::APPROVALS);
-        if (Auth::user()?->hasRole(['Manager', 'Super Admin']) || !$approvalsOn) {
+        if (\App\Support\Access\Access::can('approve.discounts') || !$approvalsOn) {
             $this->recordApprovedDiscount(Auth::user());
 
             $this->dispatch('notify', ...[
@@ -1376,7 +1376,7 @@ class POSComponent extends Component
             return;
         }
 
-        if (!$approver->hasRole(['Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::allows($approver, 'approve.discounts')) {
             RateLimiter::hit($throttleKey, decay: 600);
             $this->approvalError    = 'This account does not have permission to approve discounts. A Manager or Super Admin is required.';
             $this->approvalPassword = '';
@@ -2731,7 +2731,7 @@ class POSComponent extends Component
             );
 
         $user = Auth::user();
-        if (!$user?->hasAnyRole(['Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::allows($user, 'pos.all_open_sales')) {
             $query->where('user_id', $user?->id);
         }
 

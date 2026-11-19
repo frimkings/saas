@@ -15,7 +15,7 @@ class EnsureClinicSettingsConfigured
         if (app()->environment('testing')) {
             return $next($request);
         }
-        if (!$request->isMethod('GET') || !$request->user()?->hasRole('Super Admin')) {
+        if (!$request->isMethod('GET') || !\App\Support\Access\Access::allows($request->user(), 'settings.manage')) {
             return $next($request);
         }
         if (\App\Support\OpticalMode::opticalOnly()) {

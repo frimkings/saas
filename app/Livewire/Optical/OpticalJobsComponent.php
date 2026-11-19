@@ -43,7 +43,7 @@ class OpticalJobsComponent extends Component
 
     private function isManager(): bool
     {
-        return (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+        return \App\Support\Access\Access::can('optical.manage');
     }
 
     public function releaseLenses(int $orderId): void

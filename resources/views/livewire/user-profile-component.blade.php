@@ -17,20 +17,21 @@
         ->map(fn($w) => strtoupper($w[0]))
         ->implode('');
 
+    $may = fn (string $permission) => \App\Support\Access\Access::allows($user, $permission);
     $quickLinks = match(true) {
-        $user->hasRole(['Super Admin','Manager']) => [
+        $may('dashboard.view') => [
             ['label' => 'Admin Dashboard',  'route' => 'admin.dashboard',      'icon' => 'fas fa-tachometer-alt'],
-            ['label' => 'User Management',  'route' => 'admin.users',           'icon' => 'fas fa-users-cog', 'show' => $user->hasRole('Super Admin') || $user->can('manage users')],
+            ['label' => 'User Management',  'route' => 'admin.users',           'icon' => 'fas fa-users-cog'],
             ['label' => 'Audit Trail',      'route' => 'admin.audit-trail',     'icon' => 'fas fa-history', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::AUDIT_TRAIL)],
-            ['label' => 'Settings',         'route' => 'admin.settings',        'icon' => 'fas fa-cog', 'show' => $user->hasRole('Super Admin')],
+            ['label' => 'Settings',         'route' => 'admin.settings',        'icon' => 'fas fa-cog'],
         ],
-        $user->hasRole('Doctor') => [
+        $may('clinical.queue') => [
             ['label' => 'Doctor Dashboard', 'route' => 'doctor.dashboard',      'icon' => 'fas fa-stethoscope'],
             ['label' => 'Awaiting Patients','route' => 'doctor.patient-awaiting','icon' => 'fas fa-user-clock'],
             ['label' => 'All Records',      'route' => 'doctor.all-records',    'icon' => 'fas fa-folder-open'],
             ['label' => 'Referrals',        'route' => 'doctor.referrals',      'icon' => 'fas fa-share-alt', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::REFERRALS)],
         ],
-        $user->hasRole('Secretary') => [
+        $may('patients.view') => [
             ['label' => 'Sec. Dashboard',   'route' => 'secretary.dashboard',   'icon' => 'fas fa-tachometer-alt'],
             ['label' => 'Patients',         'route' => 'secretary.patients',    'icon' => 'fas fa-users'],
             ['label' => 'Appointments',     'route' => 'secretary.appointments','icon' => 'fas fa-calendar-check', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::APPOINTMENTS)],
@@ -42,6 +43,9 @@
             ['label' => 'Outstanding',      'route' => 'cashier.outstanding-balances','icon' => 'fas fa-file-invoice-dollar', 'show' => \App\Services\LicenseService::has(\App\Support\Feature::OUTSTANDING_BALANCES)],
         ],
     };
+    // Only links to pages this person can open (staff without a till, bench roles…).
+    $quickLinks = array_values(array_filter($quickLinks, fn ($link) => ($link['show'] ?? true)
+        && \App\Support\Access\Access::allowsRoute($user, $link['route'])));
 @endphp
 
 {{-- ── Profile Cover ───────────────────────────────────────────────────── --}}

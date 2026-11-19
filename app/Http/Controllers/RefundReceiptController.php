@@ -32,8 +32,7 @@ class RefundReceiptController extends Controller
 
         abort_unless($refund->status === RefundLog::STATUS_PROCESSED, 404);
         abort_unless(
-            $user?->hasAnyRole(['Manager', 'Super Admin'])
-                || $user?->can('manage billing')
+            \App\Support\Access\Access::allows($user, 'approve.refunds')
                 || $refund->initiated_by === $user?->id
                 || $refund->sale?->user_id === $user?->id,
             403

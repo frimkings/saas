@@ -71,7 +71,7 @@ class ReminderSettingsComponent extends Component
     private function authorizeAccess(): void
     {
         $user = auth()->user();
-        abort_unless($user?->hasRole('Super Admin') || ($this->optical && $user?->hasRole('Manager')), 403);
+        abort_unless(\App\Support\Access\Access::allows($user, 'settings.manage') || ($this->optical && \App\Support\Access\Access::allows($user, 'optical.manage')), 403);
     }
 
     public function render()

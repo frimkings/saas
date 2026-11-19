@@ -489,7 +489,7 @@ class OpticalCatalogueComponent extends Component
 
     private function assertCanManageServices(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
     }
 
     public function receiveLensBlanks(): void
