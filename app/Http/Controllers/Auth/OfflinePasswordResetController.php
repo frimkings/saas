@@ -49,6 +49,27 @@ class OfflinePasswordResetController extends Controller
             ->withInput();
     }
 
+    /** The one-time link emailed on approval: opens the new-password form without the manager's code. */
+    public function openLink(string $token)
+    {
+        $req = PasswordResetRequest::forLink($token);
+        if (! $req) {
+            return redirect()->route('password.request')
+                ->withErrors(['email' => 'That reset link has expired or was already used. Ask for a new reset, or use the code from your manager.']);
+        }
+
+        session()->regenerate();
+        session(['offline_reset_email' => $req->email, 'offline_reset_link' => $req->id]);
+
+        return redirect()->route('password.offline.form');
+    }
+
+    /** Did this visitor arrive through the request's emailed link, and does it still work? */
+    private function viaLink(PasswordResetRequest $req): bool
+    {
+        return (int) session('offline_reset_link') === (int) $req->id && $req->linkWorks();
+    }
+
     public function showResetForm()
     {
         $email = session('offline_reset_email');
@@ -66,7 +87,7 @@ class OfflinePasswordResetController extends Controller
                 ->withErrors(['email' => 'Your reset request is no longer approved. Please submit a new request.']);
         }
 
-        return view('auth.offline-reset-password', ['email' => $email]);
+        return view('auth.offline-reset-password', ['email' => $email, 'viaLink' => $this->viaLink($req)]);
     }
 
     public function reset(Request $request)
@@ -85,15 +106,17 @@ class OfflinePasswordResetController extends Controller
                 ->withErrors(['email' => 'Your reset approval has been revoked. Contact the administrator.']);
         }
 
+        $viaLink = $this->viaLink($req);
         $request->validate([
-            'code'                  => 'required|string|max:12',
+            'code'                  => [$viaLink ? 'nullable' : 'required', 'string', 'max:12'],
             'password'              => ['required', 'confirmed', Password::min(6)],
             'password_confirmation' => 'required',
         ]);
 
         // The approval alone isn't enough: only the person the manager gave the code to can finish.
-        $problem = $req->codeProblem();
-        if ($problem !== null || !$req->acceptsCode($request->code)) {
+        // Or the emailed link proved they own the inbox.
+        $problem = $viaLink ? null : $req->codeProblem();
+        if (! $viaLink && ($problem !== null || !$req->acceptsCode((string) $request->code))) {
             $closed = $req->fresh()->isRejected();
             if ($closed) session()->forget('offline_reset_email');
             $message = match (true) {
@@ -112,8 +135,8 @@ class OfflinePasswordResetController extends Controller
         ]);
 
         // Mark request completed so it can't be reused
-        $req->update(['status' => 'completed', 'actioned_at' => now(), 'code_hash' => null]);
-        session()->forget('offline_reset_email');
+        $req->update(['status' => 'completed', 'actioned_at' => now(), 'code_hash' => null, 'link_hash' => null]);
+        session()->forget(['offline_reset_email', 'offline_reset_link']);
 
         return redirect()->route('login')
             ->with('status', 'Password reset successfully. You may now log in.');

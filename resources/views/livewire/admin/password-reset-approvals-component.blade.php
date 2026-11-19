@@ -8,6 +8,7 @@
                     <div class="text-sm font-semibold text-slate-700">Reset code for {{ $issuedFor }}</div>
                     <div class="my-2 font-mono text-3xl font-bold tracking-widest text-slate-900">{{ $issuedCode }}</div>
                     <p class="mb-0 text-sm text-slate-600">Give this code to them in person or by phone, not by email. They type it with their new password. It works once, for {{ $issuedUntil }}, and is not shown again: use <b>New code</b> if it is lost.</p>
+                    <p class="mb-0 mt-2 text-sm {{ $linkStatus === 'sent' ? 'text-slate-600' : 'text-amber-800' }}">{{ $linkStatus === 'sent' ? 'We also emailed them a one-time link to their own inbox (works for '.\App\Models\PasswordResetRequest::LINK_MINUTES.' minutes). Either the link or the code is enough.' : 'We could not email them a reset link, so they need this code.' }}</p>
                 </div>
                 <button type="button" wire:click="closeCode" class="ui-button ui-button-sm ui-button-secondary">Done</button>
             </div>

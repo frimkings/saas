@@ -146,7 +146,7 @@
             </div>
 
             <div class="form-title">Reset Password</div>
-            <div class="form-subtitle">Enter the code your manager gave you, then choose a new password.</div>
+            <div class="form-subtitle">{{ ($viaLink ?? false) ? 'You opened the link from your email. Choose a new password.' : 'Enter the code your manager gave you, or open the link we emailed you, then choose a new password.' }}</div>
 
             {{-- Account chip --}}
             <div class="account-chip">
@@ -170,7 +170,8 @@
             <form method="POST" action="{{ route('password.offline.update') }}">
                 @csrf
 
-                {{-- The code the manager was shown on approving the reset --}}
+                {{-- The code the manager was shown on approving the reset (not needed via the emailed link) --}}
+                @unless($viaLink ?? false)
                 <div class="field-group">
                     <label for="code" class="field-label">Reset code from your manager</label>
                     <div class="field-wrap">
@@ -181,6 +182,7 @@
                         </svg>
                     </div>
                 </div>
+                @endunless
 
                 {{-- New Password --}}
                 <div class="field-group">
