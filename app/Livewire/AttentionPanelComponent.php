@@ -82,7 +82,7 @@ class AttentionPanelComponent extends Component
             'stale'    => $items->counts($this->line)['stale'],
             'staleDays' => AttentionItems::thresholds()['stale_days'],
             'tidyUrl'  => $optical ? route('optical.attention.old-orders') : route('attention.old-orders'),
-            'canWriteOff' => (bool) auth()->user()?->hasRole('Super Admin'),
+            'canWriteOff' => \App\Support\Access\Access::can('stock.write_off'),
         ]);
 
         return $this->page ? $view->layout(...self::layoutFor($this->line)) : $view;

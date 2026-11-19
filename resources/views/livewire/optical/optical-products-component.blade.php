@@ -5,14 +5,14 @@
             <h1 class="text-xl font-bold text-slate-900">Optical Product Master Data <span class="ml-2 rounded-full bg-teal-50 border border-teal-200 px-2 py-1 text-xs text-teal-800">Inventory SKU Master</span></h1>
             <p class="ui-muted text-xs">Manage frames, lenses, accessories, prices and branch stock levels.</p>
         </div>
-        @hasanyrole('Manager|Super Admin')
+        @access('optical.manage')
             <div class="flex flex-wrap gap-2">
                 <button type="button" wire:click="downloadTemplate" class="ui-button text-xs">CSV Template</button>
                 <button type="button" wire:click="exportCsv" class="ui-button text-xs">Export CSV</button>
                 <button type="button" wire:click="openImport" class="ui-button text-xs">Import CSV</button>
                 <button type="button" wire:click="add" class="ui-button ui-button-primary text-xs">+ Add Optical Product</button>
             </div>
-        @endhasanyrole
+        @endaccess
     </div>
 
     <x-ui.flash />
@@ -52,7 +52,7 @@
                         <td class="font-mono text-xs font-semibold">{{ currency() }} {{ number_format((float) $product->selling_price, 2) }}<div class="text-teal-700">{{ number_format($markup, 1) }}% markup</div></td>
                         <td class="font-mono text-xs {{ $qty <= $reorder ? 'text-amber-700' : 'text-teal-800' }}">{{ $qty }} units</td>
                         <td><span class="ui-badge {{ $product->is_active ? ($qty <= $reorder ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800') : 'bg-slate-100 text-slate-600' }}">{{ $product->is_active ? ($qty <= $reorder ? 'Reorder' : 'Active') : 'Inactive' }}</span></td>
-                        <td><div class="flex gap-2 text-xs">@hasanyrole('Manager|Super Admin')<button type="button" wire:click="edit({{ $product->id }})" class="text-amber-700 underline">Edit</button><button type="button" wire:click="delete({{ $product->id }})" wire:confirm="Archive this optical product?" class="text-red-700 underline">Delete</button>@else — @endhasanyrole</div></td>
+                        <td><div class="flex gap-2 text-xs">@access('optical.manage')<button type="button" wire:click="edit({{ $product->id }})" class="text-amber-700 underline">Edit</button><button type="button" wire:click="delete({{ $product->id }})" wire:confirm="Archive this optical product?" class="text-red-700 underline">Delete</button>@else — @endaccess</div></td>
                     </tr>
                 @empty
                     <tr><td colspan="8" class="ui-empty">No optical products found. Add a product to begin tracking optical stock.</td></tr>

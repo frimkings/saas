@@ -520,7 +520,11 @@ window.printReceiptFromDom = function(event) {
                     </div>
 
                     {{-- Discount (Feature::DISCOUNTS); without approvals the cashier applies it --}}
-                    @php $approvalsOn = \App\Services\LicenseService::has(\App\Support\Feature::APPROVALS); @endphp
+                    @php
+                        $approvalsOn = \App\Services\LicenseService::has(\App\Support\Feature::APPROVALS);
+                        $ownLimit = $this->ownDiscountLimit();
+                        $withinLimit = !$approvalsOn || $this->discountIsWithinOwnLimit();
+                    @endphp
                     @if(\App\Services\LicenseService::has(\App\Support\Feature::DISCOUNTS))
                     <div class="pos-discount-wrap" @if($pendingDiscountApprovalId && !$discountApproved) wire:poll.15s="checkDiscountApprovalStatus" @endif>
                         <div class="pos-discount-row">
@@ -546,7 +550,7 @@ window.printReceiptFromDom = function(event) {
                                         {{ $pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending' ? 'disabled' : '' }}>
                                     @if($pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending')
                                         <i class="fas fa-clock mr-1"></i>Pending
-                                    @elseif($approvalsOn)
+                                    @elseif(!$withinLimit)
                                         <i class="fas fa-paper-plane mr-1"></i>Approve
                                     @else
                                         <i class="fas fa-check mr-1"></i>Apply
@@ -562,16 +566,16 @@ window.printReceiptFromDom = function(event) {
                         @if($discountAmount > 0)
                             <div class="pos-disc-status {{ $discountApproved ? 'pos-disc-status--ok' : 'pos-disc-status--pending' }}">
                                 @if($discountApproved)
-                                    <i class="fas fa-check-circle"></i> Approved by {{ $discountApprovedBy }}
+                                    <i class="fas fa-check-circle"></i> {{ (int) $discountApprovedById === (int) auth()->id() ? 'Applied by' : 'Approved by' }} {{ $discountApprovedBy }}
                                     <span class="ms-auto">−{{ currency() }} {{ number_format($discountAmount, 2) }}</span>
                                 @elseif($pendingDiscountApprovalId && $pendingDiscountApprovalStatus === 'pending')
-                                    <i class="fas fa-clock"></i> Sent to Manager/Super Admin
+                                    <i class="fas fa-clock"></i> Sent to Manager/Owner
                                     <button type="button" class="pos-disc-remove" wire:click="removeDiscount">
                                         Sell without discount
                                     </button>
                                     <span class="ms-auto">−{{ currency() }} {{ number_format($discountAmount, 2) }}</span>
                                 @else
-                                    <i class="fas fa-lock"></i> {{ $approvalsOn ? 'Manager approval required' : 'Press Apply to use this discount' }}
+                                    <i class="fas {{ $withinLimit ? 'fa-check' : 'fa-lock' }}"></i> {{ $withinLimit ? ($approvalsOn ? "Within your {$ownLimit}% limit: press Apply" : 'Press Apply to use this discount') : "Over your {$ownLimit}% limit: a Manager or the Owner must approve" }}
                                     <button type="button" class="pos-disc-remove" wire:click="removeDiscount">
                                         Remove discount
                                     </button>
@@ -1004,7 +1008,7 @@ window.printReceiptFromDom = function(event) {
                 &nbsp;&rarr;&nbsp;
                 <strong>−{{ currency() }} {{ number_format($discountAmount, 2) }}</strong>
             </div>
-            <p class="pos-approval-hint">A <strong>Manager</strong> or <strong>Super Admin</strong> must sign in to authorise this discount.</p>
+            <p class="pos-approval-hint">A <strong>Manager</strong> or the <strong>Owner</strong> must sign in to authorise this discount.</p>
 
             @if($approvalError)
                 <div class="pos-approval-error">
@@ -1013,7 +1017,7 @@ window.printReceiptFromDom = function(event) {
             @endif
 
             <div class="pos-field">
-                <label for="pos-approvalemail">Manager / Super Admin Email</label>
+                <label for="pos-approvalemail">Manager / Owner email</label>
                 <div class="pos-input-group">
                     <i class="fas fa-envelope"></i>
                     <input id="pos-approvalemail" type="email" wire:model="approvalEmail" placeholder="manager@example.com" autocomplete="off">

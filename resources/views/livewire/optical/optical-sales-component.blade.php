@@ -84,7 +84,7 @@
             $user = auth()->user();
             // Order sales are refunded from the order (Refund & cancel), which also returns stock and cancels the job.
             $canRefund = $panelOrders->isEmpty() && ! $panelSale->is_refunded && ! $panelSale->pendingRefundLog && $panelSale->items->isNotEmpty()
-                && ($user?->hasAnyRole(['Manager', 'Super Admin']) || ($user?->hasRole('Cashier') && $panelSale->user_id === $user->id));
+                && (\App\Support\Access\Access::allows($user, 'sales.refund_any') || (\App\Support\Access\Access::allows($user, 'sales.refund_own') && $panelSale->user_id === $user->id));
         @endphp
         <div data-sheet data-keep data-sale-drawer="{{ $panelSale->id }}" wire:key="sale-drawer-{{ $panelSale->id }}" x-show="$wire.panelSaleId === {{ $panelSale->id }}" x-cloak>
         <div class="oo-overlay" x-on:click="dismissLocal($el, $wire, { panelSaleId: null })" aria-hidden="true"></div>

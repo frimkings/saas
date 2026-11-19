@@ -14,7 +14,7 @@
             $awaited = $o->lensLines->where('source', 'special_order')->where('status', 'ordered');
             $step = \App\Support\Optical\OrderPresenter::nextStep($o, $bench ?? false);
             $onAccount = $o->order_source === 'partner' && $o->partner_billing_terms === 'on_account';
-            $isManager = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+            $isManager = \App\Support\Access\Access::can('optical.manage');
             // Front desk: money, notices, handing over. Bench: lab steps (App\Support\OpticalAccess).
             $deskOk = \App\Support\OpticalAccess::desk(auth()->user());
             $benchOk = \App\Support\OpticalAccess::bench(auth()->user());

@@ -28,7 +28,7 @@ class OpticalOwedComponent extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'optical_centres.manage'), 403);
     }
 
     public function openPay(int $partnerId): void

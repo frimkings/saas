@@ -20,8 +20,7 @@ class DiscountApprovalNoticeController extends Controller
             return false;
         }
 
-        $routeGate = $user->hasAnyRole(['Manager', 'Super Admin'])
-            || $user->can('manage billing') || $user->can('approve clearance revoke');
+        $routeGate = \App\Support\Access\Access::allowsAny($user, ['approve.discounts', 'approve.refunds', 'approve.revokes']);
 
         return $routeGate && (new static)->canHandleDiscountApprovals()
             && app(ClinicAccessService::class)->access('approvals')['allowed'];
@@ -32,6 +31,9 @@ class DiscountApprovalNoticeController extends Controller
     {
         $request = DiscountApprovalRequest::with(['cashier', 'patient'])
             ->where('status', DiscountApprovalRequest::STATUS_PENDING)
+            // Your own requests wait for someone else (the Owner excepted).
+            ->when(\App\Support\Access\MakerChecker::problem(auth()->user(), auth()->id()) !== null,
+                fn ($query) => $query->where('cashier_id', '!=', auth()->id()))
             ->latest()
             ->first();
 
@@ -67,6 +69,10 @@ class DiscountApprovalNoticeController extends Controller
                 'ok' => false,
                 'message' => 'This discount request has already been handled.',
             ], 409);
+        }
+
+        if ($problem = \App\Support\Access\MakerChecker::problem(auth()->user(), $discountRequest->cashier_id)) {
+            return response()->json(['ok' => false, 'message' => $problem], 403);
         }
 
         if (!$this->requestCartIsStillOpen($discountRequest)) {
@@ -143,7 +149,7 @@ class DiscountApprovalNoticeController extends Controller
     {
         $user = auth()->user();
 
-        return (bool) ($user?->hasRole(['Manager', 'Super Admin']) || $user?->can('manage billing') || $user?->can('approve discounts'));
+        return (bool) \App\Support\Access\Access::allows($user, 'approve.discounts');
     }
 
     private function requestCartIds(DiscountApprovalRequest $request)

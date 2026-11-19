@@ -88,6 +88,6 @@ class BranchSmsLimitsComponent extends Component
 
     private function authorizeOwner(): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('settings.manage'), 403);
     }
 }

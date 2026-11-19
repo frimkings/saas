@@ -1233,14 +1233,15 @@ class POSComponent extends Component
             return;
         }
 
-        // Without approvals (plans below Pro) the cashier's discount applies at once, as a manager's always does.
+        // Without approvals (plans below Pro) the cashier's discount applies at once. With them, it
+        // applies at once when it is within the seller's limit (set per role by the Owner).
         $approvalsOn = \App\Services\LicenseService::has(\App\Support\Feature::APPROVALS);
-        if (Auth::user()?->hasRole(['Manager', 'Super Admin']) || !$approvalsOn) {
+        if (!$approvalsOn || $this->discountWithinOwnLimit()) {
             $this->recordApprovedDiscount(Auth::user());
 
             $this->dispatch('notify', ...[
                 'type' => 'success',
-                'message' => $approvalsOn ? 'Discount approved.' : 'Discount applied.',
+                'message' => 'Discount applied.',
             ]);
             return;
         }
@@ -1306,7 +1307,7 @@ class POSComponent extends Component
 
         $this->dispatch('notify', ...[
             'type' => 'success',
-            'message' => 'Discount approval request sent to Manager/Super Admin.',
+            'message' => 'Discount approval request sent to a Manager or the Owner.',
         ]);
         return;
     }
@@ -1376,16 +1377,18 @@ class POSComponent extends Component
             return;
         }
 
-        if (!$approver->hasRole(['Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::allows($approver, 'approve.discounts')) {
             RateLimiter::hit($throttleKey, decay: 600);
-            $this->approvalError    = 'This account does not have permission to approve discounts. A Manager or Super Admin is required.';
+            $this->approvalError    = 'This account does not have permission to approve discounts. A Manager or the Owner is required.';
             $this->approvalPassword = '';
             return;
         }
 
+        $approverRoles = $approver->getRoleNames();
         if (config('tenancy.enabled')) {
             $context = app(\App\Support\Tenancy\TenantContext::class);
-            $authorizedHere = DB::table('branch_user_role as bur')
+            // The approver's roles in this branch, which may differ from their roles elsewhere.
+            $approverRoles = DB::table('branch_user_role as bur')
                 ->join('roles as r', 'r.id', '=', 'bur.role_id')
                 ->join('branch_user as bu', function ($join) {
                     $join->on('bu.branch_id', '=', 'bur.branch_id')->on('bu.user_id', '=', 'bur.user_id');
@@ -1395,13 +1398,20 @@ class POSComponent extends Component
                 ->where('bur.branch_id', $context->branchId())
                 ->where('cu.clinic_id', $context->clinicId())
                 ->where('bu.status', 'active')->where('cu.status', 'active')
-                ->whereIn('r.name', ['Manager', 'Super Admin'])->exists();
-            if (!$authorizedHere) {
+                ->pluck('r.name');
+            if (!\App\Support\Access\RoleMap::grants($approverRoles, 'approve.discounts')) {
                 RateLimiter::hit($throttleKey, decay: 600);
                 $this->approvalError = 'The approver is not authorized in this clinic branch.';
                 $this->approvalPassword = '';
                 return;
             }
+        }
+
+        // Never your own discount (the Owner excepted): another Manager or the Owner signs it.
+        if ((int) $approver->id === (int) Auth::id() && !collect($approverRoles)->contains(\App\Support\Access\RoleMap::OWNER)) {
+            $this->approvalError    = \App\Support\Access\MakerChecker::MESSAGE;
+            $this->approvalPassword = '';
+            return;
         }
 
         RateLimiter::clear($throttleKey);
@@ -1446,6 +1456,23 @@ class POSComponent extends Component
         $this->discountApprovedById = $approver->id;
         $this->pendingDiscountApprovalId = $request->id;
         $this->pendingDiscountApprovalStatus = $request->status;
+    }
+
+    /** The seller's own discount limit (percent of the frames and lenses) at this till. */
+    public function ownDiscountLimit(): int
+    {
+        return \App\Support\Access\DiscountLimits::forUser(Auth::user(), \App\Support\Access\DiscountLimits::CLINICAL);
+    }
+
+    public function discountIsWithinOwnLimit(): bool
+    {
+        return $this->discountWithinOwnLimit();
+    }
+
+    private function discountWithinOwnLimit(): bool
+    {
+        return \App\Support\Access\DiscountLimits::allows(Auth::user(), \App\Support\Access\DiscountLimits::CLINICAL,
+            (float) $this->discountAmount, $this->getDiscountEligibleSubtotal());
     }
 
     public function cancelApproval()
@@ -2731,7 +2758,7 @@ class POSComponent extends Component
             );
 
         $user = Auth::user();
-        if (!$user?->hasAnyRole(['Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::allows($user, 'pos.all_open_sales')) {
             $query->where('user_id', $user?->id);
         }
 

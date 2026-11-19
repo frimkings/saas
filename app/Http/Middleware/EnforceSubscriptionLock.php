@@ -41,7 +41,7 @@ class EnforceSubscriptionLock
             return $next($request);
         }
 
-        if (auth()->user()->hasRole('Super Admin')) {
+        if (\App\Support\Access\Access::can('billing.manage')) {
             if ($request->routeIs(...self::ADMIN_ROUTES) || $this->onlyAdminComponents($request)) {
                 return $next($request);
             }

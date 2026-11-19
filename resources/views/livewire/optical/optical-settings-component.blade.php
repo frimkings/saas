@@ -1,6 +1,6 @@
 @php
-    $isManager = auth()->user()?->hasAnyRole(['Super Admin', 'Manager']);
-    $isOwner = auth()->user()?->hasRole('Super Admin');
+    $isManager = \App\Support\Access\Access::can('optical.manage');
+    $isOwner = \App\Support\Access\Access::can('settings.manage');
     // One tab per section; the URL hash keeps the tab across reloads (#payments, #reminders, ...).
     $tabs = array_filter([
         'general' => ['General', 'fa-sliders-h', true],
@@ -8,6 +8,7 @@
         'payments' => ['Payment methods', 'fa-wallet', $isManager],
         'reminders' => ['Reminders', 'fa-bell', $isManager],
         'links' => ['Links', 'fa-link', $isManager],
+        'discounts' => ['Discount limits', 'fa-percent', $isOwner],
         'owner' => ['Owner emails', 'fa-envelope-open-text', $isOwner],
         'sms' => ['SMS per branch', 'fa-code-branch', $isOwner],
     ], fn ($tab) => $tab[2]);
@@ -44,7 +45,6 @@
                     <x-ui.field label="Standard Lens Warranty (Months)" name="warranty_months" type="number" wire:model="warranty_months" required />
                     <x-ui.field label="Quotations valid for (days)" name="quote_validity_days" type="number" min="1" max="365" wire:model="quote_validity_days" required />
                     <x-ui.field label="A job is stuck after (days without a status change)" name="stuck_job_days" type="number" min="1" max="365" wire:model="stuck_job_days" required />
-                    <x-ui.field label="Largest POS discount staff can give (%)" name="pos_max_discount_percent" type="number" min="0" max="100" wire:model="pos_max_discount_percent" required />
                 </div>
 
                 <div class="ui-field">
@@ -81,6 +81,7 @@
 
     {{-- Where the owner's emails go and what has been sent. Optical-only clinics have no clinic Settings page. --}}
     @if($isOwner)
+        <div x-show="tab === 'discounts'" x-cloak role="tabpanel"><livewire:admin.discount-limits-component :optical="true" /></div>
         <div x-show="tab === 'owner'" x-cloak role="tabpanel"><livewire:admin.owner-emails-component :optical="true" /></div>
         <div x-show="tab === 'sms'" x-cloak role="tabpanel"><livewire:admin.branch-sms-limits-component :optical="true" /></div>
     @endif

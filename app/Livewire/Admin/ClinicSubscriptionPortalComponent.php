@@ -16,7 +16,7 @@ class ClinicSubscriptionPortalComponent extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()->hasRole('Super Admin'),403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'billing.manage'), 403);
         app(TenantContext::class)->ensureFor(auth()->user());
         $clinic=app(TenantContext::class)->requireClinic();$this->billingLegalName=$clinic->billing_legal_name??$clinic->name;$this->billingTaxId=$clinic->billing_tax_id??'';$this->billingAddress=$clinic->billing_address??'';$this->billingEmail=$clinic->billing_email??'';$this->billingPhone=$clinic->billing_phone??'';
     }

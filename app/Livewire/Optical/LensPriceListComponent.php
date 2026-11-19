@@ -148,7 +148,7 @@ class LensPriceListComponent extends Component
 
     private function canManage(): bool
     {
-        return (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+        return \App\Support\Access\Access::can('optical.manage');
     }
 
     public function render()

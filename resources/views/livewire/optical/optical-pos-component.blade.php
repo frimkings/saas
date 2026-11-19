@@ -77,7 +77,7 @@
                     <span class="font-bold">{{ currency() }} {{ number_format($subtotal, 2) }}</span>
                 </div>
                 <label class="flex items-center justify-between gap-2 text-slate-700">
-                    <span>Discount ({{ currency() }})<span class="block text-[10px] text-slate-500">Up to {{ $discountLimit }}% without a manager</span></span>
+                    <span>Discount ({{ currency() }})<span class="block text-[10px] text-slate-500">Your limit: {{ $discountLimit }}% of the sale</span></span>
                     <input autocomplete="off" type="number" min="0" step="0.01" wire:model="discount" class="ui-input !w-28 !text-right text-xs">
                 </label>
                 <div class="flex justify-between text-slate-900 text-sm font-bold border-t border-slate-200 pt-2">

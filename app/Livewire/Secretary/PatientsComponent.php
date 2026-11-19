@@ -55,7 +55,7 @@ class PatientsComponent extends Component
 
     public function mount()
     {
-        if (!Auth::user()->hasAnyRole(['Secretary', 'Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::can('patients.view')) {
             return redirect()->route('dashboard')->with('error', 'Access Denied.');
         }
         $this->resetForm();
@@ -65,7 +65,7 @@ class PatientsComponent extends Component
     // Fix #1/#3: re-check role on every Livewire AJAX request, not just mount()
     public function hydrate()
     {
-        if (!Auth::user()->hasAnyRole(['Secretary', 'Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::can('patients.view')) {
             abort(403);
         }
     }

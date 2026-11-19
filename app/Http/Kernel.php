@@ -86,6 +86,7 @@ class Kernel extends HttpKernel
         'feature-or-leftover' => \App\Http\Middleware\EnsureFeatureOrLeftover::class,
         'optical-only' => \App\Http\Middleware\RedirectOpticalOnly::class,
         'optical.access' => \App\Http\Middleware\EnsureOpticalAccess::class,
+        'access' => \App\Http\Middleware\EnsureScreenAccess::class,
         'tenant' => \App\Http\Middleware\ResolveTenantContext::class,
         'tenant.backup-access' => \App\Http\Middleware\EnsureTenantBackupAccess::class,
         'platform.admin' => \App\Http\Middleware\EnsurePlatformAdmin::class,

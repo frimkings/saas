@@ -411,7 +411,7 @@ class OpticalOrderWorkflowService
     public function refundAndCancel(int $id, float $amount, string $reasonCode, string $reason): LensOrder
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can refund an optical order.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can refund an optical order.');
         if (! array_key_exists($reasonCode, RefundLog::REASON_CODES) || mb_strlen(trim($reason)) < 10 || mb_strlen($reason) > 500) {
             throw ValidationException::withMessages(['refundReason' => 'Choose a refund reason and describe it in at least 10 characters.']);
         }
@@ -478,7 +478,7 @@ class OpticalOrderWorkflowService
     public function closeAbandoned(int $id, string $reason): LensOrder
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can close an abandoned job.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can close an abandoned job.');
         $reason = trim($reason);
         if (mb_strlen($reason) < 10 || mb_strlen($reason) > 500) {
             throw ValidationException::withMessages(['abandonReason' => 'Say why the job is being closed, in at least 10 characters.']);

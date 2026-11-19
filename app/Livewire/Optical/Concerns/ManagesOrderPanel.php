@@ -268,7 +268,7 @@ trait ManagesOrderPanel
 
     public function openRefundModal($id): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
         $order = LensOrder::whereNotIn('status', ['Quotation', 'Cancelled', 'Collected'])->findOrFail((int) $id);
         abort_unless((float) $order->paid_amount > 0, 404);
         $this->refundOrderId = $order->id;
@@ -361,7 +361,7 @@ trait ManagesOrderPanel
         $this->assertDesk();
         $order = LensOrder::findOrFail((int) $id);
         if ((float) $order->paid_amount > 0) {
-            if (auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])) {
+            if (\App\Support\Access\Access::can('optical.manage')) {
                 $this->openRefundModal($order->id);
             } else {
                 $this->addError('order', "Order {$order->order_id} has payments. Ask a manager to refund and cancel it.");

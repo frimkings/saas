@@ -26,7 +26,7 @@ class SpectacleRenewalApprovalsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(!Auth::user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('approve.spectacle_renewals'), 403);
         abort_if(!LicenseService::has(Feature::SPECTACLES_PRO), 403, 'Spectacle renewals require a Pro license.');
     }
 
@@ -51,7 +51,7 @@ class SpectacleRenewalApprovalsComponent extends Component
 
     public function execute(): void
     {
-        abort_if(!Auth::user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('approve.spectacle_renewals'), 403);
 
         $order = LensOrder::with(['patient', 'refraction.consultation.patient'])->findOrFail($this->confirmId);
 
@@ -100,7 +100,7 @@ class SpectacleRenewalApprovalsComponent extends Component
 
     public function requeue($id): void
     {
-        abort_if(!Auth::user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('approve.spectacle_renewals'), 403);
 
         LensOrder::findOrFail($id)->update([
             'renewal_approval_status' => 'pending',

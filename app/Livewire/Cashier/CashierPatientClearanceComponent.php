@@ -94,7 +94,7 @@ class CashierPatientClearanceComponent extends Component
 
     public function hydrate(): void
     {
-        if (!Auth::user()?->hasAnyRole(['Cashier', 'Secretary', 'Manager', 'Super Admin'])) {
+        if (!\App\Support\Access\Access::can('clearance.manage', 'pos.sell')) {
             redirect()->route('dashboard');
         }
     }
@@ -595,7 +595,7 @@ class CashierPatientClearanceComponent extends Component
     // ---------------------------------------------------------------
     public function render()
     {
-        if (!Auth::user()?->hasAnyRole(['Secretary', 'Super Admin', 'Manager', 'Cashier'])) {
+        if (!\App\Support\Access\Access::can('clearance.manage', 'pos.sell')) {
             return redirect()->route('dashboard');
         }
 

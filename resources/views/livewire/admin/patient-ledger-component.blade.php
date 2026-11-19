@@ -76,7 +76,7 @@
                         @if($legacyPayments)
                             <small class="block text-slate-600 mt-1">
                                 Also paid {{ currency() }} {{ number_format($legacyPayments['total'], 2) }} in the previous software ({{ $legacyPayments['count'] }} {{ Str::plural('payment', $legacyPayments['count']) }}), kept apart from this account.
-                                @if(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']))<a href="{{ route('admin.sales-records.previous', ['search' => $patient->pxnumber]) }}" class="text-teal-700 underline">View</a>@endif
+                                @if(\App\Support\Access\Access::can('sales.manage'))<a href="{{ route('admin.sales-records.previous', ['search' => $patient->pxnumber]) }}" class="text-teal-700 underline">View</a>@endif
                             </small>
                         @endif
                     </div>

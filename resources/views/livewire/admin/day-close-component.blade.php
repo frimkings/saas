@@ -43,7 +43,7 @@
             <x-guide-tour page="clinic.day-close" :context="['owner' => $isOwner]" />
             <label for="close-date" class="sr-only">Day</label>
             <input id="close-date" type="date" wire:model.live="date" max="{{ today()->toDateString() }}" class="ui-input !w-44">
-            @if(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']))
+            @if(\App\Support\Access\Access::can('cashbook.view'))
                 <a href="{{ route('admin.cash-book') }}" wire:navigate class="ui-button ui-button-secondary"><i class="fas fa-book" aria-hidden="true"></i>Cash book</a>
             @endif
         </div>

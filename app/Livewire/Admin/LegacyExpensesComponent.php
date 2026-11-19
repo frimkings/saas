@@ -25,7 +25,7 @@ class LegacyExpensesComponent extends Component
     public function mount(): void
     {
         abort_if(! LicenseService::has(Feature::EXPENSE_TRACKING), 403);
-        abort_if(! auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'expenses.manage'), 403);
     }
 
     public function updated(string $property): void

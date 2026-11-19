@@ -20,8 +20,7 @@ class PatientMedicalRecordController extends Controller
     public function generatePDF(Patient $patient, CashierPatientClearance $clearance)
     {
         abort_if(
-            !auth()->user()->hasAnyRole(['Doctor', 'Super Admin', 'Manager']) &&
-            !auth()->user()->can('view medical records'),
+            !\App\Support\Access\Access::can('clinical.records'),
             403
         );
 
@@ -160,7 +159,7 @@ class PatientMedicalRecordController extends Controller
     /** The spectacle prescription on A5 (or two copies on A4), for the patient to take to an optical lab. */
     public function printRefraction(Consultations $consultation)
     {
-        abort_if(!auth()->user()->hasAnyRole(['Doctor', 'Super Admin', 'Manager', 'Optician']), 403);
+        abort_unless(\App\Support\Access\Access::can('clinical.print'), 403);
         $consultation->load(['patient', 'doctor', 'user']);
         $refraction = Refractions::where('consultation_id', $consultation->id)->first();
         abort_unless($refraction, 404, 'No refraction was recorded for this consultation.');

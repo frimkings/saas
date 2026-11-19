@@ -321,7 +321,7 @@
             </div>
         </div>
 
-        @if(auth()->user()?->hasRole('Super Admin'))
+        @if(\App\Support\Access\Access::can('messages.patients'))
             <div class="mt-4">
                 <livewire:admin.branch-sms-limits-component />
             </div>

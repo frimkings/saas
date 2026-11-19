@@ -31,12 +31,12 @@ class FinanceStatements
     public static function canViewClinic(?User $user): bool
     {
         return $user !== null && LicenseService::has(Feature::ADVANCED_REPORTS)
-            && ($user->hasRole('Super Admin') || $user->can('manage billing'));
+            && \App\Support\Access\Access::allows($user, 'reports.finance');
     }
 
     public static function canViewOptical(?User $user): bool
     {
-        return $user !== null && $user->hasAnyRole(['Manager', 'Super Admin'])
+        return $user !== null && \App\Support\Access\Access::allows($user, 'optical.manage')
             && app(ClinicAccessService::class)->access('optical')['allowed'];
     }
 

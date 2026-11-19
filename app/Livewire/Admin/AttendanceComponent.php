@@ -593,7 +593,7 @@ class AttendanceComponent extends Component
         $this->authorizeAccess();
         $this->authorizeHospital();
         $this->validate(['staffFile' => 'required|file|max:5120'], ['staffFile.required' => 'Choose the file first.'], ['staffFile' => 'file']);
-        $this->staffImported = $import->import($import->rows($this->staffFile), (bool) auth()->user()->hasRole('Super Admin'));
+        $this->staffImported = $import->import($import->rows($this->staffFile), \App\Support\Access\Access::can('attendance.payroll'));
         \App\Models\AuditTrail::record('attendance.staff_imported', 'Brought in a staff list: '.$this->staffImported['added'].' added, '.$this->staffImported['updated'].' updated, '
             .$this->staffImported['departments'].' departments made', null, [], ['file' => $this->staffFile->getClientOriginalName()], null, true);
         $this->reset('staffFile');
@@ -1091,7 +1091,7 @@ class AttendanceComponent extends Component
     private function authorizePunchEmails(): void
     {
         $this->authorizeAccess();
-        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can change clock-in emails.');
+        abort_unless(\App\Support\Access\Access::can('attendance.emails'), 403, 'Only the owner can change clock-in emails.');
     }
 
     /** Someone with a user account but not on a terminal: follow them so they can clock in by phone. */
@@ -1173,7 +1173,7 @@ class AttendanceComponent extends Component
     private function authorizePay(): void
     {
         $this->authorizeAccess();
-        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can open payroll.');
+        abort_unless(\App\Support\Access\Access::can('attendance.payroll'), 403, 'Only the owner can open payroll.');
     }
 
     /** How each department did in the days on show, with people in none last. */
@@ -1256,7 +1256,7 @@ class AttendanceComponent extends Component
     public function requestPart(string $feature, \App\Services\ClinicAddonService $addons): void
     {
         $this->authorizeAccess();
-        abort_unless(auth()->user()->hasRole('Super Admin'), 403, 'Only the owner can ask for add-ons.');
+        abort_unless(\App\Support\Access\Access::can('billing.manage'), 403, 'Only the owner can ask for add-ons.');
         abort_unless(in_array($feature, [...\App\Support\PlanProduct::ATTENDANCE_PARTS, \App\Support\Feature::ATTENDANCE_STAFF_PACK], true), 404);
         $addons->request(app(\App\Support\Tenancy\TenantContext::class)->clinic(), $feature, 'Asked for from the Attendance page', auth()->user());
         \App\Models\AuditTrail::record('attendance.addon_requested', 'Asked for the add-on '.(\App\Support\PlanProduct::EXTRAS[$feature][0] ?? $feature), null, [], ['feature' => $feature], null, true);
@@ -1319,7 +1319,7 @@ class AttendanceComponent extends Component
         if ($trends) {
             [$trends['people'], $pager] = $this->paged(array_values(array_filter($trends['people'], fn ($person) => $this->matches($person['staff']))), $this->page);
         }
-        $payroll = $this->showPayroll && $user?->hasRole('Super Admin') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null;
+        $payroll = $this->showPayroll && \App\Support\Access\Access::allows($user, 'attendance.payroll') ? app(\App\Services\Attendance\AttendancePayroll::class)->only($only)->for($first, $last) : null;
         $overtime = $this->overtimeList($report);
 
         // The live board needs a terminal that sends punches as they happen, or phones.
@@ -1340,7 +1340,7 @@ class AttendanceComponent extends Component
             'hospital' => $hospital,
             'extras' => $extras,
             'locked' => $manager ? $this->lockedParts($extras) : [],
-            'setup' => $manager ? \App\Support\Guides\AttendanceSetup::for($extras, (bool) $user?->hasRole('Super Admin')) : null,
+            'setup' => $manager ? \App\Support\Guides\AttendanceSetup::for($extras, \App\Support\Access\Access::allows($user, 'billing.manage')) : null,
             'staffLimit' => $manager ? \App\Support\AttendancePlan::staffLimit() : null,
             'staffFollowed' => $manager ? \App\Support\AttendancePlan::followed() : 0,
             'notFollowed' => $manager ? AttendanceStaff::query()->where('is_tracked', false)->count() : 0,
@@ -1359,7 +1359,7 @@ class AttendanceComponent extends Component
             // Shift name => its code and colour, for the Shifts window, the Today board and the day lists.
             'shiftCodes' => collect(\App\Support\ShiftCodes::for($shiftList))->keyBy('name')->all(),
             'report' => $report,
-            'canPay' => (bool) auth()->user()?->hasRole('Super Admin'),
+            'canPay' => \App\Support\Access\Access::can('attendance.payroll'),
             'punchEmailFacts' => $this->showPunchEmails ? $this->punchEmailFacts() : null,
             // Payroll gets its own button once anyone has been given a salary or an hourly rate.
             'paysStaff' => AttendanceStaff::query()->whereNotNull('pay_type')->exists(),

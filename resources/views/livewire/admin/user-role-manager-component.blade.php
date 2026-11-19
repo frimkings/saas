@@ -101,7 +101,7 @@
                     <select id="staff-role" wire:model.live="filterRole" class="{{ $field }}">
                         <option value="">All roles</option>
                         @foreach($availableRoles as $role)
-                            <option value="{{ $role->name }}">{{ $role->name }}</option>
+                            <option value="{{ $role->name }}">{{ \App\Support\Access\RoleNames::label($role->name) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -199,7 +199,7 @@
                             </td>
                             <td>
                                 @forelse($user->roles as $role)
-                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 mr-1">{{ $role->name }}</span>
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-100 text-teal-800 mr-1">{{ \App\Support\Access\RoleNames::label($role->name) }}</span>
                                 @empty
                                     <small class="text-slate-500 italic">No roles assigned</small>
                                 @endforelse
@@ -450,7 +450,7 @@
                                                     wire:model.live="selectedRoles"
                                                     value="{{ $role->name }}">
                                                 <label class="" for="role-{{ $role->id }}">
-                                                    {{ $role->name }}
+                                                    {{ \App\Support\Access\RoleNames::label($role->name) }}
                                                 </label>
                                             </div>
                                         </div>
@@ -482,7 +482,7 @@
                                                             wire:key="branch-{{ $branch->id }}-role-{{ $role->id }}-{{ $hasRole ? 'on' : 'off' }}"
                                                             wire:click="toggleBranchRole({{ $branch->id }}, @js($role->name))"
                                                             @checked($hasRole)>
-                                                        <label class="" for="branch-{{ $branch->id }}-role-{{ $role->id }}">{{ $role->name }}</label>
+                                                        <label class="" for="branch-{{ $branch->id }}-role-{{ $role->id }}">{{ \App\Support\Access\RoleNames::label($role->name) }}</label>
                                                     </div>
                                                 </div>
                                             @endforeach

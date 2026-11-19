@@ -24,12 +24,12 @@ final class TourCatalog
         'optical.special-order' => 1,
         'optical.lab' => 1,
         'optical.catalogue' => 1,
-        'optical.pos' => 1,
+        'optical.pos' => 2,
         'optical.requests' => 4,
-        'clinic.dashboard' => 4,
+        'clinic.dashboard' => 5,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
-        'clinic.pos' => 2,
+        'clinic.pos' => 3,
         'clinic.queue' => 2,
         'clinic.sales' => 4,
         'clinic.day-close' => 2,
@@ -264,7 +264,7 @@ final class TourCatalog
         return ['key' => 'optical.pos', 'title' => 'Retail POS', 'steps' => [
             ['title' => 'The counter', 'body' => 'For selling things off the shelf with no prescription: cases, cloths, solutions, ready readers. Glasses made to a prescription go through New Order instead.'],
             ['target' => 'opt-pos-search', 'title' => 'Find or scan', 'body' => 'Type a name or scan the barcode (SKU). Tap Add to put it in the cart.'],
-            ['target' => 'opt-pos-cart', 'title' => 'Take the payment', 'body' => 'Check the cart, add the customer\'s name and phone if they want a receipt by text, take the payment and print the receipt.'],
+            ['target' => 'opt-pos-cart', 'title' => 'Take the payment', 'body' => 'Check the cart, add the customer\'s name and phone if they want a receipt by text, take the payment and print the receipt. A discount up to your limit (shown under the field) goes through; a bigger one needs a Manager or the Owner.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }
@@ -281,7 +281,7 @@ final class TourCatalog
             ['target' => 'nav-workspace', 'title' => 'Two workspaces', 'body' => 'Clinical holds the front desk, the doctors and the stock. Administration holds the money, staff and settings. Switch between them here.'],
             ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'What happened today: sales, consultations and prescriptions waiting, and more figures below on plans that include them. Click a figure to open what is behind it.'],
             ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'The money pages your plan includes: sales records and the daily cash summary, and on bigger plans sales reports, expenses, the cash book and day close, outstanding balances, the income statement and each patient\'s ledger.'
-                .(\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS) ? ' Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count.'.($owner ? ' Voids and payment corrections are yours alone to approve.' : '') : '')],
+                .(\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS) ? ' Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count. Nobody approves their own request.'.($owner ? ' Voids and payment corrections are yours alone to approve, and you set each role\'s discount limit under Settings.' : '') : '')],
             ['target' => 'nav-staff-security', 'title' => 'Staff & Security', 'body' => 'Users and their roles, login history and the audit trail. Each person sees only the parts of the menu their role opens.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
         ]];
@@ -317,7 +317,7 @@ final class TourCatalog
             ['target' => 'pos-patient', 'title' => 'Who is buying', 'body' => 'Pick the patient to load what the doctor prescribed, or just type a name for a walk-in.'],
             ['target' => 'pos-doctor-carts', 'title' => 'Doctor carts', 'body' => 'What the doctors prescribed today waits here, with a count. Open one to load it into the cart.'],
             ['target' => 'pos-products', 'title' => 'Add items', 'body' => 'Search or scan, and tap an item to put it in the cart. Stock goes down when the sale is made.'],
-            ['target' => 'pos-cart', 'title' => 'Check and take payment', 'body' => 'Change quantities, add a discount if your plan has them (it shows on the receipt), split the payment between cash, MoMo and card, then print the receipt.'],
+            ['target' => 'pos-cart', 'title' => 'Check and take payment', 'body' => 'Change quantities, add a discount if your plan has them (it shows on the receipt), split the payment between cash, MoMo and card, then print the receipt. A discount within your limit applies when you press Apply; a bigger one goes to a Manager or the Owner to approve.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

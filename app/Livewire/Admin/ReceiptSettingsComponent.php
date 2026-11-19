@@ -20,13 +20,13 @@ class ReceiptSettingsComponent extends Component
 
     public function mount(): void
     {
-        abort_unless(Auth::user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('settings.manage'), 403);
         $this->loadFrom(Setting::getSettings());
     }
 
     public function save(): void
     {
-        abort_unless(Auth::user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('settings.manage'), 403);
         $this->validate([
             'visit_receipts_enabled' => 'boolean',
             'closing_time'           => 'required|date_format:H:i',

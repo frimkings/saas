@@ -17,12 +17,12 @@ class LicenseComponent extends Component
     public function mount(): void
     {
         // Fix #12: generic 403 — don't leak feature/role names in error messages
-        abort_if(!Auth::user()->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::allows(Auth::user(), 'billing.manage'), 403);
     }
 
     public function activate(): void
     {
-        abort_unless(Auth::user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('billing.manage'), 403);
         abort_if(app(\App\Services\ClinicAccessService::class)->hosted(), 403);
         $key = trim($this->licenseKey);
 

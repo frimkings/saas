@@ -334,14 +334,14 @@ class ReferralComponent extends Component
     /* ── Delete ── */
     public function confirmDelete($id)
     {
-        abort_unless(auth()->user()->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('records.delete'), 403);
         $this->confirmDeleteId = $id;
         $this->dispatch('show-delete-confirm');
     }
 
     public function deleteReferral()
     {
-        abort_unless(auth()->user()->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('records.delete'), 403);
         $referral = Referral::findOrFail($this->confirmDeleteId);
         AuditTrail::record('referral.deleted', "Deleted {$referral->letter_type_label} #{$referral->id} for {$referral->patient_name}",
             $referral, $referral->toArray(), [], $referral->patient_id);

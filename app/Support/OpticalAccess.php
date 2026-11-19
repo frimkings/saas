@@ -61,6 +61,7 @@ final class OpticalAccess
         'optical.receipt' => [self::SALES],
         'optical.prescriptions' => [self::SALES],
         'optical.partners' => [self::SALES],
+        'optical.customers' => [self::SALES], // old link, redirects to partners
         'optical.partners.statement' => [self::SALES],
         'optical.partners.statement.print' => [self::SALES],
         'optical.catalogue' => [self::SALES, self::LAB, self::STOCK],
@@ -141,7 +142,7 @@ final class OpticalAccess
 
     public static function isManager(?User $user): bool
     {
-        return (bool) $user?->hasAnyRole(self::MANAGERS);
+        return \App\Support\Access\Access::allows($user, 'optical.manage');
     }
 
     /** Can this person open this optical route? */

@@ -130,7 +130,7 @@ class PaymentMethodsComponent extends Component
     {
         $user = auth()->user();
         // Clinic Settings is for Super Admins; Optical Settings also lets Managers in.
-        abort_unless($user?->hasRole('Super Admin') || ($this->optical && $user?->hasRole('Manager')), 403);
+        abort_unless(\App\Support\Access\Access::allows($user, 'settings.manage') || ($this->optical && \App\Support\Access\Access::allows($user, 'optical.manage')), 403);
     }
 
     public function render()

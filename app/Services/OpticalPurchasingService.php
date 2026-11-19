@@ -239,6 +239,6 @@ class OpticalPurchasingService
     private function assertManager(): void
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can manage supplier orders.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can manage supplier orders.');
     }
 }

@@ -22,12 +22,7 @@ class AllApprovalsComponent extends Component
     public function mount(): void
     {
         $user = auth()->user();
-        abort_if(
-            !$user?->hasAnyRole(['Manager', 'Super Admin']) &&
-            !$user?->can('manage billing') &&
-            !$user?->can('approve clearance revoke'),
-            403
-        );
+        abort_unless(\App\Support\Access\Access::allowsAny($user, ['approve.discounts', 'approve.refunds', 'approve.revokes']), 403);
 
         // Default to first tab the user can actually access
         if (!$this->canAccess($this->activeType)) {
@@ -57,11 +52,12 @@ class AllApprovalsComponent extends Component
             return false;
         }
         return match($type) {
-            'discount', 'refund'  => $user?->hasAnyRole(['Manager', 'Super Admin']) || $user?->can('manage billing'),
-            'revoke'              => $user?->hasAnyRole(['Manager', 'Super Admin']) || $user?->can('approve clearance revoke'),
-            'password_reset',
-            'correction',
-            'spectacle_renewal'  => $user?->hasRole('Super Admin'),
+            'discount'            => \App\Support\Access\Access::allows($user, 'approve.discounts'),
+            'refund'              => \App\Support\Access\Access::allows($user, 'approve.refunds'),
+            'revoke'              => \App\Support\Access\Access::allows($user, 'approve.revokes'),
+            'password_reset'      => \App\Support\Access\Access::allows($user, 'approve.password_resets'),
+            'correction'          => \App\Support\Access\Access::allows($user, 'approve.corrections'),
+            'spectacle_renewal'   => \App\Support\Access\Access::allows($user, 'approve.spectacle_renewals'),
             default              => false,
         };
     }

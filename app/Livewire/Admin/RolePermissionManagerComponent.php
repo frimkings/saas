@@ -259,7 +259,7 @@ class RolePermissionManagerComponent extends Component
         $user = $this->clinicStaff()->findOrFail($userId);
 
         if ($role->name === 'Super Admin' && $user->id === auth()->id()) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'You cannot remove your own Super Admin role.']);
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'You cannot remove your own Owner role.']);
             return;
         }
 
@@ -381,7 +381,30 @@ class RolePermissionManagerComponent extends Component
 
     private function authorizeRoleManagement(): void
     {
-        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('roles.view'), 403);
+    }
+
+    /**
+     * Roles and permissions are shared by every clinic, so changing what a role can do, or
+     * adding, renaming or deleting roles and permissions, would change every clinic at once.
+     * Only the platform team may do that; clinics see the page read-only until roles become
+     * per clinic (docs/roles-and-permissions.md).
+     */
+    public function canEditShared(): bool
+    {
+        return (bool) auth()->user()?->is_platform_admin;
+    }
+
+    private function authorizeSharedEdit(): void
+    {
+        $this->authorizeRoleManagement();
+        abort_unless($this->canEditShared(), 403, 'Roles are shared by all clinics and can only be changed by the platform team.');
+    }
+
+    /** Staff of the clinic being worked in; a role is only ever given to or taken from them. */
+    private function clinicStaff()
+    {
+        return User::inCurrentClinic();
     }
 
     /**

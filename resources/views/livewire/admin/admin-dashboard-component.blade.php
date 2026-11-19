@@ -120,7 +120,7 @@
                                 @php $roleName = $log->user?->roles->first()?->name ?? 'Staff'; @endphp
                                 <tr>
                                     <td class="font-semibold">{{ $log->user->name ?? 'Unknown' }}</td>
-                                    <td><span class="inline-flex rounded-md px-2 py-0.5 text-xs font-semibold {{ $roleTone($roleName) }}">{{ $roleName }}</span></td>
+                                    <td><span class="inline-flex rounded-md px-2 py-0.5 text-xs font-semibold {{ $roleTone($roleName) }}">{{ \App\Support\Access\RoleNames::label($roleName) }}</span></td>
                                     <td class="whitespace-nowrap text-slate-500">{{ optional($log->login_at)->diffForHumans() ?? '—' }}</td>
                                     <td class="hidden font-mono text-xs text-slate-500 sm:table-cell">{{ $log->ip_address }}</td>
                                 </tr>

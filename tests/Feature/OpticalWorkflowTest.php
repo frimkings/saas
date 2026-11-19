@@ -2147,6 +2147,8 @@ class OpticalWorkflowTest extends TestCase
         config(['tenancy.enabled' => true]);
         $user = User::factory()->create();
         $this->tenant($user, 'priced-services');
+        // A desk role: its optical discount limit (10% by default) covers the 5 off below.
+        $user->assignRole(\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Optical Assistant', 'guard_name' => 'web']));
         $this->actingAs($user);
         $patient = Patient::createWithGeneratedPxNumber([
             'user_id' => $user->id, 'name' => 'Priced Customer', 'contact' => '0240000789', 'gender' => 'Other',

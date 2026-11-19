@@ -1,6 +1,6 @@
 @php
     $money = fn ($v) => currency().' '.number_format((float) $v, 2);
-    $canCloseDay = (bool) auth()->user()?->hasAnyRole(['Cashier', 'Manager', 'Super Admin']);
+    $canCloseDay = \App\Support\Access\Access::can('dayclose.manage');
     $shortcut = 'flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 no-underline hover:border-teal-400 hover:bg-teal-50 hover:no-underline';
 @endphp
 <div class="clinic-ui ui-page space-y-6" data-livewire-root>

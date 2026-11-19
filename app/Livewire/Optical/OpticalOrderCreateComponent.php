@@ -669,6 +669,21 @@ class OpticalOrderCreateComponent extends Component
         if ((float) $this->discount_amount > round($pricing['subtotal'] - $pricing['trade'], 2)) {
             throw ValidationException::withMessages(['discount_amount' => $pricing['trade'] > 0 ? 'Discount cannot be more than the order subtotal after the agreed trade discount.' : 'Discount cannot be more than the order subtotal.']);
         }
+        $this->checkDiscountLimit($pricing);
+    }
+
+    /** The seller's discount limit at the optical till applies to orders too (agreed trade discounts don't count). */
+    private function checkDiscountLimit(array $pricing): void
+    {
+        if ($this->remakeIsFree()) return;
+        $discount = (float) $this->discount_amount;
+        // A quotation already priced (e.g. by a Manager) keeps its discount when desk staff turn it into an order.
+        if ($this->editingQuotationId && $discount <= (float) (LensOrder::find($this->editingQuotationId)?->discount_amount ?? 0) + 0.004) return;
+        $base = max(0, round($pricing['subtotal'] - $pricing['trade'], 2));
+        if (! \App\Support\Access\DiscountLimits::allows(auth()->user(), \App\Support\Access\DiscountLimits::OPTICAL, $discount, $base)) {
+            $limit = \App\Support\Access\DiscountLimits::forUser(auth()->user(), \App\Support\Access\DiscountLimits::OPTICAL);
+            throw ValidationException::withMessages(['discount_amount' => "Your limit is {$limit}% of the order. A Manager or the Owner must give a bigger discount."]);
+        }
     }
 
     private function normalizeFrameSelection(): void
@@ -1209,6 +1224,7 @@ class OpticalOrderCreateComponent extends Component
             $this->validateSpecialPrices();
         }
         $this->normalizeDiscount();
+        $this->checkDiscountLimit($this->priceBreakdown());
         $this->validate([
             'order_source' => 'required|in:in_clinic,partner,walk_in',
             'patient_id' => $this->order_source === 'in_clinic'
@@ -1309,7 +1325,7 @@ class OpticalOrderCreateComponent extends Component
                 })->orderBy('name')->limit(10)->get()
                 : collect(),
             // The special-order tour tells managers how to order the lens themselves.
-            'specialTourContext' => ['buyer' => (bool) auth()->user()?->hasAnyRole(['Manager', 'Super Admin'])],
+            'specialTourContext' => ['buyer' => \App\Support\Access\Access::can('optical.manage')],
             // Every active partner: the picker filters them in the browser.
             'partners' => OpticalPartnerClinic::where('is_active', true)->orderBy('name')->get(),
             'prescriptions' => $this->patient_id ? OpticalPrescription::where('patient_id', $this->patient_id)->latest()->get() : collect(),

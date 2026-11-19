@@ -22,7 +22,7 @@ class LegacyPaymentsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(! auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::allows(auth()->user(), 'sales.manage'), 403);
         // ?search= opens the list filtered (the patient ledger links here with a PX number).
         $this->search = mb_substr(trim((string) request()->query('search', '')), 0, 100);
     }

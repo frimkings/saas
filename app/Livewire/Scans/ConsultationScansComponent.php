@@ -38,7 +38,7 @@ class ConsultationScansComponent extends Component
     {
         $user = Auth::user();
 
-        return $user !== null && LicenseService::has(Feature::DIAGNOSTIC_SCANS) && $user->hasAnyRole(['Doctor', 'Super Admin']);
+        return $user !== null && LicenseService::has(Feature::DIAGNOSTIC_SCANS) && \App\Support\Access\Access::allows($user, 'clinical.records');
     }
 
     public function mount(int $patientId, ?int $consultationId = null): void
@@ -86,7 +86,7 @@ class ConsultationScansComponent extends Component
         abort_unless(self::allowed(), 403);
         app(ClinicAccessService::class)->assertWritable(Feature::DIAGNOSTIC_SCANS);
         $order = ScanOrder::where('patient_id', $this->patientId)->findOrFail($orderId);
-        abort_unless($order->source === 'internal' && ((int) $order->ordered_by === Auth::id() || Auth::user()->hasRole('Super Admin')), 403);
+        abort_unless($order->source === 'internal' && ((int) $order->ordered_by === Auth::id() || \App\Support\Access\Access::can('records.delete')), 403);
         try {
             app(ScanOrderService::class)->cancel($order, 'Withdrawn by the doctor from the consultation');
         } catch (ValidationException $e) {

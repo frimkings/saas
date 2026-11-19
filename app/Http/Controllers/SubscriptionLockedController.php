@@ -17,7 +17,7 @@ class SubscriptionLockedController extends Controller
         if (!$stage || !$stage->blocksStaff()) {
             return redirect('/');
         }
-        if (auth()->user()->hasRole('Super Admin')) {
+        if (\App\Support\Access\Access::can('billing.manage')) {
             return redirect()->route($stage->renewalRoute());
         }
 

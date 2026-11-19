@@ -36,7 +36,7 @@ class RoleDashboardResolver
 
         // Attendance only: managers run the attendance page, everyone else sees their own.
         if (\App\Support\OpticalMode::attendanceOnly($context->clinic())) {
-            return $user->hasAnyRole(['Super Admin', 'Manager']) ? 'admin.attendance' : 'user.profile';
+            return \App\Support\Access\Access::allows($user, 'attendance.manage') ? 'admin.attendance' : 'user.profile';
         }
 
         foreach (self::DASHBOARDS as $role => $route) {

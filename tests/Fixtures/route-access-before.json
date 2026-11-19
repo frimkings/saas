@@ -1,0 +1,1624 @@
+{
+  "admin.approvals": {
+    "uri": "admin/approvals",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage billing",
+          "approve clearance revoke"
+        ]
+      }
+    ]
+  },
+  "admin.attendance.departments": {
+    "uri": "admin/attendance/departments",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.audit-trail": {
+    "uri": "admin/audit-trail",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.backups": {
+    "uri": "admin/backups",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.backup.download": {
+    "uri": "admin/backups/download/{filename}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.branches": {
+    "uri": "admin/branches",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.cash-book": {
+    "uri": "admin/cash-book",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.category": {
+    "uri": "admin/category",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.clearance-revoke-approvals": {
+    "uri": "admin/clearance-revoke-approvals",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage billing",
+          "approve clearance revoke"
+        ]
+      }
+    ]
+  },
+  "admin.clinical-task-center": {
+    "uri": "admin/clinical-task-center",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.combined-statement": {
+    "uri": "admin/combined-statement",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.combined-statement.export": {
+    "uri": "admin/combined-statement/export/{format}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.broadcast": {
+    "uri": "admin/communications/broadcast",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.messages": {
+    "uri": "admin/communications/messages",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.sms-settings": {
+    "uri": "admin/communications/sms",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.whatsapp-settings": {
+    "uri": "admin/communications/whatsapp",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.daily-cash-summary": {
+    "uri": "admin/daily-cash-summary",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.dashboard": {
+    "uri": "admin/dashboard",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.diagnoses": {
+    "uri": "admin/diagnoses",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.discount-approvals": {
+    "uri": "admin/discount-approvals",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage billing",
+          "approve clearance revoke"
+        ]
+      }
+    ]
+  },
+  "admin.expenses": {
+    "uri": "admin/expenses",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.expenses.previous": {
+    "uri": "admin/expenses/previous-software",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.expenses.receipt": {
+    "uri": "admin/expenses/receipt/{expense}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.income-statement": {
+    "uri": "admin/income-statement",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.income-statement.export.csv": {
+    "uri": "admin/income-statement/export/csv",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.income-statement.export.pdf": {
+    "uri": "admin/income-statement/export/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.income-statement.preview": {
+    "uri": "admin/income-statement/preview",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.insurance.claims": {
+    "uri": "admin/insurance/claims",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.insurance.insurers": {
+    "uri": "admin/insurance/insurers",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.insurance.payments": {
+    "uri": "admin/insurance/payments",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": [
+          "record insurer payments"
+        ]
+      }
+    ]
+  },
+  "admin.insurance.receivables": {
+    "uri": "admin/insurance/receivables",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.inventory-alerts": {
+    "uri": "admin/inventory-alerts",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.lens-outstanding-report": {
+    "uri": "admin/lens-outstanding-report",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.license": {
+    "uri": "admin/license",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.login-history": {
+    "uri": "admin/login-history",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.mail-settings": {
+    "uri": "admin/mail-settings",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.offline-health": {
+    "uri": "admin/offline-health",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.password-reset-approvals": {
+    "uri": "admin/password-reset-approvals",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.patient-ledger": {
+    "uri": "admin/patient-ledger",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.patient-recall": {
+    "uri": "admin/patient-recall",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.product": {
+    "uri": "admin/product",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.legacy-medication-names": {
+    "uri": "admin/product/previous-software-names",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.purchase-orders": {
+    "uri": "admin/purchase-orders",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.purchase-orders.pdf": {
+    "uri": "admin/purchase-orders/{id}/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.quotations": {
+    "uri": "admin/quotations",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.quotations.pdf": {
+    "uri": "admin/quotations/{id}/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.refund-approvals": {
+    "uri": "admin/refund-approvals",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage billing",
+          "approve clearance revoke"
+        ]
+      }
+    ]
+  },
+  "admin.report-delivery": {
+    "uri": "admin/report-delivery",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.reports": {
+    "uri": "admin/reports",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "reports.export.pdf": {
+    "uri": "admin/reports/export/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.roles-permissions": {
+    "uri": "admin/roles-permissions",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.sales-records": {
+    "uri": "admin/sales-records",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.sales-records.previous": {
+    "uri": "admin/sales-records/previous-software",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.settings": {
+    "uri": "admin/settings",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.sms-logs": {
+    "uri": "admin/sms-logs",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.stock-movements": {
+    "uri": "admin/stock-movements",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.stock-transfers": {
+    "uri": "admin/stock-transfers",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.subscription": {
+    "uri": "admin/subscription",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.subscription.invoice": {
+    "uri": "admin/subscription/invoices/{invoice}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.subscription.receipt": {
+    "uri": "admin/subscription/receipts/{invoice}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.suppliers": {
+    "uri": "admin/suppliers",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Super Admin",
+          "Manager"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.users": {
+    "uri": "admin/users",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage users"
+        ]
+      }
+    ]
+  },
+  "cart": {
+    "uri": "cart",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.clearance-receipt": {
+    "uri": "cashier/clearance-receipt/{id}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.dashboard": {
+    "uri": "cashier/dashboard",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "admin.day-close": {
+    "uri": "cashier/day-close",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Cashier",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.outstanding-balances": {
+    "uri": "cashier/outstanding-balances",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.receipt.show": {
+    "uri": "cashier/receipt/{saleId}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.receipt.pdf": {
+    "uri": "cashier/receipt/{saleId}/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "refunds.logs": {
+    "uri": "cashier/refund-logs",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "refunds.receipt": {
+    "uri": "cashier/refund-receipt/{refund}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "refunds.receipt.pdf": {
+    "uri": "cashier/refund-receipt/{refund}/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.sales-records": {
+    "uri": "cashier/sales-records",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.seller-desk": {
+    "uri": "cashier/seller-desk",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.visit-receipt.sale": {
+    "uri": "cashier/visit-receipt/sale/{saleId}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "cashier.visit-receipt.show": {
+    "uri": "cashier/visit-receipt/{visit}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "discount-approval-notices.approve": {
+    "uri": "discount-approval-notices/{discountRequest}/approve",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage billing",
+          "approve clearance revoke"
+        ]
+      }
+    ]
+  },
+  "discount-approval-notices.reject": {
+    "uri": "discount-approval-notices/{discountRequest}/reject",
+    "conditions": [
+      {
+        "kind": "RoleOrPermissionMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": [
+          "manage billing",
+          "approve clearance revoke"
+        ]
+      }
+    ]
+  },
+  "doctor.all-records": {
+    "uri": "doctor/allrecords",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.consultation.pdf": {
+    "uri": "doctor/consultation/{consultation}/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.prescription.print": {
+    "uri": "doctor/consultation/{consultation}/prescription/print",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.visit-summary.print": {
+    "uri": "doctor/consultation/{consultation}/visit-summary/print",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.dashboard": {
+    "uri": "doctor/dashboard",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.patient-awaiting": {
+    "uri": "doctor/patient-awaiting",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.medical-record.pdf": {
+    "uri": "doctor/patient/{patient}/clearance/{clearance}/medical-record/pdf",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.medical-record.preview": {
+    "uri": "doctor/patient/{patient}/clearance/{clearance}/medical-record/preview",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.patient-timeline": {
+    "uri": "doctor/patient/{patient}/timeline",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.patient-records": {
+    "uri": "doctor/patientrecords-{clearance}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.referrals": {
+    "uri": "doctor/referrals",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.referral.pdf": {
+    "uri": "doctor/referrals/{referral}/print",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "doctor.visit-summaries.download": {
+    "uri": "doctor/visit-summaries/download",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "frontdesk.scans": {
+    "uri": "front-desk/scans",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "frontdesk.scans.report": {
+    "uri": "front-desk/scans/report.csv",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "GET livewire/ajax-patients": {
+    "uri": "livewire/ajax-patients",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Cashier",
+          "Optician",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical-links.accept": {
+    "uri": "optical-links/accept",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.audit-trail": {
+    "uri": "optical/audit-trail",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.expenses": {
+    "uri": "optical/expenses",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.expenses.receipt": {
+    "uri": "optical/expenses/receipt/{expense}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.login-history": {
+    "uri": "optical/login-history",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.profit": {
+    "uri": "optical/profit",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.profit.export": {
+    "uri": "optical/profit/export/{format}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.purchasing": {
+    "uri": "optical/purchasing",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.purchasing.print": {
+    "uri": "optical/purchasing/{order}/print",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.settings": {
+    "uri": "optical/settings",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "optical.stock.receive-lenses": {
+    "uri": "optical/stock/receive-lenses",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "refraction.print": {
+    "uri": "refraction/print/{consultation}",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Doctor",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.appointments": {
+    "uri": "secretary/appointments",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.dashboard": {
+    "uri": "secretary/dashboard",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.optical-centres": {
+    "uri": "secretary/optical-centres",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.optical-owed": {
+    "uri": "secretary/owed-to-optical",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      },
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.patient-clearance": {
+    "uri": "secretary/patient-clearance",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.patients": {
+    "uri": "secretary/patients",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.optical-sent": {
+    "uri": "secretary/sent-to-optical",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  },
+  "secretary.spectacles": {
+    "uri": "secretary/spectacles",
+    "conditions": [
+      {
+        "kind": "RoleMiddleware",
+        "roles": [
+          "Secretary",
+          "Manager",
+          "Super Admin"
+        ],
+        "permissions": []
+      }
+    ]
+  }
+}

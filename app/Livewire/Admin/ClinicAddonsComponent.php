@@ -20,7 +20,7 @@ class ClinicAddonsComponent extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('billing.manage'), 403);
     }
 
     public function ask(string $feature): void
@@ -32,7 +32,7 @@ class ClinicAddonsComponent extends Component
 
     public function send(ClinicAddonService $addons): void
     {
-        abort_unless(auth()->user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('billing.manage'), 403);
         $this->validate(['message' => 'nullable|string|max:500']);
         try {
             $request = $addons->request(app(TenantContext::class)->requireClinic(), (string) $this->requesting, trim($this->message), auth()->user());

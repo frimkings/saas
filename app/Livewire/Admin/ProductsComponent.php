@@ -845,7 +845,7 @@ class ProductsComponent extends Component
         ];
 
         // Drug names from the clinic's previous software are matched to products on a page of their own (owners only).
-        $hasLegacyMedications = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']) && \App\Models\PatientLegacyMedication::query()->exists();
+        $hasLegacyMedications = \App\Support\Access\Access::can('inventory.manage') && \App\Models\PatientLegacyMedication::query()->exists();
         $prescribedOutside = $this->prescribedOutside();
 
         return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions', 'hasLegacyMedications', 'prescribedOutside'))

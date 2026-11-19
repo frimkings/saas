@@ -24,7 +24,7 @@ class PasswordResetApprovalsComponent extends Component
 
     public function mount(): void
     {
-        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('approve.password_resets'), 403);
     }
 
     public function updatingFilterStatus()
@@ -48,7 +48,7 @@ class PasswordResetApprovalsComponent extends Component
 
     public function execute()
     {
-        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('approve.password_resets'), 403);
         $req = PasswordResetRequest::findOrFail($this->confirmId);
 
         if ($this->confirmAction === 'approve') {
@@ -75,7 +75,7 @@ class PasswordResetApprovalsComponent extends Component
     /** A fresh code for an approved request (the first was lost, ran out, or came before codes). */
     public function newCode($id): void
     {
-        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('approve.password_resets'), 403);
         $req = PasswordResetRequest::where('status', 'approved')->findOrFail($id);
         $this->showCode($req);
     }

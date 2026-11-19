@@ -108,7 +108,7 @@ class OpticalNavigation
     public static function canManageStaff(): bool
     {
         $user = auth()->user();
-        return (bool) ($user?->hasRole('Super Admin') || $user?->can('manage users'));
+        return \App\Support\Access\Access::allows($user, 'staff.manage');
     }
 
     public static function active(string $route): bool

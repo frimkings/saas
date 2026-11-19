@@ -1,5 +1,5 @@
 @php
-    $isClinicAdmin = auth()->user()?->hasRole('Super Admin');
+    $isClinicAdmin = \App\Support\Access\Access::can('billing.manage');
     $licenseNotice = app(\App\Services\ClinicAccessService::class)->notice($isClinicAdmin);
     $renewRoute = ($licenseNotice['hosted'] ?? false) ? 'admin.subscription' : 'admin.license';
     $what = ($licenseNotice['hosted'] ?? false) ? 'subscription' : 'license';

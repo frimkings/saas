@@ -18,20 +18,20 @@ final class CommunicationsNavigation
         $user = auth()->user();
         if (! $user) return [];
 
-        $superAdmin = $user->hasRole('Super Admin');
-        $manager = $superAdmin || $user->hasRole('Manager');
+        // Each link only for those who can open its page (the same screen map the routes use).
+        $may = fn (string $route) => \App\Support\Access\Access::allowsRoute($user, $route);
         $campaigns = LicenseService::has(Feature::SMS_CAMPAIGNS);
         // Messages to patients (templates, credits, WhatsApp, logs) come with Feature::PATIENT_MESSAGES.
         $messages = LicenseService::has(Feature::PATIENT_MESSAGES);
 
         return array_values(array_filter([
-            $superAdmin && $messages ? ['admin.messages', 'Messages', 'fas fa-comment-dots text-primary'] : null,
+            $may('admin.messages') && $messages ? ['admin.messages', 'Messages', 'fas fa-comment-dots text-primary'] : null,
             // Credits and logs serve broadcasts too, so they come with either.
-            $superAdmin && ($messages || $campaigns) ? ['admin.sms-settings', 'SMS Credits & Sending', 'fas fa-sms text-info'] : null,
-            $superAdmin && $messages ? ['admin.whatsapp-settings', 'WhatsApp', 'fab fa-whatsapp text-success'] : null,
-            $superAdmin && $campaigns ? ['admin.broadcast', 'Broadcast', 'fas fa-bullhorn text-warning'] : null,
-            $manager && $campaigns ? ['admin.patient-recall', 'Patient Recall', 'fas fa-user-clock text-purple'] : null,
-            $manager && ($messages || $campaigns) ? ['admin.sms-logs', 'SMS Logs', 'fas fa-list text-secondary'] : null,
+            $may('admin.sms-settings') && ($messages || $campaigns) ? ['admin.sms-settings', 'SMS Credits & Sending', 'fas fa-sms text-info'] : null,
+            $may('admin.whatsapp-settings') && $messages ? ['admin.whatsapp-settings', 'WhatsApp', 'fab fa-whatsapp text-success'] : null,
+            $may('admin.broadcast') && $campaigns ? ['admin.broadcast', 'Broadcast', 'fas fa-bullhorn text-warning'] : null,
+            $may('admin.patient-recall') && $campaigns ? ['admin.patient-recall', 'Patient Recall', 'fas fa-user-clock text-purple'] : null,
+            $may('admin.sms-logs') && ($messages || $campaigns) ? ['admin.sms-logs', 'SMS Logs', 'fas fa-list text-secondary'] : null,
         ]));
     }
 

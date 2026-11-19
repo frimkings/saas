@@ -62,7 +62,7 @@ class AttentionItems
         'order_uncollected'   => ['Ready, not collected', 'Call the patient to come in.', 'lens_order'],
         'scan_unreported'     => ['Paid scans not yet reported', 'Do the scan or finish the report, then add the result on the Scan Desk.', 'scan_order'],
         'scan_unsent'         => ['Scan results not sent to the referrer', 'The patient agreed to share them. Send them from the Scan Desk.', 'scan_order'],
-        'stock_expired'       => ['Expired stock', 'Take it off the shelf now. A Super Admin removes it from stock.', 'stock'],
+        'stock_expired'       => ['Expired stock', 'Take it off the shelf now. The Owner removes it from stock.', 'stock'],
         'stock_expiring_soon' => ['Expiring within 30 days', 'Use or sell these first, or return them to the supplier.', 'stock'],
         'stock_expiring'      => ['Expiring soon', 'Plan to use or sell these before they expire.', 'stock'],
     ];
@@ -153,7 +153,7 @@ class AttentionItems
 
         if ($line === self::OPTICAL) {
             // Paid-for jobs whose lenses must be bought in and are on no supplier order yet (Purchasing's list).
-            $buyer = Auth::user()?->hasAnyRole(['Manager', 'Super Admin']);
+            $buyer = \App\Support\Access\Access::can('purchasing.manage');
             $groups['lens_unordered'] = app(\App\Services\OpticalPurchasingService::class)->specialOrderBacklog()
                 ->groupBy(fn ($row) => $row['order']->id)->take(self::PER_GROUP)
                 ->map(function ($rows) use ($buyer) {
@@ -335,7 +335,7 @@ class AttentionItems
      */
     public function writeOff(string $type, int $id, ?string $note = null): int
     {
-        abort_unless(Auth::user()?->hasRole('Super Admin'), 403);
+        abort_unless(\App\Support\Access\Access::can('stock.write_off'), 403);
         abort_unless(in_array($type, self::STOCK_TYPES, true), 422);
         $note = trim((string) $note) ?: null;
         $line = $type === 'optical_lot' ? self::OPTICAL : self::CLINIC;
@@ -488,7 +488,7 @@ class AttentionItems
 
     private function clinicStockUrl(): ?string
     {
-        return Auth::user()?->hasAnyRole(['Super Admin', 'Manager']) ? route('admin.inventory-alerts') : null;
+        return \App\Support\Access\Access::can('inventory.movements') ? route('admin.inventory-alerts') : null;
     }
 
     private function stockItem(string $type, int $id, string $name, ?string $batch, Carbon $expires, int $quantity, ?string $url, Carbon $today): array

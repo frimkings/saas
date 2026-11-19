@@ -98,7 +98,7 @@ class EnforceSubscriptionWriteAccess
     }
     private function isRenewalRequest(Request $request): bool
     {
-        if (!LivewireRequest::isUpdate($request) || !auth()->user()?->hasRole('Super Admin')) return false;
+        if (!LivewireRequest::isUpdate($request) || !\App\Support\Access\Access::can('billing.manage')) return false;
         $components = $request->input('components', []);
         if (!is_array($components) || !$components) return false;
         $allowed = [

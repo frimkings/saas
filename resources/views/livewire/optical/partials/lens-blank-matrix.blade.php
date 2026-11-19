@@ -8,7 +8,7 @@
     ]));
     $pairsText = fn ($pairs, $extra, $eyeSpecific) => number_format($pairs).' '.\Illuminate\Support\Str::plural('pair', $pairs).($extra ? ' + '.$extra.' '.($eyeSpecific ? 'unpaired' : 'single').' '.\Illuminate\Support\Str::plural('lens', $extra) : '');
     $currentRange = $stockedRanges->firstWhere('key', $matrixRangeKey);
-    $isManager = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']);
+    $isManager = \App\Support\Access\Access::can('optical.manage');
     // Single vision switches Pairs/Lenses in the browser: both are rendered and CSS shows one.
     // Progressive/bifocal Pairs/Right/Left stays on the server: it sets the eye the reorder alerts cover.
     $browserViews = ! $matrixEyeSpecific;

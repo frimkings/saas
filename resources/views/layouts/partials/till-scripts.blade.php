@@ -13,7 +13,7 @@
         var d = event.detail || {};
         Swal.fire({
             title: 'Discount approval pending',
-            html: '<p class="mb-2 text-sm">This cart has a discount waiting for Manager/Super Admin approval.</p>' + posRows([
+            html: '<p class="mb-2 text-sm">This cart has a discount waiting for a Manager or the Owner to approve it.</p>' + posRows([
                 ['Full amount', posMoney(d.fullAmount)],
                 ['Pending discount', '-' + posMoney(d.discountAmount), 'text-red-700'],
                 ['Discounted amount', posMoney(d.discountedAmount)],

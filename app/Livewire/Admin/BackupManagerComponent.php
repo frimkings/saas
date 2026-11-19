@@ -55,7 +55,7 @@ class BackupManagerComponent extends Component
 
     private function authorise(): void
     {
-        abort_if(!auth()->user()?->hasRole('Super Admin'), 403);
+        abort_if(!\App\Support\Access\Access::can('system.manage'), 403);
         abort_if(!LicenseService::has(Feature::MANUAL_BACKUP), 403);
     }
 

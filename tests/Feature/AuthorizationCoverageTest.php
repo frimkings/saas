@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureScreenAccess;
 use App\Livewire\Admin\RefundApprovalsComponent;
 use App\Livewire\Admin\RolePermissionManagerComponent;
 use App\Models\User;
@@ -10,8 +11,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Spatie\Permission\Middleware\RoleMiddleware;
-use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -88,14 +87,7 @@ class AuthorizationCoverageTest extends TestCase
             $checkedRoutes++;
 
             $this->assertContains('auth', $middleware, "{$route->uri()} must require authentication.");
-            $this->assertTrue(
-                collect($middleware)->contains(
-                    fn (string $entry) =>
-                        str_starts_with($entry, 'role:') ||
-                        str_starts_with($entry, 'role_or_permission:')
-                ),
-                "{$route->uri()} must declare a role or permission access rule."
-            );
+            $this->assertContains('access', $middleware, "{$route->uri()} must declare the access rule.");
         }
 
         $this->assertGreaterThan(0, $checkedRoutes, 'No protected role-area routes were discovered.');
@@ -169,31 +161,21 @@ class AuthorizationCoverageTest extends TestCase
         $this->assertNotNull($route, "Named route {$routeName} does not exist.");
         $this->assertContains('auth', $route->gatherMiddleware(), "{$routeName} must require authentication.");
 
-        $authorizationMiddleware = collect($route->gatherMiddleware())
-            ->first(fn (string $middleware) =>
-                str_starts_with($middleware, 'role:') ||
-                str_starts_with($middleware, 'role_or_permission:')
-            );
-
-        $this->assertNotNull(
-            $authorizationMiddleware,
-            "{$routeName} must declare role or permission middleware."
+        $this->assertContains(
+            'access',
+            $route->gatherMiddleware(),
+            "{$routeName} must declare the access middleware."
         );
 
-        [$type, $arguments] = explode(':', $authorizationMiddleware, 2);
         $request = Request::create(route($routeName, $this->placeholderParameters($routeName)), 'GET');
+        $request->setRouteResolver(fn () => $route);
         $request->setUserResolver(fn () => $user);
         $this->actingAs($user);
 
         try {
-            $middleware = $type === 'role'
-                ? app(RoleMiddleware::class)
-                : app(RoleOrPermissionMiddleware::class);
-
-            $response = $middleware->handle(
+            $response = app(EnsureScreenAccess::class)->handle(
                 $request,
-                fn () => response('authorized'),
-                $arguments
+                fn () => response('authorized')
             );
 
             return $response->getStatusCode() === Response::HTTP_OK;

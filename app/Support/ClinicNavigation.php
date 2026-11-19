@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Services\Reminders\AttentionItems;
+use App\Support\Access\Access;
+use App\Support\Access\Screens;
 
 /**
  * Sidebar menus for the Tailwind clinic layout (layouts/clinic). Each entry is a link
@@ -31,9 +33,8 @@ class ClinicNavigation
     public static function attendanceOnly(): array
     {
         $user = auth()->user();
-        $superAdmin = (bool) $user?->hasRole('Super Admin');
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
-        if (! $user?->hasAnyRole(['Super Admin', 'Manager'])) {
+        if (! Access::allows($user, 'attendance.manage')) {
             return [
                 ...self::departmentAttendance(),
                 ['label' => 'My attendance', 'route' => 'user.profile', 'icon' => 'fa-user-clock'],
@@ -46,11 +47,11 @@ class ClinicNavigation
             ['label' => 'My profile', 'route' => 'user.profile', 'icon' => 'fa-user'],
             ['label' => 'Messages', 'route' => 'staff.messages', 'icon' => 'fa-envelope'],
             ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
-                ['label' => 'Users', 'route' => 'admin.users', 'show' => $superAdmin || (bool) $user->can('manage users')],
+                ['label' => 'Users', 'route' => 'admin.users'],
                 ['label' => 'Login History', 'route' => 'admin.login-history', 'show' => $has(Feature::AUDIT_TRAIL)],
                 ['label' => 'Audit Trail', 'route' => 'admin.audit-trail', 'show' => $has(Feature::AUDIT_TRAIL)],
             ]],
-            ['label' => 'System', 'icon' => 'fa-cog', 'show' => $superAdmin, 'items' => [
+            ['label' => 'System', 'icon' => 'fa-cog', 'show' => Access::allows($user, 'settings.manage'), 'items' => [
                 ['label' => 'Settings', 'route' => 'admin.settings', 'activePath' => 'admin/settings*'],
                 ['label' => 'Branches', 'route' => 'admin.branches', 'activePath' => 'admin/branches*'],
                 ['label' => 'License & Subscription', 'route' => 'admin.license'],
@@ -67,7 +68,7 @@ class ClinicNavigation
     private static function opticalLinkLinks(bool $spectacles): array
     {
         $user = auth()->user();
-        if (! $spectacles || ! $user?->hasAnyRole(['Secretary', 'Manager', 'Super Admin'])) return [];
+        if (! $spectacles || ! Access::allows($user, 'spectacles.manage')) return [];
         $links = app(\App\Services\OpticalLinks\OpticalLinkService::class);
         $clinicId = (int) app(\App\Support\Tenancy\TenantContext::class)->clinicId();
         $inUse = $clinicId && ($links->linksForSender($clinicId)->isNotEmpty() || \App\Models\OpticalOrderRequest::forSender($clinicId)->exists());
@@ -86,7 +87,7 @@ class ClinicNavigation
         $counts = app(AttentionItems::class)->counts('clinic');
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         // Registration, appointments, clearance and spectacles are the front desk's; a cashier has the till side only.
-        $desk = (bool) auth()->user()?->hasAnyRole(['Secretary', 'Manager', 'Super Admin']);
+        $desk = Access::allows(auth()->user(), 'patients.view');
 
         return self::visible([
             ['label' => 'Dashboard', 'route' => $desk ? 'secretary.dashboard' : 'cashier.dashboard', 'icon' => 'fa-tachometer-alt'],
@@ -105,7 +106,7 @@ class ClinicNavigation
                 ['label' => 'Point of Sale', 'route' => 'cashier.seller-desk'],
                 ['label' => 'Sales Records', 'route' => 'cashier.sales-records'],
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],
-                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => $has(Feature::CASH_BOOK) && (bool) auth()->user()?->hasAnyRole(['Cashier', 'Manager', 'Super Admin'])],
+                ['label' => 'Day Close', 'route' => 'admin.day-close', 'show' => $has(Feature::CASH_BOOK)],
                 ['label' => 'Diagnostic Scans', 'route' => 'frontdesk.scans', 'show' => $has(Feature::DIAGNOSTIC_SCANS)],
             ]],
         ]);
@@ -134,9 +135,7 @@ class ClinicNavigation
     {
         $workspace = NavigationWorkspace::current();
         $user = auth()->user();
-        $superAdmin = (bool) $user?->hasRole('Super Admin');
-        // Sales reports and the income statement open for the owner and staff given "manage billing".
-        $money = $superAdmin || (bool) $user?->can('manage billing');
+        // Page links are filtered by the screen map in visible(); only feature and group choices stay here.
         $has = fn (string $feature) => \App\Services\LicenseService::has($feature);
         $communications = array_map(fn ($link) => ['label' => $link[1], 'route' => $link[0], 'icon' => self::iconName($link[2])],
             CommunicationsNavigation::links());
@@ -174,12 +173,11 @@ class ClinicNavigation
                 ['label' => 'Outstanding Balances', 'route' => 'cashier.outstanding-balances', 'active' => 'cashier.outstanding-balances*', 'show' => $has(Feature::OUTSTANDING_BALANCES) || \App\Support\PlanLeftovers::has(Feature::OUTSTANDING_BALANCES)],
                 ['label' => 'Diagnostic Scans', 'route' => 'frontdesk.scans', 'show' => $has(Feature::DIAGNOSTIC_SCANS)],
             ]];
-            $doctorPages = (bool) $user?->hasAnyRole(['Doctor', 'Super Admin']);
             $menu[] = ['label' => 'Clinical', 'icon' => 'fa-stethoscope', 'items' => [
-                ['label' => 'Patients Awaiting', 'route' => 'doctor.patient-awaiting', 'show' => $doctorPages, 'active' => ['doctor.patient-awaiting', 'doctor.patient-records']],
-                ['label' => 'All Records', 'route' => 'doctor.all-records', 'show' => $doctorPages, 'active' => ['doctor.all-records', 'doctor.patient-timeline']],
+                ['label' => 'Patients Awaiting', 'route' => 'doctor.patient-awaiting', 'active' => ['doctor.patient-awaiting', 'doctor.patient-records']],
+                ['label' => 'All Records', 'route' => 'doctor.all-records', 'active' => ['doctor.all-records', 'doctor.patient-timeline']],
                 // Referral letters, medical reports and excuse duty letters (the same page doctors use).
-                ['label' => 'Referrals', 'route' => 'doctor.referrals', 'show' => $doctorPages && $has(Feature::REFERRALS)],
+                ['label' => 'Referrals', 'route' => 'doctor.referrals', 'show' => $has(Feature::REFERRALS)],
                 ['label' => 'Diagnoses', 'route' => 'admin.diagnoses'],
             ]];
             $menu[] = ['label' => 'Clinical Inventory', 'icon' => 'fa-boxes', 'items' => [
@@ -198,10 +196,10 @@ class ClinicNavigation
             $opticalOnly = OpticalMode::opticalOnly();
             $menu[] = ['label' => 'Finances', 'icon' => 'fa-chart-line', 'items' => [
                 ['label' => FinanceStatements::hasBothLines() ? 'Clinic Sales Reports' : 'Sales Reports', 'route' => $opticalOnly ? 'optical.reports' : 'admin.reports',
-                    'show' => $opticalOnly || ($money && ($has(Feature::SALES_REPORTS) || $has(Feature::SALES_REPORTS_MONTH)))],
+                    'show' => $opticalOnly || $has(Feature::SALES_REPORTS) || $has(Feature::SALES_REPORTS_MONTH)],
                 ['label' => 'Sales Records', 'route' => $opticalOnly ? 'optical.sales' : 'cashier.sales-records', 'active' => $opticalOnly ? 'optical.sales' : ['cashier.sales-records', 'admin.sales-records', 'admin.sales-records.previous']],
                 ['label' => $opticalOnly ? 'Profit & Loss' : 'Income Statement', 'route' => $opticalOnly ? 'optical.profit' : 'admin.income-statement', 'activePath' => $opticalOnly ? null : 'admin/income-statement*',
-                    'show' => $opticalOnly || ($money && $has(Feature::ADVANCED_REPORTS))],
+                    'show' => $opticalOnly || $has(Feature::ADVANCED_REPORTS)],
                 ['label' => 'Combined Statement', 'route' => 'admin.combined-statement', 'show' => FinanceStatements::canViewCombined($user), 'activePath' => 'admin/combined-statement*'],
                 ['label' => 'Expenses', 'route' => $opticalOnly ? 'optical.expenses' : 'admin.expenses', 'activePath' => $opticalOnly ? null : 'admin/expenses*',
                     'show' => $opticalOnly || $has(Feature::EXPENSE_TRACKING)],
@@ -223,8 +221,7 @@ class ClinicNavigation
                 ['label' => 'Claims', 'route' => 'admin.insurance.claims', 'activePath' => 'admin/insurance/claims*'],
                 ['label' => 'Insurers', 'route' => 'admin.insurance.insurers', 'activePath' => 'admin/insurance/insurers*'],
                 ['label' => 'Receivables', 'route' => 'admin.insurance.receivables', 'activePath' => 'admin/insurance/receivables*'],
-                ['label' => 'Insurer Payments', 'route' => 'admin.insurance.payments', 'activePath' => 'admin/insurance/payments*',
-                    'show' => $superAdmin || (bool) $user?->can(\App\Models\InsurerPayment::PERMISSION)],
+                ['label' => 'Insurer Payments', 'route' => 'admin.insurance.payments', 'activePath' => 'admin/insurance/payments*'],
             ]];
         }
 
@@ -233,13 +230,13 @@ class ClinicNavigation
 
         if ($workspace === 'administration') {
             $menu[] = ['label' => 'Staff & Security', 'icon' => 'fa-users-cog', 'items' => [
-                ['label' => 'Users', 'route' => 'admin.users', 'show' => $superAdmin],
-                ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $superAdmin && $has(Feature::CUSTOM_ROLES)],
+                ['label' => 'Users', 'route' => 'admin.users'],
+                ['label' => 'Roles & Permissions', 'route' => 'admin.roles-permissions', 'show' => $has(Feature::CUSTOM_ROLES)],
                 ['label' => 'Attendance', 'route' => 'admin.attendance', 'active' => 'admin.attendance*', 'show' => \App\Services\LicenseService::has(Feature::ATTENDANCE)],
                 ['label' => 'Login History', 'route' => 'admin.login-history', 'show' => $has(Feature::AUDIT_TRAIL)],
                 ['label' => 'Audit Trail', 'route' => 'admin.audit-trail', 'show' => $has(Feature::AUDIT_TRAIL)],
             ]];
-            $menu[] = ['label' => 'System', 'icon' => 'fa-cog', 'show' => $superAdmin, 'items' => [
+            $menu[] = ['label' => 'System', 'icon' => 'fa-cog', 'show' => Access::allows($user, 'settings.manage'), 'items' => [
                 ['label' => 'Settings', 'route' => 'admin.settings', 'activePath' => 'admin/settings*'],
                 ['label' => 'Backups', 'route' => 'admin.backups', 'show' => $has(Feature::MANUAL_BACKUP) || $has(Feature::SCHEDULED_BACKUPS)],
                 ['label' => 'Branches', 'route' => 'admin.branches', 'activePath' => 'admin/branches*'],
@@ -257,7 +254,7 @@ class ClinicNavigation
     private static function departmentAttendance(): array
     {
         $user = auth()->user();
-        if (! $user || $user->hasAnyRole(['Super Admin', 'Manager']) || ! \App\Services\LicenseService::has(Feature::ATTENDANCE)
+        if (! $user || Access::allows($user, 'attendance.manage') || ! \App\Services\LicenseService::has(Feature::ATTENDANCE)
             || ! \App\Support\AttendanceScope::headed($user)) {
             return [];
         }
@@ -269,12 +266,19 @@ class ClinicNavigation
         ];
     }
 
-    /** Drops hidden links and groups left empty. */
+    /**
+     * Drops hidden links, links to pages the person can't open (the same screen map the routes use,
+     * so the menu and the pages always agree) and groups left empty.
+     */
     private static function visible(array $menu): array
     {
         $out = [];
         foreach ($menu as $item) {
             if (($item['show'] ?? true) === false) {
+                continue;
+            }
+            if (isset($item['route']) && Screens::permissionsFor($item['route']) !== null
+                && ! Access::allowsRoute(auth()->user(), $item['route'])) {
                 continue;
             }
             if (isset($item['items'])) {
@@ -302,11 +306,11 @@ class ClinicNavigation
     public static function sharedLayout(): array
     {
         $user = auth()->user();
-        if ($user?->hasAnyRole(['Super Admin', 'Manager'])) {
+        if (Access::allows($user, 'dashboard.view')) {
             return ['layouts.clinic', ['menu' => 'admin']];
         }
 
-        return ['layouts.clinic', ['menu' => $user?->hasRole('Doctor') && ! $user->hasRole('Secretary') ? 'doctor' : 'reception']];
+        return ['layouts.clinic', ['menu' => Access::allows($user, 'clinical.queue') && ! Access::allows($user, 'patients.view') ? 'doctor' : 'reception']];
     }
 
     public static function isActive(array $item): bool

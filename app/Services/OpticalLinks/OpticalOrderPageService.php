@@ -187,7 +187,7 @@ class OpticalOrderPageService
 
     private function assertManager(User $by): void
     {
-        abort_unless($by->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Support\Access\Access::allows($by, 'optical.manage'), 403);
     }
 
     private function newToken(): string

@@ -337,7 +337,7 @@ class OpticalLinkPaymentService
 
     private function assertManager(User $user): void
     {
-        abort_unless($user->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Support\Access\Access::allowsAny($user, ['optical_centres.manage', 'optical.manage']), 403);
     }
 
     private function clinicId(): int

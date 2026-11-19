@@ -29,7 +29,7 @@ class OpticalLinkTermsService
 
     public function setTerms(OpticalPartnerClinic $partner, array $terms, User $by): void
     {
-        abort_unless($by->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Support\Access\Access::allows($by, 'optical.manage'), 403);
         app(ClinicAccessService::class)->assertWritable();
         $partner = OpticalPartnerClinic::findOrFail($partner->id); // tenant-scoped: the optical centre's own partner
         abort_unless((int) $partner->clinic_id === $this->clinicId(), 404);
@@ -59,7 +59,7 @@ class OpticalLinkTermsService
     /** The clinic's own setting: approve quotes from this optical centre up to this amount without asking. */
     public function setAutoApprove(int $partnerId, ?string $limit, User $by): void
     {
-        abort_unless($by->hasAnyRole(['Super Admin', 'Manager']), 403);
+        abort_unless(\App\Support\Access\Access::allows($by, 'optical.manage'), 403);
         app(ClinicAccessService::class)->assertWritable();
         $partner = OpticalPartnerClinic::withoutGlobalScopes()->where('linked_clinic_id', $this->clinicId())->findOrFail($partnerId);
         $limit = trim((string) $limit);

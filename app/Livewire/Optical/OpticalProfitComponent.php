@@ -59,7 +59,7 @@ class OpticalProfitComponent extends Component
     /** Close the period: optical expenses dated inside it can no longer be changed. */
     public function lockPeriod(): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_if(!\App\Support\Access\Access::can('optical.manage'), 403);
         app(ClinicAccessService::class)->assertWritable('optical');
         $this->validate(['lockNotes' => 'nullable|string|max:1000']);
         [$from, $to] = $this->period();
@@ -72,7 +72,7 @@ class OpticalProfitComponent extends Component
 
     public function unlockPeriod(): void
     {
-        abort_if(!auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_if(!\App\Support\Access\Access::can('optical.manage'), 403);
         app(ClinicAccessService::class)->assertWritable('optical');
         [$from, $to] = $this->period();
         app(PeriodLockService::class)->unlock(BusinessLine::OPTICAL, $from, $to);

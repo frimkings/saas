@@ -62,7 +62,7 @@
                                         <i class="fas fa-user-tag" style="color:{{ $roleColor }};font-size:0.8rem;"></i>
                                     </div>
                                     <div>
-                                        <div class="font-semibold">{{ $role->name }}</div>
+                                        <div class="font-semibold">{{ \App\Support\Access\RoleNames::label($role->name) }}</div>
                                         @if(in_array($role->name, $protectedRoles))
                                             <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-semibold rounded-full" style="background:#6610f222;color:#6610f2;font-size:0.7rem;">Protected</span>
                                         @endif
@@ -256,7 +256,7 @@
                         <th class="whitespace-nowrap">Permission</th>
                         @foreach($roles as $role)
                             <th class="text-center whitespace-nowrap">
-                                {{ $role->name }}
+                                {{ \App\Support\Access\RoleNames::label($role->name) }}
                                 @if(in_array($role->name, $protectedRoles))
                                     <i class="fas fa-lock text-slate-500 ml-1" title="Protected role"></i>
                                 @endif
@@ -345,7 +345,7 @@
                 @if($editingRoleId && in_array($roleName, $protectedRoles))
                     <div class="rounded-lg border px-3 py-2 text-sm border-amber-200 bg-amber-50 text-amber-900 border-0">
                         <i class="fas fa-exclamation-triangle mr-1"></i>
-                        <strong>{{ $roleName }}</strong> is a protected system role. Its name and deletion are locked, but permission changes can still affect access throughout the app.
+                        <strong>{{ \App\Support\Access\RoleNames::label($roleName) }}</strong> is a protected system role. Its name and deletion are locked, but permission changes can still affect access throughout the app.
                     </div>
                 @endif
 
@@ -394,7 +394,7 @@
                         </div>
                         <div class="mt-2 text-slate-500 text-sm">
                             <i class="fas fa-info-circle mr-1"></i>
-                            <strong>Super Admin</strong> always has full access regardless of this list.
+                            <strong>Owner</strong> always has full access regardless of this list.
                         </div>
                     @endif
                 </div>
@@ -434,7 +434,7 @@
         <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl border-0 shadow">
             <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 bg-sky-600 text-white">
                 <h5 class="text-base font-semibold">
-                    <i class="fas fa-users mr-2"></i> Users in {{ $managingRoleName ?: 'Role' }}
+                    <i class="fas fa-users mr-2"></i> Users in {{ $managingRoleName ? \App\Support\Access\RoleNames::label($managingRoleName) : 'Role' }}
                 </h5>
                 <button type="button" class="text-xl leading-none hover:text-slate-800 text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -446,7 +446,7 @@
                             <option value="">Choose staff member...</option>
                             @foreach($assignableUsers as $user)
                                 <option value="{{ $user->id }}">
-                                    {{ $user->name }} - {{ $user->email }} @if($user->roles->isNotEmpty())({{ $user->roles->pluck('name')->implode(', ') }})@endif
+                                    {{ $user->name }} - {{ $user->email }} @if($user->roles->isNotEmpty())({{ \App\Support\Access\RoleNames::labels($user->roles->pluck('name')) }})@endif
                                 </option>
                             @endforeach
                         </select>
@@ -466,7 +466,7 @@
                         <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left flex items-center justify-between">
                             <div>
                                 <div class="font-semibold">{{ $user->name }}</div>
-                                <div class="text-slate-500 text-sm">{{ $user->email }} | {{ $user->roles->pluck('name')->implode(', ') ?: 'No role' }}</div>
+                                <div class="text-slate-500 text-sm">{{ $user->email }} | {{ \App\Support\Access\RoleNames::labels($user->roles->pluck('name')) ?: 'No role' }}</div>
                             </div>
                             <button type="button" class="ui-button ui-button-sm ui-button-danger"
                                     wire:click="removeUserFromManagedRole({{ $user->id }})"

@@ -22,7 +22,7 @@ class ClinicBillingDocumentController extends Controller
 
     private function authorizeInvoice(PlatformInvoice $invoice): void
     {
-        abort_unless(auth()->user()->hasRole('Super Admin'),403);
+        abort_unless(\App\Support\Access\Access::can('billing.manage'),403);
         abort_unless((int)$invoice->clinic_id===(int)app(TenantContext::class)->requireClinic()->id,404);
     }
 }

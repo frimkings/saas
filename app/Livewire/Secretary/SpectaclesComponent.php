@@ -344,7 +344,7 @@ class SpectaclesComponent extends Component
         $position = array_search($order->status, $sequence, true);
         $expected = $position !== false ? ($sequence[$position + 1] ?? null) : null;
         $override = $newStatus !== $expected;
-        $authorizedOverride = Auth::user()?->hasAnyRole(['Manager', 'Super Admin']) && trim($this->statusOverrideReason) !== '';
+        $authorizedOverride = \App\Support\Access\Access::can('spectacles.override') && trim($this->statusOverrideReason) !== '';
 
         if ($override && !$authorizedOverride) {
             $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Next required action: ' . ($expected ?? 'No further action') . '. Manager override requires a reason.']);
