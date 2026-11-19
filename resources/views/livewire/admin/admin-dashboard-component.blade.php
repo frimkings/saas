@@ -138,7 +138,7 @@
 
 {{-- Chart.js — fires after Livewire mounts the DOM --}}
 <script>
-document.addEventListener('livewire:init', function () {
+document.addEventListener('livewire:init', function () { withChart(function () {
     const ctx = document.getElementById('dashboardRevenueChart');
     if (!ctx) return;
 
@@ -201,7 +201,7 @@ document.addEventListener('livewire:init', function () {
             }
         }
     });
-});
+}); });
 </script>
 
 </div>

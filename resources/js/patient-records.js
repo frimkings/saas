@@ -73,6 +73,7 @@ function getPatientClinicalTrendData() {
 
 function renderPatientClinicalTrendCharts() {
     if (typeof Chart === 'undefined') {
+        if (window.withChart) window.withChart(renderPatientClinicalTrendCharts);
         return;
     }
 
