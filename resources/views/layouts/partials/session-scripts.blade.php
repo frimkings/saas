@@ -120,12 +120,16 @@
 // One poll for the whole page (PulseController). Widgets subscribe to the parts they show with
 // appPulse.on(part, fn). Nothing is fetched while the tab is hidden; showing it polls at once.
 window.appPulse = (function () {
-    var INTERVAL = 20000;
+    var INTERVAL = 20000;       // while someone is working
+    var IDLE_INTERVAL = 60000;  // after IDLE_AFTER without a click, key or touch
+    var IDLE_AFTER = 5 * 60 * 1000;
+    var slow = false;
     var url = '{{ route("pulse") }}';
     var handlers = {};
     var timer = null;
     var stopped = false;
     var lastPollAt = Date.now(); // the page load itself was the last server contact
+    var pageOpenedAt = Date.now();
 
     function lastActivityAt() {
         try { return parseInt(localStorage.getItem('eyeclinic:lastActivityAt') || '0', 10) || 0; } catch (e) { return 0; }
@@ -159,10 +163,24 @@ window.appPulse = (function () {
             .catch(function () {});
     }
 
+    // Every 20 s while in use; once a page has sat untouched for 5 minutes, every 60 s.
+    function nextDelay() {
+        var last = Math.max(lastActivityAt(), pageOpenedAt);
+        slow = Date.now() - last > IDLE_AFTER;
+        return slow ? IDLE_INTERVAL : INTERVAL;
+    }
+
     function schedule(delay) {
         clearTimeout(timer);
-        timer = setTimeout(function () { poll(); schedule(INTERVAL); }, delay);
+        timer = setTimeout(function () { poll(); schedule(nextDelay()); }, delay);
     }
+
+    // Back from idle: catch up at once rather than waiting out the slow interval.
+    ['mousedown', 'keydown', 'touchstart'].forEach(function (type) {
+        document.addEventListener(type, function () {
+            if (slow) { slow = false; schedule(500); }
+        }, { passive: true, capture: true });
+    });
 
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden && Date.now() - lastPollAt > 5000) schedule(0);

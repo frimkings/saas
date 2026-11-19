@@ -85,6 +85,11 @@ class ClinicStatementService
     /** @return Collection<int, object{name: string, amount: string}> */
     public function revenueLines(CarbonInterface $from, CarbonInterface $to): Collection
     {
+        return \App\Support\FinanceCache::remember('clinic.revenue-lines', $from, $to, fn () => $this->revenueLinesLive($from, $to), []);
+    }
+
+    private function revenueLinesLive(CarbonInterface $from, CarbonInterface $to): Collection
+    {
         return $this->salesLines($from, $to)
             ->selectRaw("COALESCE(categories.name, 'Uncategorized') as name")
             ->selectRaw('ROUND(SUM(' . self::keptValueSql() . '), 2) as amount')
@@ -95,6 +100,11 @@ class ClinicStatementService
 
     /** @return Collection<int, object{name: string, amount: string}> */
     public function costLines(CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        return \App\Support\FinanceCache::remember('clinic.cost-lines', $from, $to, fn () => $this->costLinesLive($from, $to), []);
+    }
+
+    private function costLinesLive(CarbonInterface $from, CarbonInterface $to): Collection
     {
         $lines = $this->salesLines($from, $to)
             ->selectRaw("COALESCE(categories.name, 'Uncategorized') as name")
@@ -181,6 +191,11 @@ class ClinicStatementService
 
     /** Statement totals, with the lines they are built from. */
     public function statement(CarbonInterface $from, CarbonInterface $to): array
+    {
+        return \App\Support\FinanceCache::remember('clinic.statement', $from, $to, fn () => $this->statementLive($from, $to), []);
+    }
+
+    private function statementLive(CarbonInterface $from, CarbonInterface $to): array
     {
         $revenueLines = $this->revenueLines($from, $to);
         $costLines = $this->costLines($from, $to);
