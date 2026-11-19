@@ -21,6 +21,7 @@
 {{-- Clinic shell for every clinic screen (reception, doctors, admins): Tailwind only.
      `$menu` picks the sidebar (App\Support\ClinicNavigation); see docs/design-system-migration.md. --}}
 <body class="clinic-ui min-h-screen bg-slate-100 text-slate-800">
+@include('layouts.partials.support-banner')
 @include('layouts.partials.toasts')
 @php
     // Livewire pages pass menu as layout data; <x-clinic-layout menu="…"> passes it as an attribute.

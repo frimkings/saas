@@ -78,6 +78,11 @@ Route::get('/dashboard', function () {
     return redirect()->to(app(\App\Support\Tenancy\RoleDashboardResolver::class)->url(auth()->user()));
 })->middleware(['auth'])->name('dashboard');
 
+// Leave a platform support session (App\Http\Controllers\Platform\SupportSessionController): reachable
+// from inside the clinic being inspected, so it is not in the platform-only group.
+Route::post('/support/exit', [\App\Http\Controllers\Platform\SupportSessionController::class, 'exit'])
+    ->middleware(['auth'])->name('support-session.exit');
+
 require __DIR__.'/auth.php';
 
 // Public pricing page (hosted only): plans, a "build your own" calculator and "Request this plan".
@@ -104,6 +109,8 @@ Route::get('/quote/{token}', [\App\Http\Controllers\ProspectQuoteDocumentControl
 
 Route::middleware(['auth', 'platform.admin'])->group(function () {
     Route::get('/platform', \App\Livewire\Platform\PlatformDashboardComponent::class)->name('platform.dashboard');
+    // Step into a clinic's own interface to inspect it, without joining it (SupportSessionController).
+    Route::post('/platform/clinics/{clinic}/support', [\App\Http\Controllers\Platform\SupportSessionController::class, 'enter'])->name('platform.support-session.enter');
     Route::get('/platform/imports', \App\Livewire\Platform\LegacyImportManagerComponent::class)->name('platform.imports');
     Route::get('/platform/imports/other-software', \App\Livewire\Platform\ExternalImportComponent::class)->name('platform.imports.other');
     Route::get('/platform/deployment-readiness', \App\Livewire\Platform\DeploymentReadinessComponent::class)->name('platform.deployment-readiness');

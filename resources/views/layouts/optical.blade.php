@@ -22,6 +22,7 @@
     </style>
 </head>
 <body class="clinic-ui min-h-screen bg-slate-100 text-slate-800">
+@include('layouts.partials.support-banner')
 @include('layouts.partials.toasts')
 @php
     $tenant = app(\App\Support\Tenancy\TenantContext::class);

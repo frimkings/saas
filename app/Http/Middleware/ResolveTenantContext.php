@@ -35,6 +35,13 @@ class ResolveTenantContext
             return $next($request);
         }
 
+        // Support session: a platform admin inspecting one clinic's interface, without being a member
+        // of it. Resolved here and granted Super Admin in memory for this request only; it is never in
+        // clinic_user/branch_user, so it stays off every clinic's user list.
+        if ($support = $this->resolveSupport($request, $user)) {
+            return $support === true ? $next($request) : $support;
+        }
+
         // Platform tours are kept outside any clinic (App\Support\Guides stores them under clinic 0).
         if ($user->is_platform_admin && $request->routeIs('guides.record') && str_starts_with((string) $request->route('guide'), 'platform.')) {
             return $next($request);
@@ -104,6 +111,44 @@ class ResolveTenantContext
     }
 
     /** The selected (or default) clinic and all of the user's active clinics, default first. */
+    /**
+     * A platform admin's support session, if one is open: resolve the inspected clinic and a branch,
+     * grant Super Admin in memory (the gate opens everything for that role), and carry on. Returns
+     * true to continue, a redirect when the support target is gone, or null when there is no session.
+     *
+     * @return true|Response|null
+     */
+    private function resolveSupport(Request $request, \App\Models\User $user)
+    {
+        if (! $user->is_platform_admin) {
+            return null;
+        }
+        $clinicId = (int) $request->session()->get(\App\Support\SupportSession::KEY, 0);
+        if ($clinicId <= 0) {
+            return null;
+        }
+
+        $clinic = Clinic::where('status', 'active')->find($clinicId);
+        $branch = $clinic?->branches()->where('is_active', true)->orderByDesc('is_default')->orderBy('id')->first();
+        if (! $clinic || ! $branch) {
+            // The clinic was suspended or removed while being inspected: drop the session.
+            $request->session()->forget(\App\Support\SupportSession::KEY);
+            $request->session()->put('workspace_mode', 'platform');
+            $this->context->clear();
+
+            return redirect()->route('platform.dashboard')->with('billing_message', 'The support session ended: that clinic is no longer open.');
+        }
+
+        $branches = $clinic->branches()->where('is_active', true)->get();
+        $this->context->set($user, $clinic, $branch, $branches->pluck('id')->map(static fn ($id) => (int) $id)->all());
+        $this->context->setAvailable(collect([$clinic]), $branches->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values());
+        $user->setRelation('roles', collect([\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web'])]));
+        $request->session()->put(config('tenancy.session_keys.clinic'), $clinic->id);
+        $request->session()->put(config('tenancy.session_keys.branch'), $branch->id);
+
+        return true;
+    }
+
     private function resolveClinic(Request $request): array
     {
         $clinics = $request->user()->clinics()
