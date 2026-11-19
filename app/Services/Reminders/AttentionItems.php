@@ -165,7 +165,7 @@ class AttentionItems
                     return ['url' => $buyer ? route('optical.purchasing', ['tab' => 'special']) : route('optical.orders')] + $this->orderItem($order, 'lens_unordered', $detail);
                 })->values();
             // The front desk asked to move a job to another partner clinic; managers decide.
-            if ($buyer) {
+            if (\App\Support\Access\Access::can('optical.manage')) {
                 $groups['partner_change'] = \App\Models\OpticalPartnerChange::with(['order', 'toPartner:id,name', 'requester:id,name'])
                     ->where('status', \App\Models\OpticalPartnerChange::PENDING)->oldest()->limit(self::PER_GROUP)->get()
                     ->filter(fn ($change) => $change->order)

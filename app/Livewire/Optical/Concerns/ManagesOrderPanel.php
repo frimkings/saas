@@ -340,7 +340,7 @@ trait ManagesOrderPanel
 
     public function startRejectPartnerChange($changeId): void
     {
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403);
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
         $this->rejectingPartnerChangeId = (int) $changeId;
         $this->partnerRejectReason = '';
         $this->resetValidation('partnerRejectReason');

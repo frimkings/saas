@@ -283,7 +283,7 @@
         </div>
     @endif
     @if($showChangePartnerModal)
-        @php $approver = auth()->user()?->hasAnyRole(['Manager', 'Super Admin']); @endphp
+        @php $approver = $isManager; @endphp
         <div class="oo-modal-wrap" data-sheet>
             <form wire:submit.prevent="changePartner" class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4" role="dialog" aria-modal="true">
                 <div>

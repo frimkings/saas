@@ -293,7 +293,7 @@ class OpticalOrderWorkflowService
         if (mb_strlen($reason) < 10 || mb_strlen($reason) > 500) {
             throw ValidationException::withMessages(['changePartnerReason' => 'Say why the partner clinic is being changed, in at least 10 characters.']);
         }
-        $manager = (bool) $user?->hasAnyRole(['Manager', 'Super Admin']);
+        $manager = \App\Support\Access\Access::allows($user, 'optical.manage');
         return DB::transaction(function () use ($id, $partnerId, $reason, $manager) {
             $order = LensOrder::lockForUpdate()->findOrFail($id);
             $partner = $this->movablePartner($order, $partnerId);
@@ -320,7 +320,7 @@ class OpticalOrderWorkflowService
     public function approvePartnerChange(int $changeId): LensOrder
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can approve a change of partner clinic.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can approve a change of partner clinic.');
         return DB::transaction(function () use ($changeId) {
             $change = OpticalPartnerChange::lockForUpdate()->findOrFail($changeId);
             if ($change->status !== OpticalPartnerChange::PENDING) {
@@ -340,7 +340,7 @@ class OpticalOrderWorkflowService
     public function rejectPartnerChange(int $changeId, string $reason): OpticalPartnerChange
     {
         app(ClinicAccessService::class)->assertWritable('optical');
-        abort_unless(auth()->user()?->hasAnyRole(['Manager', 'Super Admin']), 403, 'Only a manager can reject a change of partner clinic.');
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403, 'Only a manager can reject a change of partner clinic.');
         $reason = trim($reason);
         if (mb_strlen($reason) < 5 || mb_strlen($reason) > 500) {
             throw ValidationException::withMessages(['partnerRejectReason' => 'Say why the change is rejected, in at least 5 characters.']);

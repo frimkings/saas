@@ -407,29 +407,6 @@ class RolePermissionManagerComponent extends Component
         return User::inCurrentClinic();
     }
 
-    /**
-     * Roles and permissions are shared by every clinic, so changing what a role can do, or
-     * adding, renaming or deleting roles and permissions, would change every clinic at once.
-     * Only the platform team may do that; clinics see the page read-only until roles become
-     * per clinic (docs/roles-and-permissions.md).
-     */
-    public function canEditShared(): bool
-    {
-        return (bool) auth()->user()?->is_platform_admin;
-    }
-
-    private function authorizeSharedEdit(): void
-    {
-        $this->authorizeRoleManagement();
-        abort_unless($this->canEditShared(), 403, 'Roles are shared by all clinics and can only be changed by the platform team.');
-    }
-
-    /** Staff of the clinic being worked in; a role is only ever given to or taken from them. */
-    private function clinicStaff()
-    {
-        return User::inCurrentClinic();
-    }
-
     // ── Render ─────────────────────────────────────────────────────────────────
 
     public function render()
