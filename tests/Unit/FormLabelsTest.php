@@ -24,7 +24,7 @@ class FormLabelsTest extends TestCase
         'livewire/admin/insurer-payments-component.blade.php',
         'livewire/admin/insurer-receivables-component.blade.php',
         'livewire/admin/user-role-manager-component.blade.php',
-        'livewire/admin/role-permission-manager-component.blade.php',
+        'livewire/admin/role-guide-component.blade.php',
         'livewire/admin/income-statement-component.blade.php',
         'livewire/admin/day-close-component.blade.php',
         'livewire/admin/cash-book-component.blade.php',
