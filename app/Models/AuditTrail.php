@@ -38,6 +38,11 @@ class AuditTrail extends Model
         if (!$force && !LicenseService::has(Feature::AUDIT_TRAIL)) {
             return null;
         }
+        // A platform admin inspecting the clinic (support session) leaves no trace in the clinic's own
+        // audit trail: the session itself is recorded platform-side instead (platform_audit_logs).
+        if (\App\Support\SupportSession::active()) {
+            return null;
+        }
 
         return self::create([
             'user_id'        => Auth::id(),

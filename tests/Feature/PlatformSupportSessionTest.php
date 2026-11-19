@@ -114,6 +114,22 @@ class PlatformSupportSessionTest extends TestCase
         $this->assertDatabaseHas('platform_audit_logs', ['action' => 'SUPPORT_SESSION_ENDED', 'clinic_id' => $this->clinic->id]);
     }
 
+    public function test_support_sessions_leave_no_trace_in_the_clinic_audit_trail(): void
+    {
+        $this->actingAs($this->admin);
+        app(TenantContext::class)->set($this->admin, $this->clinic, $this->branch, [$this->branch->id]);
+
+        // While inspecting, a clinic audit write is suppressed, so the hidden admin never shows there.
+        session([SupportSession::KEY => $this->clinic->id]);
+        $this->assertNull(\App\Models\AuditTrail::record('support.looked', 'Looked around', null, [], [], null, true));
+        $this->assertSame(0, \App\Models\AuditTrail::count());
+
+        // Outside a support session the same call records as normal.
+        session()->forget(SupportSession::KEY);
+        $this->assertNotNull(\App\Models\AuditTrail::record('normal.event', 'A staff action', null, [], [], null, true));
+        $this->assertSame(1, \App\Models\AuditTrail::count());
+    }
+
     public function test_a_suspended_clinic_cannot_be_entered(): void
     {
         $this->clinic->update(['status' => 'suspended']);
