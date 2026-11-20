@@ -10,23 +10,41 @@ use Illuminate\Validation\ValidationException;
 
 class SubscriptionBillingService
 {
-    public function invoiceFor(ClinicSubscription $subscription, ?CarbonInterface $periodStart = null): PlatformInvoice
+    /** Most months one monthly invoice may cover; 12 or more is the yearly plan. */
+    public const MAX_PREPAID_MONTHS = 11;
+
+    /**
+     * $months > 1 (monthly plans only): one invoice for several months paid ahead, each line the
+     * monthly price times the months; paying it extends the subscription by that many months.
+     */
+    public function invoiceFor(ClinicSubscription $subscription, ?CarbonInterface $periodStart = null, int $months = 1): PlatformInvoice
     {
         $subscription = app(SubscriptionLifecycleService::class)->ensureSnapshots($subscription->loadMissing(['plan','clinic']));
+        $yearly = $subscription->billing_interval === 'yearly';
+        $months = $yearly ? 1 : max(1, min(self::MAX_PREPAID_MONTHS, $months));
         // The next period starts the day after the current one ends (a period ending 23:59:59 on
         // the 28th renews from the 1st). The extra second keeps a midnight end on its own day.
         $start = $periodStart ? $periodStart->copy()->startOfDay()
             : ($subscription->current_period_ends_at?->copy()->addSecond()->startOfDay() ?? now()->startOfDay());
-        if (!$periodStart && ($open = $this->openRenewalFrom($subscription, $start))) return $open;
-        $end = $subscription->billing_interval === 'yearly' ? $start->copy()->addYear()->subDay() : $start->copy()->addMonth()->subDay();
-        $key = "subscription:{$subscription->id}:{$start->toDateString()}:{$subscription->billing_interval}";
+        $end = $yearly ? $start->copy()->addYear()->subDay() : $start->copy()->addMonths($months)->subDay();
+        if (!$periodStart && ($open = $this->openRenewalFrom($subscription, $start))) {
+            // One month (also the nightly automatic invoicing) reuses whatever is open, a prepaid one included.
+            if ($months === 1 || $open->period_end?->isSameDay($end)) return $open;
+            // A different number of months was asked for: the unpaid open invoice gives way to it.
+            if ((float) $open->amount_paid > 0) {
+                throw ValidationException::withMessages(['renew' => "Invoice {$open->number} for the coming period is already part-paid. Record the rest of its payment instead."]);
+            }
+            $open->update(['status' => 'void', 'notes' => trim(($open->notes ?? '')."\nReplaced by a {$months}-month invoice.")]);
+        }
+        $key = "subscription:{$subscription->id}:{$start->toDateString()}:{$subscription->billing_interval}".($months > 1 ? ":{$months}m" : '');
         $pricing = $subscription->pricing_snapshot ?? [];
-        $base = (float) ($subscription->billing_interval === 'yearly' ? ($pricing['annual_price'] ?? 0) : ($pricing['base_price'] ?? 0));
+        $base = (float) ($yearly ? ($pricing['annual_price'] ?? 0) : ($pricing['base_price'] ?? 0)) * $months;
         $limit = $subscription->branchLimit();
         $branches = $subscription->clinic->branches()->where('is_active', true)->count();
         $extras = $limit === null ? 0 : max(0, $branches - $limit);
+        $label = $months > 1 ? "monthly × {$months} months" : $subscription->billing_interval;
         // Each charge is its own invoice line: the plan, extra branches, then the clinic's add-ons.
-        $lines = [[($subscription->plan?->name ?? 'Subscription') . ' plan (' . $subscription->billing_interval . ')', round($base, 2), null]];
+        $lines = [[($subscription->plan?->name ?? 'Subscription') . ' plan (' . $label . ')', round($base, 2), null]];
         // The branch price is monthly. A year of a branch is discounted like the plan's own year
         // (annual ÷ monthly price, e.g. 10 months for "2 months free"), or 12 months without a monthly price.
         $branchPrice = (float) ($pricing['additional_branch_price'] ?? 0);
@@ -34,13 +52,17 @@ class SubscriptionBillingService
             $monthly = (float) ($pricing['base_price'] ?? 0);
             $branchPrice *= $monthly > 0 ? (float) ($pricing['annual_price'] ?? 0) / $monthly : 12;
         }
-        if ($extras > 0) $lines[] = [$extras . ' extra ' . Str::plural('branch', $extras), round($extras * $branchPrice, 2), null];
+        if ($extras > 0) $lines[] = [$extras . ' extra ' . Str::plural('branch', $extras), round($extras * $branchPrice * $months, 2), null];
         // Attendance priced by staff size has a line of its own; a plan priced at nothing then needs no line.
         if ($attendance = app(AttendanceSizing::class)->renewalLine($subscription, $start, $end)) {
             if ((float) $lines[0][1] === 0.0) array_shift($lines);
+            $attendance[1] = round($attendance[1] * $months, 2);
             $lines[] = $attendance;
         }
-        array_push($lines, ...app(ClinicAddonService::class)->renewalLines($subscription, $start, $end));
+        foreach (app(ClinicAddonService::class)->renewalLines($subscription, $start, $end) as $line) {
+            $line[1] = round($line[1] * $months, 2);
+            $lines[] = $line;
+        }
         $subtotal = round(array_sum(array_column($lines, 1)), 2);
         $tax = round($subtotal * ((float)($pricing['tax_rate'] ?? 0) / 100), 2);
 
@@ -51,7 +73,7 @@ class SubscriptionBillingService
             'period_start'=>$start,'period_end'=>$end,'due_date'=>$start->copy(),
             'subtotal'=>$subtotal,'tax'=>$tax,'total'=>$subtotal+$tax,'amount_paid'=>0,
             'currency'=>$pricing['currency']??'GHS','status'=>'unpaid','source'=>'renewal',
-            'notes'=>"Automated {$subscription->billing_interval} subscription renewal",
+            'notes'=>$months > 1 ? "{$months} months paid ahead (monthly price × {$months})" : "Automated {$subscription->billing_interval} subscription renewal",
         ]);
         if ($invoice->wasRecentlyCreated) {
             foreach ($lines as $i => [$description, $amount, $addonId]) {
@@ -105,14 +127,22 @@ class SubscriptionBillingService
     public function renewFromPaidInvoice(PlatformInvoice $invoice): void
     {
         $subscription=$invoice->subscription;if(!$subscription)return;
+        // What this renewal replaces, so reversing its payment can put it back exactly.
+        $before=['subscription_id'=>$subscription->id,'invoice_period_start'=>$invoice->period_start?->toDateString(),'invoice_period_end'=>$invoice->period_end?->toDateString()];
+        foreach(['status','trial_ends_at','current_period_starts_at','current_period_ends_at','grace_ends_at','restricted_at','suspended_at','status_changed_at'] as $field){
+            $value=$subscription->getAttribute($field);$before[$field]=$value instanceof \DateTimeInterface?$value->format('Y-m-d H:i:s'):$value;
+        }
+        $invoice->update(['renewed_from'=>$before]);
         $start=$invoice->period_start->copy()->startOfDay();$end=$invoice->period_end->copy()->endOfDay();
         // Paid after expiry: the clinic was locked out, so the new period starts on the payment
         // date (clinic timezone) and runs a full term. The invoice is re-dated to the period it bought.
         $expiredAt=$subscription->status==='trial'?$subscription->trial_ends_at:$subscription->current_period_ends_at;
         if($expiredAt && $expiredAt->lte(now())){
             $tz=$subscription->clinic?->default_timezone?:config('app.timezone');
+            // The new period is as long as the invoice bought (several months when paid ahead).
+            $months=$subscription->billing_interval==='yearly'?12:max(1,(int)round($invoice->period_start->copy()->startOfDay()->diffInMonths($invoice->period_end->copy()->addDay()->startOfDay())));
             $start=now($tz)->startOfDay();
-            $end=($subscription->billing_interval==='yearly'?$start->copy()->addYear():$start->copy()->addMonth())->subDay()->endOfDay();
+            $end=($subscription->billing_interval==='yearly'?$start->copy()->addYear():$start->copy()->addMonths($months))->subDay()->endOfDay();
             $invoice->update(['period_start'=>$start->toDateString(),'period_end'=>$end->toDateString()]);
             $start=$start->setTimezone(config('app.timezone'));$end=$end->setTimezone(config('app.timezone'));
         }

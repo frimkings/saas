@@ -30,6 +30,8 @@ class PlatformDashboardComponent extends Component
     public ?int $panelPlanId=null;
     public string $panelInterval='monthly',$panelTiming='period_end',$panelReason='';
     public bool $renewPayNow=false;
+    /** Monthly plans: how many months the renewal invoice covers (a clinic paying ahead, e.g. 8). */
+    public int $renewMonths=1;
     // Adjust dates (clinic panel → Plan): backdate or extend the current subscription.
     public string $adjStatus='active',$adjTrialEnds='',$adjStart='',$adjEnd='',$adjReason='';
     public string $renewMethod='mobile_money',$renewReference='';
@@ -217,11 +219,13 @@ class PlatformDashboardComponent extends Component
     // Renewal goes through the normal billing flow: a renewal invoice, and optionally its payment,
     // which extends the subscription period when the invoice is fully paid.
     public function panelRenew(){
-        $this->validate(['renewMethod'=>'required|in:cash,bank_transfer,mobile_money,card','renewReference'=>'nullable|max:100']);
+        $this->validate(['renewMethod'=>'required|in:cash,bank_transfer,mobile_money,card','renewReference'=>'nullable|max:100',
+            'renewMonths'=>'required|integer|min:1|max:'.SubscriptionBillingService::MAX_PREPAID_MONTHS],[],['renewMonths'=>'months']);
         $clinic=Clinic::findOrFail($this->selectedClinicId);$current=$clinic->currentSubscription;
         if(!$current){$this->addError('renew','This clinic has no subscription to renew.');return;}
-        $billing=app(SubscriptionBillingService::class);$invoice=$billing->invoiceFor($current);
-        app(PlatformAuditService::class)->record('RENEWAL_INVOICE_ISSUED',$clinic->id,[],['invoice'=>$invoice->number,'total'=>$invoice->total]);
+        $months=$current->billing_interval==='yearly'?1:$this->renewMonths;
+        $billing=app(SubscriptionBillingService::class);$invoice=$billing->invoiceFor($current,null,$months);
+        app(PlatformAuditService::class)->record('RENEWAL_INVOICE_ISSUED',$clinic->id,[],['invoice'=>$invoice->number,'total'=>$invoice->total]+($months>1?['months'=>$months]:[]));
         if($this->renewPayNow&&$invoice->balance()>0){
             $payment=$billing->allocatePayment($invoice,$invoice->balance(),$this->renewMethod,$this->renewReference?:null,auth()->id(),'renewal:'.$invoice->id.':'.$invoice->balance());
             app(PlatformAuditService::class)->record('PAYMENT_ALLOCATED',$clinic->id,[],['invoice'=>$invoice->number,'payment_id'=>$payment->id,'amount'=>$payment->amount]);
@@ -230,7 +234,7 @@ class PlatformDashboardComponent extends Component
         }else{
             session()->flash('panel_message',"Renewal invoice {$invoice->number} is ready ({$invoice->currency} ".number_format($invoice->balance(),2).' due). Recording its payment extends the subscription.');
         }
-        $this->reset('renewPayNow','renewReference');
+        $this->reset('renewPayNow','renewReference','renewMonths');
     }
 
     public function panelRecordPayment(){
@@ -305,10 +309,11 @@ class PlatformDashboardComponent extends Component
     private function resetInvoiceForms(){$this->reset(['paymentAmount','paymentReference','adjustmentAmount','adjustmentReason','refundPaymentId','refundReference','voidReason']);}
 
     public function startInvoiceAction(string $action,?int $paymentId=null){
-        abort_unless(in_array($action,['pay','credit','refund','void'],true),422);
+        abort_unless(in_array($action,['pay','credit','refund','reverse','void'],true),422);
         $invoice=PlatformInvoice::findOrFail($this->viewInvoiceId);$this->resetInvoiceForms();$this->resetErrorBag();$this->invoiceAction=$action;
         if($action==='pay')$this->paymentAmount=number_format($invoice->balance(),2,'.','');
         if($action==='refund'){$payment=$invoice->payments()->findOrFail($paymentId);$this->refundPaymentId=$payment->id;$this->adjustmentAmount=number_format((float)$payment->amount,2,'.','');}
+        if($action==='reverse'){$this->refundPaymentId=$invoice->payments()->where('status','confirmed')->findOrFail($paymentId)->id;}
     }
 
     public function submitInvoicePayment(){
@@ -320,6 +325,18 @@ class PlatformDashboardComponent extends Component
     }
     public function submitInvoiceCredit(){$this->adjustmentInvoiceId=$this->viewInvoiceId;$this->issueCreditNote();$this->invoiceAction='';}
     public function submitInvoiceRefund(){$this->refundPayment();$this->invoiceAction='';}
+
+    /** A payment recorded by mistake: reversed through the approval queue (see BillingAdjustmentService::reverse). */
+    public function submitInvoiceReversal(){
+        $this->validate(['adjustmentReason'=>'required|min:5|max:1000'],[],['adjustmentReason'=>'reason']);
+        $payment=PlatformPayment::with('invoice')->where('status','confirmed')->findOrFail($this->refundPaymentId);
+        abort_unless($payment->platform_invoice_id===$this->viewInvoiceId,404);
+        if($payment->refunds()->exists()){$this->addError('adjustmentReason',"Part of this payment was refunded, so it can't be reversed. Refund the rest instead.");return;}
+        $r=app(SubscriptionApprovalService::class)->request('payment_reversal',PlatformPayment::class,$payment->id,$payment->invoice?->clinic_id,['amount'=>(float)$payment->amount],trim($this->adjustmentReason),auth()->id());
+        app(PlatformAuditService::class)->record('PAYMENT_REVERSAL_APPROVAL_REQUESTED',$r->clinic_id,[],['approval_id'=>$r->id,'payment_id'=>$payment->id,'amount'=>(float)$payment->amount],trim($this->adjustmentReason));
+        $this->reset(['refundPaymentId','adjustmentReason']);$this->invoiceAction='';
+        session()->flash('billing_message','Reversal submitted for approval. Once approved the invoice is owed again and any period it paid for is taken back.');
+    }
     public function submitInvoiceVoid(){
         $this->validate(['voidReason'=>'required|min:5|max:500'],[],['voidReason'=>'reason']);
         $invoice=PlatformInvoice::findOrFail($this->viewInvoiceId);

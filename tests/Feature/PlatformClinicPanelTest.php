@@ -242,6 +242,98 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertTrue($clinic->fresh('currentSubscription')->currentSubscription->current_period_ends_at->gt($endsBefore));
     }
 
+    /** 20 Nov 2026: a clinic on a monthly plan paying 8 months at once gets one invoice for 8 months. */
+    public function test_renew_for_several_months_bills_them_together_and_extends_by_that_many(): void
+    {
+        $clinic = $this->clinic();
+        $sub = $clinic->currentSubscription;
+        $nextStart = $sub->current_period_ends_at->copy()->addSecond()->startOfDay();
+        $panel = $this->panel($clinic)->call('setPanelTab', 'plan');
+
+        // A one-month invoice already open gives way to the 8-month one (nothing was paid on it).
+        $panel->call('panelRenew');
+        $one = PlatformInvoice::where('clinic_id', $clinic->id)->firstOrFail();
+        $panel->set('renewMonths', 8)->assertSee('One invoice for 8 months')->call('panelRenew')->assertHasNoErrors();
+        $this->assertSame('void', $one->fresh()->status);
+        $eight = PlatformInvoice::where('clinic_id', $clinic->id)->where('status', 'unpaid')->sole();
+        $this->assertEquals(800, (float) $eight->total, '8 × the monthly price of 100.');
+        $this->assertTrue($eight->period_end->isSameDay($nextStart->copy()->addMonths(8)->subDay()));
+
+        // Issuing again, or the nightly invoicing (one month), reuses it.
+        $panel->set('renewMonths', 8)->call('panelRenew');
+        app(\App\Services\SubscriptionBillingService::class)->invoiceFor($sub->fresh());
+        $this->assertSame(1, PlatformInvoice::where('clinic_id', $clinic->id)->where('status', 'unpaid')->count());
+
+        $panel->set('renewMonths', 8)->set('renewPayNow', true)->set('renewMethod', 'cash')->call('panelRenew')->assertHasNoErrors();
+        $this->assertSame('paid', $eight->fresh()->status);
+        $this->assertTrue($sub->fresh()->current_period_ends_at->isSameDay($nextStart->copy()->addMonths(8)->subDay()), 'Paid 8 months ahead.');
+
+        $this->panel($clinic)->call('setPanelTab', 'plan')->set('renewMonths', 12)->call('panelRenew')->assertHasErrors('renewMonths');
+    }
+
+    /** 20 Nov 2026: a payment recorded by mistake is reversed (not refunded) and takes back the months it paid for. */
+    public function test_reversing_a_mistaken_payment_reopens_the_invoice_and_takes_back_the_paid_months(): void
+    {
+        $clinic = $this->clinic();
+        $sub = $clinic->currentSubscription;
+        $endsBefore = $sub->current_period_ends_at->copy();
+        $panel = $this->panel($clinic)->call('setPanelTab', 'plan')
+            ->set('renewMonths', 8)->set('renewPayNow', true)->set('renewMethod', 'mobile_money')->set('renewReference', 'MOMO-8')->call('panelRenew');
+        $invoice = PlatformInvoice::where('clinic_id', $clinic->id)->where('status', 'paid')->sole();
+        $payment = $invoice->payments()->sole();
+        $this->assertTrue($sub->fresh()->current_period_ends_at->gt($endsBefore->copy()->addMonths(7)));
+
+        $panel->set('tab', 'billing')->call('openInvoice', $invoice->id)->assertSee('Recorded by mistake: undo it')->call('startInvoiceAction', 'reverse', $payment->id)
+            ->assertSee('Reverse the payment of')->call('submitInvoiceReversal')->assertHasErrors('adjustmentReason')
+            ->set('adjustmentReason', 'Recorded against the wrong clinic')->call('submitInvoiceReversal')->assertHasNoErrors();
+        $this->assertSame('confirmed', $payment->fresh()->status, 'Nothing changes until it is approved.');
+
+        // The only platform administrator approves their own request.
+        $panel->set('approvalReviewNotes', 'Checked with MoMo statement')
+            ->call('reviewApproval', \App\Models\SubscriptionApprovalRequest::where('action', 'payment_reversal')->sole()->id, true)->assertHasNoErrors();
+
+        $payment->refresh();
+        $this->assertSame('reversed', $payment->status);
+        $this->assertSame('Recorded against the wrong clinic', $payment->reversal_reason);
+        $this->assertSame('unpaid', $invoice->fresh()->status);
+        $this->assertEquals(800, $invoice->fresh()->balance());
+        $this->assertTrue($sub->fresh()->current_period_ends_at->equalTo($endsBefore), 'The 8 paid months are taken back.');
+        $this->assertSame(0.0, (float) \App\Models\PlatformPayment::where('status', 'confirmed')->sum('amount'), 'Not counted as collected.');
+        $this->assertSame(0, \App\Models\PlatformPaymentRefund::count(), 'A reversal is not a refund.');
+
+        // The real payment, recorded again with the same reference, is taken and renews again.
+        $this->panel($clinic)->call('setPanelTab', 'plan')
+            ->set('renewMonths', 8)->set('renewPayNow', true)->set('renewMethod', 'mobile_money')->set('renewReference', 'MOMO-8')->call('panelRenew')->assertHasNoErrors();
+        $this->assertSame('paid', $invoice->fresh()->status);
+        $this->assertTrue($sub->fresh()->current_period_ends_at->gt($endsBefore->copy()->addMonths(7)));
+    }
+
+    public function test_an_older_renewal_payment_cannot_be_reversed_once_a_later_one_is_paid(): void
+    {
+        $clinic = $this->clinic();
+        $billing = app(\App\Services\SubscriptionBillingService::class);
+        $first = $billing->invoiceFor($clinic->currentSubscription);
+        $firstPayment = $billing->allocatePayment($first, $first->balance(), 'cash', null, $this->developer->id);
+        $second = $billing->invoiceFor($clinic->currentSubscription->fresh());
+        $this->assertNotSame($first->id, $second->id);
+        $billing->allocatePayment($second, $second->balance(), 'cash', null, $this->developer->id);
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(\App\Services\BillingAdjustmentService::class)->reverse($firstPayment, 'Wrong clinic', $this->developer->id);
+    }
+
+    public function test_months_paid_ahead_after_expiry_start_on_the_payment_day(): void
+    {
+        $clinic = $this->clinic();
+        $sub = $clinic->currentSubscription;
+        $invoice = app(\App\Services\SubscriptionBillingService::class)->invoiceFor($sub, null, 3);
+        $sub->update(['current_period_ends_at' => now()->subDays(5)]);
+
+        app(\App\Services\SubscriptionBillingService::class)->allocatePayment($invoice, $invoice->balance(), 'cash', null, $this->developer->id);
+
+        $this->assertTrue($sub->fresh()->current_period_ends_at->isSameDay(now()->startOfDay()->addMonths(3)->subDay()));
+    }
+
     public function test_billing_tab_records_a_partial_payment_and_rejects_overpayment(): void
     {
         $clinic = $this->clinic();
