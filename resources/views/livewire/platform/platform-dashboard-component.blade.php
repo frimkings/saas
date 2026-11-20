@@ -9,8 +9,15 @@
 .pa-section-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.2px;margin:0}
 .pa-filter-head,.pa-directory-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:13px}
 .pa-reset{background:none;border:0;color:var(--clinic-muted);text-decoration:underline;cursor:pointer;font-size:11px}
-.pa-filter-grid{display:flex;flex-wrap:wrap;gap:9px}.pa-filter-grid input{flex:1 1 280px;min-width:0}.pa-filter-grid select{flex:0 1 auto;width:auto;min-width:128px;cursor:pointer}
-.pa-filter-grid select.is-active{border-color:var(--clinic-accent)}
+.pa-shell .pa-find{padding:12px 14px}.pa-find .pa-filter-head{margin-bottom:8px}
+.pa-filter-grid{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(5,minmax(0,1fr));gap:8px}
+.pa-fcard{display:block;min-width:0;background:var(--clinic-raised);border:1px solid var(--line);border-radius:8px;padding:5px 10px 6px;transition:border-color .15s}
+.pa-fcard.is-active{border-color:var(--clinic-accent)}
+.pa-fcard__label{display:flex;align-items:center;gap:5px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--clinic-label);margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pa-fcard__label svg{width:11px;height:11px;flex:none}
+.pa-shell .pa-fcard__control{display:block;width:100%;min-width:0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--clinic-ink);font-size:12.5px;padding:2px 0;text-overflow:ellipsis;outline:none;color-scheme:dark;transition:border-color .15s}
+.pa-shell .pa-fcard__control:focus{border-bottom-color:var(--clinic-accent)}.pa-fcard__control::placeholder{color:var(--clinic-muted);opacity:.6}
+.pa-shell select.pa-fcard__control{cursor:pointer}.pa-fcard__control option,.pa-fcard__control optgroup{background:var(--clinic-panel);color:var(--clinic-ink)}
 .pa-filter-count{color:var(--muted);font-size:12px}.pa-filter-count.is-loading{opacity:.5}
 .pa-filter-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:11px}
 .pa-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.35);color:#d7f1ff;border-radius:999px;padding:3px 4px 3px 11px;font-size:12px}
@@ -49,8 +56,9 @@
 @keyframes paFade{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.pa-drawer,.pa-modal,.pa-overlay{animation:none}}
 @media(max-width:1100px){.pa-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:1000px){.pa-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:900px){.pa-shell{display:block}.pa-grid,.pa-form,.pa-detail,.pa-grid.pa-grid-4{grid-template-columns:1fr 1fr}}
-@media(max-width:600px){.pa-form.pa-form-2,.pa-grid,.pa-form,.pa-detail,.pa-product-pick,.pa-feature-grid{grid-template-columns:1fr}.pa-drawer-head,.pa-drawer-body{padding:14px 16px}.pa-steps{padding:10px 16px}.pa-filter-grid input,.pa-filter-grid select{flex:1 1 100%}.pa-main{padding:12px}.pa-directory-head{align-items:flex-start}.ui-table{min-width:760px}}
+@media(max-width:600px){.pa-form.pa-form-2,.pa-grid,.pa-form,.pa-detail,.pa-product-pick,.pa-feature-grid{grid-template-columns:1fr}.pa-drawer-head,.pa-drawer-body{padding:14px 16px}.pa-steps{padding:10px 16px}.pa-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pa-fcard--search{grid-column:span 2}.pa-main{padding:12px}.pa-directory-head{align-items:flex-start}.ui-table{min-width:760px}}
 </style>
 <x-platform.sidebar :active="$tab" :overlimit="$metrics['overlimit']" />
 <main class="pa-main"><div class="pa-head"><div><h2 style="margin:0">Platform Administration</h2><span class="ui-muted">Clinics, subscriptions, billing and security</span></div><div style="display:flex;align-items:center;gap:12px"><x-guide-tour :page="'platform.'.$tab" class="ui-button ui-button-secondary" /><b>{{ auth()->user()->name }}</b><form method="POST" action="{{ route('logout') }}" style="margin:0">@csrf<button type="submit" class="ui-button ui-button-secondary" style="padding:5px 10px;font-size:11px" onclick="event.preventDefault(); this.closest('form').submit();">Sign out</button></form></div></div>
@@ -75,18 +83,18 @@
     'limitFilter'=>$limitFilter?($limitLabels[$limitFilter]??$limitFilter):null,
     'deploymentFilter'=>$deploymentFilter?($deploymentLabels[$deploymentFilter]??$deploymentFilter):null,
 ]))
-<div class="ui-card" data-tour="pf-find">
+<div class="ui-card pa-find" data-tour="pf-find">
     <div class="pa-filter-head">
         <h3 class="pa-section-title">Find clinics</h3>
         <span class="pa-filter-count" wire:loading.class="is-loading">{{ $clinics->total() }} of {{ $allClinics->count() }} {{ \Illuminate\Support\Str::plural('clinic', $allClinics->count()) }}</span>
     </div>
     <div class="pa-filter-grid">
-        <input class="ui-input" type="search" wire:model.live.debounce.300ms="search" placeholder="⌕  Search clinic name, domain, admin…" aria-label="Search clinics">
-        <select class="ui-input" wire:model.live="productFilter" aria-label="Product" @class(['is-active'=>$productFilter])><option value="">Product</option>@foreach(\App\Support\PlanProduct::PRODUCTS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>
-        <select class="ui-input" wire:model.live="planFilter" aria-label="Plan" @class(['is-active'=>$planFilter])><option value="">Plan</option>@foreach($plans as $p)<option value="{{ $p->id }}">{{ $p->optionLabel() }}</option>@endforeach</select>
-        <select class="ui-input" wire:model.live="statusFilter" aria-label="Subscription status" @class(['is-active'=>$statusFilter])><option value="">Status</option>@foreach(['trial','active','overdue','suspended','cancelled'] as $s)<option value="{{ $s }}">{{ ucfirst($s) }}</option>@endforeach</select>
-        <select class="ui-input" wire:model.live="limitFilter" aria-label="Branch usage" @class(['is-active'=>$limitFilter])><option value="">Usage</option>@foreach($limitLabels as $v=>$l)<option value="{{ $v }}">{{ $l }}</option>@endforeach</select>
-        <select class="ui-input" wire:model.live="deploymentFilter" aria-label="Deployment" @class(['is-active'=>$deploymentFilter])><option value="">Deployment</option>@foreach($deploymentLabels as $v=>$l)<option value="{{ $v }}">{{ $l }}</option>@endforeach</select>
+        <label @class(['pa-fcard pa-fcard--search','is-active'=>$search !== ''])><span class="pa-fcard__label"><svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</span><input class="pa-fcard__control" type="search" wire:model.live.debounce.300ms="search" placeholder="Clinic name, domain, admin…" aria-label="Search clinics"></label>
+        <label @class(['pa-fcard','is-active'=>$productFilter])><span class="pa-fcard__label"><svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="m3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>Product</span><select class="pa-fcard__control" wire:model.live="productFilter" aria-label="Product"><option value="">All products</option>@foreach(\App\Support\PlanProduct::PRODUCTS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select></label>
+        <label @class(['pa-fcard','is-active'=>$planFilter])><span class="pa-fcard__label"><svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>Plan</span><select class="pa-fcard__control" wire:model.live="planFilter" aria-label="Plan"><option value="">All plans</option>@foreach($plans as $p)<option value="{{ $p->id }}">{{ $p->optionLabel() }}</option>@endforeach</select></label>
+        <label @class(['pa-fcard','is-active'=>$statusFilter])><span class="pa-fcard__label"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>Status</span><select class="pa-fcard__control" wire:model.live="statusFilter" aria-label="Subscription status"><option value="">All statuses</option>@foreach(['trial','active','overdue','suspended','cancelled'] as $s)<option value="{{ $s }}">{{ ucfirst($s) }}</option>@endforeach</select></label>
+        <label @class(['pa-fcard','is-active'=>$limitFilter])><span class="pa-fcard__label"><svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Usage</span><select class="pa-fcard__control" wire:model.live="limitFilter" aria-label="Branch usage"><option value="">Any usage</option>@foreach($limitLabels as $v=>$l)<option value="{{ $v }}">{{ $l }}</option>@endforeach</select></label>
+        <label @class(['pa-fcard','is-active'=>$deploymentFilter])><span class="pa-fcard__label"><svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8Z"/></svg>Deployment</span><select class="pa-fcard__control" wire:model.live="deploymentFilter" aria-label="Deployment"><option value="">All deployments</option>@foreach($deploymentLabels as $v=>$l)<option value="{{ $v }}">{{ $l }}</option>@endforeach</select></label>
     </div>
     @if($activeFilters || $search !== '')
     <div class="pa-filter-meta">
