@@ -31,9 +31,11 @@ class MeterClinicUsage
 
         $response = $next($request);
 
-        // Platform admins in platform mode, guests and the sign-in pages have no clinic.
+        // Platform admins in platform mode, guests and the sign-in pages have no clinic. A support
+        // session (a platform admin inspecting the clinic) is not the clinic's own traffic, so it is
+        // never metered and never counted as one of the clinic's active staff.
         $context = app(TenantContext::class);
-        if ($clinicId = $context->clinicId()) {
+        if (($clinicId = $context->clinicId()) && ! \App\Support\SupportSession::active()) {
             [$dbMs, $dbQueries] = $meter->database();
             // Livewire sends the header empty, which some servers drop, so check the route too.
             $livewire = $request->hasHeader('X-Livewire') || \App\Support\LivewireRequest::isUpdate($request);

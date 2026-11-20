@@ -35,6 +35,11 @@ class EnforceSubscriptionLock
         if (config('tenancy.enabled') && !app(TenantContext::class)->resolved()) {
             return $next($request);
         }
+        // A platform admin inspecting the clinic (support session) is let through, so a locked or
+        // suspended clinic can still be looked at.
+        if (\App\Support\SupportSession::active()) {
+            return $next($request);
+        }
 
         $stage = app(ClinicAccessService::class)->stage();
         if (!$stage || !$stage->blocksStaff()) {
