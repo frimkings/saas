@@ -75,6 +75,7 @@ class ClinicToursTest extends TestCase
             \App\Livewire\Admin\InsuranceClaimsComponent::class => ['clm-stats', 'clm-tabs', 'clm-filters', 'clm-list'],
             \App\Livewire\Admin\InsurerReceivablesComponent::class => ['rcv-aging', 'rcv-bills'],
             \App\Livewire\Admin\InsurerPaymentsComponent::class => ['pay-record', 'pay-list'],
+            \App\Livewire\Secretary\SpectaclesComponent::class => ['sp-status', 'sp-alerts', 'sp-filters', 'sp-list', 'sp-tick'],
         ] as $page => $parts) {
             $test = Livewire::test($page)->assertSeeHtml('data-tour="tour-replay"');
             foreach ($parts as $part) $test->assertSeeHtml('data-tour="'.$part.'"');
@@ -82,7 +83,7 @@ class ClinicToursTest extends TestCase
         Livewire::test(PosProductGrid::class)->assertSeeHtml('data-tour="pos-products"');
 
         // Every step points at a part that exists somewhere, and each tour has a version.
-        foreach (['clinic.dashboard', 'clinic.registry', 'clinic.clearance', 'clinic.pos', 'clinic.queue', 'clinic.sales', 'clinic.day-close', 'clinic.cash-book', 'clinic.settings', 'clinic.insurers', 'clinic.claims', 'clinic.receivables', 'clinic.insurer-payments'] as $page) {
+        foreach (['clinic.dashboard', 'clinic.registry', 'clinic.clearance', 'clinic.pos', 'clinic.queue', 'clinic.sales', 'clinic.day-close', 'clinic.cash-book', 'clinic.settings', 'clinic.insurers', 'clinic.claims', 'clinic.receivables', 'clinic.insurer-payments', 'clinic.spectacles'] as $page) {
             $tour = TourCatalog::tour($page, ['owner' => true]);
             $this->assertNotNull($tour, $page);
             $this->assertGreaterThanOrEqual(1, $tour['version']);

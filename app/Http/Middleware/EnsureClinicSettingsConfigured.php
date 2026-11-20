@@ -21,6 +21,12 @@ class EnsureClinicSettingsConfigured
         if (\App\Support\OpticalMode::opticalOnly()) {
             return $next($request);
         }
+        // An optical shop that just added the clinic: its dashboards list the clinic's details as a step
+        // (App\Support\Guides\ClinicAdded) instead of sending every page to Settings without warning.
+        try {
+            if (\App\Support\Guides\ClinicAdded::pending()) return $next($request);
+        } catch (Throwable $e) {
+        }
 
         // Password replacement must finish before clinic setup. Redirecting its
         // form to settings sends temporary-password users straight back here.

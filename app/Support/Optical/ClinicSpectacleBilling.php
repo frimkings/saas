@@ -30,6 +30,12 @@ class ClinicSpectacleBilling
         return $order->refraction_id && ! $order->sale_id;
     }
 
+    /** The clinic's rule before glasses are ordered here or sent to an optical centre: a part or full payment at POS. */
+    public static function paidEnough(array $summary): bool
+    {
+        return in_array($summary['status'] ?? null, ['partial', 'sold'], true) || (float) ($summary['paid'] ?? 0) > 0;
+    }
+
     public static function summary($refraction): array
     {
         $consultation = $refraction->consultation;

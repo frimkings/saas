@@ -10,6 +10,8 @@ use Livewire\Component;
 
 class OpticalDashboardComponent extends Component
 {
+    use \App\Livewire\Concerns\ClinicAddedChecklist;
+
     /** The getting-started checklist is put away for this person (it also goes once its steps are done). */
     public function hideSetup(): void
     {
@@ -66,6 +68,7 @@ class OpticalDashboardComponent extends Component
             'stuckCount' => app(\App\Services\OpticalJobTrackingService::class)->stuck()->count(),
             // Owners and managers set the shop up; others never see the checklist.
             'setup' => \App\Support\OpticalAccess::isManager(auth()->user()) ? \App\Support\Guides\OpticalSetup::for() : null,
+            'clinicAdded' => \App\Support\Guides\ClinicAdded::for(),
         ])->layout('layouts.optical');
     }
 }

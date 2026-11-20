@@ -79,7 +79,27 @@
             </header>
             <div class="oo-drawer-body">
                 @if($viewRequest->status === 'rejected')<p class="ir-note">You turned this down: {{ $viewRequest->reject_reason }}</p>@endif
-                @if($viewRequest->status === 'cancelled')<p class="ir-note">The clinic cancelled this request.</p>@endif
+                @if($viewRequest->status === 'cancelled')<p class="ir-note">{{ $viewRequest->cancel_answered_at ? 'You cancelled this job at the clinic\'s request.' : 'The clinic cancelled this request.' }}</p>@endif
+                @if($viewRequest->cancelPending())
+                    <section class="oo-section" data-tour="incoming-cancel-ask">
+                        <h3>The clinic asks you to cancel</h3>
+                        <p class="text-sm m-0">{{ $viewRequest->cancel_request_reason }}</p>
+                        <p class="ir-hint mt-1">Asked {{ $viewRequest->cancel_requested_at->format('d M Y H:i') }}. Cancelling puts the stock back and takes the job off their account. If the work is too far along, keep it and say why.</p>
+                        @if($action === 'keep')
+                            <label class="mt-2" style="display:flex;flex-direction:column;gap:4px"><span class="ir-hint" style="font-weight:700">Why are you keeping the job?</span>
+                                <textarea wire:model="keepReason" rows="2" class="ui-input text-sm" placeholder="The clinic sees this, e.g. the lenses are already cut."></textarea></label>
+                            @error('keepReason')<p class="ir-err">{{ $message }}</p>@enderror
+                            <div class="flex gap-2 mt-2"><button type="button" class="oo-btn" wire:click="refuseCancel">Keep the job</button><button type="button" class="oo-btn" wire:click="startAction('')">Back</button></div>
+                        @else
+                            @error('order')<p class="ir-err">{{ $message }}</p>@enderror
+                            <div class="flex gap-2 mt-2">
+                                <button type="button" class="oo-btn danger" wire:click="acceptCancel" wire:confirm="Cancel job {{ $viewRequest->order_number }}? The stock goes back and the clinic is not billed for it.">Cancel the job</button>
+                                <button type="button" class="oo-btn" wire:click="startAction('keep')">Keep it…</button>
+                            </div>
+                        @endif
+                    </section>
+                @endif
+                @if($viewRequest->cancel_refused_reason && $viewRequest->status === 'accepted')<p class="ir-note">You kept the job when the clinic asked to cancel: {{ $viewRequest->cancel_refused_reason }}</p>@endif
                 @if($viewRequest->isRemake())<p class="ir-note"><b>Remake</b> of job {{ $viewRequest->remakeOf?->order_number }} · {{ \App\Models\LensOrder::REMAKE_REASONS[$viewRequest->remake_reason] ?? $viewRequest->remake_reason }}. Accepting opens the remake form, where you choose free or charged.</p>@endif
                 @if(in_array($viewRequest->status, ['quoted', 'approved', 'quote_declined'], true) && $viewRequest->quote_total !== null)
                     <section class="oo-section" data-tour="incoming-quote">

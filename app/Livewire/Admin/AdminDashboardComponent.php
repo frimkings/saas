@@ -24,6 +24,8 @@ use Livewire\Component;
 
 class AdminDashboardComponent extends Component
 {
+    use \App\Livewire\Concerns\ClinicAddedChecklist;
+
     public const COMBINED = 'combined';
 
     /** Which business the money figures cover: clinic, optical, or combined. Chosen with ?line=. */
@@ -239,7 +241,9 @@ class AdminDashboardComponent extends Component
             'patientsLink' => \App\Support\Access\Access::allows($user, 'clinical.records') ? route('doctor.all-records') : route('secretary.patients'),
             'canAppointments' => $has(\App\Support\Feature::APPOINTMENTS),
             'canAttention' => $has(\App\Support\Feature::NEEDS_ATTENTION),
-            'setup' => \App\Support\Access\Access::allows($user, 'dashboard.view') ? \App\Support\Guides\ClinicSetup::for() : null,
+            // An optical shop that just added the clinic gets its own short list instead of the general one.
+            'clinicAdded' => $clinicAdded = \App\Support\Guides\ClinicAdded::for(),
+            'setup' => ! $clinicAdded && \App\Support\Access\Access::allows($user, 'dashboard.view') ? \App\Support\Guides\ClinicSetup::for() : null,
             'owner' => \App\Support\Access\Access::allows($user, 'settings.manage'),
             'lineLabels' => [BusinessLine::CLINIC => 'Clinic', BusinessLine::OPTICAL => 'Optical', self::COMBINED => 'Combined'],
             // Where each money card leads for the chosen business.

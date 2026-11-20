@@ -1,9 +1,9 @@
 {{--
     A getting-started checklist (App\Support\Guides\AttendanceSetup, OpticalSetup): each step ticks itself once it is done.
     $setup = ['title', 'steps', 'extras', 'done', 'total']; a step opens a window ('action', a Livewire call) or a page ('url').
-    The Livewire component it sits in has hideSetup().
+    The Livewire component it sits in has hideSetup() (or the method named by hide=).
 --}}
-@props(['setup'])
+@props(['setup', 'hide' => 'hideSetup'])
 <section class="mb-4 rounded-xl border border-teal-200 bg-white shadow-sm" aria-labelledby="setup-checklist-title" data-tour="setup-checklist">
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-teal-100 bg-teal-50/60 px-4 py-3">
         <div>
@@ -14,7 +14,7 @@
             <div class="h-2 w-32 overflow-hidden rounded-full bg-teal-100" role="progressbar" aria-valuemin="0" aria-valuemax="{{ $setup['total'] }}" aria-valuenow="{{ $setup['done'] }}" aria-label="Steps done">
                 <div class="h-2 rounded-full bg-teal-600" style="width: {{ round($setup['done'] / $setup['total'] * 100) }}%"></div>
             </div>
-            <button type="button" class="text-xs text-slate-500 underline hover:text-slate-700" wire:click="hideSetup" wire:confirm="Hide the getting-started list? Everything on it can still be reached from the menu.">Hide</button>
+            <button type="button" class="text-xs text-slate-500 underline hover:text-slate-700" wire:click="{{ $hide }}" wire:confirm="Hide the getting-started list? Everything on it can still be reached from the menu.">Hide</button>
         </div>
     </div>
     <ol class="!mb-0 divide-y divide-slate-100 !pl-0">

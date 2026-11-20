@@ -23,6 +23,9 @@
         @if($canReports)<x-ui.button :href="$reportsLink"><i class="fas fa-chart-bar" aria-hidden="true"></i>Full reports</x-ui.button>@endif
     </x-ui.page-header>
 
+    @if($clinicAdded)
+        <x-setup-checklist :setup="$clinicAdded" hide="hideClinicAdded" />
+    @endif
     @if($setup)
         <x-setup-checklist :setup="$setup" />
     @endif

@@ -18,6 +18,9 @@
         </div>
     </div>
 
+    @if($clinicAdded)
+        <x-setup-checklist :setup="$clinicAdded" hide="hideClinicAdded" />
+    @endif
     @if($setup)
         <x-setup-checklist :setup="$setup" />
     @endif

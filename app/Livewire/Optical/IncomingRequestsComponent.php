@@ -44,11 +44,12 @@ class IncomingRequestsComponent extends Component
     public ?int $viewId = null;
     public string $question = '';
     public string $rejectReason = '';
+    public string $keepReason = '';
     public string $action = '';
 
     protected $queryString = ['tab' => ['except' => 'new']];
 
-    public const TABS = ['new' => 'New', 'quotes' => 'Quotes', 'query' => 'Waiting on the clinic', 'done' => 'Done'];
+    public const TABS = ['new' => 'New', 'cancel' => 'Cancel asked', 'quotes' => 'Quotes', 'query' => 'Waiting on the clinic', 'done' => 'Done'];
 
     /** Which requests each tab lists. A declined quote stays under Quotes until its quotation is cancelled. */
     private function scopeTab($query, string $tab)
@@ -56,6 +57,8 @@ class IncomingRequestsComponent extends Component
         return match ($tab) {
             'new' => $query->where('status', 'sent'),
             'query' => $query->where('status', 'query'),
+            // A clinic asked to cancel a job you approved or started: cancel it or say why not.
+            'cancel' => $query->whereNotNull('cancel_requested_at')->whereNull('cancel_answered_at')->whereNull('order_cancelled_at'),
             'quotes' => $query->where(fn ($q) => $q->whereIn('status', ['quoted', 'approved'])
                 ->orWhere(fn ($q) => $q->where('status', 'quote_declined')->whereNull('order_cancelled_at'))),
             default => $query->where(fn ($q) => $q->whereIn('status', ['accepted', 'rejected', 'cancelled'])
@@ -75,7 +78,7 @@ class IncomingRequestsComponent extends Component
     public function open(int $id): void
     {
         $this->viewId = app(OpticalLinkService::class)->incomingRequest($id)->id;
-        $this->reset(['question', 'rejectReason', 'action']);
+        $this->reset(['question', 'rejectReason', 'keepReason', 'action']);
         $this->resetErrorBag();
     }
 
@@ -86,7 +89,7 @@ class IncomingRequestsComponent extends Component
 
     public function startAction(string $action): void
     {
-        abort_unless(in_array($action, ['', 'query', 'reject'], true), 422);
+        abort_unless(in_array($action, ['', 'query', 'reject', 'keep'], true), 422);
         $this->action = $action;
         $this->resetErrorBag();
     }
@@ -123,6 +126,26 @@ class IncomingRequestsComponent extends Component
         abort_unless($order && $order->status === 'Quotation', 422, 'This quote has already become a job.');
         app(\App\Services\OpticalOrderWorkflowService::class)->cancel($order->id);
         session()->flash('success', $request->status === 'quote_declined' ? 'Quotation cancelled.' : 'Quote withdrawn. The clinic sees that you withdrew it.');
+    }
+
+    /** The clinic asked to cancel: cancel the job (nothing billed, stock back). */
+    public function acceptCancel(): void
+    {
+        $this->resetErrorBag();
+        $request = app(OpticalLinkService::class)->incomingRequest((int) $this->viewId);
+        app(OpticalLinkService::class)->acceptCancel($request, auth()->user());
+        $this->reset(['action', 'keepReason']);
+        session()->flash('success', 'Job '.$request->order_number.' cancelled. '.$request->senderLabel().' sees it and can order again.');
+    }
+
+    /** Keep the job, telling the clinic why. */
+    public function refuseCancel(): void
+    {
+        $this->resetErrorBag();
+        $request = app(OpticalLinkService::class)->incomingRequest((int) $this->viewId);
+        app(OpticalLinkService::class)->refuseCancel($request, $this->keepReason, auth()->user());
+        $this->reset(['action', 'keepReason']);
+        session()->flash('success', 'You kept the job. '.$request->senderLabel().' sees your reason.');
     }
 
     public function sendQuestion(): void

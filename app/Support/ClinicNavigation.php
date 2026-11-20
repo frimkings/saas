@@ -67,18 +67,46 @@ class ClinicNavigation
      */
     private static function opticalLinkLinks(bool $spectacles): array
     {
+        if (! $spectacles) return [];
+        $tabs = self::opticalTabs();
+        if (! $tabs) return [];
+
+        // One link for the three pages (they share a tab bar): it opens the first one this person has.
+        return [[
+            'label' => 'Optical Centres', 'route' => $tabs[0]['route'], 'badge' => array_sum(array_column($tabs, 'badge')),
+            'active' => array_column(self::OPTICAL_TABS, 'route'),
+        ]];
+    }
+
+    /** The pages for working with linked optical centres, in tab order. */
+    private const OPTICAL_TABS = [
+        'sent' => ['label' => 'Sent to Optical', 'route' => 'secretary.optical-sent'],
+        'owed' => ['label' => 'Owed', 'route' => 'secretary.optical-owed'],
+        'centres' => ['label' => 'Optical centres', 'route' => 'secretary.optical-centres'],
+    ];
+
+    /**
+     * The optical-centre tabs this person sees, with their counts: Sent once a link exists (or something was
+     * sent), Owed for owners and managers then, and the centres (linking) page for owners and managers.
+     */
+    public static function opticalTabs(): array
+    {
         $user = auth()->user();
-        if (! $spectacles || ! Access::allows($user, 'spectacles.manage')) return [];
+        if (! Access::allows($user, 'spectacles.manage')) return [];
         $links = app(\App\Services\OpticalLinks\OpticalLinkService::class);
         $clinicId = (int) app(\App\Support\Tenancy\TenantContext::class)->clinicId();
         $inUse = $clinicId && ($links->linksForSender($clinicId)->isNotEmpty() || \App\Models\OpticalOrderRequest::forSender($clinicId)->exists());
+        $manage = $links->canManageLinks($user);
 
-        return [
-            ['label' => 'Sent to Optical', 'route' => 'secretary.optical-sent', 'badge' => $inUse ? \App\Services\OpticalLinks\OpticalLinkService::senderQueryCount() : 0, 'show' => $inUse],
-            ['label' => 'Owed to Optical', 'route' => 'secretary.optical-owed', 'badge' => $inUse ? \App\Models\OpticalLinkPayment::forSender($clinicId)->where('status', 'disputed')->count() : 0,
-                'show' => $inUse && $links->canManageLinks($user)],
-            ['label' => 'Optical Centres', 'route' => 'secretary.optical-centres', 'show' => $links->canManageLinks($user)],
+        $show = ['sent' => $inUse, 'owed' => $inUse && $manage, 'centres' => $manage];
+        $badge = [
+            'sent' => $inUse ? \App\Services\OpticalLinks\OpticalLinkService::senderQueryCount() : 0,
+            'owed' => $inUse && $manage ? \App\Models\OpticalLinkPayment::forSender($clinicId)->where('status', 'disputed')->count() : 0,
+            'centres' => 0,
         ];
+
+        return collect(self::OPTICAL_TABS)->filter(fn ($tab, $key) => $show[$key])
+            ->map(fn ($tab, $key) => $tab + ['badge' => (int) $badge[$key]])->values()->all();
     }
 
     /** Reception and cashier desk. */

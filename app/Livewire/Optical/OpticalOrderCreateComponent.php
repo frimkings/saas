@@ -344,9 +344,20 @@ class OpticalOrderCreateComponent extends Component
         }
         $rx = OpticalPrescription::findOrFail((int) $id);
         if ($this->patient_id && (int) $this->patient_id !== (int) $rx->patient_id) abort(404);
+        $this->refuseFrontDeskOrdered($rx->refraction_id);
         $this->choosePatient($rx->patient_id);
         $this->optical_prescription_id = $rx->id;
         $this->fillMeasurements($rx->measurements ?? []);
+    }
+
+    /**
+     * A clinic with both modules: the front desk (Spectacles) may already have ordered glasses from this
+     * prescription. Making another here would be a second pair by mistake, so it is refused with the order number.
+     */
+    private function refuseFrontDeskOrdered(?int $refractionId): void
+    {
+        if (! $refractionId || ! ($order = Refractions::activeFrontDeskOrder($refractionId))) return;
+        throw ValidationException::withMessages(['refraction_id' => "The front desk already ordered glasses from this prescription ({$order->order_id}, {$order->status}). Cancel that order on Spectacles first if this one replaces it."]);
     }
 
     public function chooseRefraction($id): void
@@ -358,6 +369,7 @@ class OpticalOrderCreateComponent extends Component
         abort_if(\App\Support\OpticalMode::opticalOnly(), 403);
         $rx = Refractions::with('consultation.patient')->findOrFail((int) $id);
         abort_unless($rx->dispensing_required && $rx->dispensing_authorized_at && $rx->consultation?->patient, 403);
+        $this->refuseFrontDeskOrdered($rx->id);
         $this->choosePatient($rx->consultation->patient->id);
         $this->refraction_id = $rx->id;
         $this->fillMeasurements([
@@ -574,12 +586,44 @@ class OpticalOrderCreateComponent extends Component
         return $this->work_type === 'prescription' || $this->selectedServices()->contains(fn ($service) => $service->requires_frame);
     }
 
+    /** A lens transfer moves the customer's own lenses: the powers help the bench check them, but are not required. */
+    public function rxOptional(): bool
+    {
+        return ! $this->needsRx() && $this->work_type === 'service'
+            && $this->selectedServices()->contains(fn ($service) => $service->code === 'lens_transfer');
+    }
+
+    private function showsRxStep(): bool
+    {
+        return $this->needsRx() || $this->rxOptional();
+    }
+
+    /**
+     * An Owner or Manager can switch a service on and price it from the order itself,
+     * so a lens transfer or repair is not blocked by an empty service list.
+     */
+    public function switchOnService(int $id, $price): void
+    {
+        abort_unless(\App\Support\Access\Access::can('optical.manage'), 403);
+        $service = OpticalService::where('is_active', false)->findOrFail($id);
+        $key = "servicePrices.{$id}";
+        $this->resetValidation($key);
+        validator(['servicePrices' => [$id => $price]], [$key => 'required|numeric|min:0|max:1000000'], [
+            "{$key}.*" => "Enter a price for {$service->name} from 0 up.",
+        ])->validate();
+        app(\App\Services\ClinicAccessService::class)->assertWritable('optical');
+        $service->price = round((float) $price, 2);
+        $service->is_active = true;
+        \App\Models\AuditTrail::recordSave($service, 'optical.service', 'optical service '.$service->name);
+        $this->addService($service->id);
+    }
+
     private function nextApplicableStep(int $from, int $direction): int
     {
         $step = $from;
         do {
             $step = max(1, min(7, $step + $direction));
-        } while (($step === 2 && ! $this->needsRx()) || ($step === 3 && ! $this->needsFrame()) || ($step === 6 && $this->linkRequestId));
+        } while (($step === 2 && ! $this->showsRxStep()) || ($step === 3 && ! $this->needsFrame()) || ($step === 6 && $this->linkRequestId));
         return $step;
     }
 
@@ -587,7 +631,7 @@ class OpticalOrderCreateComponent extends Component
     {
         $target = max(1, min(7, (int) $step));
         // A linked clinic pays through its account, so its jobs take no deposit.
-        if (($target === 2 && ! $this->needsRx()) || ($target === 3 && ! $this->needsFrame()) || ($target === 6 && $this->linkRequestId)) return;
+        if (($target === 2 && ! $this->showsRxStep()) || ($target === 3 && ! $this->needsFrame()) || ($target === 6 && $this->linkRequestId)) return;
 
         if ($target <= $this->currentStep) {
             $this->resetValidation();
@@ -632,6 +676,7 @@ class OpticalOrderCreateComponent extends Component
                 'remake_charge.required' => 'Choose whether this remake is free or charged.',
             ]);
         }
+        if ($this->currentStep === 2 && $this->rxOptional()) $this->validateRxMeasurements(false);
         if ($this->currentStep === 2 && $this->needsRx()) {
             $this->validateRxMeasurements();
             if ($this->work_type === 'prescription') {
@@ -716,7 +761,8 @@ class OpticalOrderCreateComponent extends Component
         }
     }
 
-    private function validateRxMeasurements(): void
+    /** $required false: the powers may be left blank (a lens transfer), but what is typed must still be valid. */
+    private function validateRxMeasurements(bool $required = true): void
     {
         $rules = [
             'rx_od_axis' => [filled($this->rx_od_cyl) ? 'required' : 'nullable', 'integer', 'between:0,180'],
@@ -738,7 +784,7 @@ class OpticalOrderCreateComponent extends Component
             };
             foreach (['od' => 'Right-eye', 'os' => 'Left-eye'] as $eye => $label) {
                 $rules += [
-                    "rx_{$eye}_sph" => ['required', 'numeric', 'between:-30,30', $quarterStep],
+                    "rx_{$eye}_sph" => [$required ? 'required' : 'nullable', 'numeric', 'between:-30,30', $quarterStep],
                     "rx_{$eye}_cyl" => ['nullable', 'numeric', 'between:-15,15', $quarterStep],
                     "rx_{$eye}_add" => ['nullable', 'numeric', 'between:0,8', $quarterStep],
                 ];
@@ -1233,8 +1279,13 @@ class OpticalOrderCreateComponent extends Component
 
     protected function saveOrder($status = 'Pending')
     {
+        // Checked again here: the front desk may have ordered it after this form was opened.
+        if ($this->order_source === 'in_clinic') {
+            $this->refuseFrontDeskOrdered($this->refraction_id ?: OpticalPrescription::whereKey($this->optical_prescription_id)->value('refraction_id'));
+        }
         if ($this->needsFrame()) $this->normalizeFrameSelection();
         if ($this->needsRx()) $this->validateRxMeasurements();
+        elseif ($this->rxOptional()) $this->validateRxMeasurements(false);
         if ($this->work_type === 'prescription' && $this->lens_fulfilment_source === 'stock') {
             $this->validate(['stock_lens_key' => 'required|string']);
             $this->selectStockLensOption($this->stock_lens_key);
@@ -1360,6 +1411,9 @@ class OpticalOrderCreateComponent extends Component
                 ? OpticalProduct::with('stocks')->where('is_active', true)->whereNull('lens_specs')->where('type', 'lens')->orderBy('name')->get()
                 : collect(),
             'serviceCatalogue' => OpticalService::where('is_active', true)->orderBy('name')->get(),
+            // Services not switched on yet: a manager can switch them on here, others are told who can.
+            'servicesOff' => $this->work_type === 'service' ? OpticalService::where('is_active', false)->orderBy('name')->get() : collect(),
+            'canManageServices' => \App\Support\Access\Access::can('optical.manage'),
             'nextStep' => $this->nextApplicableStep($this->currentStep, 1),
             'previousStep' => $this->nextApplicableStep($this->currentStep, -1),
         ])->layout('layouts.optical');

@@ -21,6 +21,8 @@ class SentToOpticalComponent extends Component
     public ?int $decliningId = null;
     public string $declineReason = '';
     public ?int $remakeId = null;
+    public ?int $cancellingId = null;
+    public string $cancelReason = '';
     public string $remakeReason = '';
     public string $remakeNote = '';
 
@@ -62,7 +64,24 @@ class SentToOpticalComponent extends Component
         app(ClinicAccessService::class)->assertWritable();
         $request = OpticalOrderRequest::forSender($this->clinicId())->findOrFail($id);
         app(OpticalLinkService::class)->cancel($request, auth()->user());
-        session()->flash('success', 'Request cancelled. The refraction is back in Refractions Needing Order.');
+        session()->flash('success', 'Request cancelled. The refraction is back in To order on Spectacles.');
+    }
+
+    /** Open (or close) the "why cancel" box on a job the optical centre approved or started. */
+    public function startCancelAsk(?int $id = null): void
+    {
+        $this->cancellingId = $this->cancellingId === $id ? null : $id;
+        $this->cancelReason = '';
+        $this->resetErrorBag();
+    }
+
+    public function askCancel(): void
+    {
+        $this->resetErrorBag();
+        $request = OpticalOrderRequest::findOrFail((int) $this->cancellingId);
+        app(OpticalLinkService::class)->askCancel($request, $this->cancelReason, auth()->user());
+        $this->reset(['cancellingId', 'cancelReason']);
+        session()->flash('success', 'Asked '.($request->opticalClinic?->name ?? 'the optical centre').' to cancel the job. If they cancel it, the patient goes back to To order on Spectacles.');
     }
 
     public function approveQuote(int $id): void
@@ -85,7 +104,7 @@ class SentToOpticalComponent extends Component
         $request = OpticalOrderRequest::forSender($this->clinicId())->findOrFail((int) $this->decliningId);
         app(OpticalLinkService::class)->declineQuote($request, $this->declineReason, auth()->user());
         $this->reset(['decliningId', 'declineReason']);
-        session()->flash('success', 'Quote declined. The refraction is back in Refractions Needing Order.');
+        session()->flash('success', 'Quote declined. The refraction is back in To order on Spectacles.');
     }
 
     public function askNewQuote(int $id): void

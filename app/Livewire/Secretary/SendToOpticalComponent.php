@@ -5,6 +5,8 @@ namespace App\Livewire\Secretary;
 use App\Models\OpticalOrderRequest;
 use App\Models\Refractions;
 use App\Services\OpticalLinks\OpticalLinkService;
+use App\Support\Optical\ClinicSpectacleBilling;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -12,6 +14,9 @@ use Livewire\Component;
 /** The "Send to Optical Centre" dialog on the Spectacles page. */
 class SendToOpticalComponent extends Component
 {
+    /** Same rule as ordering here (Spectacle Orders): a part or full payment at POS first. */
+    private const UNPAID = 'Record a part or full payment at POS before sending to an optical centre.';
+
     public bool $open = false;
     #[Locked]
     public ?int $refractionId = null;
@@ -27,6 +32,10 @@ class SendToOpticalComponent extends Component
     {
         $refraction = Refractions::with('consultation.patient')->findOrFail($refractionId);
         abort_unless($refraction->dispensing_required && $refraction->dispensing_authorized_at, 403);
+        if (! ClinicSpectacleBilling::paidEnough(ClinicSpectacleBilling::summary($refraction))) {
+            $this->dispatch('notify', type: 'error', message: self::UNPAID);
+            return;
+        }
         $this->reset(['frameNotes', 'lensNotes', 'notes']);
         $this->frameChoice = 'patient_chooses';
         $this->urgency = 'normal';
@@ -48,6 +57,10 @@ class SendToOpticalComponent extends Component
             'notes' => 'nullable|string|max:2000',
         ], ['partnerId.required' => 'Choose the optical centre.']);
         $refraction = Refractions::with(['consultation.patient', 'lensOrder'])->findOrFail((int) $this->refractionId);
+        // Checked again on Send: the payment may have been refunded while the dialog was open.
+        if (! ClinicSpectacleBilling::paidEnough(ClinicSpectacleBilling::summary($refraction))) {
+            throw ValidationException::withMessages(['partnerId' => self::UNPAID]);
+        }
         $request = app(OpticalLinkService::class)->send($refraction, (int) $this->partnerId, [
             'frame_choice' => $this->frameChoice, 'frame_notes' => $this->frameNotes, 'lens_notes' => $this->lensNotes,
             'urgency' => $this->urgency, 'notes' => $this->notes,

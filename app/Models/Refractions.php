@@ -123,11 +123,67 @@ class Refractions extends Model
         return $this->belongsTo('App\Models\Consultations');
     }
 
+    /**
+     * The refraction's latest spectacle order. Since 20 Nov 2026 a cancelled order stays as history and
+     * the patient can be ordered again, so there may be older (cancelled) ones.
+     */
     public function lensOrder()
-{
-    // Since the foreign key is on the LensOrder table:
-    return $this->hasOne(LensOrder::class, 'refraction_id');
-}
+    {
+        return $this->hasOne(LensOrder::class, 'refraction_id')->latestOfMany();
+    }
+
+    /** The Optical Suite's copy of this prescription (a clinic with both modules orders from it there). */
+    public function opticalPrescription()
+    {
+        return $this->hasOne(OpticalPrescription::class, 'refraction_id');
+    }
+
+    /**
+     * Marked for glasses, with no order that is still going: none at the front desk (or the last one was
+     * cancelled), and none in the Optical Suite from the same prescription (a quotation there is not an order).
+     */
+    public function scopeAwaitingSpectacleOrder($query)
+    {
+        return $query->where('dispensing_required', true)
+            ->whereDoesntHave('lensOrder', fn ($order) => $order->where('status', '!=', 'Cancelled'))
+            ->whereDoesntHave('opticalPrescription.orders', fn ($order) => $order->whereNotIn('status', ['Cancelled', 'Quotation']));
+    }
+
+    /** An order that is still going exists for this refraction, at the front desk or in the Optical Suite. */
+    public function hasActiveLensOrder(): bool
+    {
+        return (bool) $this->activeLensOrder();
+    }
+
+    /** The order still going for this refraction, wherever it was made (front desk first), or null. */
+    public function activeLensOrder(): ?LensOrder
+    {
+        return self::activeFrontDeskOrder($this->id) ?? $this->activeOpticalSuiteOrder();
+    }
+
+    /** A front-desk (Spectacles page) order still going for this refraction, deleted ones included. */
+    public static function activeFrontDeskOrder(int $refractionId): ?LensOrder
+    {
+        return LensOrder::withTrashed()->where('refraction_id', $refractionId)->where('status', '!=', 'Cancelled')->latest('id')->first();
+    }
+
+    /** An Optical Suite order (not a quotation) made from this prescription, still going. */
+    public function activeOpticalSuiteOrder(): ?LensOrder
+    {
+        $prescriptionId = OpticalPrescription::where('refraction_id', $this->id)->value('id');
+        if (! $prescriptionId) return null;
+
+        return LensOrder::where('optical_prescription_id', $prescriptionId)->whereNotIn('status', ['Cancelled', 'Quotation'])->latest('id')->first();
+    }
+
+    /** "already has an order" or "ordered in the Optical Suite (ORD-…)", for messages. */
+    public function activeOrderLabel(): ?string
+    {
+        if (self::activeFrontDeskOrder($this->id)) return 'already has an order';
+        $suite = $this->activeOpticalSuiteOrder();
+
+        return $suite ? "ordered in the Optical Suite ({$suite->order_id})" : null;
+    }
 
     public function dispensingAuthorizedBy()
     {

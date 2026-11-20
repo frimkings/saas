@@ -98,6 +98,24 @@ class ClinicStarterData
         return in_array($product, [PlanProduct::CLINIC, PlanProduct::BOTH], true);
     }
 
+    /**
+     * The lists for a business that already exists (an optical shop adding the clinic): only diagnoses and
+     * categories it doesn't have yet, by name, plus lens types. Returns how many of each were added.
+     */
+    public static function addMissing(int $clinicId, int $userId): array
+    {
+        $now = now();
+        $haveDiagnoses = DB::table('diagnoses')->where('clinic_id', $clinicId)->pluck('name')->map(fn ($n) => mb_strtolower(trim($n)))->all();
+        $diagnoses = array_values(array_filter(self::DIAGNOSES, fn ($name) => ! in_array(mb_strtolower($name), $haveDiagnoses, true)));
+        if ($diagnoses) DB::table('diagnoses')->insert(array_map(fn ($name) => ['clinic_id' => $clinicId, 'name' => $name, 'created_at' => $now, 'updated_at' => $now], $diagnoses));
+
+        $haveCategories = DB::table('categories')->where('clinic_id', $clinicId)->pluck('name')->map(fn ($n) => mb_strtolower(trim($n)))->all();
+        $categories = array_filter(self::CATEGORIES, fn ($c, $name) => ! in_array(mb_strtolower($name), $haveCategories, true), ARRAY_FILTER_USE_BOTH);
+        if ($categories) DB::table('categories')->insert(array_map(fn ($name, $c) => ['clinic_id' => $clinicId, 'user_id' => $userId, 'name' => $name, 'type' => $c[0], 'description' => $c[1], 'is_active' => true, 'created_at' => $now, 'updated_at' => $now], array_keys($categories), $categories));
+
+        return ['diagnoses' => count($diagnoses), 'categories' => count($categories), 'lens_types' => self::addLensTypes($clinicId)];
+    }
+
     /** Adds the chosen lists to a new clinic; returns how many of each were added. */
     public static function seed(int $clinicId, int $userId, bool $diagnoses, bool $categories): array
     {

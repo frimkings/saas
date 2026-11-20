@@ -20,12 +20,12 @@ final class TourCatalog
         'attendance.staff' => 1,
         'optical.dashboard' => 3,
         'optical.orders' => 2,
-        'optical.order-create' => 1,
+        'optical.order-create' => 2,
         'optical.special-order' => 1,
         'optical.lab' => 2,
         'optical.catalogue' => 1,
         'optical.pos' => 2,
-        'optical.requests' => 6,
+        'optical.requests' => 7,
         'clinic.dashboard' => 6,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
@@ -40,7 +40,8 @@ final class TourCatalog
         'clinic.receivables' => 1,
         'clinic.insurer-payments' => 1,
         'clinic.scans' => 2,
-        'clinic.optical-sent' => 3,
+        'clinic.optical-sent' => 5,
+        'clinic.spectacles' => 1,
         'clinic.optical-owed' => 1,
         'platform.dashboard' => 2,
         'platform.clinics' => 1,
@@ -92,6 +93,7 @@ final class TourCatalog
             'clinic.insurer-payments' => self::clinicInsurerPayments(),
             'clinic.scans' => self::clinicScans($context),
             'clinic.optical-sent' => self::clinicOpticalSent(),
+            'clinic.spectacles' => self::clinicSpectacles($context),
             'clinic.optical-owed' => self::clinicOpticalOwed(),
             default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
@@ -101,15 +103,35 @@ final class TourCatalog
         return $tour + ['version' => self::version($tour['key']) ?? 1];
     }
 
+    /** Front Desk → Spectacles: glasses to order for patients, made here or sent to a linked optical centre (20 Nov 2026). */
+    private static function clinicSpectacles(array $c): array
+    {
+        $send = (bool) ($c['send'] ?? false);
+
+        return ['key' => 'clinic.spectacles', 'title' => 'Spectacle Orders', 'steps' => [
+            ['target' => 'sp-status', 'title' => 'One bar for every list', 'body' => 'To order is every patient the doctor marked for glasses with no order yet. Orders shows the rest by status: Pending, In lab, Ready, Collected and Cancelled, each in its own colour. Click one to see that list.'],
+            ['target' => 'sp-alerts', 'title' => 'What needs chasing', 'body' => 'Pickup overdue: glasses ready for more than a week. Renewal due: collected glasses due for a new test within a month. They turn red when there are any.'],
+            ['target' => 'sp-filters', 'title' => 'Find a patient', 'body' => 'Search by name, folder number or order number, pick the dates, and type in Doctor or Lab to narrow the list. Sort by when it was created or by pickup date.'],
+            ['target' => 'sp-list', 'title' => 'Open a patient', 'body' => 'Click a row to open the patient on the side: the POS payment, the prescription and what to do next. Create the order there, print the job card (you see a preview first), message the patient or cancel the order.'],
+            ['title' => 'Paid at POS first', 'body' => 'An order is made, or sent to an optical centre, only once part or all of it is paid at the Point of Sale. Until then Create'.($send ? ' and Send are' : ' is').' greyed out.'],
+            $send ? ['target' => 'send-to-optical', 'title' => 'Send to an optical centre', 'body' => 'The paper plane sends the prescription to a linked optical centre instead of ordering here. Follow it under Optical Centres in the menu. A sent patient cannot also be ordered here.'] : null,
+            ['target' => 'sp-tick', 'title' => 'Several at once', 'body' => 'Tick rows, or this box for the whole page. On To order, create orders for all of them with one pickup date (only patients whose frame and lens are on the POS sale)'.($send ? ', or send them all to one optical centre' : '').'. On the orders lists, move them to the next status together. Any that cannot be done are listed with the reason.'],
+            ['title' => 'Changed your mind?', 'body' => 'Cancel an order with a reason: the stock it took goes back and the patient returns to To order, to order again or send out. Money paid at POS is refunded at the POS, not here.'.($send ? ' A job already started at an optical centre: use Ask to cancel under Optical Centres.' : '')],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
+    }
+
     /** Front Desk → Sent to Optical: spectacle orders sent to linked optical centres. */
     private static function clinicOpticalSent(): array
     {
         return ['key' => 'clinic.optical-sent', 'title' => 'Sent to Optical', 'steps' => [
-            ['target' => 'sent-to-optical', 'title' => 'Orders you sent', 'body' => 'Send an order from Spectacles → Refractions Needing Order with the paper-plane button, once the patient has paid at the Point of Sale. Here you see each one: waiting, a question from the optical centre to answer, accepted (with the job’s progress in their lab), or turned down.'],
-            ['title' => 'Approve the price first', 'body' => 'The optical centre prices each job and sends you a quote: the lens, frame and services with their trade price. Approve it and they start the job; decline it with a reason and the patient goes back to Refractions Needing Order. An expired quote can be sent back for a new price.'],
-            ['title' => 'Routine jobs without waiting', 'body' => 'Under Optical Centres, an owner or manager can approve quotes automatically up to an amount: a quote within it starts at once and shows here as approved automatically. The same page shows the trade discount each optical centre gives you and your credit limit; at the limit you can’t send new jobs until you pay under Owed to Optical.'],
+            ['target' => 'sent-to-optical', 'title' => 'Orders you sent', 'body' => 'Send an order from Spectacles → To order with the paper-plane button, once the patient has paid at the Point of Sale. Here you see each one: waiting, a question from the optical centre to answer, accepted (with the job’s progress in their lab), or turned down.'],
+            ['title' => 'Approve the price first', 'body' => 'The optical centre prices each job and sends you a quote: the lens, frame and services with their trade price. Approve it and they start the job; decline it with a reason and the patient goes back to To order on Spectacles. An expired quote can be sent back for a new price.'],
+            ['title' => 'Routine jobs without waiting', 'body' => 'On the Optical centres tab, an owner or manager can approve quotes automatically up to an amount: a quote within it starts at once and shows here as approved automatically. The same page shows the trade discount each optical centre gives you and your credit limit; at the limit you can’t send new jobs until you pay on the Owed tab.'],
+            ['title' => 'Changed your mind?', 'body' => 'While waiting or with a question, Cancel takes the request back; a quote you decline does the same. Once the optical centre has approved or started the job, Ask to cancel sends them your reason: they cancel it (nothing billed) or keep it and say why. A cancelled one puts the patient back in To order on Spectacles.'],
             ['title' => 'Remakes', 'body' => 'Once glasses are ready or collected, Ask for a remake sends the job back with your reason. The optical centre decides whether it is free (their error or warranty) or charged; a charged one comes to you as a quote.'],
-            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Owners and managers link optical centres under Optical Centres and pay them under Owed to Optical. Take this tour again at any time from here.'],
+            ['target' => 'optical-tabs', 'title' => 'Three tabs, one menu link', 'body' => 'Optical Centres in the menu opens these tabs: the jobs you sent, what you owe (owners and managers), and the optical centres you are linked with.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Owners and managers link optical centres on the Optical centres tab and pay them on the Owed tab. Take this tour again at any time from here.'],
         ]];
     }
 
@@ -187,6 +209,7 @@ final class TourCatalog
             ['title' => 'Agreed terms', 'body' => 'Under Partner Clinics, open a linked clinic to set its trade % off your prices for lenses, frames and services, and a credit limit. The trade % comes off every quote for them on its own line. At the credit limit they can’t send new jobs until they pay. If the clinic approves quotes automatically up to an amount, a quote within it starts the job at once.'],
             ['title' => 'Clinics not on Nexus', 'body' => 'Under Partner Clinics, open a partner that is not on Nexus and turn on its ordering page: you get a private link and set a 6-digit PIN to send them separately. They send orders with the prescription and follow each job there, without an account. Their orders arrive here marked "ordering page"; you price them as ordinary partner jobs, with no quote to approve. On the page they can press Check lenses to see which of your stock lenses fit, "In stock" or "Order in" per eye (never the counts), with prices after their trade % unless you switch prices off for that partner. A lens they pick is held for them until you accept the order, and the order form selects it when you check availability. If they join Nexus later and link, their orders move to their account.'],
             ['title' => 'Remakes and payments', 'body' => 'A clinic can ask for a remake of glasses you made; accept it to open the remake form and choose free or charged. When a clinic records a payment to you, confirm it on their card under Partner Clinics.'],
+            ['title' => 'Cancel asked', 'body' => 'A clinic can ask you to cancel a job you approved or started, with a reason. It waits under Cancel asked: open it and cancel the job (stock goes back, nothing is billed) or keep it and say why, for example when the lenses are already cut.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'The clinic follows each job as you move it through the lab. Take this tour again at any time from here.'],
         ]];
     }
@@ -209,7 +232,7 @@ final class TourCatalog
         return ['key' => 'optical.order-create', 'title' => 'New order', 'steps' => [
             ['target' => 'opt-steps', 'title' => 'Seven short steps', 'body' => 'Who it is for, prescription and lenses, frame, fitting, services and price, deposit, then a last look before you place it. Go back to any finished step from here.'],
             ['target' => 'opt-source', 'title' => 'Who the job is for', 'body' => 'A patient of this clinic, a partner clinic\'s customer, or someone walking in. Partner work can be billed to the partner.'],
-            ['target' => 'opt-work-type', 'title' => 'Glasses or a service', 'body' => 'Prescription glasses go through lenses and frame; a service job (a repair, say) goes straight to its price.'],
+            ['target' => 'opt-work-type', 'title' => 'New glasses or a service only', 'body' => 'New glasses go through prescription, lenses and frame. Service only (a lens transfer, a repair, an adjustment) skips what it does not need: a lens transfer asks for the new frame, and the prescription is optional. A Manager or the Owner can switch on a service and set its price right here.'],
             ['title' => 'Lenses from stock or special order', 'body' => 'On the next step, enter the prescription and the app finds lenses in stock that match. If there are none, it is a special order: you enter the price and the owner is told once it is paid.'],
             ['target' => 'opt-quote', 'title' => 'Not ready to order?', 'body' => 'Save it as a quotation once the prescription is in (for a service job, once the services are picked). It keeps its prices and turns into an order when the customer pays a deposit.'],
             ['target' => 'opt-next', 'title' => 'Next', 'body' => 'Each step is checked before you move on, so nothing is missed.'],

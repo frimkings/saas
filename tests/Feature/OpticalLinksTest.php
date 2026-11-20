@@ -93,7 +93,8 @@ class OpticalLinksTest extends TestCase
     }
 
     /** A refraction at the sending clinic, authorised for dispensing. */
-    private function refraction(bool $authorised = true): Refractions
+    /** $paid: the frame and lenses part-paid at POS, the clinic's rule before an order is made or sent. */
+    private function refraction(bool $authorised = true, bool $paid = true): Refractions
     {
         $this->as('clinic');
         $patient = Patient::createWithGeneratedPxNumber(['user_id' => auth()->id(), 'name' => 'Ama Mensah', 'contact' => '0201234567', 'gender' => 'Female', 'address' => 'Secret Street 4']);
@@ -101,6 +102,17 @@ class OpticalLinksTest extends TestCase
             'clearance_date' => now()->toDateString(), 'payment_status' => 'Paid']);
         $consultation = Consultations::create(['user_id' => auth()->id(), 'patient_id' => $patient->id,
             'clearance_id' => $clearance->id, 'chiefComplaint' => 'Private complaint']);
+
+        if ($paid) {
+            $category = \App\Models\Category::firstOrCreate(['name' => 'Spectacle Lenses'], ['user_id' => auth()->id()]);
+            $lens = \App\Models\Product::firstOrCreate(['name' => 'Progressive Lens'], ['user_id' => auth()->id(), 'category_id' => $category->id,
+                'quantity' => 5, 'cost_price' => 100, 'selling_price' => 600]);
+            $sale = \App\Models\Sales::create(['user_id' => auth()->id(), 'patient_id' => $patient->id, 'consultation_id' => $consultation->id,
+                'transaction_id' => 'TXN-LINK-'.$consultation->id, 'business_line' => 'clinic', 'total_amount' => 600, 'amount_paid' => 300,
+                'payment_status' => 'partial', 'bill_status' => 'open']);
+            \App\Models\SaleItem::create(['sale_id' => $sale->id, 'product_id' => $lens->id, 'prescribed_quantity' => 1, 'dispensed_quantity' => 0,
+                'selling_price' => 600, 'subtotal' => 0]);
+        }
 
         return Refractions::create(['user_id' => auth()->id(), 'consultation_id' => $consultation->id,
             'refractionOD' => '-1.25/-0.50x180', 'refractionOS' => '-1.00', 'refractionOD_distance_va' => '6/6', 'refractionOS_distance_va' => '6/6',
@@ -165,12 +177,107 @@ class OpticalLinksTest extends TestCase
         $this->assertFalse(app(OpticalLinkService::class)->canManageLinks(auth()->user()));
     }
 
+    /** 20 Nov 2026: tick several on Spectacles → To order and send them to one centre; unpaid ones are skipped and named. */
+    public function test_ticked_refractions_go_to_one_optical_centre_together(): void
+    {
+        $partner = $this->linked();
+        $paid = $this->refraction();
+        $alsoPaid = $this->refraction();
+        $unpaid = $this->refraction(true, false);
+
+        $page = Livewire::test(\App\Livewire\Secretary\SpectaclesComponent::class)->call('setRecordType', 'refractions')
+            ->call('togglePick', $paid->id)->call('togglePick', $alsoPaid->id)->call('togglePick', $unpaid->id)
+            ->assertSee('Send to optical centre')
+            ->call('openBulkSend')->assertSet('bulkSendOpen', true)->assertSet('bulkPartnerId', $partner->id)
+            ->set('bulkUrgency', 'urgent')->set('bulkNotes', 'Same lab please')
+            ->call('bulkSend')->assertHasNoErrors()->assertSet('picked', [])->assertSet('bulkSendOpen', false);
+
+        $requests = OpticalOrderRequest::whereIn('refraction_id', [$paid->id, $alsoPaid->id])->get();
+        $this->assertCount(2, $requests);
+        $this->assertSame(['urgent'], $requests->pluck('urgency')->unique()->values()->all());
+        $this->assertFalse(OpticalOrderRequest::where('refraction_id', $unpaid->id)->exists());
+        $this->assertSame([['name' => 'Ama Mensah', 'reason' => 'no payment at POS yet']], $page->get('bulkSkipped'));
+
+        // Sent ones are not ordered here too, even in bulk.
+        $page->call('togglePick', $paid->id)->call('bulkCreateOrders')->assertSet('bulkSkipped', [['name' => 'Ama Mensah', 'reason' => 'sent to an optical centre']]);
+        $this->assertSame(0, LensOrder::where('refraction_id', $paid->id)->count());
+    }
+
+    /** 20 Nov 2026: the clinic asks the centre to cancel a started job; cancelled, the patient is back in To order. */
+    public function test_the_clinic_asks_to_cancel_a_started_job_and_the_centre_answers(): void
+    {
+        $partner = $this->linked();
+        $job = $this->acceptedJob($partner);
+        $this->assertSame('accepted', $job->status);
+
+        // Clinic: a reason is needed, then the ask waits for the centre.
+        $this->as('clinic');
+        $sent = Livewire::test(SentToOpticalComponent::class)->call('setTab', 'accepted')->assertSee('Ask to cancel')
+            ->call('startCancelAsk', $job->id)->call('askCancel')->assertHasErrors(['cancelReason'])
+            ->set('cancelReason', 'Patient moved abroad')->call('askCancel')->assertHasNoErrors();
+        $job->refresh();
+        $this->assertTrue($job->cancelPending());
+        $this->assertFalse($job->canAskCancel());
+        $sent->assertSee('You asked to cancel')->assertDontSee('Ask to cancel</');
+
+        // Centre: it is under Cancel asked; it can keep the job with a reason...
+        $this->as('optical');
+        $incoming = Livewire::test(IncomingRequestsComponent::class)->call('setTab', 'cancel')->assertSee($job->patient_name)
+            ->call('open', $job->id)->assertSee('Patient moved abroad')
+            ->call('startAction', 'keep')->call('refuseCancel')->assertHasErrors(['keepReason'])
+            ->set('keepReason', 'Lenses already cut')->call('refuseCancel')->assertHasNoErrors();
+        $job->refresh();
+        $this->assertSame('accepted', $job->status);
+        $this->assertSame('Lenses already cut', $job->cancel_refused_reason);
+        $this->assertTrue($job->canAskCancel());
+
+        // ...and when the clinic asks again, cancel it: nothing billed, the patient is back in To order and can be sent again.
+        $this->as('clinic');
+        app(OpticalLinkService::class)->askCancel($job, 'Asking again: patient left', auth()->user());
+        $this->as('optical');
+        Livewire::test(IncomingRequestsComponent::class)->call('open', $job->id)->call('acceptCancel')->assertHasNoErrors();
+        $job->refresh();
+        $this->assertSame('cancelled', $job->status);
+        $this->assertNotNull($job->order_cancelled_at);
+        $this->assertSame('Cancelled', LensOrder::withoutGlobalScopes()->findOrFail($job->lens_order_id)->status);
+        $this->assertSame(0.0, $job->balance());
+
+        $this->as('clinic');
+        $this->assertNull(app(OpticalLinkService::class)->openRequestFor($job->refraction_id));
+        $this->assertTrue(Refractions::awaitingSpectacleOrder()->whereKey($job->refraction_id)->exists());
+        Livewire::test(SentToOpticalComponent::class)->call('setTab', 'closed')->assertSee('Cancelled by');
+        $again = $this->send(Refractions::findOrFail($job->refraction_id), $partner->id);
+        $this->assertSame('sent', $again->status);
+    }
+
+    /** 20 Nov 2026: one menu link (Optical Centres) for Sent, Owed and the centres page, which share a tab bar. */
+    public function test_one_menu_link_opens_the_three_optical_tabs(): void
+    {
+        $this->linked();
+        $this->as('clinic');
+
+        $tabs = \App\Support\ClinicNavigation::opticalTabs();
+        $this->assertSame(['secretary.optical-sent', 'secretary.optical-owed', 'secretary.optical-centres'], array_column($tabs, 'route'));
+
+        foreach (['secretary.optical-sent', 'secretary.optical-owed', 'secretary.optical-centres'] as $route) {
+            $html = $this->get(route($route))->assertOk()->getContent();
+            $this->assertStringContainsString('data-tour="optical-tabs"', $html);
+            preg_match('/data-tour="optical-tabs">(.*?)<\/nav>/s', $html, $bar);
+            $this->assertSame(1, substr_count($bar[1] ?? '', 'aria-current="page"'), $route);
+            $this->assertMatchesRegularExpression('/'.preg_quote(route($route), '/').'"\s+aria-current="page"/', $bar[1] ?? '');
+            // The menu has one Optical Centres link, not three.
+            $this->assertStringNotContainsString('Owed to Optical</', $html);
+        }
+    }
+
     public function test_a_linked_clinic_sends_only_name_phone_and_prescription(): void
     {
         $partner = $this->linked();
         $refraction = $this->refraction();
 
+        // The centre is picked from a dropdown you can type into, showing the linked centre already chosen.
         Livewire::test(SendToOpticalComponent::class)->call('start', $refraction->id)->assertSet('partnerId', $partner->id)
+            ->assertSeeHtml('role="combobox"')->assertSeeHtml("entangle('partnerId')")
             ->set('frameChoice', 'note')->set('frameNotes', 'Tortoiseshell')->set('notes', 'Patient travels Friday')
             ->call('send')->assertHasNoErrors()->assertDispatched('optical-request-sent');
 
@@ -189,6 +296,30 @@ class OpticalLinksTest extends TestCase
         // Not twice while it is open, and the Spectacles page shows it as sent.
         $this->expectException(ValidationException::class);
         $this->send($refraction, $partner->id);
+    }
+
+    public function test_sending_needs_a_payment_at_pos_and_a_sent_refraction_is_not_ordered_here_too(): void
+    {
+        $partner = $this->linked();
+
+        // Nothing paid at POS: the dialog does not open, and Send refuses too.
+        $unpaid = $this->refraction(true, false);
+        Livewire::test(SendToOpticalComponent::class)->call('start', $unpaid->id)->assertSet('open', false)
+            ->assertDispatched('notify', fn ($name, $params) => str_contains($params['message'] ?? '', 'payment at POS'));
+        $refunded = $this->refraction();
+        $dialog = Livewire::test(SendToOpticalComponent::class)->call('start', $refunded->id)->assertSet('open', true);
+        \App\Models\Sales::where('consultation_id', $refunded->consultation_id)->update(['is_refunded' => true]);
+        $dialog->call('send')->assertHasErrors(['partnerId']);
+        $this->assertSame(0, OpticalOrderRequest::count());
+
+        // Paid and sent: the clinic cannot also make the order itself, even with the order dialog already open.
+        $paid = $this->refraction();
+        $spectacles = Livewire::test(\App\Livewire\Secretary\SpectaclesComponent::class)->call('openOrderModal', $paid->id)->assertSet('showOrderModal', true);
+        Livewire::test(SendToOpticalComponent::class)->call('start', $paid->id)->assertSet('open', true)->call('send')->assertHasNoErrors();
+        $spectacles->call('createOrder')->assertSet('showOrderModal', false)
+            ->assertDispatched('notify', fn ($name, $params) => str_contains($params['message'] ?? '', 'was sent to'));
+        Livewire::test(\App\Livewire\Secretary\SpectaclesComponent::class)->call('openOrderModal', $paid->id)->assertSet('showOrderModal', false);
+        $this->assertSame(0, LensOrder::where('refraction_id', $paid->id)->count());
     }
 
     public function test_sending_needs_an_authorised_refraction_an_active_link_and_an_optical_plan(): void

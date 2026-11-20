@@ -4,8 +4,8 @@
             <h1 class="text-xl font-bold text-slate-900">Optical Centres</h1>
             <p class="ui-muted text-sm">Optical centres on Nexus that make spectacles for your patients. Once linked, staff send orders from the Spectacles page and follow them in Sent to Optical.</p>
         </div>
-        <x-ui.button :href="route('secretary.optical-sent')" wire:navigate>Sent to Optical</x-ui.button>
     </div>
+    @include('livewire.secretary.partials.optical-tabs', ['current' => 'secretary.optical-centres'])
 
     <x-ui.flash />
 

@@ -174,8 +174,8 @@ class OpticalLinkService
         if (! $partner) {
             throw ValidationException::withMessages(['partnerId' => 'Choose a linked optical centre that is taking orders.']);
         }
-        if ($refraction->lensOrder) {
-            throw ValidationException::withMessages(['partnerId' => 'A spectacle order already exists for this refraction.']);
+        if ($label = $refraction->activeOrderLabel()) {
+            throw ValidationException::withMessages(['partnerId' => 'This prescription '.$label.'.']);
         }
         $owed = OpticalLinkTermsService::owed($partner);
         if (OpticalLinkTermsService::overLimit($partner, $owed)) {
@@ -214,8 +214,9 @@ class OpticalLinkService
 
     public function openRequestFor(int $refractionId): ?OpticalOrderRequest
     {
+        // A job the optical centre has cancelled no longer holds the patient.
         return OpticalOrderRequest::forSender($this->currentClinicId())->where('refraction_id', $refractionId)
-            ->where('kind', 'order')->whereIn('status', OpticalOrderRequest::ACTIVE)->latest('id')->first();
+            ->where('kind', 'order')->whereIn('status', OpticalOrderRequest::ACTIVE)->whereNull('order_cancelled_at')->latest('id')->first();
     }
 
     public function cancel(OpticalOrderRequest $request, User $by): void
@@ -269,6 +270,49 @@ class OpticalLinkService
         $request = $this->senderRequest($request->id);
         abort_unless($request->quoteExpired(), 422, 'Only an expired quote can be sent back for a new price.');
         $request->forceFill(['status' => 'sent', 'query_answer' => 'The quote expired. Please send a new one.', 'status_updated_at' => now(), 'handled_by' => $by->id])->save();
+    }
+
+    /* ---------------------------------------------------------------- cancelling a started job */
+
+    /** The clinic asks the optical centre to cancel a job it approved or started; the centre answers. */
+    public function askCancel(OpticalOrderRequest $request, string $reason, User $by): void
+    {
+        app(ClinicAccessService::class)->assertWritable();
+        $request = $this->senderRequest($request->id);
+        abort_unless($request->canAskCancel(), 422, 'This job can no longer be cancelled from here.');
+        $reason = $this->clean($reason);
+        if (! $reason) throw ValidationException::withMessages(['cancelReason' => 'Say why, so the optical centre can decide.']);
+        $request->forceFill(['cancel_requested_at' => now(), 'cancel_request_reason' => $reason, 'cancel_requested_by' => $by->id,
+            'cancel_refused_reason' => null, 'cancel_answered_at' => null, 'status_updated_at' => now(), 'handled_by' => $by->id])->save();
+        AuditTrail::record('optical.cancel_asked', 'Asked the optical centre to cancel job '.($request->order_number ?: '#'.$request->id).' for '.$request->patient_name.': '.$reason,
+            null, [], ['request_id' => $request->id]);
+    }
+
+    /**
+     * The optical centre cancels the job the clinic asked to cancel: its order is cancelled (stock back, nothing
+     * billed) and the patient is back in the clinic's To order list.
+     */
+    public function acceptCancel(OpticalOrderRequest $request, User $by): void
+    {
+        $request = $this->incomingRequest($request->id);
+        abort_unless($request->cancelPending() && $request->lens_order_id, 422, 'There is no cancel request waiting on this job.');
+        // The usual cancel: refuses a collected job or one with payments still on it (refund those first).
+        app(\App\Services\OpticalOrderWorkflowService::class)->cancel((int) $request->lens_order_id);
+        $request->refresh()->forceFill(['status' => 'cancelled', 'cancel_answered_at' => now(), 'status_updated_at' => now(), 'handled_by' => $by->id])->save();
+        AuditTrail::record('optical.cancel_accepted', 'Cancelled job '.$request->order_number.' for '.$request->senderLabel().' at their request',
+            null, [], ['request_id' => $request->id]);
+    }
+
+    /** The optical centre keeps the job (work too far along, say) and tells the clinic why. */
+    public function refuseCancel(OpticalOrderRequest $request, string $reason, User $by): void
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $request = $this->incomingRequest($request->id);
+        abort_unless($request->cancelPending(), 422, 'There is no cancel request waiting on this job.');
+        $reason = $this->clean($reason);
+        if (! $reason) throw ValidationException::withMessages(['keepReason' => 'Say why you are keeping the job.']);
+        $request->forceFill(['cancel_refused_reason' => $reason, 'cancel_answered_at' => now(), 'status_updated_at' => now(), 'handled_by' => $by->id])->save();
+        AuditTrail::record('optical.cancel_refused', 'Kept job '.$request->order_number.' for '.$request->senderLabel().': '.$reason, null, [], ['request_id' => $request->id]);
     }
 
     /* ---------------------------------------------------------------- remakes (clinic side) */

@@ -6,10 +6,9 @@
         </div>
         <div class="flex flex-wrap gap-2">
             <x-guide-tour page="clinic.optical-owed" />
-            <x-ui.button :href="route('secretary.optical-sent')" wire:navigate>Sent to Optical</x-ui.button>
-            <x-ui.button :href="route('secretary.optical-centres')" wire:navigate>Optical centres</x-ui.button>
         </div>
     </div>
+    @include('livewire.secretary.partials.optical-tabs', ['current' => 'secretary.optical-owed'])
 
     <x-ui.flash />
 

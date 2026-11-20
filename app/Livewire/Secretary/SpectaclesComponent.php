@@ -36,10 +36,19 @@ class SpectaclesComponent extends Component
     public $activeRefractionId = null;
     public $recordType = 'orders';
 
-    // Bulk selection
-    public $selectedOrders = [];
-    public $selectAllOrders = false;
+    // Bulk selection: ticked rows by refraction id (a row is a refraction, with or without its order).
+    public array $picked = [];
     public $bulkStatus = '';
+    public $bulkPickUpDate = '';
+    // Bulk send to an optical centre
+    public bool $bulkSendOpen = false;
+    public $bulkPartnerId = null;
+    public string $bulkFrameChoice = 'patient_chooses';
+    public string $bulkUrgency = 'normal';
+    public string $bulkNotes = '';
+    /** Rows a bulk action skipped, with why: [['name' => …, 'reason' => …]]. */
+    public array $bulkSkipped = [];
+    private bool $bulkRunning = false;
 
     // Inline editing
     public $editingOrderId;
@@ -94,9 +103,10 @@ class SpectaclesComponent extends Component
     {
         $this->fromDate = now()->subMonths(3)->format('Y-m-d');
         $this->toDate   = now()->format('Y-m-d');
+        $this->bulkPickUpDate = now()->addDays(7)->format('Y-m-d');
 
         // Open where the work is: refractions waiting for an order, when no order is in progress.
-        $waiting = Refractions::where('dispensing_required', true)->doesntHave('lensOrder')->exists();
+        $waiting = Refractions::awaitingSpectacleOrder()->exists();
         if ($waiting && !LensOrder::whereIn('status', ['Pending', 'In Lab', 'Ready'])->exists()) {
             $this->recordType = 'refractions';
         }
@@ -109,22 +119,33 @@ class SpectaclesComponent extends Component
     public function updatedDoctorFilter(){ $this->resetPage(); }
     public function updatedLabFilter()   { $this->resetPage(); }
 
+    /** Order statuses on the status bar; "To order" (no order yet) is the refractions list, not a status. */
+    public const ORDER_STATUSES = ['Pending', 'In Lab', 'Ready', 'Collected', 'Cancelled'];
+
+    /** The bar's warnings (overdue pickup, renewal due) are lists of orders: picking one again turns it off. */
     public function setQuickFilter($filter)
     {
+        $this->clearSelection();
+        if (! in_array($filter, ['overdue', 'renewal_due'], true)) return;
         $this->quickFilter = $this->quickFilter === $filter ? '' : $filter;
+        $this->recordType = 'orders';
+        $this->statusFilter = '';
         $this->resetPage();
     }
 
+    /** One segment of the Orders group; '' is every order. */
     public function setStatusFilter($status)
     {
-        $this->statusFilter = $status;
-        $this->recordType = $status === 'Pending' ? 'refractions' : 'orders';
+        $this->clearSelection();
+        $this->statusFilter = in_array($status, self::ORDER_STATUSES, true) ? $status : '';
+        $this->recordType = 'orders';
         $this->quickFilter  = '';
         $this->resetPage();
     }
 
     public function setRecordType(string $type): void
     {
+        $this->clearSelection();
         $this->recordType = $type === 'refractions' ? 'refractions' : 'orders';
         $this->statusFilter = '';
         $this->quickFilter = '';
@@ -133,6 +154,7 @@ class SpectaclesComponent extends Component
 
     public function resetFilters()
     {
+        $this->clearSelection();
         $this->searchTerm   = '';
         $this->fromDate     = now()->subMonths(3)->format('Y-m-d');
         $this->toDate       = now()->format('Y-m-d');
@@ -160,57 +182,168 @@ class SpectaclesComponent extends Component
 
     /* =================== BULK SELECTION =================== */
 
-    public function toggleOrderSelection($orderId)
+    /* =================== BULK ACTIONS =================== */
+
+    public function togglePick(int $refractionId): void
     {
-        $orderId              = (int) $orderId;
-        $this->selectedOrders = in_array($orderId, $this->selectedOrders)
-            ? array_values(array_diff($this->selectedOrders, [$orderId]))
-            : array_values(array_unique([...$this->selectedOrders, $orderId]));
-        $this->selectAllOrders = false;
+        $this->picked = in_array($refractionId, $this->picked, true)
+            ? array_values(array_diff($this->picked, [$refractionId]))
+            : [...$this->picked, $refractionId];
+        $this->bulkSkipped = [];
     }
 
-    public function updatedSelectAllOrders()
+    /** The header box: tick (or untick) every row on this page. */
+    public function togglePickPage(): void
     {
-        if ($this->selectAllOrders) {
-            $this->selectedOrders = $this->getFilteredQuery()
-                ->whereHas('lensOrder')
-                ->with('lensOrder:id,refraction_id')
-                ->get()
-                ->map(fn($r) => $r->lensOrder?->id)
-                ->filter()
-                ->values()
-                ->toArray();
-        } else {
-            $this->selectedOrders = [];
-        }
+        $ids = $this->getFilteredQuery()->paginate(12)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->picked = array_diff($ids, $this->picked)
+            ? array_values(array_unique([...$this->picked, ...$ids]))
+            : array_values(array_diff($this->picked, $ids));
+        $this->bulkSkipped = [];
     }
 
-    public function clearSelection()
+    /** Every row the filters match, across pages (up to 500 at a time). */
+    public function pickAllMatching(): void
     {
-        $this->selectedOrders  = [];
-        $this->selectAllOrders = false;
+        $this->picked = $this->getFilteredQuery()->limit(500)->pluck($this->getFilteredQuery()->qualifyColumn('id'))->map(fn ($id) => (int) $id)->all();
+        $this->bulkSkipped = [];
+    }
+
+    public function clearSelection(): void
+    {
+        $this->picked = [];
+        $this->bulkStatus = '';
+        $this->bulkSendOpen = false;
+    }
+
+    /** Ticked refractions, with what the bulk actions check. */
+    private function pickedRefractions()
+    {
+        return Refractions::with(['consultation.patient', 'consultation.cartItems.product.category', 'consultation.sale.items.product.category', 'lensOrder'])
+            ->whereIn('id', $this->picked)->get();
     }
 
     public function bulkUpdateStatus()
     {
-        if (!$this->bulkStatus || empty($this->selectedOrders)) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Select orders and a status first.']);
+        $orders = $this->pickedRefractions()->pluck('lensOrder')->filter();
+        if (!$this->bulkStatus || $orders->isEmpty()) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Tick orders and choose a status first.']);
             return;
         }
 
+        // The same rules as one at a time: each order goes through updateStatus.
         $updated = 0;
+        $skipped = [];
         $overrideReason = $this->statusOverrideReason;
-        foreach (LensOrder::whereIn('id', $this->selectedOrders)->get() as $order) {
+        foreach ($orders as $order) {
             $old = $order->status;
             $this->statusOverrideReason = $overrideReason;
             $this->updateStatus($order->id, $this->bulkStatus);
             if ($order->fresh()->status !== $old) $updated++;
+            elseif ($old !== $this->bulkStatus) $skipped[] = ['name' => $order->order_id, 'reason' => "still {$old}: this move isn't allowed from there"];
         }
 
-        $this->bulkStatus = '';
         $this->statusOverrideReason = '';
         $this->clearSelection();
-        $this->dispatch('notify', ...['type' => 'success', 'message' => "{$updated} order(s) updated."]);
+        $this->bulkSkipped = $skipped;
+        $this->dispatch('notify', ...['type' => 'success', 'message' => "{$updated} order(s) updated".($skipped ? ', '.count($skipped).' not moved' : '').'.']);
+    }
+
+    /** Why a ticked refraction can't become an order in bulk, or null when it can. */
+    private function bulkCreateBlocker(Refractions $refraction): ?string
+    {
+        if ($label = $refraction->activeOrderLabel()) return $label;
+        if (!$refraction->dispensing_required) return 'not marked for glasses';
+        if ($this->sentElsewhereMessage($refraction->id)) return 'sent to an optical centre';
+        if (!$this->canCreateOrderFromPos($this->posOrderSummary($refraction))) return 'no payment at POS yet';
+        $pos = $this->posDispensedProducts($refraction);
+        // Bulk asks nothing per patient, so the frame and lens must both come from the POS sale.
+        if (!$pos['lens'] || !$pos['frame']) return 'frame or lens not on the POS sale: create it on its own';
+        return null;
+    }
+
+    /** "To order": an order for each ticked refraction whose frame and lens were sold at POS, all with one pickup date. */
+    public function bulkCreateOrders(): void
+    {
+        $this->validate(['bulkPickUpDate' => 'required|date|after_or_equal:today'], [
+            'bulkPickUpDate.required' => 'Choose the pickup date for these orders.',
+            'bulkPickUpDate.after_or_equal' => 'The pickup date cannot be in the past.',
+        ]);
+        $created = 0;
+        $skipped = [];
+        $this->bulkRunning = true;
+        foreach ($this->pickedRefractions() as $refraction) {
+            $name = $refraction->consultation?->patient?->name ?? 'Refraction '.$refraction->id;
+            if ($reason = $this->bulkCreateBlocker($refraction)) {
+                $skipped[] = ['name' => $name, 'reason' => $reason];
+                continue;
+            }
+            // createOrder makes it exactly as the dialog does (stock, audit); nothing extra is asked.
+            $this->selectedRefractionId = $refraction->id;
+            $this->pickUpDate = $this->bulkPickUpDate;
+            $this->ownFrame = false;
+            $this->selectedFrameId = $this->selectedLensId = null;
+            $this->orderNotes = $this->labName = $this->labReference = $this->ownFrameDescription = '';
+            $this->labCost = 0;
+            try {
+                $this->createOrder();
+                LensOrder::where('refraction_id', $refraction->id)->exists() ? $created++ : $skipped[] = ['name' => $name, 'reason' => 'could not be created'];
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = ['name' => $name, 'reason' => collect($e->errors())->flatten()->first()];
+            }
+        }
+        $this->bulkRunning = false;
+        $this->resetErrorBag();
+        $this->clearSelection();
+        $this->bulkSkipped = $skipped;
+        $this->dispatch('notify', ...['type' => $created ? 'success' : 'error', 'message' => "{$created} order(s) created".($skipped ? ', '.count($skipped).' skipped' : '').'.']);
+    }
+
+    public function openBulkSend(): void
+    {
+        $targets = app(\App\Services\OpticalLinks\OpticalLinkService::class)->sendTargets();
+        $this->bulkPartnerId = $targets->count() === 1 ? $targets->first()->id : null;
+        $this->bulkFrameChoice = 'patient_chooses';
+        $this->bulkUrgency = 'normal';
+        $this->bulkNotes = '';
+        $this->resetErrorBag();
+        $this->bulkSendOpen = true;
+    }
+
+    /** "To order": send each ticked, paid refraction to one optical centre, with the same frame choice, urgency and notes. */
+    public function bulkSend(): void
+    {
+        $this->validate([
+            'bulkPartnerId' => 'required|integer',
+            'bulkFrameChoice' => 'required|in:'.implode(',', array_keys(\App\Models\OpticalOrderRequest::FRAME_CHOICES)),
+            'bulkUrgency' => 'required|in:normal,urgent',
+            'bulkNotes' => 'nullable|string|max:2000',
+        ], ['bulkPartnerId.required' => 'Choose the optical centre.']);
+
+        $service = app(\App\Services\OpticalLinks\OpticalLinkService::class);
+        $sent = 0;
+        $skipped = [];
+        foreach ($this->pickedRefractions() as $refraction) {
+            $name = $refraction->consultation?->patient?->name ?? 'Refraction '.$refraction->id;
+            if (!$refraction->dispensing_authorized_at) { $skipped[] = ['name' => $name, 'reason' => 'not authorised for dispensing']; continue; }
+            if (!\App\Support\Optical\ClinicSpectacleBilling::paidEnough($this->posOrderSummary($refraction))) { $skipped[] = ['name' => $name, 'reason' => 'no payment at POS yet']; continue; }
+            try {
+                $service->send($refraction, (int) $this->bulkPartnerId, [
+                    'frame_choice' => $this->bulkFrameChoice, 'frame_notes' => '', 'lens_notes' => '',
+                    'urgency' => $this->bulkUrgency, 'notes' => $this->bulkNotes,
+                ], auth()->user());
+                $sent++;
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                $skipped[] = ['name' => $name, 'reason' => collect($e->errors())->flatten()->first()];
+                // A credit limit or a centre that stopped taking orders stops the rest too.
+                if (!$sent && str_contains(strtolower((string) collect($e->errors())->flatten()->first()), 'limit')) break;
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+                $skipped[] = ['name' => $name, 'reason' => 'cannot be sent'];
+            }
+        }
+        $this->clearSelection();
+        $this->bulkSkipped = $skipped;
+        $this->dispatch('notify', ...['type' => $sent ? 'success' : 'error', 'message' => "{$sent} sent to the optical centre".($skipped ? ', '.count($skipped).' skipped' : '').'.']);
     }
 
     /* =================== INLINE EDITING =================== */
@@ -391,6 +524,16 @@ class SpectaclesComponent extends Component
             return;
         }
 
+        if ($message = $this->sentElsewhereMessage($refraction->id)) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $message]);
+            return;
+        }
+
+        if ($label = $refraction->activeOrderLabel()) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'This prescription '.$label.'.']);
+            return;
+        }
+
         $posProducts = $this->posDispensedProducts($refraction);
 
         $this->selectedRefractionId = $refractionId;
@@ -443,8 +586,15 @@ class SpectaclesComponent extends Component
             'labCost' => 'nullable|numeric|min:0',
         ]);
 
-        if (LensOrder::withTrashed()->where('refraction_id', $refraction->id)->exists()) {
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'An order already exists for this refraction.']);
+        if ($label = $refraction->activeOrderLabel()) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'This prescription '.$label.'.']);
+            return;
+        }
+
+        // Sent to an optical centre while this dialog was open (or from another screen): that centre makes the glasses.
+        if ($message = $this->sentElsewhereMessage($refraction->id)) {
+            $this->closeOrderModal();
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $message]);
             return;
         }
 
@@ -476,7 +626,7 @@ class SpectaclesComponent extends Component
                 'consultation.sale.items.product.category',
             ])->lockForUpdate()->findOrFail($this->selectedRefractionId);
 
-            if (LensOrder::withTrashed()->where('refraction_id', $refraction->id)->exists()) {
+            if ($refraction->hasActiveLensOrder()) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'selectedRefractionId' => 'An order already exists for this refraction.',
                 ]);
@@ -545,7 +695,7 @@ class SpectaclesComponent extends Component
         ]);
 
         $this->closeOrderModal();
-        $this->dispatch('notify', ...['type' => 'success', 'message' => "Order {$orderId} created for {$refraction->consultation->patient->name}!"]);
+        if (!$this->bulkRunning) $this->dispatch('notify', ...['type' => 'success', 'message' => "Order {$orderId} created for {$refraction->consultation->patient->name}!"]);
     }
 
     /* =================== CANCEL ORDER =================== */
@@ -796,16 +946,11 @@ class SpectaclesComponent extends Component
 
         $this->recordType === 'orders'
             ? $query->whereHas('lensOrder')
-            : $query->where('dispensing_required', true)->doesntHave('lensOrder')->whereNotIn($query->qualifyColumn('id'), self::acceptedAtOptical());
+            : $query->awaitingSpectacleOrder()->whereNotIn($query->qualifyColumn('id'), self::acceptedAtOptical());
 
-        if ($this->statusFilter) {
-            if ($this->statusFilter === 'Pending') {
-                $query->where('dispensing_required', true)->doesntHave('lensOrder');
-            } elseif ($this->statusFilter === 'Ordered') {
-                $query->whereHas('lensOrder', fn($l) => $l->where('status', 'Pending'));
-            } else {
-                $query->whereHas('lensOrder', fn($l) => $l->where('status', $this->statusFilter));
-            }
+        // statusFilter is an order's own status; refractions with no order are the "To order" list (recordType).
+        if ($this->recordType === 'orders' && in_array($this->statusFilter, self::ORDER_STATUSES, true)) {
+            $query->whereHas('lensOrder', fn($l) => $l->where('status', $this->statusFilter));
         }
 
         if ($this->labFilter) {
@@ -909,10 +1054,18 @@ class SpectaclesComponent extends Component
         ];
     }
 
+    /** A refraction sent to an optical centre (still open there) is that centre's job: no order is made here too. */
+    private function sentElsewhereMessage(int $refractionId): ?string
+    {
+        // Linking optical centres needs a clinic (hosted); without one nothing can have been sent.
+        if (!app(\App\Support\Tenancy\TenantContext::class)->clinicId()) return null;
+        $sent = app(\App\Services\OpticalLinks\OpticalLinkService::class)->openRequestFor($refractionId);
+        return $sent ? 'This prescription was sent to '.($sent->opticalClinic?->name ?? 'an optical centre').'. Follow it in Sent to Optical, or cancel it there before ordering here.' : null;
+    }
+
     public function canCreateOrderFromPos(array $posSummary): bool
     {
-        return in_array($posSummary['status'] ?? null, ['partial', 'sold'], true)
-            || (float) ($posSummary['paid'] ?? 0) > 0;
+        return \App\Support\Optical\ClinicSpectacleBilling::paidEnough($posSummary);
     }
 
     public function dispensingIssues(Refractions $refraction): array
@@ -958,24 +1111,28 @@ class SpectaclesComponent extends Component
     private static function acceptedAtOptical()
     {
         return \App\Models\OpticalOrderRequest::forSender((int) app(\App\Support\Tenancy\TenantContext::class)->clinicId())
-            ->where('status', 'accepted')->whereNotNull('refraction_id')->select('refraction_id');
+            ->where('status', 'accepted')->whereNull('order_cancelled_at')->whereNotNull('refraction_id')->select('refraction_id');
     }
 
     public function render()
     {
         // Single grouped query instead of 5 individual count queries
-        $statusCounts = LensOrder::selectRaw('status, COUNT(*) as cnt')
+        // Front-desk orders only (made from a refraction), as the list shows: an account with the Optical Suite
+        // also holds the shop's own orders, which live on its Orders page.
+        $statusCounts = LensOrder::whereNotNull('refraction_id')->selectRaw('status, COUNT(*) as cnt')
             ->groupBy('status')
             ->pluck('cnt', 'status');
 
         $stats = [
-            'pending'     => Refractions::where('dispensing_required', true)->doesntHave('lensOrder')->whereNotIn('id', self::acceptedAtOptical())->count(),
+            'pending'     => Refractions::awaitingSpectacleOrder()->whereNotIn('id', self::acceptedAtOptical())->count(),
             'ordered'     => $statusCounts->get('Pending', 0),
             'in_lab'      => $statusCounts->get('In Lab', 0),
             'ready'       => $statusCounts->get('Ready', 0),
             'collected'   => $statusCounts->get('Collected', 0),
-            'overdue'     => LensOrder::where('status', 'Ready')->where('updated_at', '<=', now()->subDays(7))->count(),
-            'renewal_due' => LensOrder::where('status', 'Collected')
+            'cancelled'   => $statusCounts->get('Cancelled', 0),
+            'orders'      => (int) $statusCounts->sum(),
+            'overdue'     => LensOrder::whereNotNull('refraction_id')->where('status', 'Ready')->where('updated_at', '<=', now()->subDays(7))->count(),
+            'renewal_due' => LensOrder::whereNotNull('refraction_id')->where('status', 'Collected')
                                 ->whereNotNull('renewal_date')
                                 ->whereDateIndexed('renewal_date', '<=', now()->addDays(30))
                                 ->whereNull('renewal_reminder_sent_at')
@@ -983,7 +1140,8 @@ class SpectaclesComponent extends Component
         ];
 
         $spectacles = $this->getFilteredQuery()->paginate(12);
-        $activeRefraction = $spectacles->firstWhere('id', $this->activeRefractionId) ?? $spectacles->first();
+        // The case drawer opens only for a row someone clicked (and that is still in the list).
+        $activeRefraction = $this->activeRefractionId ? $spectacles->firstWhere('id', $this->activeRefractionId) : null;
 
         $frameSearchResults = [];
         $lensSearchResults  = [];
@@ -1033,6 +1191,10 @@ class SpectaclesComponent extends Component
 
         return view('livewire.secretary.spectacle-component', [
             'opticalTargets'     => $links->sendTargets()->count(),
+            'bulkTargets'        => $this->bulkSendOpen ? $links->sendTargets() : collect(),
+            // The optical shop's order page opens only on plans with Optical and for roles it covers; clinic plans start orders from a refraction here.
+            'canOpenOpticalOrders' => app(\App\Services\ClinicAccessService::class)->access('optical')['allowed']
+                && \App\Support\OpticalAccess::can(auth()->user(), 'optical.orders.create'),
             'sentRequests'       => $sentRequests,
             'spectacles'         => $spectacles,
             'activeRefraction'   => $activeRefraction,

@@ -44,7 +44,7 @@
         @php
             $steps = [
                 1 => '1. Source & Job',
-                2 => '2. Rx & Lenses',
+                2 => $work_type === 'service' ? '2. Rx' : '2. Rx & Lenses',
                 3 => '3. Frame',
                 4 => '4. Fitting',
                 5 => '5. Services & Price',
@@ -116,13 +116,21 @@
                     </select>
                     <p class="text-xs text-slate-500 mt-1">Immediate walk-in retail purchases are handled in <a wire:navigate href="{{ route('optical.pos') }}" class="text-teal-700 underline">Optical POS</a>.</p>
                 </div>
-                <div class="md:col-span-6" data-tour="opt-work-type">
-                    <label for="order-work-type" class="block text-xs font-bold text-slate-700 mb-1">Work type *</label>
-                    <select id="order-work-type" x-on:change="$wire.syncRequester(requester())" class="ui-input w-full text-xs bg-white">
-                        <option value="prescription" @selected($work_type === 'prescription')>Prescription glasses / lenses</option>
-                        <option value="service" @selected($work_type === 'service')>Optical service job</option>
-                    </select>
-                </div>
+                {{-- The hidden field keeps the id the Next and Save buttons read; the two cards set it. --}}
+                <fieldset class="md:col-span-6" data-tour="opt-work-type">
+                    <legend class="block text-xs font-bold text-slate-700 mb-1">What does the customer want? *</legend>
+                    <input type="hidden" id="order-work-type" value="{{ $work_type }}">
+                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Work type">
+                        @foreach(['prescription' => ['New glasses / lenses', 'Prescription, lenses and frame'], 'service' => ['Service only', 'Lens transfer, repair, adjustment… no new lenses']] as $value => [$title, $hint])
+                            <button type="button" role="radio" aria-checked="{{ $work_type === $value ? 'true' : 'false' }}" data-work-type="{{ $value }}"
+                                x-on:click="document.getElementById('order-work-type').value = @js($value); $wire.syncRequester(requester())"
+                                class="rounded-lg border p-2.5 text-left transition {{ $work_type === $value ? 'border-teal-600 bg-teal-50 ring-1 ring-teal-600' : 'border-slate-200 bg-white hover:border-slate-300' }}">
+                                <span class="block text-xs font-bold {{ $work_type === $value ? 'text-teal-800' : 'text-slate-800' }}">{{ $title }}</span>
+                                <span class="block text-[11px] text-slate-500">{{ $hint }}</span>
+                            </button>
+                        @endforeach
+                    </div>
+                </fieldset>
                 <div id="partner-billing-panel" class="md:col-span-3" style="{{ $order_source === 'partner' ? '' : 'display:none' }}">
                     <label for="order-bill-to" class="block text-xs font-bold text-slate-700 mb-1">Bill to *</label>
                     <select id="order-bill-to" onchange="const customer=this.value==='customer'; document.getElementById('requester-name-label').textContent=customer?'Customer / wearer name *':'Wearer name (optional)';" class="ui-input w-full text-xs bg-white">
@@ -199,7 +207,7 @@
             @if($work_type === 'service')
                 <div class="max-w-4xl space-y-3">
                     <div><h3 class="text-sm font-bold text-slate-900">Services on this job</h3><p class="text-xs text-slate-500">Select one or more services. Prices come from the optical service catalogue.</p></div>
-                    @if($serviceCatalogue->isEmpty())<p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">No active services. A manager can set prices and activate services in <a wire:navigate href="{{ route('optical.catalogue', ['activeTab' => 'services']) }}" class="underline font-semibold">Optical Services & Prices</a>.</p>@endif
+                    @if($serviceCatalogue->isEmpty() && ! ($canManageServices && $servicesOff->isNotEmpty()))<p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">No services are switched on yet. Ask a Manager or the Owner to switch them on and set prices in <a wire:navigate href="{{ route('optical.catalogue', ['activeTab' => 'services']) }}" class="underline font-semibold">Optical Services & Prices</a>.</p>@endif
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Select optical services">
                         @foreach($serviceCatalogue as $service)
                             @php $selected = collect($service_lines)->contains(fn ($line) => (int) ($line['service_id'] ?? 0) === $service->id); @endphp
@@ -223,6 +231,28 @@
                         </div>
                     @endif
                     @error('service_lines') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                    @if($servicesOff->isNotEmpty())
+                        @if($canManageServices)
+                            <details data-tour="opt-services-off" class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs" @if($serviceCatalogue->isEmpty()) open @endif>
+                                <summary class="cursor-pointer font-semibold text-slate-800">Services not switched on yet ({{ $servicesOff->count() }})</summary>
+                                <p class="mt-1 text-slate-500">Set a price and switch one on: it is added to this job and stays on for later jobs.</p>
+                                <div class="mt-2 space-y-1.5">
+                                    @foreach($servicesOff as $off)
+                                        <div wire:key="service-off-{{ $off->id }}" x-data="{ price: '' }" class="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-white p-2">
+                                            <span class="font-semibold">{{ $off->name }}</span>
+                                            <span class="flex items-center gap-2">
+                                                <label>{{ currency() }} <input type="number" min="0" step="0.01" x-model="price" aria-label="Price for {{ $off->name }}" class="ui-input !w-24 text-xs ml-1"></label>
+                                                <button type="button" x-on:click="$wire.switchOnService({{ $off->id }}, price)" class="ui-button ui-button-primary text-xs">Switch on &amp; add</button>
+                                            </span>
+                                            @error('servicePrices.'.$off->id)<p class="w-full text-red-600">{{ $message }}</p>@enderror
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </details>
+                        @else
+                            <p class="text-xs text-slate-500">Not switched on yet: {{ $servicesOff->pluck('name')->join(', ') }}. A Manager or the Owner can switch these on.</p>
+                        @endif
+                    @endif
                 </div>
             @endif
 
@@ -231,6 +261,7 @@
             <div class="border-b border-slate-200 pb-3">
                 <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">2. Optical Prescription &amp; Lens Specification</h2>
                 <p class="text-xs text-slate-500">Choose a saved prescription or enter the powers. Heights and PDs are taken at fitting.</p>
+                @if($this->rxOptional())<p class="mt-2 rounded-lg bg-sky-50 p-2 text-xs text-sky-900" data-rx-optional>Optional for a lens transfer: the customer's own lenses are moved. Enter the powers if you have them so the bench can check the lenses, or leave them blank and press Next.</p>@endif
             </div>
             <div class="space-y-4" x-data="{
                 odCyl: @js((string) $rx_od_cyl), odAxis: @js((string) $rx_od_axis),
@@ -255,7 +286,8 @@
                         <select id="optical-orde-authorized-clinic-refraction" wire:change="chooseRefraction($event.target.value)" class="ui-input w-full text-xs bg-white">
                             <option value="">Select a clinic refraction</option>
                             @foreach($clinicRefractions as $refraction)
-                                <option value="{{ $refraction->id }}" @selected((int) $refraction_id === (int) $refraction->id)>{{ $refraction->created_at?->format('d M Y') }} · OD {{ $refraction->subjective_od_sphere }} / OS {{ $refraction->subjective_os_sphere }}</option>
+                                @php $frontDesk = \App\Models\Refractions::activeFrontDeskOrder($refraction->id); @endphp
+                                <option value="{{ $refraction->id }}" @selected((int) $refraction_id === (int) $refraction->id) @disabled($frontDesk)>{{ $refraction->created_at?->format('d M Y') }} · OD {{ $refraction->subjective_od_sphere }} / OS {{ $refraction->subjective_os_sphere }}@if($frontDesk) · ordered at the front desk ({{ $frontDesk->order_id }})@endif</option>
                             @endforeach
                         </select>
                     </div>

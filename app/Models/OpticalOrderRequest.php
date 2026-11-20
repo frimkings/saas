@@ -44,7 +44,8 @@ class OpticalOrderRequest extends Model
 
     protected $casts = ['rx' => 'array', 'lens_choice' => 'array', 'status_updated_at' => 'datetime', 'quote_lines' => 'array', 'quote_total' => 'decimal:2',
         'quote_valid_until' => 'date', 'quoted_at' => 'datetime', 'approved_at' => 'datetime', 'order_total' => 'decimal:2',
-        'order_paid' => 'decimal:2', 'order_cancelled_at' => 'datetime', 'auto_approved' => 'boolean'];
+        'order_paid' => 'decimal:2', 'order_cancelled_at' => 'datetime', 'auto_approved' => 'boolean',
+        'cancel_requested_at' => 'datetime', 'cancel_answered_at' => 'datetime'];
 
     public function scopeForOptical(Builder $query, int $clinicId): Builder
     {
@@ -128,6 +129,22 @@ class OpticalOrderRequest extends Model
         if ($this->status !== 'accepted' || $this->order_cancelled_at || $this->order_total === null) return 0.0;
 
         return round(max(0, (float) $this->order_total - (float) $this->order_paid), 2);
+    }
+
+    /**
+     * The clinic may ask the optical centre to cancel a job it approved or that is under way, until the
+     * glasses are ready (then it is a remake), and while no earlier ask is waiting for an answer.
+     */
+    public function canAskCancel(): bool
+    {
+        return in_array($this->status, ['approved', 'accepted'], true) && ! $this->order_cancelled_at && ! $this->cancelPending()
+            && ! in_array($this->order_status, ['Ready for Collection', 'Ready', 'Collected'], true);
+    }
+
+    /** The clinic asked to cancel and the optical centre has not answered yet. */
+    public function cancelPending(): bool
+    {
+        return $this->cancel_requested_at && ! $this->cancel_answered_at && ! $this->order_cancelled_at;
     }
 
     /** Ready or collected: the clinic may ask for a remake. */

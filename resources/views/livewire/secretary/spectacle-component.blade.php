@@ -1,4 +1,5 @@
 <div>
+@include('livewire.optical.partials.order-ui')
 <style>
 /* Thermal job card is printed via a dedicated popup window — no @media print needed here */
 #spectacle-job-preview-print { display: block; }
@@ -7,7 +8,7 @@
 @php
     $statuses = [
         'Pending' => ['label' => 'Pending', 'class' => 'pending'],
-        'In Lab' => ['label' => 'In Lab', 'class' => 'lab'],
+        'In Lab' => ['label' => 'In lab', 'class' => 'lab'],
         'Ready' => ['label' => 'Ready', 'class' => 'ready'],
         'Collected' => ['label' => 'Collected', 'class' => 'collected'],
         'Cancelled' => ['label' => 'Cancelled', 'class' => 'cancelled'],
@@ -23,10 +24,19 @@
         </div>
 
         <div class="so-top-actions">
+            <x-guide-tour page="clinic.spectacles" :context="['send' => (bool) $opticalTargets]" />
+            @if($canOpenOpticalOrders)
             <a href="{{ route('optical.orders.create') }}" class="so-btn text-white" style="background:#087e83;">
                 <i class="fas fa-glasses"></i>
                 Start Optical Order
             </a>
+            @else
+            {{-- No optical shop on this plan: orders start from a refraction, so the button opens that list. --}}
+            <button type="button" wire:click="setRecordType('refractions')" class="so-btn text-white" style="background:#087e83;" title="Pick the patient's refraction to start the order">
+                <i class="fas fa-glasses"></i>
+                Start Optical Order
+            </button>
+            @endif
             <button type="button" wire:click="resetFilters" class="so-btn so-btn-light">
                 <i class="fas fa-sync-alt"></i>
                 Reset
@@ -38,49 +48,38 @@
         </div>
     </section>
 
-    <section class="so-metrics" aria-label="Spectacle order summary">
-        <button type="button" wire:click="setRecordType('orders')" class="so-metric {{ $recordType === 'orders' && !$statusFilter ? 'is-active' : '' }}">
-            <span class="so-metric-icon neutral"><i class="fas fa-list-ul"></i></span>
-            <span class="so-metric-value">{{ $stats['pending'] + $stats['ordered'] + $stats['in_lab'] + $stats['ready'] + $stats['collected'] }}</span>
-            <span class="so-metric-label">All orders</span>
-        </button>
-        <button type="button" wire:click="setStatusFilter('Pending')" class="so-metric {{ $statusFilter === 'Pending' ? 'is-active' : '' }}">
-            <span class="so-metric-icon neutral"><i class="fas fa-glasses"></i></span>
+    {{-- One bar for every status filter: the refractions still to order, every order by its status, and the two warnings. --}}
+    <section class="so-metrics" aria-label="Filter by status" data-tour="sp-status">
+        <button type="button" wire:click="setRecordType('refractions')" aria-pressed="{{ $recordType === 'refractions' ? 'true' : 'false' }}" class="so-metric {{ $recordType === 'refractions' ? 'is-active' : '' }}" title="Refractions marked for glasses with no order yet">
             <span class="so-metric-value">{{ $stats['pending'] }}</span>
-            <span class="so-metric-label">Need order</span>
+            <span class="so-metric-label">To order</span>
         </button>
-        <button type="button" wire:click="setStatusFilter('Ordered')" class="so-metric {{ $statusFilter === 'Ordered' ? 'is-active' : '' }}">
-            <span class="so-metric-icon warning"><i class="fas fa-receipt"></i></span>
-            <span class="so-metric-value">{{ $stats['ordered'] }}</span>
-            <span class="so-metric-label">Pending</span>
-        </button>
-        <button type="button" wire:click="setStatusFilter('In Lab')" class="so-metric {{ $statusFilter === 'In Lab' ? 'is-active' : '' }}">
-            <span class="so-metric-icon lab"><i class="fas fa-flask"></i></span>
-            <span class="so-metric-value">{{ $stats['in_lab'] }}</span>
-            <span class="so-metric-label">In lab</span>
-        </button>
-        <button type="button" wire:click="setStatusFilter('Ready')" class="so-metric {{ $statusFilter === 'Ready' ? 'is-active' : '' }}">
-            <span class="so-metric-icon success"><i class="fas fa-check"></i></span>
-            <span class="so-metric-value">{{ $stats['ready'] }}</span>
-            <span class="so-metric-label">Ready</span>
-        </button>
-        <button type="button" wire:click="setQuickFilter('overdue')" class="so-metric {{ $quickFilter === 'overdue' ? 'is-active' : '' }}">
-            <span class="so-metric-icon danger"><i class="fas fa-clock"></i></span>
-            <span class="so-metric-value">{{ $stats['overdue'] }}</span>
-            <span class="so-metric-label">Pickup overdue</span>
-        </button>
-        <button type="button" wire:click="setQuickFilter('renewal_due')" class="so-metric {{ $quickFilter === 'renewal_due' ? 'is-active' : '' }}">
-            <span class="so-metric-icon warning"><i class="fas fa-redo"></i></span>
-            <span class="so-metric-value">{{ $stats['renewal_due'] }}</span>
-            <span class="so-metric-label">Renewal due soon</span>
-        </button>
+        <div class="so-metric-group" role="group" aria-label="Orders by status">
+            @php
+                $segments = ['' => ['Orders', $stats['orders'], 'neutral', 'fa-list-ul'], 'Pending' => ['Pending', $stats['ordered'], 'warning', 'fa-receipt'],
+                    'In Lab' => ['In lab', $stats['in_lab'], 'lab', 'fa-flask'], 'Ready' => ['Ready', $stats['ready'], 'success', 'fa-check'],
+                    'Collected' => ['Collected', $stats['collected'], 'collected', 'fa-box-open'], 'Cancelled' => ['Cancelled', $stats['cancelled'], 'cancelled', 'fa-ban']];
+            @endphp
+            @foreach($segments as $value => [$label, $count, $tone, $icon])
+                @php $on = $recordType === 'orders' && !$quickFilter && $statusFilter === $value; @endphp
+                <button type="button" wire:click="setStatusFilter('{{ $value }}')" aria-pressed="{{ $on ? 'true' : 'false' }}" class="so-metric tone-{{ $tone }} {{ $on ? 'is-active' : '' }}">
+                    {{-- Each status in its own colour (the count), the same as the pills in the list; no icons, so the bar is one line. --}}
+                    <span class="so-metric-value">{{ $count }}</span>
+                    <span class="so-metric-label">{{ $label }}</span>
+                </button>
+            @endforeach
+        </div>
+        <div class="so-metric-alerts" data-tour="sp-alerts">
+            @foreach(['overdue' => ['Pickup overdue', 'fa-clock', 'Ready for more than 7 days'], 'renewal_due' => ['Renewal due', 'fa-redo', 'Collected glasses due for renewal within 30 days']] as $key => [$label, $icon, $hint])
+                <button type="button" wire:click="setQuickFilter('{{ $key }}')" aria-pressed="{{ $quickFilter === $key ? 'true' : 'false' }}" title="{{ $hint }}"
+                        class="so-metric so-metric-alert {{ $stats[$key] > 0 ? 'has-items' : '' }} {{ $quickFilter === $key ? 'is-active' : '' }}">
+                    <span class="so-metric-value">{{ $stats[$key] }}</span>
+                    <span class="so-metric-label">{{ $label }}</span>
+                </button>
+            @endforeach
+        </div>
     </section>
-    <div class="mb-3 inline-flex overflow-hidden rounded-md border border-teal-700 text-sm font-semibold" role="group" aria-label="Record type">
-        <button type="button" wire:click="setRecordType('orders')" aria-pressed="{{ $recordType === 'orders' ? 'true' : 'false' }}" class="px-3 py-1.5 {{ $recordType === 'orders' ? 'bg-teal-700 text-white' : 'bg-white text-teal-800 hover:bg-teal-50' }}">Spectacle Orders</button>
-        <button type="button" wire:click="setRecordType('refractions')" aria-pressed="{{ $recordType === 'refractions' ? 'true' : 'false' }}" class="border-l border-teal-700 px-3 py-1.5 {{ $recordType === 'refractions' ? 'bg-teal-700 text-white' : 'bg-white text-teal-800 hover:bg-teal-50' }}">Refractions Needing Order</button>
-    </div>
-
-    <section class="so-filters">
+    <section class="so-filters" data-tour="sp-filters">
         <div class="so-filter-grid">
             <label class="so-search">
                 <i class="fas fa-search"></i>
@@ -92,53 +91,19 @@
 
             <div class="so-field"><span>Dates</span><x-date-range from="fromDate" to="toDate" presets="activity" /></div>
 
-            <label class="so-field">
-                <span>Status</span>
-                <select aria-label="Status" wire:model.live="statusFilter">
-                    <option value="">All statuses</option>
-                    <option value="Pending">Awaiting order</option>
-                    <option value="Ordered">Pending</option>
-                    <option value="In Lab">In Lab</option>
-                    <option value="Ready">Ready</option>
-                    <option value="Collected">Collected</option>
-                    <option value="Cancelled">Cancelled</option>
-                </select>
-            </label>
 
             @if(count($doctors) > 0)
-                <label class="so-field">
-                    <span>Doctor</span>
-                    <select wire:model.live="doctorFilter">
-                        <option value="">All doctors</option>
-                        @foreach($doctors as $doc)
-                            <option value="{{ $doc->id }}">{{ $doc->name }}</option>
-                        @endforeach
-                    </select>
-                </label>
+                {{-- Type to find a doctor or lab; picking one filters at once. --}}
+                <x-ui.search-select class="so-field" bare live label="Doctor" name="doctorFilter" id="so-doctor-filter" placeholder="All doctors"
+                    :options="['' => 'All doctors'] + $doctors->pluck('name', 'id')->all()" />
             @endif
 
             @if(count($labs) > 0)
-                <label class="so-field">
-                    <span>Lab</span>
-                    <select wire:model.live="labFilter">
-                        <option value="">All labs</option>
-                        @foreach($labs as $lab)
-                            <option value="{{ $lab }}">{{ $lab }}</option>
-                        @endforeach
-                    </select>
-                </label>
+                <x-ui.search-select class="so-field" bare live label="Lab" name="labFilter" id="so-lab-filter" placeholder="All labs"
+                    :options="['' => 'All labs'] + collect($labs)->mapWithKeys(fn ($lab) => [$lab => $lab])->all()" />
             @endif
-        </div>
-
-        <div class="so-filter-footer">
-            <div class="so-chip-row">
-                <button type="button" wire:click="setQuickFilter('today')" class="so-chip {{ $quickFilter === 'today' ? 'is-active' : '' }}">Today</button>
-                <button type="button" wire:click="setQuickFilter('week')" class="so-chip {{ $quickFilter === 'week' ? 'is-active' : '' }}">This week</button>
-                <button type="button" wire:click="setQuickFilter('ready')" class="so-chip {{ $quickFilter === 'ready' ? 'is-active' : '' }}">Ready</button>
-                <button type="button" wire:click="setQuickFilter('overdue')" class="so-chip so-chip-warn {{ $quickFilter === 'overdue' ? 'is-active' : '' }}">Overdue pickup</button>
-                <button type="button" wire:click="setQuickFilter('renewal_due')" class="so-chip so-chip-warn {{ $quickFilter === 'renewal_due' ? 'is-active' : '' }}">Renewal due soon</button>
-            </div>
-
+            <div class="so-field">
+                <span>Sort by</span>
             <div class="so-sort-row">
                 <button type="button" wire:click="sortBy('created_at')" class="so-link-btn">
                     Created
@@ -153,32 +118,69 @@
                     @endif
                 </button>
             </div>
+            </div>
         </div>
     </section>
 
     @if($spectacles->total() > 0)
-        <section class="so-bulk-panel">
-            <label class="so-check">
-                <input type="checkbox" wire:model.live="selectAllOrders">
-                <span>Select matching orders</span>
-            </label>
-            <span class="so-muted">{{ $spectacles->total() }} {{ $recordType === 'orders' ? 'spectacle order' : 'refraction needing order' }}{{ $spectacles->total() === 1 ? '' : 's' }} found after filters</span>
-
-            @if(count($selectedOrders) > 0)
+        {{-- Tick rows in the list; the actions here fit the list shown (To order: create or send; orders: move status). --}}
+        @php $pickedCount = count($picked); @endphp
+        <section class="so-bulk-panel" aria-label="Bulk actions">
+            <span class="so-muted">{{ $spectacles->total() }} {{ $recordType === 'orders' ? \Illuminate\Support\Str::plural('spectacle order', $spectacles->total()) : \Illuminate\Support\Str::plural('refraction', $spectacles->total()).' to order' }} found after filters</span>
+            @if($pickedCount > 0)
                 <div class="so-bulk-actions">
-                    <strong>{{ count($selectedOrders) }} selected</strong>
-                    <select wire:model.live="bulkStatus" aria-label="Move the selected orders to">
-                        <option value="">Move to status</option>
-                        <option value="Pending">Pending</option>
-                        <option value="In Lab">In Lab</option>
-                        <option value="Ready">Ready</option>
-                        <option value="Collected">Collected</option>
-                    </select>
-                    <button type="button" wire:click="bulkUpdateStatus" class="so-btn so-btn-primary so-btn-sm">Apply</button>
+                    <strong>{{ $pickedCount }} ticked</strong>
+                    @if($pickedCount < $spectacles->total())<button type="button" wire:click="pickAllMatching" class="so-link-btn">Tick all {{ min($spectacles->total(), 500) }}</button>@endif
+                    @if($recordType === 'refractions')
+                        <label class="so-bulk-date">Pickup <input type="date" wire:model="bulkPickUpDate" min="{{ now()->toDateString() }}" aria-label="Pickup date for the new orders"></label>
+                        <button type="button" wire:click="bulkCreateOrders" wire:loading.attr="disabled" class="so-btn so-btn-primary so-btn-sm" title="Only patients whose frame and lens are on the POS sale"><i class="fas fa-plus"></i> Create orders</button>
+                        @if($opticalTargets)<button type="button" wire:click="openBulkSend" class="so-btn so-btn-sm"><i class="fas fa-paper-plane"></i> Send to optical centre</button>@endif
+                    @else
+                        <select wire:model="bulkStatus" aria-label="Move the ticked orders to">
+                            <option value="">Move to status</option>
+                            <option value="Pending">Pending</option>
+                            <option value="In Lab">In lab</option>
+                            <option value="Ready">Ready</option>
+                            <option value="Collected">Collected</option>
+                        </select>
+                        <button type="button" wire:click="bulkUpdateStatus" wire:loading.attr="disabled" class="so-btn so-btn-primary so-btn-sm">Apply</button>
+                    @endif
                     <button type="button" wire:click="clearSelection" class="so-btn so-btn-light so-btn-sm">Clear</button>
                 </div>
             @endif
+            @error('bulkPickUpDate')<span class="so-bulk-error">{{ $message }}</span>@enderror
         </section>
+        @if($bulkSendOpen)
+            {{-- One optical centre for every ticked prescription; each still needs its POS payment. --}}
+            <dialog wire:ignore.self class="so-print-dialog" aria-label="Send ticked to an optical centre" x-data x-init="$el.showModal()"
+                    x-on:cancel.prevent="$wire.set('bulkSendOpen', false)" x-on:click.self="$wire.set('bulkSendOpen', false)">
+                <form wire:submit="bulkSend" class="so-modal so-modal-sm">
+                    <header class="so-modal-header">
+                        <div><span>{{ count($picked) }} ticked</span><h2>Send to Optical Centre</h2></div>
+                        <button type="button" wire:click="$set('bulkSendOpen', false)" class="so-close-btn" aria-label="Close"><i class="fas fa-times"></i></button>
+                    </header>
+                    <div class="so-modal-body space-y-3">
+                        <p class="text-xs text-slate-500 !mb-0">Each patient is sent on their own, with only their name, phone and prescription. Any not paid at POS, already ordered or already sent are skipped and listed.</p>
+                        <x-ui.search-select label="Optical centre" name="bulkPartnerId" id="so-bulk-partner" placeholder="Type a centre's name…" :required="true"
+                            :options="$bulkTargets->mapWithKeys(fn ($p) => [$p->id => $p->clinic?->name])->all()" />
+                        <x-ui.field label="Frame" name="bulkFrameChoice" wire:model="bulkFrameChoice" :options="\Illuminate\Support\Arr::except(\App\Models\OpticalOrderRequest::FRAME_CHOICES, ['note'])" />
+                        <x-ui.field label="Urgency" name="bulkUrgency" wire:model="bulkUrgency" :options="['normal' => 'Normal', 'urgent' => 'Urgent']" />
+                        <x-ui.field label="Notes for every job" name="bulkNotes" type="textarea" rows="2" wire:model="bulkNotes" />
+                    </div>
+                    <footer class="so-modal-footer">
+                        <button type="button" wire:click="$set('bulkSendOpen', false)" class="so-btn so-btn-light">Cancel</button>
+                        <button type="submit" wire:loading.attr="disabled" class="so-btn so-btn-primary"><i class="fas fa-paper-plane"></i> Send {{ count($picked) }}</button>
+                    </footer>
+                </form>
+            </dialog>
+        @endif
+        @if($bulkSkipped)
+            <section class="so-bulk-skipped" role="status">
+                <strong>Not done ({{ count($bulkSkipped) }}):</strong>
+                <ul>@foreach($bulkSkipped as $skip)<li>{{ $skip['name'] }}: {{ $skip['reason'] }}</li>@endforeach</ul>
+                <button type="button" wire:click="$set('bulkSkipped', [])" class="so-link-btn">Dismiss</button>
+            </section>
+        @endif
     @endif
 
     @php
@@ -186,8 +188,10 @@
     @endphp
 
     <section class="so-workbench" aria-label="Spectacle work queue">
-        <div class="so-queue-panel">
+        <div class="so-queue-panel" data-tour="sp-list">
             <div class="so-queue-head">
+                @php $pageIds = $queueRefractions->pluck('id')->all(); $pageAllPicked = $pageIds && !array_diff($pageIds, $picked); @endphp
+                <label class="so-pick" title="Tick every row on this page" data-tour="sp-tick"><input type="checkbox" wire:click="togglePickPage" @checked($pageAllPicked) aria-label="Tick every row on this page"></label>
                 <span>Patient</span>
                 <span class="so-q-pos">POS</span>
                 <span>Status</span>
@@ -207,16 +211,20 @@
                 @php
                     $patient = $refraction->consultation->patient;
                     $order = $refraction->lensOrder;
+                    // To order lists patients whose last order was cancelled: that order is history, not this row's order.
+                    $lastCancelled = $recordType === 'refractions' && $order?->status === 'Cancelled' ? $order : null;
+                    if ($lastCancelled) $order = null;
                     $posSummary = $this->posOrderSummary($refraction);
                     $status = $order?->status;
-                    $statusMeta = $status ? ($statuses[$status] ?? ['label' => $status, 'class' => 'neutral']) : ['label' => 'Awaiting Order', 'class' => 'awaiting'];
+                    $statusMeta = $status ? ($statuses[$status] ?? ['label' => $status, 'class' => 'neutral']) : ['label' => 'To order', 'class' => 'awaiting'];
                     $isPickupLate = $order && $order->status === 'Ready' && $order->updated_at && $order->updated_at->diffInDays(now()) >= 7;
                     $canCreateOrder = $this->canCreateOrderFromPos($posSummary);
                     $isActiveRow = optional($activeRefraction)->id === $refraction->id;
                     $dispensingIssues = $this->dispensingIssues($refraction);
                 @endphp
 
-                <article class="so-queue-row status-{{ $statusMeta['class'] }} {{ $isActiveRow ? 'is-active' : '' }}">
+                <article class="so-queue-row status-{{ $statusMeta['class'] }} {{ $isActiveRow ? 'is-active' : '' }} {{ in_array($refraction->id, $picked, true) ? 'is-picked' : '' }}" wire:key="row-{{ $refraction->id }}">
+                    <label class="so-pick"><input type="checkbox" wire:click="togglePick({{ $refraction->id }})" @checked(in_array($refraction->id, $picked, true)) aria-label="Tick {{ $patient->name }}"></label>
                     <button type="button" wire:click="selectRefraction({{ $refraction->id }})" class="so-queue-main">
                         <span class="so-queue-patient">
                             <span class="so-avatar sm">{{ strtoupper(substr($patient->name, 0, 1)) }}</span>
@@ -231,7 +239,7 @@
                                 </small>
                             </span>
                         </span>
-                        <span class="so-q-pos">
+                        <span class="so-q-pos pos-{{ $posSummary['class'] }}">
                             <strong>{{ $posSummary['label'] }}</strong>
                             <small>{{ currency() }} {{ number_format($posSummary['amount'], 2) }}</small>
                         </span>
@@ -243,18 +251,25 @@
                             @if($order)
                                 <small>{{ $order->order_id }}</small>
                             @endif
-                            <small>Next: {{ $this->nextRequiredAction($order) }}</small>
+                            @php $rowSent = $order ? null : ($sentRequests[$refraction->id] ?? null); @endphp
+                            @if($rowSent && in_array($rowSent->status, \App\Models\OpticalOrderRequest::ACTIVE, true))
+                                <small>Next: with {{ $rowSent->opticalClinic?->name ?? 'the optical centre' }}</small>
+                            @else
+                                <small>Next: {{ $this->nextRequiredAction($order) }}</small>
+                                @if($lastCancelled)<small class="text-red-700">Order {{ $lastCancelled->order_id }} was cancelled</small>@endif
+                            @endif
                             @if(count($dispensingIssues))<small class="text-red-700">{{ implode(', ', $dispensingIssues) }}</small>@endif
                         </span>
                         <span>
-                            <strong>{{ $order ? \Carbon\Carbon::parse($order->pickUpDate)->format('d M Y') : '-' }}</strong>
-                            <small>{{ $refraction->created_at?->format('d M Y') }}</small>
+                            {{-- A pickup date exists only once the order is made; the small line is when the eyes were tested. --}}
+                            @if($order)<strong>{{ \Carbon\Carbon::parse($order->pickUpDate)->format('d M Y') }}</strong>@else<strong class="text-slate-400" title="Set when the order is created">Not set</strong>@endif
+                            <small title="Date of the refraction">Tested {{ $refraction->created_at?->format('d M Y') }}</small>
                         </span>
                     </button>
 
                     <div class="so-queue-actions">
                         @if($order)
-                            <button type="button" wire:click="directPrint({{ $order->id }})" class="so-icon-btn" title="Print job card">
+                            <button type="button" wire:click="openPrintPreview({{ $order->id }})" class="so-icon-btn" title="Preview and print job card" aria-label="Preview and print job card">
                                 <i class="fas fa-print"></i>
                             </button>
                         @elseif(($sent = $sentRequests[$refraction->id] ?? null) && in_array($sent->status, \App\Models\OpticalOrderRequest::ACTIVE, true))
@@ -289,9 +304,11 @@
             @php
                 $activePatient = $activeRefraction->consultation->patient;
                 $activeOrder = $activeRefraction->lensOrder;
+                $activeLastCancelled = $activeOrder?->status === 'Cancelled' && $recordType === 'refractions' ? $activeOrder : null;
+                if ($activeLastCancelled) $activeOrder = null;
                 $activePosSummary = $this->posOrderSummary($activeRefraction);
                 $activeStatus = $activeOrder?->status;
-                $activeStatusMeta = $activeStatus ? ($statuses[$activeStatus] ?? ['label' => $activeStatus, 'class' => 'neutral']) : ['label' => 'Awaiting Order', 'class' => 'awaiting'];
+                $activeStatusMeta = $activeStatus ? ($statuses[$activeStatus] ?? ['label' => $activeStatus, 'class' => 'neutral']) : ['label' => 'To order', 'class' => 'awaiting'];
                 $activeLabName = $activeOrder ? $this->extractNoteValue($activeOrder, 'Lab') : '';
                 $activeLabRef = $activeOrder ? $this->extractNoteValue($activeOrder, 'Lab Ref') : '';
                 $activeNoteLines = $activeOrder ? $this->orderNoteLines($activeOrder->notes) : [];
@@ -307,12 +324,17 @@
                 $activeCanCreateOrder = $this->canCreateOrderFromPos($activePosSummary);
             @endphp
 
-            <aside class="so-case-panel" aria-label="Selected spectacle order">
+            {{-- The case opens as a side drawer, like Partner Clinics: the overlay, the close button and Esc shut it in the browser. --}}
+            <div class="oo-overlay" data-sheet-overlay x-data x-on:click="dismissLocal($el.nextElementSibling, $wire, { activeRefractionId: null })" aria-hidden="true"></div>
+            <aside class="oo-drawer so-case-drawer" role="dialog" aria-modal="true" aria-labelledby="so-case-title" tabindex="-1" wire:key="so-drawer-{{ $activeRefraction->id }}"
+                   x-data x-init="$el.focus()"
+                   x-on:keydown.escape.window="! $wire.showOrderModal && ! $wire.showPrintPreview && ! $wire.cancelConfirmId && ! document.querySelector('dialog[open]') && dismissLocal($el, $wire, { activeRefractionId: null })">
+            <div class="so-case-panel" aria-label="Selected spectacle order">
                 <header class="so-case-header">
                     <div class="so-patient">
                         <div class="so-avatar">{{ strtoupper(substr($activePatient->name, 0, 1)) }}</div>
                         <div>
-                            <h2>{{ $activePatient->name }}</h2>
+                            <h2 id="so-case-title">{{ $activePatient->name }}</h2>
                             <div class="so-patient-meta">
                                 @if($activePatient->pxnumber)
                                     <span>{{ $activePatient->pxnumber }}</span>
@@ -326,10 +348,13 @@
                             </div>
                         </div>
                     </div>
-                    <span class="so-status-pill {{ $activeStatusMeta['class'] }}">
-                        <span></span>
-                        {{ $activeStatusMeta['label'] }}
-                    </span>
+                    <div class="so-case-header-end">
+                        <span class="so-status-pill {{ $activeStatusMeta['class'] }}">
+                            <span></span>
+                            {{ $activeStatusMeta['label'] }}
+                        </span>
+                        <button type="button" class="oo-x" x-on:click="dismissLocal($el, $wire, { activeRefractionId: null })" aria-label="Close">&times;</button>
+                    </div>
                 </header>
 
                 <section class="so-panel">
@@ -447,7 +472,7 @@
                         </div>
 
                         <div class="so-action-grid">
-                            <button type="button" wire:click="directPrint({{ $activeOrder->id }})" class="so-btn so-btn-primary so-btn-sm"><i class="fas fa-print"></i> Job Card</button>
+                            <button type="button" wire:click="openPrintPreview({{ $activeOrder->id }})" class="so-btn so-btn-primary so-btn-sm"><i class="fas fa-print"></i> Job Card</button>
                             <button type="button" wire:click="openCancelConfirm({{ $activeOrder->id }})" class="so-btn so-btn-danger so-btn-sm"><i class="fas fa-ban"></i> Cancel</button>
                         </div>
 
@@ -464,7 +489,7 @@
                     @else
                         <div class="so-empty-order">
                             <i class="fas fa-plus-circle"></i>
-                            <p>No spectacle order has been created for this refraction.</p>
+                            <p>@if($activeLastCancelled)Order {{ $activeLastCancelled->order_id }} was cancelled. Order again here or send it to an optical centre.@else No spectacle order has been created for this refraction.@endif</p>
                         </div>
                         @php $activeSent = $sentRequests[$activeRefraction->id] ?? null; @endphp
                         @if($activeSent && in_array($activeSent->status, \App\Models\OpticalOrderRequest::ACTIVE, true))
@@ -496,12 +521,7 @@
                         @endif
                     @endif
                 </section>
-            </aside>
-        @else
-            <aside class="so-case-panel so-case-panel-empty">
-                <i class="fas fa-glasses"></i>
-                <h2>No case selected</h2>
-                <p>Select a refraction from the queue to see details and workflow actions.</p>
+            </div>
             </aside>
         @endif
     </section>
@@ -520,74 +540,21 @@
         $previewTotal = (float) $printOrder->frame_price + (float) $printOrder->lens_price;
         $previewPos = $previewRef ? $this->posOrderSummary($previewRef) : ['items' => collect(), 'amount' => 0, 'paid' => 0];
     @endphp
-    <div class="so-modal-backdrop" wire:click.self="closePrintPreview" {{ $autoPrint ? 'style=display:none' : '' }}>
-        <section class="so-modal so-modal-xl" role="dialog" aria-modal="true" aria-label="Job card preview">
+    {{-- A native dialog (top layer): a fixed box inside the page's main area slid under the sidebar. Receipt-width, like the card. --}}
+    <dialog wire:ignore.self class="so-print-dialog" aria-label="Job card preview" x-data x-init="$el.showModal()"
+            x-on:cancel.prevent="$wire.closePrintPreview()" x-on:click.self="$wire.closePrintPreview()" {{ $autoPrint ? 'style=display:none' : '' }}>
+        <section class="so-modal so-modal-sm">
             <header class="so-modal-header">
                 <div>
-                    <span>Preview before download</span>
+                    <span>Preview before printing</span>
                     <h2>Optical Job Card</h2>
                 </div>
                 <button type="button" wire:click="closePrintPreview" class="so-close-btn" aria-label="Close"><i class="fas fa-times"></i></button>
             </header>
 
             <div class="so-modal-body">
+                {{-- Laid out like the POS receipt (cashier/thermal-receipt): the same 80mm thermal styles, black and bold, no banners. --}}
                 <div id="spectacle-job-preview-print" class="th-card">
-
-                    {{-- Header --}}
-                    <div class="th-header">
-                        <div class="th-clinic">{{ strtoupper($appSettings->clinic_name ?? 'OPTICAL CLINIC') }}</div>
-                        <div class="th-job-title">LAB JOB ORDER</div>
-                        <div class="th-order-id">{{ $printOrder->order_id }}</div>
-                    </div>
-
-                    {{-- Patient info --}}
-                    <div class="th-patient">
-                        <div class="th-info-row"><span class="th-lbl">Patient:</span> <span class="th-val">{{ strtoupper($previewPatient?->name ?? '—') }}</span></div>
-                        <div class="th-info-row"><span class="th-lbl">Phone:</span> <span class="th-val">{{ $previewPatient?->contact ?? '—' }}</span></div>
-                        <div class="th-info-row"><span class="th-lbl">Order Date:</span> <span class="th-val">{{ $printOrder->created_at->format('d M, Y') }}</span></div>
-                        <div class="th-info-row"><span class="th-lbl">Pickup Date:</span> <span class="th-val">{{ \Carbon\Carbon::parse($printOrder->pickUpDate)->format('d M, Y') }}</span></div>
-                    </div>
-
-                    {{-- Prescription --}}
-                    <div class="th-section">PRESCRIPTION (Rx)</div>
-                    <table class="th-table">
-                        <thead>
-                            <tr>
-                                <th style="width:12%">EYE</th>
-                                <th style="width:46%">Prescription</th>
-                                <th style="width:22%">VA</th>
-                                <th style="width:20%">ADD</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>OD</strong></td>
-                                <td>{{ $previewRef->refractionOD ?? '—' }}</td>
-                                <td>{{ $previewRef->refractionOD_distance_va ?? '—' }}</td>
-                                <td>{{ $previewRef->refractionOD_ADD ?? '--' }}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>OS</strong></td>
-                                <td>{{ $previewRef->refractionOS ?? '—' }}</td>
-                                <td>{{ $previewRef->refractionOS_distance_va ?? '—' }}</td>
-                                <td>{{ $previewRef->refractionOS_ADD ?? '--' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    {{-- Specifications --}}
-                    <div class="th-section">SPECIFICATIONS</div>
-                    <div class="th-specs">
-                        <div class="th-spec-row">
-                            <span class="th-lbl">PD (mm):</span>
-                            <span class="th-val">{{ $previewRef?->pd ?? 'N/S' }}</span>
-                        </div>
-                        <div class="th-spec-row">
-                            <span class="th-lbl">Lens Type:</span>
-                            <span class="th-val">{{ $previewRef?->lensType ?? 'Standard' }}</span>
-                        </div>
-                        <div class="th-spec-row">
-                            <span class="th-lbl">Frame:</span>
                             @php
                                 $thFrameName  = null;
                                 $thFrameBatch = null;
@@ -617,29 +584,53 @@
                                     $thFrameName = ($raw && strtolower($raw) !== 'to be assigned') ? $raw : '—';
                                 }
                             @endphp
-                            <span class="th-val">{{ $thFrameName }}{{ $thFrameBatch ? ' (Batch: '.$thFrameBatch.')' : '' }}</span>
-                        </div>
-                        <div class="th-spec-row">
-                            <span class="th-lbl">Dispensed By:</span>
-                            <span class="th-val">{{ strtoupper($printOrder->user?->name ?? '—') }}</span>
-                        </div>
+                    <div class="center">
+                        <div class="clinic-name">{{ $appSettings->clinic_name ?? 'Optical Clinic' }}</div>
+                        @if(!empty($appSettings->clinic_address))<div class="small">{{ $appSettings->clinic_address }}</div>@endif
+                        @if(!empty($appSettings->clinic_contact))<div class="small">Tel: {{ $appSettings->clinic_contact }}</div>@endif
+                        @if(!empty($appSettings->clinic_email))<div class="small">{{ $appSettings->clinic_email }}</div>@endif
+                        <div class="divider"></div>
+                        <div class="doc-title">Lab Job Order</div>
+                        <div class="small"><strong>ORDER: {{ $printOrder->order_id }}</strong></div>
+                        <div class="small">{{ $printOrder->created_at->format('M d, Y h:i A') }}</div>
                     </div>
+                    <div class="divider"></div>
 
-                    {{-- Lab Notes --}}
-                    <div class="th-section">LAB NOTES</div>
-                    <div class="th-notes">
-                        {{ $previewRef?->refractionnotes ?? '' }}
+                    <div class="section">
+                        <div class="label">Patient</div>
+                        <div>{{ $previewPatient?->name ?? '—' }}</div>
+                        <div class="small">Contact: {{ $previewPatient?->contact ?: 'N/A' }}</div>
+                        <div class="small">ID: {{ $previewPatient?->pxnumber ?: 'N/A' }}</div>
                     </div>
+                    <div class="row-line"><span>PICKUP DATE</span><span>{{ \Carbon\Carbon::parse($printOrder->pickUpDate)->format('M d, Y') }}</span></div>
+                    <div class="divider"></div>
 
-                    {{-- Footer --}}
-                    <div class="th-footer">
-                        @if($printOrder->own_frame)
-                            <strong>PATIENT'S OWN FRAME - GLAZED AT OWNER'S RISK</strong><br>
-                        @endif
-                        <strong>VERIFY ALL MEASUREMENTS BEFORE SURFACING</strong><br>
-                        Printed: {{ now()->format('d/m/Y H:i') }}
+                    <div class="label">Prescription (Rx)</div>
+                    <table>
+                        <thead><tr><th style="width:13%">EYE</th><th style="width:49%">RX</th><th style="width:19%">VA</th><th style="width:19%">ADD</th></tr></thead>
+                        <tbody>
+                            <tr><td>OD</td><td>{{ $previewRef->refractionOD ?? '—' }}</td><td>{{ $previewRef->refractionOD_distance_va ?? '—' }}</td><td>{{ $previewRef->refractionOD_ADD ?? '—' }}</td></tr>
+                            <tr><td>OS</td><td>{{ $previewRef->refractionOS ?? '—' }}</td><td>{{ $previewRef->refractionOS_distance_va ?? '—' }}</td><td>{{ $previewRef->refractionOS_ADD ?? '—' }}</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="strong-divider"></div>
+
+                    <div class="row-line"><span>PD (mm)</span><span>{{ $previewRef?->pd ?? 'N/S' }}</span></div>
+                    <div class="row-line"><span>LENS</span><span class="text-right">{{ $previewRef?->lensType ?? 'Standard' }}</span></div>
+                    <div class="row-line"><span>FRAME</span><span class="text-right">{{ $thFrameName }}{{ $thFrameBatch ? ' (Batch: '.$thFrameBatch.')' : '' }}</span></div>
+                    <div class="divider"></div>
+
+                    <div class="label">Lab notes</div>
+                    <div class="notes-box">{{ $previewRef?->refractionnotes ?? '' }}</div>
+                    <div class="divider"></div>
+
+                    <div class="footer">
+                        @if($printOrder->own_frame)<div><strong>PATIENT'S OWN FRAME - GLAZED AT OWNER'S RISK</strong></div>@endif
+                        <div>Verify all measurements before surfacing.</div>
+                        <div class="divider"></div>
+                        <div>Dispensed by: {{ $printOrder->user?->name ?? 'Staff' }}</div>
+                        <div>{{ now()->format('M d, Y h:i A') }}</div>
                     </div>
-
                 </div>
             </div>
 
@@ -650,7 +641,7 @@
                 </button>
             </footer>
         </section>
-    </div>
+    </dialog>
 @endif
 
 @if($showOrderModal)
@@ -895,10 +886,11 @@
 
 .so-metrics {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin: 16px 0;
-    overflow-x: auto;
+    min-width: 0;
     padding: 3px;
     background: #eaf0f7;
     border: 1px solid var(--so-border);
@@ -909,14 +901,41 @@
     border: 1px solid transparent;
     background: transparent;
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 8px 10px;
     text-align: left;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     cursor: pointer;
     min-width: max-content;
 }
+
+.so-metric-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--so-border);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, .45);
+}
+
+.so-metric-alerts {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+/* Narrow screens: the bar wraps onto more lines instead of scrolling sideways. */
+@media (max-width: 760px) {
+    .so-metrics, .so-metric-group { flex-wrap: wrap; overflow: visible; }
+    .so-metric-alerts { margin-left: 0; flex-wrap: wrap; }
+}
+
+.so-metric-alert { color: #64748b; }
+.so-metric-alert.has-items { color: var(--so-danger); }
+.so-metric-alert.has-items .so-metric-value { color: var(--so-danger); }
 
 .so-metric.is-active {
     border-color: var(--so-primary);
@@ -937,6 +956,19 @@
 .so-metric-icon.lab { background: #f0efff; color: var(--so-lab); }
 .so-metric-icon.success { background: #eaf8ef; color: var(--so-success); }
 .so-metric-icon.danger { background: #fff0f0; color: var(--so-danger); }
+.so-metric-icon.collected { background: #eff6ff; color: var(--so-blue); }
+.so-metric-icon.cancelled { background: #f4f4f5; color: #6b7280; }
+.so-metric-icon.awaiting { background: #f1f5f9; color: #64748b; }
+/* The count and the active outline take the status colour too. */
+.so-metric.tone-warning .so-metric-value { color: var(--so-warning); }
+.so-metric.tone-lab .so-metric-value { color: var(--so-lab); }
+.so-metric.tone-success .so-metric-value { color: var(--so-success); }
+.so-metric.tone-collected .so-metric-value { color: var(--so-blue); }
+.so-metric.tone-warning.is-active { border-color: var(--so-warning); }
+.so-metric.tone-lab.is-active { border-color: var(--so-lab); }
+.so-metric.tone-success.is-active { border-color: var(--so-success); }
+.so-metric.tone-collected.is-active { border-color: var(--so-blue); }
+.so-metric.tone-cancelled.is-active { border-color: #6b7280; }
 
 .so-metric-value {
     font-size: 16px;
@@ -1107,6 +1139,8 @@
     font-weight: 600;
 }
 
+.so-filter-grid .so-sort-row { min-height: 42px; gap: 4px; }
+
 .so-filter-footer {
     justify-content: space-between;
     margin-top: 12px;
@@ -1164,7 +1198,7 @@
 
 .so-workbench {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 390px);
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     align-items: start;
 }
@@ -1182,7 +1216,7 @@
 
 .so-queue-head {
     display: grid;
-    grid-template-columns: minmax(170px, 1.25fr) minmax(120px, .8fr) minmax(120px, .75fr) minmax(82px, .45fr) 88px;
+    grid-template-columns: 34px minmax(170px, 1.25fr) minmax(120px, .8fr) minmax(120px, .75fr) minmax(82px, .45fr) 88px;
     gap: 12px;
     align-items: center;
     padding: 11px 14px;
@@ -1201,7 +1235,7 @@
 
 .so-queue-row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
     border-left: 4px solid var(--so-border-strong);
     border-bottom: 1px solid var(--so-border);
 }
@@ -1305,6 +1339,10 @@
     line-height: 1.2;
     font-weight: 850;
 }
+
+/* In the drawer the case scrolls on its own and is not sticky. */
+.so-case-drawer .so-case-panel { position: static; flex: 1; overflow-y: auto; border: 0; border-radius: 0; box-shadow: none; padding: 18px 20px; }
+.so-case-header-end { display: flex; align-items: flex-start; gap: 6px; }
 
 .so-case-panel-empty {
     min-height: 260px;
@@ -1530,6 +1568,11 @@
 .so-pos-track--sold { border-left-color: var(--so-success); background: #f0fff4; }
 .so-pos-track--partial { border-left-color: var(--so-blue); background: #eff6ff; }
 .so-pos-track--none { border-left-color: #94a3b8; }
+/* The list's POS column in the same colours: paid green, part-paid blue, waiting amber, nothing grey. */
+.so-q-pos.pos-sold strong { color: var(--so-success); }
+.so-q-pos.pos-partial strong { color: var(--so-blue); }
+.so-q-pos.pos-pending strong { color: var(--so-warning); }
+.so-q-pos.pos-none strong { color: #64748b; }
 
 .so-pos-track span,
 .so-pos-track small {
@@ -1793,6 +1836,10 @@
 }
 
 .so-modal-sm { width: min(520px, 100%); }
+.so-print-dialog { padding: 0; border: 0; background: transparent; width: min(520px, calc(100% - 32px)); max-width: none; max-height: calc(100dvh - 32px); overflow: visible; }
+.so-print-dialog::backdrop { background: rgb(15 23 42 / .55); }
+.so-print-dialog:focus, .so-print-dialog:focus-visible { outline: none; }
+.so-print-dialog > .so-modal { width: 100%; max-height: calc(100dvh - 32px); overflow-y: auto; }
 .so-modal-lg { width: min(940px, 100%); }
 .so-modal-xl { width: min(1040px, 100%); }
 
@@ -1811,7 +1858,7 @@
 
 .so-modal-header span {
     display: block;
-    color: var(--so-muted);
+    color: var(--so-muted, #64748b);
     font-size: 11px;
     text-transform: uppercase;
     font-weight: 850;
@@ -1822,6 +1869,7 @@
     margin: 2px 0 0;
     font-size: 20px;
     font-weight: 850;
+    color: #0f172a;
 }
 
 .so-close-btn {
@@ -1945,132 +1993,26 @@
     font-size: 20px;
 }
 
-/* ---- Thermal job card (screen preview + print) ---- */
-.th-card {
-    width: 302px; /* ≈ 80mm for screen preview */
-    max-width: 100%;
-    margin: 0 auto;
-    font-family: Arial, sans-serif;
-    font-size: 9px;
-    line-height: 1.4;
-    color: #000;
-    background: #fff;
-    border: 1px solid #ccc;
-    padding: 8px;
-}
-
-
-.th-header {
-    background: #000;
-    color: #fff;
-    text-align: center;
-    padding: 8px 6px;
-    margin-bottom: 8px;
-}
-
-.th-clinic {
-    font-size: 13px;
-    font-weight: 900;
-    letter-spacing: 2px;
-    margin-bottom: 2px;
-}
-
-.th-job-title {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    margin-bottom: 3px;
-}
-
-.th-order-id {
-    font-size: 10px;
-    font-weight: 900;
-}
-
-.th-patient {
-    font-size: 8px;
-    padding-bottom: 6px;
-    margin-bottom: 6px;
-    border-bottom: 1px dashed #000;
-}
-
-.th-info-row {
-    margin: 3px 0;
-}
-
-.th-lbl {
-    font-weight: 700;
-}
-
-.th-val {
-    font-weight: 900;
-    margin-left: 2px;
-}
-
-.th-section {
-    background: #000;
-    color: #fff;
-    text-align: center;
-    padding: 4px 6px;
-    font-size: 8px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    margin: 8px 0 5px;
-    text-transform: uppercase;
-}
-
-.th-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 8px;
-    margin-bottom: 4px;
-}
-
-.th-table th,
-.th-table td {
-    border: 1px solid #000;
-    padding: 3px 3px;
-    text-align: left;
-    vertical-align: middle;
-}
-
-.th-table th {
-    background: #000;
-    color: #fff;
-    font-weight: 900;
-    font-size: 7.5px;
-}
-
-.th-specs {
-    font-size: 8px;
-    margin-bottom: 4px;
-}
-
-.th-spec-row {
-    padding: 4px 0;
-    border-bottom: 1px solid #ccc;
-}
-
-.th-spec-row:last-child {
-    border-bottom: none;
-}
-
-.th-notes {
-    border: 1px solid #000;
-    padding: 6px;
-    min-height: 40px;
-    font-size: 8px;
-    margin-bottom: 8px;
-    background: #fff;
-}
-
-.th-footer {
-    border-top: 1px dashed #000;
-    padding-top: 6px;
-    text-align: center;
-    font-size: 7px;
-    font-style: italic;
-}
+/* ---- Job card preview: the POS receipt's thermal styles (cashier/partials/thermal-styles), kept to the card ---- */
+#spectacle-job-preview-print { width: 80mm; max-width: 100%; margin: 0 auto; padding: 4mm; background: #fff; border: 1px solid #d7dee8;
+    font-family: "DejaVu Sans", Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; line-height: 1.35; color: #000; }
+#spectacle-job-preview-print * { color: #000; }
+#spectacle-job-preview-print strong, #spectacle-job-preview-print th { font-weight: 900; }
+#spectacle-job-preview-print .center { text-align: center; }
+#spectacle-job-preview-print .clinic-name { font-size: 18px; font-weight: 900; line-height: 1.2; margin-bottom: 3px; text-transform: uppercase; }
+#spectacle-job-preview-print .small { font-size: 11px; }
+#spectacle-job-preview-print .doc-title { font-size: 15px; font-weight: 900; letter-spacing: .5px; margin: 6px 0 3px; text-transform: uppercase; }
+#spectacle-job-preview-print .divider { border-top: 2px dashed #000; margin: 7px 0; }
+#spectacle-job-preview-print .strong-divider { border-top: 3px solid #000; margin: 7px 0; }
+#spectacle-job-preview-print .section { margin: 7px 0; }
+#spectacle-job-preview-print .label { font-size: 11px; font-weight: 900; text-transform: uppercase; }
+#spectacle-job-preview-print .row-line { display: flex; justify-content: space-between; gap: 6px; margin: 3px 0; }
+#spectacle-job-preview-print .text-right { text-align: right; }
+#spectacle-job-preview-print table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+#spectacle-job-preview-print th, #spectacle-job-preview-print td { font-size: 11px; padding: 3px 1px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+#spectacle-job-preview-print th { border-bottom: 2px solid #000; }
+#spectacle-job-preview-print .notes-box { border: 2px solid #000; min-height: 42px; padding: 4px; margin-top: 3px; font-size: 11px; }
+#spectacle-job-preview-print .footer { font-size: 11px; margin-top: 10px; text-align: center; }
 
 @media (max-width: 1180px) {
     .so-workbench { grid-template-columns: 1fr; }
@@ -2148,7 +2090,17 @@
 
 .so-queue-panel { container-type: inline-size; container-name: soqueue; }
 .so-queue-main { grid-template-columns: minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .9fr) minmax(78px, .5fr); }
-.so-queue-head { grid-template-columns: minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .9fr) minmax(78px, .5fr) 88px; }
+.so-queue-head { grid-template-columns: 34px minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .9fr) minmax(78px, .5fr) 88px; }
+.so-pick { display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.so-pick input { width: 17px; height: 17px; accent-color: #0f766e; cursor: pointer; }
+.so-queue-row .so-pick { padding-left: 10px; }
+.so-queue-head .so-pick { margin-left: -4px; }
+.so-queue-row.is-picked { background: #f0fdfa; }
+.so-bulk-date { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+.so-bulk-date input { height: 32px; border: 1px solid var(--so-border); border-radius: 6px; padding: 0 8px; }
+.so-bulk-error { color: #b91c1c; font-size: 12px; font-weight: 700; width: 100%; }
+.so-bulk-skipped { margin: -6px 0 12px; padding: 10px 14px; border: 1px solid #fcd34d; background: #fffbeb; border-radius: 8px; font-size: 12px; }
+.so-bulk-skipped ul { margin: 4px 0; padding-left: 18px; list-style: disc; }
 .so-queue-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .so-queue-patient > span:last-child { min-width: 0; flex: 1 1 auto; }
 .so-status-pill { overflow: hidden; white-space: nowrap; }
@@ -2156,7 +2108,7 @@
 @container soqueue (max-width: 640px) {
     .so-q-pos { display: none !important; }
     .so-queue-main { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(78px, .6fr); }
-    .so-queue-head { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(78px, .6fr) 88px; }
+    .so-queue-head { grid-template-columns: 34px minmax(0, 1.4fr) minmax(0, 1fr) minmax(78px, .6fr) 88px; }
 }
 </style>
 
@@ -2182,30 +2134,12 @@ function printThermalJobCard() {
     if (!content) return;
 
     var win = window.open('', '_blank', 'width=400,height=700');
-    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Job Card</title><style>');
-    win.document.write('@page{size:80mm auto;margin:4mm;}');
-    win.document.write('*{margin:0;padding:0;box-sizing:border-box;}');
-    win.document.write('body{width:80mm;font-family:Arial,sans-serif;font-size:9px;line-height:1.4;color:#000;background:#fff;}');
-    win.document.write('.th-card{width:100%;border:none;padding:0;}');
-    win.document.write('.th-header{background:#000;color:#fff;text-align:center;padding:8px 6px;margin-bottom:8px;}');
-    win.document.write('.th-clinic{font-size:13px;font-weight:900;letter-spacing:2px;margin-bottom:2px;}');
-    win.document.write('.th-job-title{font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:3px;}');
-    win.document.write('.th-order-id{font-size:10px;font-weight:900;}');
-    win.document.write('.th-patient{font-size:8px;padding-bottom:6px;margin-bottom:6px;border-bottom:1px dashed #000;}');
-    win.document.write('.th-info-row{margin:3px 0;}');
-    win.document.write('.th-lbl{font-weight:700;}');
-    win.document.write('.th-val{font-weight:900;margin-left:2px;}');
-    win.document.write('.th-section{background:#000;color:#fff;text-align:center;padding:4px 6px;font-size:8px;font-weight:900;letter-spacing:1px;margin:8px 0 5px;text-transform:uppercase;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
-    win.document.write('.th-table{width:100%;border-collapse:collapse;font-size:8px;margin-bottom:4px;}');
-    win.document.write('.th-table th,.th-table td{border:1px solid #000;padding:3px;text-align:left;vertical-align:middle;}');
-    win.document.write('.th-table th{background:#000;color:#fff;font-weight:900;font-size:7.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}');
-    win.document.write('.th-specs{font-size:8px;margin-bottom:4px;}');
-    win.document.write('.th-spec-row{padding:4px 0;border-bottom:1px solid #ccc;}');
-    win.document.write('.th-spec-row:last-child{border-bottom:none;}');
-    win.document.write('.th-notes{border:1px solid #000;padding:6px;min-height:40px;font-size:8px;margin-bottom:8px;}');
-    win.document.write('.th-footer{border-top:1px dashed #000;padding-top:6px;text-align:center;font-size:7px;font-style:italic;}');
+    // The POS receipt's thermal stylesheet (one source for both), plus the job card's notes box.
+    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Job Card</title>');
+    win.document.write(@js(view('cashier.partials.thermal-styles')->render()));
+    win.document.write('<style>.notes-box{border:2px solid #000;min-height:42px;padding:4px;margin-top:3px;font-size:11px}.text-right{text-align:right}</style>');
     // Split: NativePHP injects a script before every closing head tag, even one inside a string.
-    win.document.write('</style></' + 'head><body>');
+    win.document.write('</' + 'head><body>');
     win.document.write(content.innerHTML);
     win.document.write('</body></html>');
     win.document.close();

@@ -2,14 +2,14 @@
     <div class="ui-heading flex flex-wrap items-center justify-between gap-4">
         <div>
             <h1 class="text-xl font-bold text-slate-900">Sent to Optical</h1>
-            <p class="ui-muted text-sm">Spectacle orders sent to linked optical centres: approve their quotes, answer questions and follow each job. Send new ones from Spectacles → Refractions Needing Order.</p>
+            <p class="ui-muted text-sm">Spectacle orders sent to linked optical centres: approve their quotes, answer questions and follow each job. Send new ones from Spectacles → To order.</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <x-guide-tour page="clinic.optical-sent" />
             <x-ui.button :href="route('secretary.spectacles')" wire:navigate>Spectacles</x-ui.button>
-            @if($canManageLinks)<x-ui.button :href="route('secretary.optical-owed')" wire:navigate>Owed to optical centres</x-ui.button><x-ui.button :href="route('secretary.optical-centres')" wire:navigate>Optical centres</x-ui.button>@endif
         </div>
     </div>
+    @include('livewire.secretary.partials.optical-tabs', ['current' => 'secretary.optical-sent'])
 
     <x-ui.flash />
 
@@ -52,6 +52,17 @@
                                 @if($request->status === 'accepted' && $request->balance() > 0)<div class="text-xs text-slate-600">Owed {{ currency() }} {{ number_format($request->balance(), 2) }} of {{ number_format((float) $request->order_total, 2) }}</div>@endif
                                 @if($request->order_number)<div class="text-xs text-slate-500">Job {{ $request->order_number }} · updated {{ $request->status_updated_at?->diffForHumans() }}</div>@endif
                                 @if($request->status === 'query')<div class="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"><b>Question:</b> {{ $request->query_message }}</div>@endif
+                                @if($request->cancelPending())<div class="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900"><b>You asked to cancel:</b> {{ $request->cancel_request_reason }} · waiting for {{ $request->opticalClinic?->name ?? 'the optical centre' }}</div>@endif
+                                @if($request->cancel_refused_reason && $request->status === 'accepted')<div class="mt-1 text-xs text-red-700"><b>{{ $request->opticalClinic?->name ?? 'The optical centre' }} kept the job:</b> {{ $request->cancel_refused_reason }}</div>@endif
+                                @if($request->status === 'cancelled' && $request->cancel_answered_at)<div class="mt-1 text-xs text-slate-600">Cancelled by {{ $request->opticalClinic?->name ?? 'the optical centre' }} at your request. The patient is back in To order on Spectacles.</div>@endif
+                                @if($request->status === 'accepted' && $request->order_cancelled_at && ! $request->cancel_answered_at)<div class="mt-1 text-xs text-slate-600">{{ $request->opticalClinic?->name ?? 'The optical centre' }} cancelled this job. The patient is back in To order on Spectacles.</div>@endif
+                                @if($cancellingId === $request->id)
+                                    <div class="mt-2 space-y-2">
+                                        <textarea wire:model="cancelReason" rows="2" class="ui-input text-sm" aria-label="Why the job should be cancelled" placeholder="e.g. The patient changed their mind; the prescription changed."></textarea>
+                                        @error('cancelReason')<p class="ui-error">{{ $message }}</p>@enderror
+                                        <div class="flex gap-2"><x-ui.button variant="danger" wire:click="askCancel">Ask to cancel</x-ui.button><x-ui.button wire:click="startCancelAsk">Back</x-ui.button></div>
+                                    </div>
+                                @endif
                                 @if($request->status === 'rejected')<div class="mt-1 text-xs text-red-700">{{ $request->reject_reason }}</div>@endif
                                 @if($decliningId === $request->id)
                                     <div class="mt-2 space-y-2">
@@ -86,6 +97,7 @@
                                         <x-ui.button variant="primary" wire:click="approveQuote({{ $request->id }})" wire:confirm="Approve {{ currency() }} {{ number_format((float) $request->quote_total, 2) }}? The optical centre starts the job and bills your clinic.">Approve</x-ui.button>
                                     @endif
                                 @endif
+                                @if($request->canAskCancel() && $cancellingId !== $request->id)<x-ui.button wire:click="startCancelAsk({{ $request->id }})">Ask to cancel</x-ui.button>@endif
                                 @if($request->canAskRemake() && $remakeId !== $request->id)<x-ui.button wire:click="startRemake({{ $request->id }})">Ask for a remake</x-ui.button>@endif
                                 @if($request->isOpen())<x-ui.button variant="danger" wire:click="cancel({{ $request->id }})" wire:confirm="Cancel this request? The optical centre will see it as cancelled.">Cancel</x-ui.button>@endif
                             </td>

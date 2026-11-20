@@ -185,6 +185,77 @@ class OpticalWorkflowTest extends TestCase
             ->call('nextStep')->assertSet('currentStep', 2)->assertHasNoErrors();
     }
 
+    public function test_lens_transfer_goes_through_with_the_service_switched_on_here_and_no_rx(): void
+    {
+        $this->opticalManager('lens-transfer');
+        $walkIn = ['order_source' => 'walk_in', 'work_type' => 'service', 'bill_to' => 'customer', 'customer_name' => 'Ama Transfer', 'customer_phone' => '0240001234', 'reference' => ''];
+
+        // Every service starts switched off: the manager sees them on the order and switches Lens transfer on with its price.
+        $form = Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('syncRequester', $walkIn)
+            ->assertSee('Services not switched on yet')->assertSee('Switch on &amp; add', false);
+        $transfer = OpticalService::where('code', 'lens_transfer')->firstOrFail();
+        $this->assertFalse($transfer->is_active);
+        $form->call('switchOnService', $transfer->id, '')->assertHasErrors(['servicePrices.'.$transfer->id]);
+        $form->call('switchOnService', $transfer->id, '40')->assertHasNoErrors()
+            ->assertSet('service_lines', [['service_id' => $transfer->id, 'quantity' => 1]]);
+        $this->assertTrue($transfer->fresh()->is_active);
+        $this->assertEquals(40, $transfer->fresh()->price);
+
+        // Step 2 is there for the powers, but they may be left blank; what is typed must still be valid.
+        $form->call('nextStepWithRequester', $walkIn)->assertHasNoErrors()->assertSet('currentStep', 2)
+            ->assertSee('Optional for a lens transfer')->assertSee('2. Rx')->assertDontSee('Enter the Right-eye sphere');
+        $form->call('nextStepWithLens', ['od' => ['sph' => '-1.30'], 'os' => ['sph' => '']])->assertHasErrors(['rx_od_sph'])
+            ->call('nextStepWithLens', ['od' => ['sph' => ''], 'os' => ['sph' => '']])->assertHasNoErrors()->assertSet('currentStep', 3);
+
+        // The new frame is still asked for; here the customer brought their own.
+        $form->call('nextStep')->assertHasErrors()->assertSet('currentStep', 3)
+            ->set('frame_source', 'customer')->call('nextStep')->assertHasNoErrors()->assertSet('currentStep', 4)
+            ->call('nextStep')->assertSet('currentStep', 5)
+            ->call('nextStep')->assertHasNoErrors()->assertSet('currentStep', 6)
+            ->set('paid_amount', 40)->call('nextStep')->assertHasNoErrors()->assertSet('currentStep', 7)
+            ->call('createOrder')->assertHasNoErrors();
+
+        $order = LensOrder::latest('id')->firstOrFail();
+        $this->assertSame('service', $order->work_type);
+        $this->assertSame(40.0, (float) $order->total);
+        $this->assertSame(['Lens transfer'], $order->serviceLines()->pluck('description')->all());
+        $this->assertSame(0.0, (float) $order->lens_price);
+    }
+
+    public function test_only_a_manager_can_switch_a_service_on_from_the_order(): void
+    {
+        \App\Support\OpticalAccess::installRoles();
+        $this->opticalStaff('switch-on-desk', 'Optical Assistant');
+        $form = Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('changeWorkType', 'service')
+            ->assertSee('No services are switched on yet')->assertSee('A Manager or the Owner can switch these on')
+            ->assertDontSee('Switch on &amp; add', false);
+        $transfer = OpticalService::where('code', 'lens_transfer')->firstOrFail();
+        $form->call('switchOnService', $transfer->id, '40')->assertForbidden();
+        $this->assertFalse($transfer->fresh()->is_active);
+    }
+
+    public function test_lens_transfer_keeps_typed_powers_and_glazing_still_needs_them(): void
+    {
+        $this->opticalManager('transfer-rx');
+        $transfer = $this->pricedService('lens_transfer', 30, false, true);
+        $glazing = $this->pricedService('glazing', 60, true, true);
+        $walkIn = ['order_source' => 'walk_in', 'work_type' => 'service', 'bill_to' => 'customer', 'customer_name' => 'Kwame Rx', 'customer_phone' => '', 'reference' => ''];
+
+        Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('syncRequester', $walkIn)->call('toggleService', $transfer->id)
+            ->call('nextStepWithRequester', $walkIn)->assertSet('currentStep', 2)
+            ->call('nextStepWithLens', ['od' => ['sph' => '-1.25'], 'os' => ['sph' => '-1.00']])->assertHasNoErrors()->assertSet('currentStep', 3)
+            ->assertSet('rx_od_sph', '-1.25');
+
+        // Transfer plus glazing: the powers are required again.
+        Livewire::test(OpticalOrderCreateComponent::class)
+            ->call('syncRequester', $walkIn)->call('toggleService', $transfer->id)->call('toggleService', $glazing->id)
+            ->call('nextStepWithRequester', $walkIn)->assertSet('currentStep', 2)->assertDontSee('Optional for a lens transfer')
+            ->call('nextStepWithLens', ['od' => ['sph' => ''], 'os' => ['sph' => '']])->assertHasErrors(['rx_od_sph', 'rx_os_sph']);
+    }
+
     public function test_step_one_keeps_its_choices_and_sends_what_is_typed(): void
     {
         config(['tenancy.enabled' => true]);
@@ -205,7 +276,7 @@ class OpticalWorkflowTest extends TestCase
             ->call('toggleService', $cleaning->id)
             ->call('nextStepWithRequester', $walkIn)->assertHasNoErrors()->assertSet('currentStep', 4)
             ->call('prevStep')->assertSet('currentStep', 1);
-        $this->assertMatchesRegularExpression('/<option value="service"\s+selected/', $wizard->html());
+        $this->assertStringContainsString('aria-checked="true" data-work-type="service"', $wizard->html());
 
         // Partner work billed to the partner shows that, and every partner is listed.
         $partner = Livewire::test(OpticalOrderCreateComponent::class)->call('changeOrderSource', 'partner');
@@ -413,6 +484,51 @@ class OpticalWorkflowTest extends TestCase
         $this->assertSame('clinic', $order->opticalPrescription->source);
         $this->assertSame($refraction->id, $order->opticalPrescription->refraction_id);
         $this->assertSame('-2.00', data_get($order->prescription_snapshot, 'od.sph'));
+    }
+
+    /** 20 Nov 2026: Clinic + Optical in one account: an order on either side holds the prescription, a cancel frees it. */
+    public function test_front_desk_and_optical_suite_do_not_both_order_one_prescription(): void
+    {
+        config(['tenancy.enabled' => true]);
+        $user = User::factory()->create();
+        [$clinic] = $this->tenant($user, 'both-sides');
+        $clinic->subscriptions()->latest()->firstOrFail()->update(['feature_snapshot' => ['clinical', 'optical', 'spectacle_orders']]);
+        $this->actingAs($user);
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Both Sides', 'contact' => '0240000002', 'gender' => 'Other']);
+        $clearance = CashierPatientClearance::create(['user_id' => $user->id, 'patient_id' => $patient->id, 'clearance_date' => now()->toDateString(), 'payment_status' => 'Paid']);
+        $consultation = Consultations::create(['user_id' => $user->id, 'patient_id' => $patient->id, 'clearance_id' => $clearance->id, 'chiefComplaint' => 'Blur']);
+        $refraction = Refractions::create(['user_id' => $user->id, 'consultation_id' => $consultation->id,
+            'refractionOD' => '-2.00', 'refractionOS' => '-1.50', 'refractionOD_distance_va' => '6/6', 'refractionOS_distance_va' => '6/6',
+            'subjective_od_sphere' => -2, 'subjective_os_sphere' => -1.5,
+            'dispensing_required' => true, 'dispensing_authorized_at' => now(), 'dispensing_authorized_by' => $user->id]);
+        $waiting = fn () => Refractions::awaitingSpectacleOrder()->whereKey($refraction->id)->exists();
+        $this->assertTrue($waiting());
+
+        // Ordered in the Optical Suite: the front desk no longer lists it, and says where it went.
+        $data = $this->orderData($patient);
+        $data['refraction_id'] = $refraction->id;
+        unset($data['measurements']);
+        $suiteOrder = app(OpticalOrderService::class)->create($data);
+        $this->assertFalse($waiting());
+        $this->assertSame("ordered in the Optical Suite ({$suiteOrder->order_id})", $refraction->fresh()->activeOrderLabel());
+        $desk = Livewire::test(\App\Livewire\Secretary\SpectaclesComponent::class)->call('setRecordType', 'refractions')->assertDontSee('Both Sides');
+
+        // Cancelled there: back in the front desk's To order.
+        $suiteOrder->forceFill(['status' => 'Cancelled', 'cancelled_at' => now()])->save();
+        $this->assertTrue($waiting());
+        $desk->call('setRecordType', 'orders')->call('setRecordType', 'refractions')->assertSee('Both Sides');
+
+        // Ordered at the front desk: the Optical Suite refuses the same prescription, and marks it in its list.
+        $frontDesk = LensOrder::create(['user_id' => $user->id, 'refraction_id' => $refraction->id, 'order_id' => 'ORD-DESK01', 'status' => 'Pending',
+            'frame_model_number' => 'Frame', 'frame_price' => 100, 'lens_price' => 100, 'pickUpDate' => now()->addWeek()->toDateString()]);
+        $this->assertFalse($waiting());
+        Livewire::test(OpticalOrderCreateComponent::class)->call('choosePatient', $patient->id)->set('currentStep', 2)
+            ->assertSee('ordered at the front desk (ORD-DESK01)')
+            ->call('chooseRefraction', $refraction->id)->assertHasErrors(['refraction_id'])->assertSet('refraction_id', null);
+
+        // Cancelled at the front desk: the Optical Suite may order it.
+        $frontDesk->update(['status' => 'Cancelled']);
+        Livewire::test(OpticalOrderCreateComponent::class)->call('chooseRefraction', $refraction->id)->assertHasNoErrors()->assertSet('refraction_id', $refraction->id);
     }
 
     public function test_optical_only_pages_render_and_clinical_route_is_blocked(): void
