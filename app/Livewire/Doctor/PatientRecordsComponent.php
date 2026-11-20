@@ -82,6 +82,8 @@ class PatientRecordsComponent extends Component
     public $lensProducts = [];
     /** The lens product chosen in the refraction form, so a new choice replaces it. */
     public $refractionLensProductId = null;
+    /** Saved, unpaid lens lines the doctor swapped for another lens: removed when the refraction is saved. */
+    public array $releasedLensCartIds = [];
     public $productPrice;
     public $productsList = [];
     /** Drugs for the patient to buy at a pharmacy (OutsidePrescription): never billed or taken from stock. */
@@ -436,6 +438,7 @@ public $isEditingAppointment = false;
         $this->productsList = [];
         $this->outsideDrugs = [];
         $this->refractionLensProductId = null;
+        $this->releasedLensCartIds = [];
         $this->resetProductForm();
         $this->showAppointmentSection = false;
         $this->resetAppointmentForm();
@@ -2553,6 +2556,7 @@ public function deleteAppointment($appointmentId)
         }
 
         $this->loadLensProductsForRefraction();
+        $this->adoptSavedRefractionLens();
 
         $this->activeTab = 'refraction';
     }
@@ -2752,10 +2756,15 @@ public function deleteAppointment($appointmentId)
                 );
             }
 
+            // The lens picked for dispensing is stored with the refraction, so it reaches the cashier
+            // even if the prescription is never saved separately (it used to live only on screen).
+            $lensStored = $refractionData['dispensing_required'] && $this->storeRefractionLensLine();
+
             DB::commit();
 
             $this->refractionCorrectionReason = '';
-            $this->dispatch('notify', ...['type' => 'success', 'message' => $isCorrection ? 'Refraction corrected. The earlier values are kept in its history.' : 'Refraction data saved successfully']);
+            $this->dispatch('notify', ...['type' => 'success', 'message' => ($isCorrection ? 'Refraction corrected. The earlier values are kept in its history.' : 'Refraction data saved successfully')
+                . ($lensStored ? ' The lens is on the prescription for the cashier.' : '')]);
             $this->dispatch('refraction-form-clean');
             $this->activeTab = 'history';
         } catch (\Exception $e) {
@@ -2816,6 +2825,65 @@ public function deleteAppointment($appointmentId)
         }
     }
 
+    /**
+     * Reopening a saved refraction: its lens is the one unpaid lens line already on the visit, so
+     * picking the same lens adds nothing and picking another replaces it (instead of billing two).
+     */
+    private function adoptSavedRefractionLens(): void
+    {
+        if ($this->refractionLensProductId || !($this->state['dispensing_required'] ?? false)) {
+            return;
+        }
+        $lensIds = collect($this->lensProducts)->pluck('id')->map(fn ($id) => (string) $id)->all();
+        $saved = collect($this->productsList)->filter(fn ($item) => isset($item['cart_id'])
+            && !$this->isLockedPrescriptionItem($item) && in_array((string) $item['product_id'], $lensIds, true));
+        if ($saved->count() === 1) {
+            $this->refractionLensProductId = $saved->first()['product_id'];
+        }
+    }
+
+    /**
+     * Saves the refraction's lens line to this visit's prescription (cart) if it is only on screen.
+     * Returns true when a line was stored. Other unsaved prescription lines are left for the doctor.
+     */
+    private function storeRefractionLensLine(): bool
+    {
+        $productId = $this->refractionLensProductId;
+        if (!$productId || !$this->consultationID) {
+            return false;
+        }
+
+        // A lens swapped for this one: its saved line goes, unless the cashier already took payment.
+        if ($this->releasedLensCartIds) {
+            Cart::where('consultation_id', $this->consultationID)->whereIn('id', $this->releasedLensCartIds)
+                ->where('is_dispensed', false)->where('purchased', false)->delete();
+            $this->releasedLensCartIds = [];
+        }
+
+        foreach ($this->productsList as $index => $item) {
+            if ($item['product_id'] != $productId || isset($item['cart_id']) || $this->isLockedPrescriptionItem($item)) {
+                continue;
+            }
+            $cart = Cart::create([
+                'patient_id' => $this->clearance->patient_id,
+                'dispensed_by' => Auth::id(),
+                'consultation_id' => $this->consultationID,
+                'product_id' => $item['product_id'],
+                'quantity' => $item['quantity'],
+                'price' => $item['price'],
+                'total' => $item['total'],
+                'status' => 'pending',
+                'is_dispensed' => false,
+                'purchased' => false,
+            ]);
+            $this->productsList[$index]['cart_id'] = $cart->id;
+
+            return true;
+        }
+
+        return false;
+    }
+
     /** Takes one unit of the earlier refraction lens off its open (unsold) line, removing the line at zero. */
     private function releaseRefractionLens($productId): void
     {
@@ -2825,6 +2893,7 @@ public function deleteAppointment($appointmentId)
             }
             $quantity = (int) $item['quantity'] - 1;
             if ($quantity < 1) {
+                if (isset($item['cart_id'])) $this->releasedLensCartIds[] = (int) $item['cart_id'];
                 unset($this->productsList[$index]);
                 $this->productsList = array_values($this->productsList);
             } else {
