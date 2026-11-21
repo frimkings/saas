@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eyes of Hope Migration</title>
+<style>
+:root { --bg:#f6f8f8; --paper:#fff; --ink:#15221f; --muted:#55676a; --line:#d9e2e1; --accent:#0e6b63; --soft:#e3f1ef; --warn:#9a5b00; --warn-soft:#fdf1dc; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0f1615; --paper:#16201f; --ink:#e4ecea; --muted:#9db0ad; --line:#2a3836; --accent:#5cc4b8; --soft:#173330; --warn:#f0b45a; --warn-soft:#35290f; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "Segoe UI", system-ui, sans-serif; padding:32px 16px 64px; }
+main { max-width:820px; margin:0 auto; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:32px clamp(18px,5vw,48px); }
+h1 { font-size:1.8rem; line-height:1.2; margin:0 0 6px; }
+.sub { color:var(--muted); margin:0 0 24px; }
+section { border-top:1px solid var(--line); padding-top:20px; margin-top:22px; }
+h2 { font-size:1.2rem; margin:0 0 10px; display:flex; gap:10px; align-items:baseline; }
+h2 .n { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--paper); font-size:.9rem; flex:none; }
+ul, ol { padding-left:22px; margin:8px 0; }
+li { margin:5px 0; }
+code, pre { font-family:"Cascadia Mono", Consolas, monospace; font-size:.9em; }
+pre { background:var(--soft); padding:10px 14px; border-radius:6px; overflow-x:auto; }
+.key { background:var(--soft); border-radius:6px; padding:10px 14px; margin:10px 0; }
+.warn { background:var(--warn-soft); border-left:3px solid var(--warn); border-radius:4px; padding:10px 14px; margin:10px 0; }
+.check { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin:12px 0; }
+.check div { border-top:3px solid var(--accent); padding-top:6px; }
+.check b { display:block; font-size:1.25rem; font-variant-numeric:tabular-nums; }
+.check span { font-size:.85rem; color:var(--muted); }
+.foot { color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Migrating Eyes of Hope from iTestEMR</h1>
+<p class="sub">Eyes of Hope Vision Centre, Kasoa Branch · steps to bring their iTestEMR records into Nexus · prepared 21 November 2026</p>
+
+<section>
+<h2><span class="n">1</span>Put the latest importer on the live server (once)</h2>
+<ul>
+  <li>The basic iTestEMR importer is already on live (origin/main).</li>
+  <li>Not yet live: <b>payments, balances owed, spectacle orders, drug prices</b>, the capture tool's admin steps and the safer Undo. That code is still uncommitted on the local machine and needs to be committed, pushed and pulled on the server.</li>
+  <li>Make sure a worker is running for the <code>imports</code> queue. Imports run in the background:
+<pre>php artisan queue:work --queue=imports</pre></li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">2</span>Create the clinic on live</h2>
+<ul>
+  <li>Create <b>EYE OF HOPE</b> on the <b>Clinic Pro</b> plan, with one branch named <b>Kasoa Branch</b>, time zone Africa/Accra.</li>
+  <li>Add the owner's login.</li>
+</ul>
+<div class="key"><b>Add the six staff BEFORE importing.</b> The importer matches each old visit to its clinician by name. Staff added afterwards leave every visit under the owner.</div>
+<ul>
+  <li>Clinician → Doctor</li>
+  <li>Administrator, Management → Manager</li>
+  <li>Head Optician → Optician</li>
+  <li>Customer Service → Secretary + Cashier</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">3</span>Take a fresh copy on switch day</h2>
+<ul>
+  <li>The 21 November copy misses anything recorded after it, so capture again on the morning of the switch.</li>
+  <li>Sign in to iTestEMR (hope.optocodesinnovations.org) with the <b>administrator</b> account. A clinician account cannot reach payments, balances, orders or prices.</li>
+  <li>Run the capture tool. It is on <b>Platform → Legacy Imports → From other software</b>: choose iTestEMR, then drag the button to the bookmarks bar, or copy the script into the browser console.</li>
+  <li>It takes about 5 minutes and downloads <code>itestemr-hope-&lt;date&gt;.zip</code>. Read the <code>capture-report.txt</code> inside it for any pages that failed.</li>
+  <li>Ask the clinic to stop entering data in iTestEMR once the capture starts.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">4</span>Import</h2>
+<ol>
+  <li>In <b>Platform → Legacy Imports → From other software</b>, choose the EYE OF HOPE clinic and the source <b>iTestEMR (Optocodes)</b>.</li>
+  <li>Upload the zip as it is; there is no need to unzip it.</li>
+  <li>Click <b>Check</b>. Nothing is saved. Expect figures close to these, with no errors:
+    <div class="check">
+      <div><b>~930</b><span>patients</span></div>
+      <div><b>~1,370</b><span>visits</span></div>
+      <div><b>~1,060</b><span>old payments</span></div>
+      <div><b>8</b><span>balances (GHS 1,755)</span></div>
+      <div><b>~283</b><span>spectacle orders</span></div>
+    </div>
+  </li>
+  <li>Click <b>Import</b>. The trial import took about 6 seconds.</li>
+</ol>
+<div class="warn">The largest file in the zip (patient-records.html) is about 12 MB. The page accepts up to 20 MB, but the live server's PHP <code>upload_max_filesize</code> and <code>post_max_size</code> must be at least that large too.</div>
+</section>
+
+<section>
+<h2><span class="n">5</span>What comes in and how</h2>
+<ul>
+  <li><b>Patients</b> keep their KAS numbers. Next of kin is not brought in.</li>
+  <li><b>Visits</b> bring complaints, vision, diagnoses, medications and refractions. Two visits on the same day become one.</li>
+  <li><b>Old payments</b> are history on each patient's record, not new money in the books.</li>
+  <li><b>Balances owed</b> become debts to collect, listed on Outstanding balances.</li>
+  <li><b>Spectacle orders</b> are history only, added to the notes of that day's visit.</li>
+  <li><b>Products and services</b> come in with their prices. Stock starts at 0.</li>
+  <li><b>Future review dates</b> become pending appointments.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">6</span>After the import</h2>
+<ul>
+  <li>Spot-check a few patients, the 8 balances on Outstanding balances, and a visit with a spectacle order in its notes.</li>
+  <li>Have each staff member sign in and change their temporary password.</li>
+  <li>Do a stock count on day one, so stock in Nexus starts correct. iTestEMR's own counts cannot be trusted.</li>
+  <li>If something looks wrong, <b>Undo</b> removes the whole import cleanly. Undo stops working once money has been collected on an imported balance.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">7</span>Local trial clean-up</h2>
+<ul>
+  <li>The local trial database <code>saas_eyeofhope</code> is only a practice run and is not copied anywhere.</li>
+  <li>When finished with it, put the local <code>.env</code> back from <code>.env.backup</code>.</li>
+  <li>The backups stay in <code>storage/app/client-backups/eyes-of-hope-itestemr</code>, which git ignores. They hold patient data, so don't share them.</li>
+</ul>
+</section>
+
+<p class="foot">The 21 November backup, <code>itestemr-hope-full-2026-11-21.zip</code>, already passes the Check with no errors.</p>
+</main>
+</body>
+</html>

@@ -206,6 +206,96 @@
         return [head, ...blocks.map((b) => [b.split('\n')[0].trim(), g(b, 'Branch'), g(b, 'Contact'), g(b, 'Email'), g(b, 'User Registration Date'), g(b, 'Status'), g(b, 'Department'), g(b, 'Next of Kin'), g(b, 'Contact', 1), (b.match(/\n(\d+)\n+Edit/) || [])[1] || '', (b.match(/Edit\n+(\w+)/) || [])[1] || ''])];
       } finally { f.remove(); }
     }],
+    // Administrator-only pages: a clinician login gets "may not open it" for these, and the import works without them.
+    ['service-prices.csv', 'Services and products price list', async () => tableRows(findTable(await getDoc('/clinic-services'), /Product\/Service/))],
+    ['drug-prices.csv', 'Drug prices', async () => tableRows(findTable(await getDoc('/hms-drugs-inventory'), /Selling Price/))],
+    ['payments.csv', 'Payments', async () => {
+      const f = await frame('/hms-cash-payment-report');
+      try {
+        const d = f.contentDocument;
+        const put = (el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+        const branchSel = d.querySelector('select');
+        if (branchSel && [...branchSel.options].some((o) => o.value === 'all')) put(branchSel, 'all');
+        const dates = d.querySelectorAll('input[type=date]');
+        if (dates.length < 2) return null;
+        put(dates[0], '2000-01-01'); put(dates[1], new Date().toISOString().slice(0, 10));
+        await sleep(800);
+        // The page already says "No records found" before a search, so wait for the result to change, then settle.
+        const before = d.body.innerText;
+        const search = [...d.querySelectorAll('button')].find((b) => /search/i.test(b.textContent));
+        if (search) search.click(); else await component(f).call('generateReport');
+        for (let i = 0; i < 240 && !/Grand Total/i.test(d.body.innerText) && d.body.innerText === before; i++) { check(); await sleep(500); }
+        for (let i = 0, last = ''; i < 60 && !/Grand Total/i.test(d.body.innerText) && d.body.innerText !== last; i++) { last = d.body.innerText; await sleep(1000); }
+        const lines = d.body.innerText.split('\n').map((s) => s.trim()).filter(Boolean);
+        const rows = [['Date', 'No', 'Patient', 'Mode', 'Amount', 'Taken By']];
+        let day = null, sum = 0;
+        for (let i = 0; i < lines.length; i++) {
+          const dm = lines[i].match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+(\w+ \d{1,2}, \d{4})$/);
+          if (dm) { const dt = new Date(dm[2] + ' 12:00'); day = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0'); continue; }
+          const m = lines[i].match(/^(\d+)\s+(.+?)\s+—\s+(.+?)\s+—\s+([\d,]+(?:\.\d+)?)$/);
+          if (m && day) { const by = (lines[i + 1] || '').match(/^by:\s*(.*)$/); const amt = parseFloat(m[4].replace(/,/g, '')); sum += amt; rows.push([day, m[1], m[2], m[3], amt.toFixed(2), by ? by[1] : '']); }
+        }
+        const grand = parseFloat(((d.body.innerText.match(/Grand Total:\s*₵\s*([\d,.]+)/) || [])[1] || '').replace(/,/g, ''));
+        if (!isNaN(grand) && Math.abs(grand - sum) > 0.01) log('Payments: the lines add up to ' + sum.toFixed(2) + ' but iTestEMR shows a grand total of ' + grand.toFixed(2), true);
+        return rows;
+      } finally { f.remove(); }
+    }],
+    ['outstanding-balances.csv', 'Outstanding balances', async () => {
+      const f = await frame('/hms-cashcredit-report');
+      try {
+        const d = f.contentDocument, c = component(f);
+        const yearSel = [...d.querySelectorAll('select')].find((s) => [...s.attributes].some((a) => a.name.startsWith('wire:model') && a.value === 'filterYear'));
+        if (!yearSel || !c) return null;
+        const grab = () => { const t = findTable(d, /NetTopUp/); return t ? [...t.querySelectorAll('tbody tr')].map((r) => [...r.children].map(text)).filter((r) => r.length >= 9 && /\d{4}/.test(r[0])) : []; };
+        // Count Livewire's finished updates, so an empty month need not be waited out.
+        let processed = 0;
+        try { f.contentWindow.Livewire.hook('message.processed', () => { processed++; }); } catch (e) { /* older Livewire: fall back to waiting */ }
+        const settle = async (from) => { for (let i = 0; i < 40 && processed === from; i++) await sleep(150); await sleep(150); };
+        const seen = new Map();
+        const now = new Date();
+        for (const year of [...yearSel.options].map((o) => o.value).filter(Boolean)) {
+          await c.set('filterYear', year);
+          for (let m = 1; m <= 12; m++) {
+            check();
+            if (Number(year) > now.getFullYear() || (Number(year) === now.getFullYear() && m > now.getMonth() + 1)) break;
+            const from = processed;
+            await c.set('filterMonth', String(m)); await c.call('fetchPayments');
+            await settle(from);
+            grab().forEach((r) => { const dt = new Date(r[0].replace(',', '')); if (dt.getMonth() + 1 === m && String(dt.getFullYear()) === year) seen.set(r[1] + '|' + r[5] + '|' + r[0], r.slice(0, 9)); });
+          }
+          step('Copying outstanding balances… ' + year, 98);
+        }
+        return [['Date', 'Invoice', 'Patient ID', 'Patient', 'Contact', 'Item', 'Net TopUp', 'Amount Paid', 'Balance'], ...seen.values()];
+      } finally { f.remove(); }
+    }],
+    ['spectacle-orders.csv', 'Spectacle orders', async () => {
+      const f = await frame('/eye/specs-search');
+      try {
+        const d = f.contentDocument;
+        const total = parseInt((d.body.innerText.match(/Results:\s*(\d+)/) || [])[1] || '0', 10);
+        const count = () => new Set([...d.querySelectorAll('[wire\\:click^="editPrescription("]')].map((b) => b.getAttribute('wire:click'))).size;
+        if ([...d.querySelectorAll('[wire\\:click]')].some((b) => /loadMore/.test(b.getAttribute('wire:click')))) await grow(f, 'loadMore', count, total || null);
+        const cards = [];
+        d.querySelectorAll('[wire\\:click^="editPrescription("]').forEach((b) => {
+          let card = b; while (card.parentElement && !/Orders ID/.test(card.textContent)) card = card.parentElement;
+          while (card.parentElement && (card.parentElement.textContent.match(/Orders ID/g) || []).length === 1) card = card.parentElement;
+          if (!cards.includes(card)) cards.push(card);
+        });
+        const rows = [['Order ID', 'Date', 'Patient ID', 'Patient', 'Contact', 'RE Rx', 'LE Rx', 'Lens', 'Add OD', 'Add OS', 'PD', 'Frame', 'Frame Price', 'Lens Price', 'Total', 'Ordered', 'Orders In', 'Received', 'Remarks', 'Staff']];
+        for (const card of cards) {
+          const L = card.innerText.split('\n').map((s) => s.trim()).filter(Boolean);
+          const between = (a, b) => { const x = L.indexOf(a), y = L.indexOf(b); return x >= 0 && y > x ? L.slice(x + 1, y).join(' ').replace(/\s+/g, ' ').trim() : ''; };
+          const val = (re) => { const l = L.find((s) => re.test(s)); return l ? l.replace(re, '').trim() : ''; };
+          const after = (label) => { const x = L.indexOf(label); return x >= 0 ? (L[x + 1] || '') : ''; };
+          const framesL = L.filter((s) => /^Frame:/.test(s));
+          rows.push([after('Orders ID'), L[0], after('Patients ID'), L[1], L[2], between('RE:', 'LE:'), between('LE:', 'Specifications:'), between('Specifications:', 'Patients ID'),
+            val(/^ADD \(OD\):/), val(/^ADD \(OS\):/), val(/^PD:/), (framesL[0] || '').replace(/^Frame:/, '').trim(), (framesL[1] || '').replace(/^Frame:/, '').trim(), val(/^Lens:/), val(/^Total:/),
+            after('Ordered'), after('Orders-In'), after('Received'), after('Remarks'), after('Staff:')]);
+        }
+        if (total && cards.length < total) log('Spectacle orders: ' + cards.length + ' of ' + total + ' loaded', true);
+        return rows;
+      } finally { f.remove(); }
+    }],
   ];
   for (let i = 0; i < lists.length; i++) {
     check();
@@ -225,7 +315,7 @@
   check();
   report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
   if (/Role:\s*clinician/i.test(report[1])) report.splice(2, 0, 'This login is a clinician: an administrator login may see more (prices, payments).');
-  report.push('', 'Payments, invoices and spectacle orders are not part of this capture.');
+  if (!files['payments.csv'] || !files['outstanding-balances.csv']) report.push('', 'Payments and balances were not captured: they need an administrator login.');
   files['capture-report.txt'] = report.join('\r\n');
   step('Making the .zip…', 99);
   const blob = zip(files);

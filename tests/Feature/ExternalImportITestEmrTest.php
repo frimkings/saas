@@ -114,6 +114,32 @@ class ExternalImportITestEmrTest extends TestCase
         return $files;
     }
 
+    /** What an administrator login adds to the capture: payments, balances, spectacle orders and price lists. */
+    private function financeUploads(): array
+    {
+        return [
+            UploadedFile::fake()->createWithContent('payments.csv', $this->csv(['Date', 'No', 'Patient', 'Mode', 'Amount', 'Taken By'], [
+                ['Date' => '2026-03-05', 'No' => '7', 'Patient' => 'Ama  Serwaa', 'Mode' => 'Mobile Money', 'Amount' => '350.00', 'Taken By' => 'Miracle Collins'],
+                ['Date' => '2026-03-01', 'No' => '8', 'Patient' => 'Yaw Boateng', 'Mode' => 'Cash', 'Amount' => '80.00', 'Taken By' => 'Miracle Collins'],
+                ['Date' => '2026-03-02', 'No' => '9', 'Patient' => 'Someone Unknown', 'Mode' => 'Cash', 'Amount' => '20.00', 'Taken By' => 'Miracle Collins'],
+            ])),
+            UploadedFile::fake()->createWithContent('outstanding-balances.csv', $this->csv(['Date', 'Invoice', 'Patient ID', 'Patient', 'Contact', 'Item', 'Net TopUp', 'Amount Paid', 'Balance'], [
+                ['Date' => '05 Mar, 2026', 'Invoice' => '170', 'Patient ID' => 'KAS/0002/26', 'Patient' => 'Ama Serwaa', 'Item' => 'Lens', 'Net TopUp' => '₵480.00', 'Amount Paid' => '₵250.00', 'Balance' => '₵230.00'],
+                ['Date' => '01 Mar, 2026', 'Invoice' => '171', 'Patient ID' => 'KAS/0001/26', 'Patient' => 'Yaw Boateng', 'Item' => 'Frame', 'Net TopUp' => '₵300.00', 'Amount Paid' => '₵300.00', 'Balance' => '₵0.00'],
+            ])),
+            UploadedFile::fake()->createWithContent('spectacle-orders.csv', $this->csv(['Order ID', 'Date', 'Patient ID', 'Patient', 'Contact', 'RE Rx', 'LE Rx', 'Lens', 'Add OD', 'Add OS', 'PD', 'Frame', 'Frame Price', 'Lens Price', 'Total', 'Ordered', 'Orders In', 'Received', 'Remarks', 'Staff'], [
+                ['Order ID' => '366', 'Date' => '2026-03-05', 'Patient ID' => 'KAS/0002/26', 'Patient' => 'Ama Serwaa', 'RE Rx' => '+0.50 / -0.75 X 90 6/6', 'LE Rx' => '+0.75 / X 6/6', 'Lens' => 'PHOTOCHROMIC PROGRESSIVE', 'PD' => '63', 'Frame' => 'EOH FF247', 'Frame Price' => '250.00', 'Lens Price' => '800.00', 'Total' => '1050.00', 'Remarks' => 'N/A', 'Staff' => 'Mensah Ruth'],
+            ])),
+            UploadedFile::fake()->createWithContent('service-prices.csv', $this->csv(['Product ID', 'Branch', 'Product/Service', 'Price', 'Type', 'Comment'], [
+                ['Product ID' => '5', 'Product/Service' => 'Cycloplegic Refraction', 'Price' => '30.00', 'Type' => 'Service'],
+                ['Product ID' => '1', 'Product/Service' => 'Registration', 'Price' => '50.00', 'Type' => 'Registration'],
+            ])),
+            UploadedFile::fake()->createWithContent('drug-prices.csv', $this->csv(['ID', 'Drug Name', 'Quantity Bought', 'Quantity Sold', 'Quantity Left', 'Unit Price (₵)', 'Selling Price (₵)', 'Unit Profit (₵)', 'Drug Type', 'Drug Route'], [
+                ['ID' => '15', 'Drug Name' => 'Latmo', 'Quantity Bought' => '117', 'Unit Price (₵)' => '45.00', 'Selling Price (₵)' => '90.00', 'Drug Type' => 'AntiGlaucoma', 'Drug Route' => 'Eye'],
+            ])),
+        ];
+    }
+
     private function checked(?array $files = null)
     {
         return Livewire::actingAs($this->admin)->test(ExternalImportComponent::class)
@@ -234,6 +260,54 @@ class ExternalImportITestEmrTest extends TestCase
         $this->assertTrue($products->every(fn ($p) => str_starts_with($p->batch_number, 'ITE-')));
         $this->assertSame(['frames' => ['no name' => 1]], array_intersect_key($batch->result['skipped'], ['frames' => 1]));
         $this->assertSame(0, DB::table('sales')->count());
+    }
+
+    public function test_an_administrator_capture_brings_payments_balances_spectacle_orders_and_prices(): void
+    {
+        $this->checked([...$this->uploads(), ...$this->financeUploads()]);
+        $a = ExternalImportBatch::sole()->analysis;
+        $this->assertSame([], $a['errors']);
+        $this->assertEquals(['count' => 3, 'total' => 450, 'unmatched' => 1], $a['payments']);
+        $this->assertEquals(['count' => 1, 'total' => 230, 'unknown_patients' => 0], $a['balances'], 'a fully paid invoice is not a balance');
+        $this->assertSame(1, $a['spectacles']);
+
+        Livewire::actingAs($this->admin)->test(ExternalImportComponent::class)->call('selectBatch', ExternalImportBatch::sole()->id)
+            ->set('confirmation', 'IMPORT hope-eyes')->call('startImport')->assertHasNoErrors();
+        $batch = ExternalImportBatch::sole();
+        $this->assertSame('completed', $batch->status, (string) $batch->error);
+        $ama = DB::table('patients')->where('pxnumber', 'KAS/0002/26')->value('id');
+        $yaw = DB::table('patients')->where('pxnumber', 'KAS/0001/26')->value('id');
+
+        $payments = DB::table('patient_legacy_payments')->orderBy('paid_at')->get();
+        $this->assertSame([[$yaw, 80.0, 'Cash'], [$ama, 350.0, 'Mobile Money']], $payments->map(fn ($p) => [(int) $p->patient_id, (float) $p->amount, $p->payment_method])->all(), 'matched by name, spaces ignored');
+        $this->assertSame(['itestemr'], $payments->pluck('source')->unique()->values()->all());
+        $this->assertSame(['payments' => ['name not found among the patients' => 1]], array_intersect_key($batch->result['skipped'], ['payments' => 1]));
+        $this->assertSame(0, DB::table('payment_transactions')->count(), 'old payments stay out of the books');
+
+        $sale = DB::table('sales')->sole();
+        $this->assertSame([$ama, 'ITE-INV-170', 230.0, 0.0, 'partial', '2026-03-05'], [(int) $sale->patient_id, $sale->transaction_id, (float) $sale->total_amount, (float) $sale->amount_paid, $sale->payment_status, substr($sale->created_at, 0, 10)]);
+
+        $notes = DB::table('consultations')->where('patient_id', $ama)->whereDate('created_at', '2026-03-05')->value('notes');
+        $this->assertStringContainsString("Spectacle order 366 in the previous software, 05 Mar 2026:\nRx: RE +0.50 / -0.75 X 90 6/6; LE +0.75 / X 6/6; PD 63", $notes);
+        $this->assertStringContainsString('Frame: EOH FF247 (GHS 250.00)', $notes);
+        $this->assertStringContainsString('Total GHS 1,050.00 · recorded by Mensah Ruth', $notes);
+
+        $latmo = DB::table('products')->where('name', 'Latmo')->sole();
+        $this->assertEquals([45, 90], [$latmo->cost_price, $latmo->selling_price], 'the administrator\'s drug prices replace the priceless drug list');
+        $services = DB::table('products')->join('categories', 'categories.id', '=', 'category_id')->where('categories.type', 'service')->orderBy('products.name')->pluck('selling_price', 'products.name')->map(fn ($p) => (float) $p)->all();
+        $this->assertSame(['Cycloplegic Refraction' => 30.0, 'Registration' => 50.0], $services);
+    }
+
+    public function test_undo_is_refused_once_an_imported_balance_has_been_collected(): void
+    {
+        $this->checked([...$this->uploads(), ...$this->financeUploads()])->set('confirmation', 'IMPORT hope-eyes')->call('startImport')->assertHasNoErrors();
+        DB::table('sales')->update(['amount_paid' => 100]);
+
+        Livewire::actingAs($this->admin)->test(ExternalImportComponent::class)->call('selectBatch', ExternalImportBatch::sole()->id)
+            ->set('undoConfirmation', 'UNDO hope-eyes')->call('undoImport')->assertHasErrors('undo');
+        $this->assertSame('completed', ExternalImportBatch::sole()->status);
+        $this->assertSame(1, DB::table('sales')->count());
+        $this->assertSame(2, DB::table('patients')->count());
     }
 
     public function test_undo_removes_exactly_what_was_imported(): void

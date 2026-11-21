@@ -16,7 +16,7 @@ use RuntimeException;
 class ExternalImportRollback
 {
     /** Children before parents. */
-    private const ORDER = ['patient_legacy_payments', 'legacy_expenses', 'patient_legacy_medications', 'consultation_diagnosis', 'refractions', 'consultations', 'cashier_patient_clearances',
+    private const ORDER = ['sales', 'patient_legacy_payments', 'legacy_expenses', 'patient_legacy_medications', 'consultation_diagnosis', 'refractions', 'consultations', 'cashier_patient_clearances',
         'appointments', 'expenses', 'expense_categories', 'products', 'categories', 'diagnoses', 'patients'];
 
     /** $keepFiles leaves the uploaded spreadsheets in place so a failed run can be tried again. */
@@ -25,6 +25,7 @@ class ExternalImportRollback
         $tables = DB::table('external_import_rows')->where('external_import_batch_id', $batch->id)->distinct()->pluck('table_name')->all();
         $unknown = array_diff($tables, self::ORDER);
         if ($unknown) throw new RuntimeException('This import created rows this undo does not know about ('.implode(', ', $unknown).').');
+        $this->refuseIfBalancesCollected($batch);
 
         $deleted = [];
         try {
@@ -46,6 +47,19 @@ class ExternalImportRollback
         $batch->update(['status' => 'rolled_back', 'rolled_back_at' => now(), 'progress_percent' => 0, 'current_step' => null]);
 
         return $deleted;
+    }
+
+    /**
+     * Imported balances are sales, and a sale's payments are deleted with it (cascade), so the foreign keys would
+     * not stop an undo once money was collected on one. Refuse here instead, before anything is removed.
+     */
+    private function refuseIfBalancesCollected(ExternalImportBatch $batch): void
+    {
+        $sales = DB::table('external_import_rows')->where('external_import_batch_id', $batch->id)->where('table_name', 'sales')->pluck('record_id');
+        if ($sales->isEmpty()) return;
+        $collected = DB::table('sales')->whereIn('id', $sales)->where('amount_paid', '>', 0)->exists()
+            || DB::table('payment_transactions')->whereIn('sale_id', $sales)->exists();
+        if ($collected) throw new RuntimeException('Money has already been collected on a balance this import brought in, so the import can no longer be undone. Nothing was removed.');
     }
 
     /** The uploaded spreadsheets hold patient data; they are kept only until the import is done or undone. */

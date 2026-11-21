@@ -40,10 +40,17 @@ class ITestEmrImport
         'frame_stocking' => ['Frame stocking history', ['Stock ID#', 'Stock Date', 'Total Cost'], 'Not imported: kept with the backup'],
         'lens_types' => ['Lens types', ['ID', 'Lens Type'], 'Not imported: lens names are in the lens prices'],
         'lens_stocking' => ['Lens stocking history', ['Lens', 'Index', 'Reflectivity', 'Qty', 'Date'], 'Not imported: kept with the backup'],
+        // Only an administrator login can read these.
+        'payments' => ['Payments (Cash Payment Report)', ['Date', 'No', 'Patient', 'Mode', 'Amount', 'Taken By'], 'Payment history on the patient record (not finance)'],
+        'balances' => ['Outstanding balances (Cash Credit)', ['Invoice', 'Patient ID', 'Net TopUp', 'Amount Paid', 'Balance'], 'Unpaid balances the cashier collects (Outstanding balances)'],
+        'spectacles' => ['Spectacle orders', ['Order ID', 'Patient ID', 'RE Rx', 'LE Rx', 'Frame Price'], 'Visit notes: spectacle orders (history, not the live board)'],
+        'services' => ['Services and products price list', ['Product ID', 'Product/Service', 'Price', 'Type'], 'Products: services and registration with prices'],
+        'drug_prices' => ['Drug inventory with prices', ['Drug Name', 'Quantity Bought', 'Unit Price (₵)', 'Selling Price (₵)'], 'Products: drugs with cost and selling price (stock 0)'],
     ];
 
     /** Options the platform admin can switch off before importing. */
-    public const OPTIONAL = ['new_diagnoses' => 'Diagnosis names missing from the clinic list', 'appointments' => 'Upcoming review dates as appointments', 'items' => 'Frames, accessories, lenses and drugs as products'];
+    public const OPTIONAL = ['new_diagnoses' => 'Diagnosis names missing from the clinic list', 'appointments' => 'Upcoming review dates as appointments', 'items' => 'Frames, accessories, lenses, drugs and services as products',
+        'balances' => 'Unpaid balances from the previous software, to collect'];
 
     public const FILE_TYPES = ['csv', 'html', 'htm'];
 
@@ -51,6 +58,8 @@ class ITestEmrImport
     private int $branchId;
     private int $ownerId;
     private array $staff = [];
+    /** patient id => [Y-m-d => consultation id], filled while visits are imported. */
+    private array $visitIds = [];
 
     public function __construct(private CsvTableReader $csv, private ITestEmrRecordsReader $records) {}
 
@@ -105,9 +114,18 @@ class ITestEmrImport
         $report['same_day_visits'] = $visits->count() - $report['visits'];
         $report['new_diagnoses'] = $visits->flatMap(fn ($v) => $v['diagnoses'] ?? [])->map(fn ($n) => $this->diagnosisKey($n))->unique()->reject(fn ($k) => isset($diagnoses[$k]))->count();
         $report['future_appointments'] = $folders->filter(fn ($f) => isset($known[mb_strtolower($f['number'])]) && $this->nextReview($f['visits']))->count();
-        $report['payments'] = ['count' => 0, 'total' => 0];
+        $names = $this->patientsByName($patients->all(), fn ($p) => $p['Patients ID'] ?? '');
+        $payments = collect($sheets['payments'] ?? []);
+        $report['payments'] = ['count' => $payments->count(), 'total' => round($payments->sum(fn ($r) => $this->money($r['Amount'] ?? 0)), 2),
+            'unmatched' => $payments->filter(fn ($r) => count($names[$this->nameKey($r['Patient'] ?? '')] ?? []) !== 1)->count()];
+        $balances = collect($sheets['balances'] ?? [])->filter(fn ($r) => $this->money($r['Balance'] ?? 0) > 0);
+        $report['balances'] = ['count' => $balances->count(), 'total' => round($balances->sum(fn ($r) => $this->money($r['Balance'])), 2),
+            'unknown_patients' => $balances->reject(fn ($r) => isset($known[mb_strtolower(trim($r['Patient ID'] ?? ''))]))->count()];
+        $report['spectacles'] = count($sheets['spectacles'] ?? []);
         $report['expenses'] = ['count' => 0, 'total' => 0];
-        $report['items'] = ['count' => collect(['frames', 'accessories', 'lenses', 'drugs'])->sum(fn ($k) => count($sheets[$k] ?? [])), 'negative_stock' => 0];
+        $report['items'] = ['count' => collect(['frames', 'accessories', 'lenses', isset($sheets['drug_prices']) ? 'drug_prices' : 'drugs'])->sum(fn ($k) => count($sheets[$k] ?? []))
+            + collect($sheets['services'] ?? [])->reject(fn ($r) => strcasecmp(trim($r['Type'] ?? ''), 'Accessory') === 0)->count(), 'negative_stock' => 0,
+            'drug_prices' => isset($sheets['drug_prices'])];
         $report['staff'] = $this->staffIdentities($visits);
         $report['unknown_files'] = $unknown;
         $report['duplicate_files'] = $duplicates;
@@ -192,7 +210,7 @@ class ITestEmrImport
         if (! $this->ownerId) throw new RuntimeException('The clinic has no active staff account to record the import under.');
         $this->staff = $settings['staff'] ?? [];
         $include = $settings['include'] ?? [];
-        $this->counts = $this->skipped = $this->tracked = [];
+        $this->counts = $this->skipped = $this->tracked = $this->visitIds = [];
 
         [$sheets] = $this->load(array_filter($batch->files ?? [], fn ($f) => ! empty($f['sheet'])), false);
 
@@ -201,6 +219,11 @@ class ITestEmrImport
         $patients = $this->importPatients($sheets['patients'] ?? []);
         $step(20, 'consultations');
         $this->importVisits($sheets['records'] ?? [], $patients, $include['new_diagnoses'] ?? true, $include['appointments'] ?? true);
+        $step(80, 'spectacle orders');
+        $this->importSpectacles($sheets['spectacles'] ?? [], $patients);
+        $step(84, 'payments');
+        $this->importPayments($sheets['payments'] ?? [], $sheets['patients'] ?? [], $patients);
+        if ($include['balances'] ?? true) { $step(88, 'balances'); $this->importBalances($sheets['balances'] ?? [], $patients); }
         if ($include['items'] ?? true) { $step(90, 'products'); $this->importItems($sheets); }
         $step(99, 'finishing');
 
@@ -258,6 +281,7 @@ class ITestEmrImport
                     'clinic_id' => $this->clinicId, 'branch_id' => $this->branchId, 'user_id' => $user, 'patient_id' => $patient,
                     'clearance_id' => $clearance, 'created_at' => $at, 'updated_at' => $at,
                 ]);
+                $this->visitIds[$patient][$day->toDateString()] = $consultation;
 
                 foreach (array_merge($visit['medications'] ?? [], $visit['external_medications'] ?? []) as $line) {
                     [$item, $quantity] = $this->medication($line);
@@ -475,6 +499,132 @@ class ITestEmrImport
         return preg_match('/^\s*(\d{1,2}(?:\.\d+)?)\s*(mm\s*hg)?\s*$/i', (string) $value, $m) ? (float) $m[1] : null;
     }
 
+    /**
+     * Spectacle orders stay history: each is written into the notes of the patient's consultation that day
+     * (or the nearest earlier one, else the next), never onto the live Spectacle Orders board.
+     */
+    private function importSpectacles(array $rows, array $patients): void
+    {
+        foreach ($rows as $row) {
+            $patient = $patients[mb_strtolower(trim($row['Patient ID'] ?? ''))] ?? null;
+            $day = $this->date($row['Date'] ?? null);
+            if (! $patient || ! $day) { $this->skip('spectacles', $patient ? 'no date' : 'patient not in the directory file'); continue; }
+            $consultation = $this->consultationNear($patient, $day);
+            if (! $consultation) { $this->skip('spectacles', 'the patient has no visit to attach it to'); continue; }
+            $rx = fn ($v) => ($v = $this->text(preg_replace('/^\/\s*X$/', '', trim((string) $v)))) ? $v : null;
+            $parts = array_filter([
+                ($r = $rx($row['RE Rx'] ?? null)) ? 'RE '.$r : null,
+                ($r = $rx($row['LE Rx'] ?? null)) ? 'LE '.$r : null,
+                ($v = $this->text($row['Add OD'] ?? null)) ? 'Add OD '.$v : null,
+                ($v = $this->text($row['Add OS'] ?? null)) ? 'Add OS '.$v : null,
+                ($v = $this->text($row['PD'] ?? null)) ? 'PD '.$v : null,
+            ]);
+            $items = array_filter([
+                ($v = $this->text($row['Lens'] ?? null)) ? 'Lens: '.$v.(($p = $this->money($row['Lens Price'] ?? 0)) > 0 ? ' (GHS '.number_format($p, 2).')' : '') : null,
+                ($v = $this->text($row['Frame'] ?? null)) ? 'Frame: '.$v.(($p = $this->money($row['Frame Price'] ?? 0)) > 0 ? ' (GHS '.number_format($p, 2).')' : '') : null,
+            ]);
+            $note = 'Spectacle order '.trim($row['Order ID'] ?? '').' in the previous software, '.$day->format('d M Y').':'
+                .($parts ? "\nRx: ".implode('; ', $parts) : '').($items ? "\n".implode("\n", $items) : '')
+                ."\nTotal GHS ".number_format($this->money($row['Total'] ?? 0), 2)
+                .(($s = $this->text($row['Staff'] ?? null)) ? ' · recorded by '.$s : '')
+                .(($v = $this->text($row['Remarks'] ?? null)) && $v !== 'N/A' ? "\nRemarks: ".$v : '');
+            $notes = (string) DB::table('consultations')->where('id', $consultation)->value('notes');
+            DB::table('consultations')->where('id', $consultation)->update(['notes' => trim($notes."\n\n".$note)]);
+            $this->counts['spectacle orders in visit notes'] = ($this->counts['spectacle orders in visit notes'] ?? 0) + 1;
+        }
+    }
+
+    /** The patient's imported consultation on that day, else the latest before it, else the first after it. */
+    private function consultationNear(int $patient, Carbon $day): ?int
+    {
+        $visits = $this->visitIds[$patient] ?? [];
+        if (! $visits) return null;
+        $date = $day->toDateString();
+        if (isset($visits[$date])) return $visits[$date];
+        ksort($visits);
+        $before = array_filter($visits, fn ($d) => $d < $date, ARRAY_FILTER_USE_KEY);
+
+        return $before ? end($before) : reset($visits);
+    }
+
+    /**
+     * Old payments are history (patient_legacy_payments), never the books. The Cash Payment Report names the
+     * patient but gives no number, so a payment is matched by name: one patient with that name, or, when several
+     * share it, the one seen that day. Anything else is left out and counted.
+     */
+    private function importPayments(array $rows, array $directory, array $patients): void
+    {
+        if (! $rows) return;
+        $byName = $this->patientsByName($directory, fn ($p) => $patients[mb_strtolower(trim($p['Patients ID'] ?? ''))] ?? null);
+        $modes = ['CASH' => 'Cash', 'MOBILE MONEY' => 'Mobile Money', 'CHEQUE' => 'Cheque', 'ELECTRONIC CARD' => 'Card'];
+        foreach ($rows as $row) {
+            $day = $this->date($row['Date'] ?? null);
+            $amount = $this->money($row['Amount'] ?? 0);
+            if (! $day || $amount <= 0) { $this->skip('payments', 'no date or amount'); continue; }
+            $candidates = array_values(array_filter($byName[$this->nameKey($row['Patient'] ?? '')] ?? []));
+            if (count($candidates) > 1) $candidates = array_values(array_filter($candidates, fn ($id) => isset($this->visitIds[$id][$day->toDateString()])));
+            if (count($candidates) !== 1) { $this->skip('payments', $candidates ? 'name shared by several patients' : 'name not found among the patients'); continue; }
+            $mode = strtoupper(trim($row['Mode'] ?? ''));
+            $this->insert('patient_legacy_payments', [
+                'clinic_id' => $this->clinicId, 'patient_id' => $candidates[0], 'external_import_batch_id' => $this->batch->id, 'source' => self::SOURCE,
+                'paid_at' => $day->copy()->setTime(12, 0), 'amount' => $amount,
+                'payment_method' => $mode === '' ? null : ($modes[$mode] ?? Str::limit(Str::title(mb_strtolower($mode)), 40, '')),
+                'reference' => Str::limit('ITE-PAY-'.trim($row['No'] ?? ''), 100, ''),
+                'invoice_number' => null, 'notes' => null, 'recorded_by' => Str::limit($this->text($row['Taken By'] ?? null) ?? '', 150, '') ?: null,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+    }
+
+    /**
+     * What a patient still owes becomes an unpaid sale for that balance alone, dated on the old invoice so it stays
+     * out of the period the clinic works in Nexus. It shows under Outstanding balances and is collected the usual
+     * way; only the money collected then enters the books.
+     */
+    private function importBalances(array $rows, array $patients): void
+    {
+        foreach ($rows as $row) {
+            $balance = $this->money($row['Balance'] ?? 0);
+            if ($balance <= 0) continue;
+            $patient = $patients[mb_strtolower(trim($row['Patient ID'] ?? ''))] ?? null;
+            if (! $patient) { $this->skip('balances', 'patient not in the directory file'); continue; }
+            $day = $this->date($row['Date'] ?? null) ?? today();
+            $invoice = preg_replace('/[^A-Za-z0-9-]/', '', (string) ($row['Invoice'] ?? '')) ?: Str::upper(Str::random(6));
+            $reference = 'ITE-INV-'.$invoice;
+            if (DB::table('sales')->where('clinic_id', $this->clinicId)->where('transaction_id', $reference)->exists()) { $this->skip('balances', 'already brought in'); continue; }
+            $at = $day->copy()->setTime(12, 0);
+            $this->insert('sales', [
+                'clinic_id' => $this->clinicId, 'branch_id' => $this->branchId, 'user_id' => $this->ownerId, 'patient_id' => $patient,
+                'consultation_id' => $this->visitIds[$patient][$day->toDateString()] ?? null,
+                'transaction_id' => $reference, 'total_amount' => $balance, 'amount_paid' => 0, 'insurer_amount' => 0,
+                'payment_status' => 'partial', 'bill_status' => 'finalized', 'finalized_at' => $at, 'finalized_by' => $this->ownerId,
+                'profit' => 0, 'discount_amount' => 0, 'is_refunded' => 0, 'business_line' => 'clinic',
+                'created_at' => $at, 'updated_at' => $at,
+            ]);
+        }
+    }
+
+    /** lower-cased name with single spaces => list of values given by $value for each patient row. */
+    private function patientsByName(array $directory, callable $value): array
+    {
+        $map = [];
+        foreach ($directory as $p) if (($key = $this->nameKey($p['Name'] ?? '')) !== '') $map[$key][] = $value($p);
+
+        return $map;
+    }
+
+    private function nameKey(string $name): string
+    {
+        return mb_strtolower(trim(preg_replace('/[\s\x{00A0}]+/u', ' ', str_replace('.', '', $name))));
+    }
+
+    private function money($value): float
+    {
+        $value = str_replace([',', '₵', 'GHS', ' '], '', (string) $value);
+
+        return is_numeric($value) ? round((float) $value, 2) : 0.0;
+    }
+
     /** Prices (and cost where iTestEMR has it) only: every product starts at stock 0 for a fresh count at go-live. */
     private function importItems(array $sheets): void
     {
@@ -504,7 +654,18 @@ class ITestEmrImport
             $ranges = collect(['Sph Range' => 'Sph', 'Cyl Range' => 'Cyl', 'Add Range' => 'Add'])->map(fn ($l, $k) => ($v = $this->text($row[$k] ?? null)) && $v !== '0' ? $l.' '.$v : null)->filter()->implode(', ');
             $add('lenses', $name.($ranges ? ' ('.$ranges.')' : ''), 'lens', $money($row['Cost'] ?? null), $money($row['Sell'] ?? null), 'L'.($row['LensID'] ?? ''));
         }
-        foreach ($sheets['drugs'] ?? [] as $row) $add('drugs', $row['Drug Name'] ?? null, 'drug', 0, 0, 'D'.($row['#'] ?? ''));
+        // The administrator's Drug Inventory has cost and selling prices; the clinician's drug list has neither.
+        if ($sheets['drug_prices'] ?? []) {
+            foreach ($sheets['drug_prices'] as $row) $add('drug_prices', $row['Drug Name'] ?? null, 'drug', $money($row['Unit Price (₵)'] ?? null), $money($row['Selling Price (₵)'] ?? null), 'D'.($row['ID'] ?? ''));
+        } else {
+            foreach ($sheets['drugs'] ?? [] as $row) $add('drugs', $row['Drug Name'] ?? null, 'drug', 0, 0, 'D'.($row['#'] ?? ''));
+        }
+        // The price list: registration and services as services; accessories were added above with the same prices.
+        foreach ($sheets['services'] ?? [] as $row) {
+            $type = strtolower(trim($row['Type'] ?? ''));
+            if ($type === 'accessory') { $add('services', $row['Product/Service'] ?? null, 'product', 0, $money($row['Price'] ?? null), 'S'.($row['Product ID'] ?? '')); continue; }
+            $add('services', $row['Product/Service'] ?? null, 'service', 0, $money($row['Price'] ?? null), 'S'.($row['Product ID'] ?? ''));
+        }
     }
 
     /** The clinic account chosen for an iTestEMR clinician's name; the owner when none was chosen. */
