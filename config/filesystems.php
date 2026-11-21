@@ -21,6 +21,10 @@ return [
     */
     'patient_documents_disk' => env('PATIENT_DOCUMENTS_DISK'),
 
+    // Uploaded import files (another system's exports). Empty: the documents bucket when attached,
+    // otherwise the local disk (App\Support\ImportFiles).
+    'imports_disk' => env('IMPORTS_DISK'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

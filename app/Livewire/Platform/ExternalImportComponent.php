@@ -9,6 +9,7 @@ use App\Models\ExternalImportBatch;
 use App\Services\ExternalImport\CloudifyImport;
 use App\Services\ExternalImport\ExternalImportRollback;
 use App\Services\PlatformAuditService;
+use App\Support\ImportFiles;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -62,10 +63,14 @@ class ExternalImportComponent extends Component
                 'uuid' => $uuid, 'clinic_id' => $this->clinicId, 'source' => $this->source, 'status' => 'analyzed',
                 'stored_dir' => $dir, 'files' => $stored, 'created_by' => auth()->id(),
             ]);
-            $batch->analysis = $import->analyze($batch);
+            try {
+                $batch->analysis = $import->analyze($batch);
+            } finally {
+                ImportFiles::forgetCopies();
+            }
             $batch->save();
         } catch (\Throwable $e) {
-            Storage::disk('local')->deleteDirectory($dir);
+            ImportFiles::deleteDirectory($dir, [['disk' => ImportFiles::disk()]]);
             report($e);
             $this->addError('sheetFiles', $e instanceof \RuntimeException ? $e->getMessage() : 'The files could not be read. Check they are the files from '.ExternalImportBatch::SOURCES[$this->source].'.');
             return;
@@ -84,14 +89,15 @@ class ExternalImportComponent extends Component
     /** Uploaded files are kept as they are, under their own extension; a .zip contributes the files of the right kind inside it. */
     private function storeFiles(string $dir): array
     {
-        $disk = Storage::disk('local');
+        $diskName = ImportFiles::disk();
+        $disk = Storage::disk($diskName);
         $types = $this->fileTypes();
         $stored = [];
-        $add = function (string $name, $contents) use (&$stored, $dir, $disk) {
+        $add = function (string $name, $contents) use (&$stored, $dir, $disk, $diskName) {
             if (count($stored) >= self::MAX_FILES) throw new \RuntimeException('Upload at most '.self::MAX_FILES.' files at a time.');
             $path = $dir.'/'.(count($stored) + 1).'.'.strtolower(pathinfo($name, PATHINFO_EXTENSION));
             $disk->put($path, $contents);
-            $stored[] = ['name' => Str::limit(basename(str_replace('\\', '/', $name)), 150, ''), 'path' => $path];
+            $stored[] = ['name' => Str::limit(basename(str_replace('\\', '/', $name)), 150, ''), 'path' => $path, 'disk' => $diskName];
         };
         foreach ($this->sheetFiles as $file) {
             // Excel leaves a small "~$name.xlsx" lock file beside a workbook that is open; it holds no data.

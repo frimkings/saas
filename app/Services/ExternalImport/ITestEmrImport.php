@@ -141,9 +141,8 @@ class ITestEmrImport
     private function load(array $files, bool $strict): array
     {
         $sheets = $hashes = $errors = $unknown = $duplicates = [];
-        $disk = Storage::disk('local');
         foreach ($files as $i => $file) {
-            $path = $disk->path($file['path']);
+            $path = \App\Support\ImportFiles::localPath($file);
             $ext = strtolower(pathinfo($file['path'], PATHINFO_EXTENSION));
             try {
                 if (in_array($ext, ['html', 'htm'], true)) {

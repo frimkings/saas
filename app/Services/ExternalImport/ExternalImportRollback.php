@@ -65,7 +65,7 @@ class ExternalImportRollback
     /** The uploaded spreadsheets hold patient data; they are kept only until the import is done or undone. */
     public function deleteFiles(ExternalImportBatch $batch): void
     {
-        if ($batch->stored_dir) Storage::disk('local')->deleteDirectory($batch->stored_dir);
+        if ($batch->stored_dir) \App\Support\ImportFiles::deleteDirectory($batch->stored_dir, $batch->files ?? []);
         $batch->update(['files' => collect($batch->files ?? [])->map(fn ($f) => array_diff_key($f, ['path' => 1]))->all(), 'stored_dir' => null]);
     }
 }

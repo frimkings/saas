@@ -34,6 +34,7 @@ class RunExternalImport implements ShouldQueue, RunsOutsideClinicContext
         try {
             $result = $import->commit($batch, fn (int $percent, string $step) => $batch->update(['progress_percent' => $percent, 'current_step' => $step]));
         } catch (Throwable $e) {
+            \App\Support\ImportFiles::forgetCopies();
             report($e);
             $import->flush();
             $message = $e->getMessage();
@@ -49,6 +50,7 @@ class RunExternalImport implements ShouldQueue, RunsOutsideClinicContext
             return;
         }
 
+        \App\Support\ImportFiles::forgetCopies();
         $batch->update(['status' => 'completed', 'result' => $result, 'progress_percent' => 100, 'current_step' => null, 'finished_at' => now()]);
         $rollback->deleteFiles($batch);
     }

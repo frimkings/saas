@@ -81,7 +81,7 @@ class CloudifyImport
         $duplicates = [];
         foreach ($files as $i => $file) {
             try {
-                $table = $this->reader->read(Storage::disk('local')->path($file['path']));
+                $table = $this->reader->read(\App\Support\ImportFiles::localPath($file));
             } catch (\Throwable $e) {
                 $files[$i]['sheet'] = null;
                 $errors[] = $file['name'].': '.$e->getMessage();
@@ -190,7 +190,7 @@ class CloudifyImport
         $this->counts = $this->skipped = $this->tracked = [];
 
         $sheets = [];
-        foreach ($batch->files ?? [] as $file) if (! empty($file['sheet'])) $sheets[$file['sheet']] = $this->reader->read(Storage::disk('local')->path($file['path']))['rows'];
+        foreach ($batch->files ?? [] as $file) if (! empty($file['sheet'])) $sheets[$file['sheet']] = $this->reader->read(\App\Support\ImportFiles::localPath($file))['rows'];
 
         $step = function (int $percent, string $label) use ($progress) { $this->flush(); $progress && $progress($percent, $label); };
         $step(5, 'patients');

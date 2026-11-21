@@ -310,6 +310,29 @@ class ExternalImportITestEmrTest extends TestCase
         $this->assertSame(2, DB::table('patients')->count());
     }
 
+    public function test_with_a_bucket_attached_the_files_live_in_the_bucket_so_any_server_can_import(): void
+    {
+        config()->set('filesystems.disks.documents', ['driver' => 's3', 'bucket' => 'clinic-documents']);
+        Storage::fake('documents');
+
+        $this->checked();
+        $batch = ExternalImportBatch::sole();
+        $this->assertSame(['documents'], collect($batch->files)->pluck('disk')->unique()->values()->all());
+        $this->assertNotEmpty(Storage::disk('documents')->allFiles($batch->stored_dir));
+        $this->assertSame([], Storage::disk('local')->allFiles(), 'Nothing is left on the server that checked the files.');
+        $this->assertSame(2, $batch->analysis['patients']['total'], 'The check read the files back from the bucket.');
+
+        Livewire::actingAs($this->admin)->test(ExternalImportComponent::class)->call('selectBatch', $batch->id)
+            ->set('staff.'.md5('name:dr. isaac asare poku'), (string) $this->doctor->id)
+            ->set('confirmation', 'IMPORT hope-eyes')->call('startImport')->assertHasNoErrors();
+
+        $batch->refresh();
+        $this->assertSame('completed', $batch->status, (string) $batch->error);
+        $this->assertSame(2, DB::table('patients')->where('clinic_id', $this->clinic->id)->count());
+        $this->assertSame([], Storage::disk('documents')->allFiles('external-imports'), 'The bucket copy is removed after the import.');
+        $this->assertSame([], Storage::disk('local')->allFiles(), 'The temporary copies made for reading are removed.');
+    }
+
     public function test_undo_removes_exactly_what_was_imported(): void
     {
         $diagnoses = DB::table('diagnoses')->count();
