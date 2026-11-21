@@ -164,6 +164,41 @@
                         <a wire:navigate href="{{ route('optical.partners') }}" class="text-xs text-teal-700 underline">Manage partner clinics</a>
                     </div>
                     @error('partner_id') <p class="mt-1 text-xs text-red-600">Select a partner clinic from the search results.</p> @enderror
+                    @if($lookupPartners->isNotEmpty())
+                        <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3" data-tour="order-linked-lookup">
+                            <p class="!mb-2 text-xs font-bold text-slate-700">Patient of a linked clinic, without a paper Rx?</p>
+                            <form wire:submit="findLinkedPatient" class="flex flex-wrap items-end gap-2">
+                                <label class="text-xs"><span class="block text-slate-600">Clinic</span>
+                                    <select wire:model="lookupPartnerId" class="ui-input !w-48 text-xs" aria-label="Linked clinic to look up">
+                                        <option value="">Choose…</option>
+                                        @foreach($lookupPartners as $lookupPartner)<option value="{{ $lookupPartner->id }}">{{ $lookupPartner->name }}</option>@endforeach
+                                    </select></label>
+                                <label class="text-xs"><span class="block text-slate-600">Full phone or patient number</span>
+                                    <input type="search" wire:model="lookupQuery" class="ui-input !w-56 text-xs" placeholder="e.g. 0244123456 or VS-2611-042" autocomplete="off"></label>
+                                <button type="submit" class="ui-button ui-button-secondary !min-h-9 text-xs">Find</button>
+                            </form>
+                            @error('lookupQuery')<p class="mt-1 !mb-0 text-xs text-red-600" role="alert">{{ $message }}</p>@enderror
+                            @if(is_array($lookupResults))
+                                <div class="mt-2 space-y-1">
+                                    @forelse($lookupResults as $found)
+                                        <div class="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-xs" wire:key="lookup-{{ $loop->index }}">
+                                            <span><b>{{ $found['patient'] }}</b> · {{ $found['number'] ?: 'no number' }}
+                                                @if($found['refraction_id']) · Rx {{ $found['date'] }}@if($found['doctor']) by {{ $found['doctor'] }}@endif
+                                                    <span class="text-slate-500">(R {{ $found['rx']['od']['sph'] ?? '–' }}/{{ $found['rx']['od']['cyl'] ?? '–' }}×{{ $found['rx']['od']['axis'] ?? '–' }} · L {{ $found['rx']['os']['sph'] ?? '–' }}/{{ $found['rx']['os']['cyl'] ?? '–' }}×{{ $found['rx']['os']['axis'] ?? '–' }})</span>
+                                                @else · <span class="text-slate-500">no prescription authorised for glasses</span>@endif
+                                            </span>
+                                            @if($found['refraction_id'] && ! $found['blocked'])
+                                                <button type="button" class="ui-button ui-button-primary !min-h-8 text-xs" wire:click="useLinkedPrescription({{ $found['refraction_id'] }})" wire:confirm="Start an order for {{ $found['patient'] }} from this prescription? It goes on the clinic's account and they see it under Sent to Optical.">Use this Rx</button>
+                                            @elseif($found['blocked'])<span class="text-amber-700">{{ $found['blocked'] }}</span>@endif
+                                        </div>
+                                    @empty
+                                        <p class="!mb-0 text-xs text-slate-500">Nobody at that clinic has that phone or patient number.</p>
+                                    @endforelse
+                                </div>
+                            @endif
+                            <p class="!mb-0 mt-1 text-[11px] text-slate-500">Only clinics whose owner allows it. Each lookup is recorded in that clinic's audit trail.</p>
+                        </div>
+                    @endif
                 </div>
 
                 <div id="patient-requester-panel" class="md:col-span-9" style="{{ $order_source === 'in_clinic' ? '' : 'display:none' }}">

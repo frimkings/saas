@@ -334,7 +334,8 @@ class ClinicPlanTiersTest extends TestCase
         $this->assertSame(1000, $sms->balance($this->clinic->id));
         $sms->grantYearlyPlanSms($yearly->fresh('subscription.plan'));
         $this->assertSame(1000, $sms->balance($this->clinic->id));
-        $this->assertSame([30, 300, 1000, 2000], array_values(ClinicalSuitePlans::YEARLY_SMS));
+        // Clinic + Optical (21 Nov 2026) comes with Pro's 2,000.
+        $this->assertSame([30, 300, 1000, 2000, 2000], array_values(ClinicalSuitePlans::YEARLY_SMS));
     }
 
     public function test_the_approvals_page_still_handles_password_resets_without_approvals(): void

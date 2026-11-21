@@ -464,6 +464,8 @@
             <div class="addon"><b>SMS credits</b><span>Buy as you need them for reminders, receipts and campaigns. They never expire.</span></div>
             <div class="addon"><b>Staff attendance</b><span>Fingerprint and face terminals, leave, rosters and payroll, from {{ $currency }} {{ $fmt($attendance['sizes'][$attFirst]) }} a month for up to {{ $attFirst }} staff.</span><button type="button" class="foot-link" data-product-link="attendance" data-close>See attendance prices →</button></div>
             @php($opticalPlan = \App\Support\Pricing\ClinicalSuitePlans::opticalPlan())
+            @php($combinedPlan = \App\Support\Pricing\ClinicalSuitePlans::combinedPlanOnSale())
+            @if($combinedPlan)<div class="addon" data-combined-plan><b>{{ $combinedPlan->name }}</b><span>The clinic and your own optical shop in one account: everything in Clinic Pro plus the Optical Suite, {{ $combinedPlan->currency ?: $currency }} {{ $fmt((float) $combinedPlan->base_price) }} a month.</span></div>@endif
             <div class="addon"><b>Optical shop</b><span>Orders, lab, POS and optical stock for an optical shop{{ $opticalPlan ? ', ' . ($opticalPlan->currency ?: $currency) . ' ' . $fmt((float) $opticalPlan->base_price) . ' a month' : '. Ask us for a price' }}.</span></div>
         </div>
         </div>

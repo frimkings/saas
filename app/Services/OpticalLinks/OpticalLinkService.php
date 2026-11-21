@@ -290,17 +290,198 @@ class OpticalLinkService
 
     /**
      * The optical centre cancels the job the clinic asked to cancel: its order is cancelled (stock back, nothing
-     * billed) and the patient is back in the clinic's To order list.
+     * billed) and the patient is back in the clinic's To order list. With $charge, work already done is paid for:
+     * the job is stopped but counts as finished, its full price stays on the clinic's account (21 Nov 2026).
      */
-    public function acceptCancel(OpticalOrderRequest $request, User $by): void
+    public function acceptCancel(OpticalOrderRequest $request, User $by, bool $charge = false): void
     {
         $request = $this->incomingRequest($request->id);
         abort_unless($request->cancelPending() && $request->lens_order_id, 422, 'There is no cancel request waiting on this job.');
+        if ($charge) {
+            $this->stopAndCharge($request, $by);
+            return;
+        }
         // The usual cancel: refuses a collected job or one with payments still on it (refund those first).
         app(\App\Services\OpticalOrderWorkflowService::class)->cancel((int) $request->lens_order_id);
         $request->refresh()->forceFill(['status' => 'cancelled', 'cancel_answered_at' => now(), 'status_updated_at' => now(), 'handled_by' => $by->id])->save();
         AuditTrail::record('optical.cancel_accepted', 'Cancelled job '.$request->order_number.' for '.$request->senderLabel().' at their request',
             null, [], ['request_id' => $request->id]);
+    }
+
+    /**
+     * Stop the job and charge it as finished: no more lab work, nothing goes back to stock (it was used for this
+     * patient), no warranty, and the order's full price stays on the clinic's account like any finished job.
+     */
+    private function stopAndCharge(OpticalOrderRequest $request, User $by): void
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        DB::transaction(function () use ($request, $by) {
+            $order = LensOrder::lockForUpdate()->findOrFail((int) $request->lens_order_id);
+            if (in_array($order->status, ['Quotation', 'Cancelled', 'Collected'], true)) {
+                throw ValidationException::withMessages(['order' => 'Only a job that has started can be stopped and charged.']);
+            }
+            $was = $order->status;
+            $reason = 'Stopped at '.$request->senderLabel()."'s request (".$request->cancel_request_reason.'); charged as a finished job for the work done.';
+            $order->forceFill(['status' => 'Collected', 'status_changed_at' => now(), 'collected_at' => now(), 'cancellation_reason' => $reason])->save();
+            $request->refresh()->forceFill(['cancel_answered_at' => now(), 'cancel_charged_at' => now(), 'status_updated_at' => now(), 'handled_by' => $by->id])->save();
+            AuditTrail::record('optical.cancel_charged', 'Stopped job '.$order->order_id.' for '.$request->senderLabel().' at their request and charged '
+                .currency().' '.number_format((float) $order->total, 2).' for the work done', $order, ['status' => $was], ['status' => 'Collected', 'charged' => (float) $order->total], null, true);
+        });
+    }
+
+    /* ---------------------------------------------------------------- patient lookup (21 Nov 2026) */
+
+    /** Clinic owner: let this optical centre look up our patients, or stop it. Off until turned on. */
+    public function setPatientLookup(int $partnerId, bool $on, User $by): OpticalPartnerClinic
+    {
+        abort_unless(self::isOwner($by), 403, 'Only the clinic owner can change this.');
+        app(ClinicAccessService::class)->assertWritable();
+        $partner = $this->linksForSender()->firstWhere('id', $partnerId);
+        abort_unless($partner, 404);
+        $partner->forceFill(['patient_lookup_at' => $on ? now() : null, 'patient_lookup_by' => $on ? $by->id : null])->save();
+        AuditTrail::record('optical.patient_lookup_'.($on ? 'on' : 'off'), ($on ? 'Let ' : 'Stopped ').$partner->clinic?->name.($on ? ' look up our patients by phone or patient number' : ' looking up our patients'),
+            null, [], ['partner_id' => $partner->id], null, true);
+
+        return $partner;
+    }
+
+    public static function isOwner(?User $user): bool
+    {
+        return $user !== null && $user->getRoleNames()->contains(\App\Support\Access\RoleMap::OWNER);
+    }
+
+    /** Optical side: the linked partners whose clinic lets us look up patients. */
+    public function lookupPartners(): Collection
+    {
+        return OpticalPartnerClinic::where('is_active', true)->whereNotNull('patient_lookup_at')->orderBy('name')->get()
+            ->filter(fn (OpticalPartnerClinic $partner) => $partner->allowsPatientLookup())->values();
+    }
+
+    /**
+     * Optical side: find a linked clinic's patient by full phone number or patient number (exact, never a list to
+     * browse) with their latest prescription authorised for glasses. Each lookup goes in the clinic's audit trail.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function lookupPatients(int $partnerId, string $query, User $by): array
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $partner = $this->lookupPartner($partnerId);
+        $query = trim($query);
+        $digits = preg_replace('/\D+/', '', $query);
+        if (mb_strlen($query) < 4) throw ValidationException::withMessages(['lookupQuery' => 'Enter the full phone number or patient number.']);
+
+        $patients = \App\Models\Patient::withoutGlobalScopes()->where('clinic_id', $partner->linked_clinic_id)
+            ->where(function ($where) use ($query, $digits) {
+                $where->where('pxnumber', $query);
+                if (strlen($digits) >= 9) {
+                    // The same number written as 024…, +23324… or 23324…: compare the last nine digits.
+                    $where->orWhereRaw("RIGHT(REGEXP_REPLACE(COALESCE(contact, ''), '[^0-9]', ''), 9) = ?", [substr($digits, -9)]);
+                }
+            })->orderBy('name')->limit(5)->get();
+
+        $results = $patients->map(function ($patient) use ($partner) {
+            $refraction = Refractions::withoutGlobalScopes()->where('clinic_id', $partner->linked_clinic_id)
+                ->where('dispensing_required', true)->whereNotNull('dispensing_authorized_at')
+                ->whereIn('consultation_id', \App\Models\Consultations::withoutGlobalScopes()->where('patient_id', $patient->id)->select('id'))
+                ->latest('dispensing_authorized_at')->first();
+            $doctorId = $refraction ? \App\Models\Consultations::withoutGlobalScopes()->whereKey($refraction->consultation_id)->value('user_id') : null;
+
+            return [
+                'patient' => $patient->name, 'number' => $patient->pxnumber, 'phone' => $patient->contact,
+                'refraction_id' => $refraction?->id, 'date' => $refraction?->dispensing_authorized_at?->format('d M Y'),
+                'doctor' => $doctorId ? User::whereKey($doctorId)->value('name') : null,
+                'rx' => $refraction ? self::rxFromRefraction($refraction) : null,
+                'blocked' => $refraction ? $this->lookupBlocker($partner, $refraction) : null,
+            ];
+        })->values()->all();
+
+        $this->recordInClinic($partner, 'optical.patient_lookup', $partner->clinic?->name.' ('.$by->name.') looked up "'.$query.'": '
+            .(count($results) ? count($results).' found' : 'nobody found'), ['query' => $query, 'found' => count($results)]);
+
+        return $results;
+    }
+
+    /**
+     * Optical side: start a job from a looked-up prescription. It becomes the clinic's order sent to us (they see it
+     * under Sent to Optical and it goes on their account), then the order form opens on it as for any linked job.
+     */
+    public function requestFromLookup(int $partnerId, int $refractionId, User $by): OpticalOrderRequest
+    {
+        app(ClinicAccessService::class)->assertWritable('optical');
+        $partner = $this->lookupPartner($partnerId);
+        $refraction = Refractions::withoutGlobalScopes()->where('clinic_id', $partner->linked_clinic_id)
+            ->where('dispensing_required', true)->whereNotNull('dispensing_authorized_at')->findOrFail($refractionId);
+        $patient = \App\Models\Patient::withoutGlobalScopes()->findOrFail(
+            \App\Models\Consultations::withoutGlobalScopes()->whereKey($refraction->consultation_id)->value('patient_id'));
+        if ($blocked = $this->lookupBlocker($partner, $refraction)) throw ValidationException::withMessages(['lookupQuery' => $blocked]);
+        $owed = OpticalLinkTermsService::owed($partner);
+        if (OpticalLinkTermsService::overLimit($partner, $owed)) {
+            throw ValidationException::withMessages(['lookupQuery' => $partner->name.' owes '.currency().' '.number_format($owed, 2).', at its credit limit with you. They pay before new jobs.']);
+        }
+
+        $request = OpticalOrderRequest::create([
+            'sender_clinic_id' => $partner->linked_clinic_id,
+            'sender_branch_id' => $refraction->branch_id,
+            'sent_by' => $by->id,
+            'optical_clinic_id' => $partner->clinic_id,
+            'optical_partner_clinic_id' => $partner->id,
+            'refraction_id' => $refraction->id,
+            'sender_reference' => $patient->pxnumber,
+            'patient_name' => $patient->name,
+            'patient_phone' => $patient->contact,
+            'rx' => self::rxFromRefraction($refraction),
+            'lens_type' => $refraction->lensType,
+            'frame_choice' => 'patient_chooses',
+            'urgency' => 'normal',
+            'notes' => 'Started at '.($partner->clinic?->name ?? 'the optical centre').' by '.$by->name.' from a patient lookup.',
+            'status' => 'sent',
+            'source' => 'lookup',
+            'status_updated_at' => now(),
+        ]);
+        $this->recordInClinic($partner, 'optical.lookup_order', $partner->clinic?->name.' ('.$by->name.') started a spectacle order for '.$patient->name
+            .' from your prescription of '.$refraction->dispensing_authorized_at?->format('d M Y'), ['request_id' => $request->id], $patient->id);
+        AuditTrail::record('optical.lookup_order', 'Started a job for '.$patient->name." from {$partner->name}'s records", null, [], ['request_id' => $request->id], null, true);
+
+        return $request;
+    }
+
+    private function lookupPartner(int $partnerId): OpticalPartnerClinic
+    {
+        $partner = $this->lookupPartners()->firstWhere('id', $partnerId);
+        if (! $partner) throw ValidationException::withMessages(['lookupQuery' => 'This clinic has not let you look up its patients. Its owner turns it on under Optical Centres.']);
+
+        return $partner;
+    }
+
+    /** Why this prescription can't be ordered from here: already ordered or sent somewhere, in the clinic's records. */
+    private function lookupBlocker(OpticalPartnerClinic $partner, Refractions $refraction): ?string
+    {
+        $clinicId = (int) $partner->linked_clinic_id;
+        $frontDesk = LensOrder::withoutGlobalScopes()->where('clinic_id', $clinicId)->where('refraction_id', $refraction->id)
+            ->where('status', '!=', 'Cancelled')->exists();
+        $suite = LensOrder::withoutGlobalScopes()->where('clinic_id', $clinicId)->whereNotIn('status', ['Cancelled', 'Quotation'])
+            ->whereIn('optical_prescription_id', \App\Models\OpticalPrescription::withoutGlobalScopes()->where('refraction_id', $refraction->id)->select('id'))->exists();
+        if ($frontDesk || $suite) return 'The clinic has already ordered glasses for this prescription.';
+        $sent = OpticalOrderRequest::forSender($clinicId)->where('refraction_id', $refraction->id)->where('kind', 'order')
+            ->whereIn('status', OpticalOrderRequest::ACTIVE)->whereNull('order_cancelled_at')->exists();
+
+        return $sent ? 'This prescription has already been sent to an optical centre.' : null;
+    }
+
+    /** A line in the linked clinic's own audit trail (lookups are always recorded there, whatever its plan). */
+    private function recordInClinic(OpticalPartnerClinic $partner, string $event, string $description, array $values, ?int $patientId = null): void
+    {
+        if (\App\Support\SupportSession::active()) return;
+        $row = new AuditTrail;
+        $row->forceFill([
+            'clinic_id' => $partner->linked_clinic_id,
+            'branch_id' => \App\Models\Branch::withoutGlobalScopes()->where('clinic_id', $partner->linked_clinic_id)->orderByDesc('is_default')->orderBy('id')->value('id'),
+            'user_id' => auth()->id(), 'patient_id' => $patientId, 'event' => $event, 'description' => $description,
+            'new_values' => $values, 'ip_address' => request()?->ip(), 'user_agent' => substr(strip_tags((string) request()?->userAgent()), 0, 500),
+        ]);
+        // Saved without the tenant hooks, which would stamp the optical centre's clinic on it.
+        AuditTrail::withoutEvents(fn () => $row->save());
     }
 
     /** The optical centre keeps the job (work too far along, say) and tells the clinic why. */

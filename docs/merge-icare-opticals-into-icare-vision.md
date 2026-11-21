@@ -38,9 +38,9 @@ every Optical and Clinic page opened on the merged account.
    It must end with "Dry run only". If it stops ("Stopped, nothing changed: …"), don't go on; send me the message.
    The numbers should be close to the rehearsal above, plus anything the shop did since.
 4. **Merge**: `php artisan clinics:merge-optical-shop 18 7 --commit`, then `php artisan cache:clear`.
-5. **Plan**: Platform → Plans, create the custom **Clinic + Optical** plan for ICARE VISION at the agreed price
-   (the clinic plan's features plus the optical ones), and move ICARE VISION onto it. Until then the moved optical
-   records are there but the Optical Suite is hidden.
+5. **Plan**: run `php artisan pricing:clinical-suite` (creates the **Clinic + Optical** plan, GHS 500 a month, decided
+   21 Nov 2026), then on Platform move ICARE VISION onto it. Until then the moved optical records are there but the
+   Optical Suite is hidden.
 6. **Retire ICARE OPTICALS**: on Platform, stop its renewal (30 Nov) and close its open invoices / collection cases so no
    debt builds up, then suspend the account. Its history stays on record.
 7. **Check** as an ICARE VISION manager: Optical → Orders (the shop's FINNEY / MILLENIUM jobs are there with their

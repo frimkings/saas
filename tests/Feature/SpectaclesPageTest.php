@@ -135,8 +135,13 @@ class SpectaclesPageTest extends TestCase
         $this->assertFalse(\App\Models\Refractions::awaitingSpectacleOrder()->whereKey($refraction->id)->exists());
 
         // Cancel it (with a reason): it stays as history, and the patient is back in To order.
-        $page->call('openCancelConfirm', $first->id)->set('cancelReason', 'Patient changed frame')->call('confirmCancelOrder')->assertHasNoErrors();
+        // 21 Nov 2026: the POS sale, its lines and payments are left exactly as they were (a refund is done at the POS).
+        $sale = \App\Models\Sales::where('consultation_id', $refraction->consultation_id)->sole();
+        $before = [$sale->total_amount, $sale->amount_paid, $sale->payment_status, $sale->items()->count()];
+        $page->call('openCancelConfirm', $first->id)->assertSeeHtml('data-cancel-pos-note')->set('cancelReason', 'Patient changed frame')->call('confirmCancelOrder')->assertHasNoErrors();
         $this->assertSame('Cancelled', $first->fresh()->status);
+        $sale->refresh();
+        $this->assertEquals($before, [$sale->total_amount, $sale->amount_paid, $sale->payment_status, $sale->items()->count()]);
         $this->assertTrue(\App\Models\Refractions::awaitingSpectacleOrder()->whereKey($refraction->id)->exists());
         $page->call('setRecordType', 'refractions')->assertSee('Reorder Patient')->assertSee("Order {$first->order_id} was cancelled")
             ->assertSeeHtml("openOrderModal({$refraction->id})");

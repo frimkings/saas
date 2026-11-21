@@ -71,6 +71,15 @@ class OpticalCentresComponent extends Component
             : 'Quotes up to '.currency().' '.number_format((float) $value, 2).' are now approved automatically, and the job starts at once.');
     }
 
+    /** Owner only: let a linked optical centre look up our patients by phone or patient number, or stop it. */
+    public function setPatientLookup(int $partnerId, bool $on): void
+    {
+        $partner = app(OpticalLinkService::class)->setPatientLookup($partnerId, $on, auth()->user());
+        session()->flash('success', $on
+            ? $partner->clinic?->name.' can now look up your patients by full phone or patient number. Every lookup is in your audit trail.'
+            : $partner->clinic?->name.' can no longer look up your patients.');
+    }
+
     public function render()
     {
         $invite = $this->previewInviteId ? OpticalLinkInvite::with('opticalClinic')->find($this->previewInviteId) : null;
@@ -80,6 +89,7 @@ class OpticalCentresComponent extends Component
             'invite' => $invite,
             'invitePartner' => $invite ? OpticalPartnerClinic::withoutGlobalScopes()->find($invite->optical_partner_clinic_id) : null,
             'service' => app(OpticalLinkService::class),
+            'isOwner' => OpticalLinkService::isOwner(auth()->user()),
         ])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

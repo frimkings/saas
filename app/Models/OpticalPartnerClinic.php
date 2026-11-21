@@ -20,7 +20,7 @@ class OpticalPartnerClinic extends Model
     protected $casts = ['is_active' => 'boolean', 'linked_at' => 'datetime', 'terms_updated_at' => 'datetime',
         'trade_lens_pct' => 'float', 'trade_frame_pct' => 'float', 'trade_service_pct' => 'float',
         'credit_limit' => 'float', 'auto_approve_limit' => 'float', 'link_paused_by_platform' => 'boolean',
-        'page_pin_set_at' => 'datetime', 'page_locked_until' => 'datetime', 'page_last_used_at' => 'datetime', 'page_show_prices' => 'boolean'];
+        'page_pin_set_at' => 'datetime', 'page_locked_until' => 'datetime', 'page_last_used_at' => 'datetime', 'page_show_prices' => 'boolean', 'patient_lookup_at' => 'datetime'];
 
     // The ordering-page secret and PIN never leave the server in arrays or JSON.
     protected $hidden = ['page_token', 'page_pin_hash'];
@@ -72,6 +72,12 @@ class OpticalPartnerClinic extends Model
     public function hasLink(): bool
     {
         return $this->linked_clinic_id !== null && in_array($this->link_status, ['active', 'paused'], true);
+    }
+
+    /** The linked clinic's owner lets this optical centre look up its patients (off until they turn it on). */
+    public function allowsPatientLookup(): bool
+    {
+        return $this->isLinked() && ! $this->link_paused_by_platform && $this->patient_lookup_at !== null;
     }
 
     /** Number that receives job messages: the notification phone, else the main phone. */

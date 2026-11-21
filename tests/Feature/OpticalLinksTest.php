@@ -250,6 +250,99 @@ class OpticalLinksTest extends TestCase
         $this->assertSame('sent', $again->status);
     }
 
+    /** 21 Nov 2026: work already done is still paid for: the job stops, counts as finished and stays on the clinic's account. */
+    public function test_the_centre_stops_a_job_the_clinic_asked_to_cancel_and_still_charges_it(): void
+    {
+        $partner = $this->linked();
+        $job = $this->acceptedJob($partner, 300);
+        $this->as('clinic');
+        Livewire::test(SentToOpticalComponent::class)->call('setTab', 'accepted')->call('startCancelAsk', $job->id)
+            ->assertSee('may stop the job and still charge you');
+        app(OpticalLinkService::class)->askCancel($job, 'Patient travelled', auth()->user());
+
+        $this->as('optical');
+        Livewire::test(IncomingRequestsComponent::class)->call('open', $job->id)->assertSee('Stop &amp; charge', false)
+            ->call('stopAndCharge')->assertHasNoErrors();
+        $job->refresh();
+        $order = LensOrder::withoutGlobalScopes()->findOrFail($job->lens_order_id);
+        $this->assertSame(['accepted', 'Collected'], [$job->status, $order->status]);
+        $this->assertNotNull($job->cancel_charged_at);
+        $this->assertFalse($job->cancelPending());
+        $this->assertNull($order->warranty_expires_at);
+        $this->assertStringContainsString('Patient travelled', $order->cancellation_reason);
+        // On both sides' books: the centre's partner account and what the clinic owes.
+        $this->assertSame(300.0, app(\App\Services\OpticalPartnerAccountService::class)->balance($partner->fresh()));
+        $this->assertSame(300.0, \App\Services\OpticalLinks\OpticalLinkTermsService::owed($partner->fresh()));
+
+        $this->as('clinic');
+        Livewire::test(SentToOpticalComponent::class)->call('setTab', 'accepted')->assertSee('stopped the job at your request');
+        // Charged as finished: the prescription stays with this job, it is not free to send again.
+        $this->assertNotNull(app(OpticalLinkService::class)->openRequestFor($job->refraction_id));
+    }
+
+    /** 21 Nov 2026: the clinic owner lets a linked optical centre find a patient by exact phone or number; each lookup is logged. */
+    public function test_a_linked_centre_looks_up_a_patient_only_once_the_owner_allows_it(): void
+    {
+        $partner = $this->linked();
+        $refraction = $this->refraction();
+        $clinicId = $this->clinics['clinic'][0]->id;
+
+        // Off by default: the order form doesn't offer it and the service refuses.
+        $this->as('optical');
+        Livewire::test(OpticalOrderCreateComponent::class)->assertDontSee('Patient of a linked clinic');
+        try {
+            app(OpticalLinkService::class)->lookupPatients($partner->id, '0201234567', auth()->user());
+            $this->fail('A lookup before the owner allows it must be refused.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('has not let you', $e->validator->errors()->first('lookupQuery'));
+        }
+
+        // Only the owner turns it on.
+        [$clinic, $branch] = $this->clinics['clinic'];
+        $this->as('clinic', $this->staff($clinic, $branch, 'Manager', 'Clinic manager'));
+        try {
+            app(OpticalLinkService::class)->setPatientLookup($partner->id, true, auth()->user());
+            $this->fail('Only the owner may allow lookups.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            $this->assertSame(403, $e->getStatusCode());
+        }
+        $this->as('clinic');
+        Livewire::test(\App\Livewire\Secretary\OpticalCentresComponent::class)->assertSee('Patient lookup')->call('setPatientLookup', $partner->id, true)->assertHasNoErrors();
+        $this->assertNotNull($partner->fresh()->patient_lookup_at);
+
+        // The centre finds her by the phone written another way; partial numbers or names find nothing.
+        $this->as('optical');
+        $form = Livewire::test(OpticalOrderCreateComponent::class)->assertSee('Patient of a linked clinic')
+            ->set('lookupPartnerId', $partner->id)->set('lookupQuery', '+233 20 123 4567')->call('findLinkedPatient')->assertHasNoErrors();
+        $found = $form->get('lookupResults');
+        $this->assertCount(1, $found);
+        $this->assertSame(['Ama Mensah', $refraction->id, null], [$found[0]['patient'], $found[0]['refraction_id'], $found[0]['blocked']]);
+        $this->assertSame(-1.25, (float) $found[0]['rx']['od']['sph']);
+        $this->assertSame([], app(OpticalLinkService::class)->lookupPatients($partner->id, 'Ama Mensah', auth()->user()));
+        $this->assertSame([], app(OpticalLinkService::class)->lookupPatients($partner->id, '01234567', auth()->user()));
+
+        // Every lookup is in the clinic's own audit trail.
+        $this->assertSame(3, \App\Models\AuditTrail::withoutGlobalScopes()->where('clinic_id', $clinicId)->where('event', 'optical.patient_lookup')->count());
+
+        // Use this Rx: it becomes the clinic's order to the centre, and the form opens on it.
+        $form->call('useLinkedPrescription', $refraction->id)->assertHasNoErrors();
+        $request = OpticalOrderRequest::where('refraction_id', $refraction->id)->sole();
+        $form->assertRedirect(route('optical.orders.create', ['request_id' => $request->id]));
+        $this->assertSame([$clinicId, 'sent', 'lookup', 'Ama Mensah'], [(int) $request->sender_clinic_id, $request->status, $request->source, $request->patient_name]);
+        $this->assertTrue(\App\Models\AuditTrail::withoutGlobalScopes()->where('clinic_id', $clinicId)->where('event', 'optical.lookup_order')->exists());
+
+        // Now sent: a second time is refused, and the clinic sees it under Sent to Optical.
+        $again = app(OpticalLinkService::class)->lookupPatients($partner->id, '0201234567', auth()->user());
+        $this->assertSame('This prescription has already been sent to an optical centre.', $again[0]['blocked']);
+        $this->as('clinic');
+        Livewire::test(SentToOpticalComponent::class)->assertSee('Ama Mensah');
+
+        // The owner turns it off again.
+        Livewire::test(\App\Livewire\Secretary\OpticalCentresComponent::class)->call('setPatientLookup', $partner->id, false);
+        $this->as('optical');
+        $this->assertTrue(app(OpticalLinkService::class)->lookupPartners()->isEmpty());
+    }
+
     /** 20 Nov 2026: one menu link (Optical Centres) for Sent, Owed and the centres page, which share a tab bar. */
     public function test_one_menu_link_opens_the_three_optical_tabs(): void
     {

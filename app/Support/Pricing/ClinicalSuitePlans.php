@@ -42,6 +42,28 @@ class ClinicalSuitePlans
 
     public const RETIRED_OPTICAL_FAMILY = 'optical-shop';
 
+    /**
+     * Clinic + Optical (decided 21 Nov 2026): one account running the clinic and its own optical shop, GHS 500 a month
+     * (Clinic Pro 320 + Standard Optical 250 would be 570). Everything in Clinic Pro plus the whole Optical Suite and
+     * backups; staff attendance is not in it (an add-on, as for every plan). Unlimited users, 2 GB of scan storage,
+     * each extra branch costs the same as the plan, yearly is twelve months with Pro's 2,000 SMS. An optical shop or a
+     * clinic that moves onto it gets the other side at once (upgrades apply straight away). Kept when other optical
+     * plans are retired.
+     */
+    public const COMBINED_FAMILY = 'clinic-optical';
+
+    public static function combinedPlan(): array
+    {
+        return ['name' => 'Clinic + Optical', 'price' => 500, 'users' => null, 'storage_mb' => 2048,
+            'extras' => [...self::PRO, Feature::MANUAL_BACKUP, Feature::SCHEDULED_BACKUPS]];
+    }
+
+    /** The Clinic + Optical plan on sale, if this platform has it. */
+    public static function combinedPlanOnSale(): ?\App\Models\SubscriptionPlan
+    {
+        return \App\Models\SubscriptionPlan::where('family_code', self::COMBINED_FAMILY)->where('is_active', true)->orderByDesc('version')->first();
+    }
+
     /** The optical plan on sale: the newest active Standard Optical version (the pricing page shows its price). */
     public static function opticalPlan(): ?\App\Models\SubscriptionPlan
     {
@@ -64,7 +86,8 @@ class ClinicalSuitePlans
         $retired = [];
         foreach (\App\Models\SubscriptionPlan::where('is_active', true)->get() as $plan) {
             $product = $plan->product ?: PlanProduct::productOf($plan->features);
-            if (! in_array($product, [PlanProduct::OPTICAL, PlanProduct::BOTH], true) || $plan->id === $keep || in_array($plan->id, $inUse, true)) continue;
+            if (! in_array($product, [PlanProduct::OPTICAL, PlanProduct::BOTH], true) || $plan->id === $keep || in_array($plan->id, $inUse, true)
+                || $plan->family_code === self::COMBINED_FAMILY) continue;
             $plan->update(['is_active' => false, 'retired_at' => now()]);
             $retired[] = "{$plan->name} ({$plan->code})";
         }
@@ -73,7 +96,7 @@ class ClinicalSuitePlans
     }
 
     /** Paying yearly costs twelve months (no free months) and adds these SMS credits to the clinic's wallet, by plan family. */
-    public const YEARLY_SMS = ['clinic-starter' => 30, 'clinic-standard' => 300, 'clinic-plus' => 1000, 'clinic-pro' => 2000];
+    public const YEARLY_SMS = ['clinic-starter' => 30, 'clinic-standard' => 300, 'clinic-plus' => 1000, 'clinic-pro' => 2000, self::COMBINED_FAMILY => 2000];
 
     /** Plans once sold on the page and no longer: retired by `pricing:clinical-suite`, kept for their clinics. */
     public const RETIRED = ['clinic-essential'];

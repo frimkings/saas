@@ -721,15 +721,17 @@
             <header class="so-modal-header danger">
                 <div>
                     <span>Cancel order</span>
-                    <h2>Restore stock and close order?</h2>
+                    <h2>Close this order?</h2>
                 </div>
                 <button type="button" wire:click="closeCancelConfirm" class="so-close-btn" aria-label="Close"><i class="fas fa-times"></i></button>
             </header>
             <div class="so-modal-body">
                 <label class="so-form-field">
                     <span>Reason</span>
-                    <textarea aria-label="Optional cancellation reason" wire:model="cancelReason" rows="3" placeholder="Optional cancellation reason"></textarea>
+                    <textarea aria-label="Why the order is cancelled" wire:model="cancelReason" rows="3" placeholder="Why is it cancelled?"></textarea>
                 </label>
+                @error('cancelReason')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                <p class="!mb-0 mt-2 text-xs text-slate-600" data-cancel-pos-note>The POS sale and its payments are not changed. If money must go back, refund it at the POS. The patient returns to To order.</p>
             </div>
             <footer class="so-modal-footer">
                 <button type="button" wire:click="closeCancelConfirm" class="so-btn so-btn-light">Keep Order</button>

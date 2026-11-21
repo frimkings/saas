@@ -45,7 +45,7 @@ class OpticalOrderRequest extends Model
     protected $casts = ['rx' => 'array', 'lens_choice' => 'array', 'status_updated_at' => 'datetime', 'quote_lines' => 'array', 'quote_total' => 'decimal:2',
         'quote_valid_until' => 'date', 'quoted_at' => 'datetime', 'approved_at' => 'datetime', 'order_total' => 'decimal:2',
         'order_paid' => 'decimal:2', 'order_cancelled_at' => 'datetime', 'auto_approved' => 'boolean',
-        'cancel_requested_at' => 'datetime', 'cancel_answered_at' => 'datetime'];
+        'cancel_requested_at' => 'datetime', 'cancel_answered_at' => 'datetime', 'cancel_charged_at' => 'datetime'];
 
     public function scopeForOptical(Builder $query, int $clinicId): Builder
     {

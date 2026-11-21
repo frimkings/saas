@@ -41,7 +41,7 @@
         <div class="border-b border-slate-200 p-4"><h2 class="text-base font-semibold text-slate-900 !mb-0">Linked optical centres</h2>@error('link')<p class="ui-error !mb-0 mt-1" role="alert">{{ $message }}</p>@enderror</div>
         <div class="ui-table-wrap">
             <table class="ui-table w-full text-sm">
-                <thead><tr><th>Optical centre</th><th>Status</th><th>Agreed terms</th><th data-tour="optical-auto-approve">Approve quotes automatically up to</th><th class="text-right">Actions</th></tr></thead>
+                <thead><tr><th>Optical centre</th><th>Status</th><th>Agreed terms</th><th data-tour="optical-auto-approve">Approve quotes automatically up to</th><th data-tour="optical-patient-lookup">Patient lookup</th><th class="text-right">Actions</th></tr></thead>
                 <tbody>
                     @forelse($links as $link)
                         <tr wire:key="link-{{ $link->id }}">
@@ -65,6 +65,20 @@
                                 @error('autoApprove.'.$link->id)<p class="ui-error !mb-0 text-xs" role="alert">{{ $message }}</p>@enderror
                                 <p class="!mb-0 text-xs text-slate-500">{{ $link->auto_approve_limit !== null ? 'Quotes up to this start at once.' : 'You approve each quote.' }}</p>
                             </td>
+                            <td class="text-xs">
+                                @if($link->patient_lookup_at)
+                                    <div class="font-semibold text-green-800">On since {{ $link->patient_lookup_at->format('d M Y') }}</div>
+                                    <p class="!mb-1 text-slate-500">They can find a patient by full phone or patient number and order from the latest prescription you authorised. Each lookup is in your audit trail.</p>
+                                    @if($isOwner)<x-ui.button wire:click="setPatientLookup({{ $link->id }}, false)">Turn off</x-ui.button>@endif
+                                @else
+                                    <div class="text-slate-600">Off</div>
+                                    @if($isOwner)
+                                        <x-ui.button wire:click="setPatientLookup({{ $link->id }}, true)" wire:confirm="Let {{ $link->clinic?->name }} look up your patients? They can find a patient only by full phone or patient number, see the name and the latest prescription you authorised for glasses, and start an order from it on your account. Every lookup is recorded in your audit trail.">Turn on</x-ui.button>
+                                    @else
+                                        <p class="!mb-0 text-slate-500">Only the clinic owner can turn this on.</p>
+                                    @endif
+                                @endif
+                            </td>
                             <td class="text-right whitespace-nowrap">
                                 @if($link->link_paused_by_platform)
                                     <span class="mr-2 text-xs text-red-700">Paused by Nexus support{{ $link->link_status_reason ? ': '.$link->link_status_reason : '' }}</span>
@@ -79,7 +93,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="ui-empty"><p class="ui-muted text-sm">No optical centres linked yet.</p></td></tr>
+                        <tr><td colspan="6" class="ui-empty"><p class="ui-muted text-sm">No optical centres linked yet.</p></td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -138,6 +138,16 @@ class IncomingRequestsComponent extends Component
         session()->flash('success', 'Job '.$request->order_number.' cancelled. '.$request->senderLabel().' sees it and can order again.');
     }
 
+    /** The clinic asked to cancel, but work was done: stop the job and charge it as finished. */
+    public function stopAndCharge(): void
+    {
+        $this->resetErrorBag();
+        $request = app(OpticalLinkService::class)->incomingRequest((int) $this->viewId);
+        app(OpticalLinkService::class)->acceptCancel($request, auth()->user(), true);
+        $this->reset(['action', 'keepReason']);
+        session()->flash('success', 'Job '.$request->order_number.' stopped and charged as finished. It stays on '.$request->senderLabel().'\'s account.');
+    }
+
     /** Keep the job, telling the clinic why. */
     public function refuseCancel(): void
     {

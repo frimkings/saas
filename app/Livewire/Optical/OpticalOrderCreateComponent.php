@@ -34,6 +34,10 @@ class OpticalOrderCreateComponent extends Component
     /** An order sent online by a linked clinic (OpticalOrderRequest) that this form is pricing. */
     #[\Livewire\Attributes\Locked]
     public ?int $linkRequestId = null;
+    /** Patient lookup at a linked clinic whose owner allows it (21 Nov 2026): the clinic, the number typed, what was found. */
+    public $lookupPartnerId = '';
+    public string $lookupQuery = '';
+    public ?array $lookupResults = null;
     /** Set while saving: the clinic's auto-approve limit covered the quote, so the job started at once. */
     private bool $linkAutoStarted = false;
 
@@ -1384,6 +1388,31 @@ class OpticalOrderCreateComponent extends Component
         return app(OpticalOrderService::class)->create($data, $status === 'Quotation');
     }
 
+    /** Find a linked clinic's patient by full phone or patient number (recorded in that clinic's audit trail). */
+    public function findLinkedPatient(): void
+    {
+        $this->resetValidation('lookupQuery');
+        $this->lookupResults = null;
+        try {
+            $this->lookupResults = app(\App\Services\OpticalLinks\OpticalLinkService::class)->lookupPatients((int) $this->lookupPartnerId, $this->lookupQuery, auth()->user());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->addError('lookupQuery', $e->validator->errors()->first());
+        }
+    }
+
+    /** Start the job from the looked-up prescription: it becomes the clinic's order to us, then opens here. */
+    public function useLinkedPrescription(int $refractionId): void
+    {
+        $this->resetValidation('lookupQuery');
+        try {
+            $request = app(\App\Services\OpticalLinks\OpticalLinkService::class)->requestFromLookup((int) $this->lookupPartnerId, $refractionId, auth()->user());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->addError('lookupQuery', $e->validator->errors()->first());
+            return;
+        }
+        $this->redirectRoute('optical.orders.create', ['request_id' => $request->id], navigate: true);
+    }
+
     public function render()
     {
         return view('livewire.optical.optical-order-create-component', [
@@ -1397,6 +1426,7 @@ class OpticalOrderCreateComponent extends Component
                 : collect(),
             // The special-order tour tells managers how to order the lens themselves.
             'specialTourContext' => ['buyer' => \App\Support\Access\Access::can('optical.manage')],
+            'lookupPartners' => $this->linkRequestId ? collect() : app(\App\Services\OpticalLinks\OpticalLinkService::class)->lookupPartners(),
             // Every active partner: the picker filters them in the browser.
             'partners' => OpticalPartnerClinic::where('is_active', true)->orderBy('name')->get(),
             'prescriptions' => $this->patient_id ? OpticalPrescription::where('patient_id', $this->patient_id)->latest()->get() : collect(),

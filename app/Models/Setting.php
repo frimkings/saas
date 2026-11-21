@@ -342,7 +342,8 @@ class Setting extends Model
         $needed = memory_get_usage() + $size[0] * $size[1] * 10 + 64 * 1024 * 1024;
         // More than this (about 25 MP) risks the server itself running out of memory, for a logo.
         // Uploads are capped at 2000px a side, so only logos saved before that get here.
-        if ($needed > 320 * 1024 * 1024) {
+        // Judged on the logo alone: what the process already holds (a long-running worker) must not refuse a normal one.
+        if ($size[0] * $size[1] * 10 > 256 * 1024 * 1024) {
             return $fallback("it is {$size[0]}x{$size[1]} pixels, too large to shrink on the server; upload a smaller logo");
         }
         if ($limit !== '-1' && ini_parse_quantity($limit) < $needed) {
