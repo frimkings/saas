@@ -65,7 +65,13 @@ class AppServiceProvider extends ServiceProvider
         });
         // Every queued job carries the authenticated clinic/branch in its payload.
         // Workers re-authorize it before processing and always clear it afterward.
-        Queue::createPayloadUsing(function (): array {
+        // Platform jobs that name their own clinic carry none: the admin's current clinic
+        // means nothing to them and would be refused by the worker.
+        Queue::createPayloadUsing(function ($connection, $queue, array $payload): array {
+            // At this point commandName is still the job object (a class name for string jobs).
+            $job = $payload['data']['commandName'] ?? null;
+            if ($job instanceof \App\Jobs\RunsOutsideClinicContext
+                || (is_string($job) && is_subclass_of($job, \App\Jobs\RunsOutsideClinicContext::class))) return [];
             $snapshot = TenantContextSnapshot::capture();
 
             return $snapshot ? ['tenant_context' => $snapshot] : [];

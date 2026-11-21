@@ -45,6 +45,44 @@ class TenantAsyncContextTest extends TestCase
         $this->assertSame($branch->id, app(TenantContext::class)->branchId());
     }
 
+    public function test_platform_import_jobs_do_not_carry_the_admins_clinic(): void
+    {
+        [$user, $clinic, $branch] = $this->tenantUser('Admin Own Clinic', 'admin-own-clinic');
+        $this->setContext($user, $clinic, $branch);
+        $queue = new TenantPayloadProbeQueue;
+
+        foreach ([new \App\Jobs\RunExternalImport(1), new \App\Jobs\CommitLegacyClinicImport(1)] as $job) {
+            $payload = json_decode($queue->tenantPayload($job), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertArrayNotHasKey('tenant_context', $payload, $job::class.' carried a clinic context.');
+        }
+        $this->assertArrayHasKey('tenant_context', json_decode($queue->tenantPayload(new TenantContextProbeJob), true));
+    }
+
+    public function test_a_job_queued_during_a_support_visit_restores_for_a_platform_admin_only(): void
+    {
+        config()->set('tenancy.enabled', true);
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $clinic = Clinic::create(['name' => 'Inspected Clinic', 'slug' => 'inspected-clinic']);
+        $branch = $clinic->branches()->create(['code' => 'MAIN', 'name' => 'Main', 'is_default' => true]);
+        $this->actingAs($admin);
+        session([\App\Support\SupportSession::KEY => $clinic->id]);
+        $this->setContext($admin, $clinic, $branch);
+
+        $snapshot = TenantContextSnapshot::capture();
+        $this->assertTrue($snapshot['support']);
+
+        app(TenantContext::class)->clear();
+        TenantContextSnapshot::restore($snapshot);
+        $this->assertSame($clinic->id, app(TenantContext::class)->clinicId());
+        $this->assertSame($branch->id, app(TenantContext::class)->branchId());
+
+        app(TenantContext::class)->clear();
+        $admin->forceFill(['is_platform_admin' => false])->save();
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('no longer authorized');
+        TenantContextSnapshot::restore($snapshot);
+    }
+
     public function test_queued_context_is_rejected_after_membership_is_revoked(): void
     {
         [$user, $clinic, $branch] = $this->tenantUser('Revoked Clinic', 'revoked-clinic');

@@ -15,7 +15,7 @@ use Throwable;
  * Writes an analysed export into its clinic. Not retried: a failed run undoes what it wrote, and
  * the platform admin fixes the cause and imports again.
  */
-class RunExternalImport implements ShouldQueue
+class RunExternalImport implements ShouldQueue, RunsOutsideClinicContext
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 

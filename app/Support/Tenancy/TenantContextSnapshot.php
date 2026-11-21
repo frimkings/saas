@@ -20,6 +20,9 @@ class TenantContextSnapshot
             'user_id' => $context->user()?->id,
             'clinic_id' => $context->clinicId(),
             'branch_id' => $context->branchId(),
+            // A platform admin inspecting the clinic has no membership there; say so, so the worker
+            // checks the admin instead of a membership that does not exist.
+            'support' => self::supportSessionFor($context->clinicId()),
         ];
     }
 
@@ -30,6 +33,10 @@ class TenantContextSnapshot
 
         if (! $user) {
             throw new LogicException('The tenant context user no longer exists.');
+        }
+
+        if (! empty($snapshot['support'])) {
+            return self::restoreSupport($user, $snapshot);
         }
 
         $clinic = $user->clinics()
@@ -57,6 +64,35 @@ class TenantContextSnapshot
         $context->clear();
         $context->set($user, $clinic, $branch, $ids);
         app(BranchRoleManager::class)->hydrate($user, $branch);
+
+        return $context;
+    }
+
+    private static function supportSessionFor(?int $clinicId): bool
+    {
+        try {
+            return $clinicId !== null && \App\Support\SupportSession::clinicId() === $clinicId;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /** A support session: still a platform admin, and the clinic and branch are still open. */
+    private static function restoreSupport(User $user, array $snapshot): TenantContext
+    {
+        if (! $user->is_platform_admin) {
+            throw new LogicException('The queued support context is no longer authorized.');
+        }
+        $clinic = \App\Models\Clinic::where('status', 'active')->find($snapshot['clinic_id'] ?? 0);
+        $branch = $clinic?->branches()->where('is_active', true)->whereKey($snapshot['branch_id'] ?? 0)->first();
+        if (! $clinic || ! $branch) {
+            throw new LogicException('The queued clinic context is no longer authorized.');
+        }
+
+        $context = app(TenantContext::class);
+        $context->clear();
+        $context->set($user, $clinic, $branch, $clinic->branches()->where('is_active', true)->pluck('id')->map(fn ($id) => (int) $id)->all());
+        $user->setRelation('roles', collect([\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => 'web'])]));
 
         return $context;
     }

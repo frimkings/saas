@@ -15,7 +15,7 @@ use Illuminate\Queue\SerializesModels;
 use Throwable;
 use Illuminate\Support\Str;
 
-class CommitLegacyClinicImport implements ShouldQueue
+class CommitLegacyClinicImport implements ShouldQueue, RunsOutsideClinicContext
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
