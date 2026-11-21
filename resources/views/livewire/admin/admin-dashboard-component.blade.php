@@ -19,7 +19,8 @@
                 @endforeach
             </div>
         @endif
-        <x-guide-tour page="clinic.dashboard" :context="['owner' => $owner]" />
+        @if($allBranches)<x-ui.button :href="route('admin.branches-overview')" data-tour="dash-all-branches"><i class="fas fa-code-branch" aria-hidden="true"></i>All branches</x-ui.button>@endif
+        <x-guide-tour page="clinic.dashboard" :context="['owner' => $owner, 'branches' => $allBranches]" />
         @if($canReports)<x-ui.button :href="$reportsLink"><i class="fas fa-chart-bar" aria-hidden="true"></i>Full reports</x-ui.button>@endif
     </x-ui.page-header>
 

@@ -112,6 +112,17 @@ class VisitCard
         return ['medicines' => $medicines, 'items' => $items];
     }
 
+    /** The branch a visit was at, for a clinic with more than one branch (21 Nov 2026: one chart across branches). */
+    public static function branchName(Consultations $c): ?string
+    {
+        static $counts = [];
+        $clinicId = (int) $c->clinic_id;
+        $counts[$clinicId] ??= \App\Models\Branch::withoutGlobalScopes()->where('clinic_id', $clinicId)->count();
+        if ($counts[$clinicId] < 2 || ! $c->branch_id) return null;
+
+        return \App\Models\Branch::withoutGlobalScopes()->whereKey($c->branch_id)->value('name');
+    }
+
     /** One row per visit for the record's timeline table, oldest values first is up to the caller. */
     public static function timelineRow(Consultations $c): array
     {
@@ -119,6 +130,7 @@ class VisitCard
 
         return [
             'date' => $c->created_at,
+            'branch' => self::branchName($c),
             'complaint' => $c->chiefComplaint,
             'va' => [$c->vaOD6m, $c->vaOS6m],
             'iop' => [$c->IOPOD, $c->IOPOS],

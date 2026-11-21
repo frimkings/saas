@@ -17,7 +17,7 @@
 <div class="card">
     <div class="card-head">
         <table><tr>
-            <td><b>{{ $c->created_at->format('D, d M Y') }}</b> <span class="muted">· {{ $c->created_at->format('g:i A') }}</span></td>
+            <td><b>{{ $c->created_at->format('D, d M Y') }}</b> <span class="muted">· {{ $c->created_at->format('g:i A') }}@if($atBranch = VisitCard::branchName($c)) · {{ $atBranch }}@endif</span></td>
             <td style="text-align:right;">@if($doctor)<span class="muted">Seen by</span> {{ $doctor }}@endif</td>
         </tr></table>
     </div>

@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class StockTransferItem extends Model
 {
-    protected $fillable = ['stock_transfer_id', 'product_id', 'inventory_lot_id', 'quantity'];
-    protected $casts = ['quantity' => 'integer'];
+    protected $fillable = ['stock_transfer_id', 'product_id', 'inventory_lot_id', 'quantity', 'received_quantity'];
+    protected $casts = ['quantity' => 'integer', 'received_quantity' => 'integer'];
 
     public function transfer()
     {

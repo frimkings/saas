@@ -216,7 +216,7 @@ class LensOrder extends Model
 
     public function refraction()
     {
-        return $this->belongsTo(Refractions::class, 'refraction_id');
+        return $this->belongsTo(Refractions::class, 'refraction_id')->withoutGlobalScope('branch');
     }
 
     public function patient()

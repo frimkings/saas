@@ -27,14 +27,14 @@ class PatientMedicalRecordController extends Controller
         $this->ensureClearanceBelongsToPatient($patient, $clearance);
 
         // Get all consultations for this patient
-        $consultations = Consultations::where('patient_id', $patient->id)
-            ->with(['user', 'doctor', 'addenda.user', 'diagnoses', 'cartItems.product', 'refraction'])
+        $consultations = Consultations::chart($patient->id)
+            ->with(['user', 'doctor', 'addenda.user', 'diagnoses', 'cartItems.product', 'refraction', 'branch:id,name'])
             ->orderBy('created_at', 'desc')
             ->get();
 
         // Get all refractions
         // Refractions belong to the patient through their consultations (the table has no patient_id).
-        $refractions = Refractions::whereIn('consultation_id', $consultations->pluck('id'))
+        $refractions = Refractions::withoutGlobalScope('branch')->whereIn('consultation_id', $consultations->pluck('id'))
             ->with('consultation')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -69,7 +69,7 @@ class PatientMedicalRecordController extends Controller
         $consultation->load(['user', 'doctor', 'addenda.user', 'diagnoses', 'cartItems.product', 'refraction']);
         
         // Get refraction if exists
-        $refraction = Refractions::where('consultation_id', $consultation->id)->first();
+        $refraction = $consultation->refraction()->first();
 
         $data = [
             'patient' => $patient,
@@ -109,7 +109,7 @@ class PatientMedicalRecordController extends Controller
 
         abort_if($ids->isEmpty(), 404, 'No visit summaries selected.');
 
-        $query = Consultations::with(['patient', 'doctor', 'diagnoses', 'cartItems.product', 'refraction', 'documents', 'addenda.user'])
+        $query = Consultations::withoutGlobalScope('branch')->with(['patient', 'doctor', 'diagnoses', 'cartItems.product', 'refraction', 'documents', 'addenda.user'])
             ->whereIn('id', $ids);
 
         $consultations = $query->orderBy('created_at', 'desc')->get();
@@ -161,7 +161,7 @@ class PatientMedicalRecordController extends Controller
     {
         abort_unless(\App\Support\Access\Access::can('clinical.print'), 403);
         $consultation->load(['patient', 'doctor', 'user']);
-        $refraction = Refractions::where('consultation_id', $consultation->id)->first();
+        $refraction = $consultation->refraction()->first();
         abort_unless($refraction, 404, 'No refraction was recorded for this consultation.');
 
         $settings = Setting::getSettings();
@@ -185,14 +185,14 @@ class PatientMedicalRecordController extends Controller
         $this->ensureClearanceBelongsToPatient($patient, $clearance);
 
         // Get all consultations for this patient
-        $consultations = Consultations::where('patient_id', $patient->id)
-            ->with(['user', 'doctor', 'addenda.user', 'diagnoses', 'cartItems.product', 'refraction'])
+        $consultations = Consultations::chart($patient->id)
+            ->with(['user', 'doctor', 'addenda.user', 'diagnoses', 'cartItems.product', 'refraction', 'branch:id,name'])
             ->orderBy('created_at', 'desc')
             ->get();
 
         // Get all refractions
         // Refractions belong to the patient through their consultations (the table has no patient_id).
-        $refractions = Refractions::whereIn('consultation_id', $consultations->pluck('id'))
+        $refractions = Refractions::withoutGlobalScope('branch')->whereIn('consultation_id', $consultations->pluck('id'))
             ->with('consultation')
             ->orderBy('created_at', 'desc')
             ->get();

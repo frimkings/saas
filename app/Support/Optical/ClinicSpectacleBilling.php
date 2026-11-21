@@ -66,7 +66,7 @@ class ClinicSpectacleBilling
 
         // A visit's frame and lenses can be paid on more than one bill (e.g. the frame on the
         // visit bill, the lenses later), so add up every clinical sale for the consultation.
-        $sales = Sales::with('items.product.category')
+        $sales = Sales::withoutGlobalScope('branch')->with('items.product.category')
             ->where('consultation_id', $consultation->id)
             ->where('business_line', 'clinic')
             ->where('is_refunded', false)

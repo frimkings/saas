@@ -22,6 +22,8 @@ class OutstandingBalancesComponent extends Component
     protected $paginationTheme = 'tailwind';
 
     public $searchQuery = '';
+    /** 21 Nov 2026: a patient can pay a bill from any branch here. The bill stays at its branch; the cash is this branch's. */
+    public bool $allBranches = false;
     public $perPage = 15;
 
     public $showModal = false;
@@ -49,9 +51,28 @@ class OutstandingBalancesComponent extends Component
         $this->rotatePaymentIdempotencyKey();
     }
 
+    /** Bills of this branch, or of every branch of the clinic when "All branches" is on (payments always: any branch). */
+    private function sales(bool $anyBranch = false)
+    {
+        return $anyBranch || $this->allBranches ? Sales::withoutGlobalScope('branch') : Sales::query();
+    }
+
+    public function updatedAllBranches(): void
+    {
+        $this->resetPage();
+    }
+
+    /** Whether the clinic has more than one branch (the switch shows only then). */
+    public function getHasBranchesProperty(): bool
+    {
+        $clinicId = app(\App\Support\Tenancy\TenantContext::class)->clinicId();
+
+        return $clinicId && \App\Models\Branch::withoutGlobalScopes()->where('clinic_id', $clinicId)->where('is_active', true)->count() > 1;
+    }
+
     public function getBalancesProperty()
     {
-        return Sales::with(['patient', 'user', 'items.product'])
+        return $this->sales()->with(['patient', 'user', 'items.product', 'branch:id,name'])
             ->where('payment_status', 'partial')
             ->when($this->searchQuery, fn ($q) =>
                 $q->where(fn ($s) =>
@@ -72,7 +93,7 @@ class OutstandingBalancesComponent extends Component
             return null;
         }
 
-        return Sales::with(['patient', 'items.product', 'paymentTransactions.collectedBy'])
+        return $this->sales(true)->with(['patient', 'items.product', 'paymentTransactions.collectedBy', 'branch:id,name'])
             ->find($this->selectedSaleId);
     }
 
@@ -82,7 +103,7 @@ class OutstandingBalancesComponent extends Component
             return null;
         }
 
-        return Sales::with(['patient', 'paymentTransactions.collectedBy'])
+        return $this->sales(true)->with(['patient', 'paymentTransactions.collectedBy', 'paymentTransactions.branch:id,name'])
             ->find($this->historyForSaleId);
     }
 
@@ -107,7 +128,7 @@ class OutstandingBalancesComponent extends Component
 
     public function openCollect($saleId): void
     {
-        $sale = Sales::where('payment_status', 'partial')->findOrFail($saleId);
+        $sale = $this->sales(true)->where('payment_status', 'partial')->findOrFail($saleId);
         $balance = $sale->remaining_balance;
 
         $this->selectedSaleId = $sale->id;
@@ -141,12 +162,12 @@ class OutstandingBalancesComponent extends Component
             // Serialize collections for the same sale. Once this lock is
             // acquired, re-read and validate against the latest committed
             // amount_paid value before recording another payment.
-            $sale = Sales::with('items.product')
+            $sale = $this->sales(true)->with('items.product')
                 ->whereKey($saleId)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $existingPayment = PaymentTransaction::where(
+            $existingPayment = PaymentTransaction::withoutGlobalScope('branch')->where(
                     'idempotency_key',
                     $this->paymentIdempotencyKey
                 )
@@ -206,7 +227,7 @@ class OutstandingBalancesComponent extends Component
                 $cartIds = $sale->items->pluck('cart_id')->filter()->unique()->values();
 
                 if ($cartIds->isNotEmpty()) {
-                    Cart::whereIn('id', $cartIds)
+                    Cart::withoutGlobalScope('branch')->whereIn('id', $cartIds)
                         ->where('is_dispensed', false)
                         ->update([
                             'purchased' => true,
@@ -218,7 +239,7 @@ class OutstandingBalancesComponent extends Component
                 } elseif ($sale->patient_id) {
                     $productIds = $sale->items->pluck('product_id')->filter()->unique()->values();
 
-                    Cart::where('patient_id', $sale->patient_id)
+                    Cart::withoutGlobalScope('branch')->where('patient_id', $sale->patient_id)
                         ->whereIn('product_id', $productIds)
                         ->where('purchased', true)
                         ->where('is_dispensed', false)
@@ -240,11 +261,20 @@ class OutstandingBalancesComponent extends Component
                 $sale->patient_id
             );
 
+            // Only when both are known: a single install (no branch context) has no other branch.
+            $here = app(\App\Support\Tenancy\TenantContext::class)->branchId();
+            $elsewhere = $here && $sale->branch_id && (int) $sale->branch_id !== (int) $here;
+            if ($elsewhere) {
+                AuditTrail::record('payment.other_branch', 'Took '.currency().' '.number_format($amount, 2).' here for sale '.$sale->transaction_id.' billed at '
+                    .(\App\Models\Branch::withoutGlobalScopes()->whereKey($sale->branch_id)->value('name') ?? 'another branch'), $sale, [], ['amount' => $amount], $sale->patient_id);
+            }
+
             return [
                 'sale_id' => $sale->id,
                 'fully_paid' => $fullyPaid,
                 'amount' => $amount,
                 'duplicate' => false,
+                'elsewhere' => $elsewhere,
             ];
         });
 
@@ -255,7 +285,10 @@ class OutstandingBalancesComponent extends Component
                 . ($result['duplicate'] ? ' was already recorded.' : ' recorded successfully.'),
         ]);
 
-        if ($result['fully_paid']) {
+        // A bill of another branch: print its till receipt here (its visit receipt belongs to that branch).
+        if ($result['fully_paid'] && ! empty($result['elsewhere'])) {
+            $this->dispatch('print-released-receipt', ...['url' => route('cashier.receipt.show', $result['sale_id'])]);
+        } elseif ($result['fully_paid']) {
             // With one receipt per visit, settling the balance prints the visit's final receipt.
             $this->dispatch('print-released-receipt', ...[
                 'url' => PatientVisits::enabled()
@@ -309,7 +342,7 @@ class OutstandingBalancesComponent extends Component
 
     public function render()
     {
-        $summary = Sales::where('payment_status', 'partial')
+        $summary = $this->sales()->where('payment_status', 'partial')
             ->selectRaw('COUNT(*) as held_orders')
             ->selectRaw('COALESCE(SUM(' . Sales::PATIENT_BALANCE_SQL . '), 0) as total_balance')
             ->selectRaw('COALESCE(SUM(amount_paid), 0) as deposits_collected')
@@ -319,6 +352,8 @@ class OutstandingBalancesComponent extends Component
             'balances'       => $this->balances,
             'selectedSale'   => $this->selectedSale,
             'historyForSale' => $this->historyForSale,
+            'hasBranches' => $this->hasBranches,
+            'currentBranchId' => app(\App\Support\Tenancy\TenantContext::class)->branchId(),
             'heldOrders' => (int) ($summary->held_orders ?? 0),
             'totalBalance' => (float) ($summary->total_balance ?? 0),
             'depositsCollected' => (float) ($summary->deposits_collected ?? 0),

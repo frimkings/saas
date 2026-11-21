@@ -240,7 +240,8 @@ Route::redirect('/cart', '/cashier/seller-desk')->name('cart');
 
 // FIXED: Changed from /receipt/{saleId} to /cashier/receipt/{saleId}
 Route::get('/cashier/receipt/{saleId}', function (int $saleId, \Illuminate\Http\Request $request) {
-    \App\Models\Sales::clinicSales()->findOrFail($saleId);
+    // Any branch of the clinic: a bill can be paid at another branch, which prints its receipt (21 Nov 2026).
+    \App\Models\Sales::withoutGlobalScope('branch')->clinicSales()->findOrFail($saleId);
     return app(ReceiptController::class)->show($saleId, $request);
 })
     ->name('cashier.receipt.show');
@@ -368,6 +369,7 @@ Route::get('/admin/inventory-alerts', InventoryAlertsComponent::class)->name('ad
 Route::get('/admin/stock-movements', StockMovementComponent::class)->name('admin.stock-movements')->middleware('feature:inventory');
 Route::get('/admin/stock-transfers', \App\Livewire\Admin\StockTransferComponent::class)->name('admin.stock-transfers')->middleware('feature:purchasing')->middleware('feature:inventory');
 Route::get('/admin/daily-cash-summary', DailyCashSummaryComponent::class)->name('admin.daily-cash-summary');
+Route::get('/admin/all-branches', \App\Livewire\Admin\BranchesOverviewComponent::class)->name('admin.branches-overview');
 Route::get('/admin/cash-book', \App\Livewire\Admin\CashBookComponent::class)->name('admin.cash-book')->middleware('feature:cash_book');
 Route::get('/admin/lens-outstanding-report', function () { // feature:spectacles_pro checked in middleware below
     $debts = \App\Models\LensOrder::with(['refraction.consultation.patient'])

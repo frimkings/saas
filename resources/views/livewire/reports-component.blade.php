@@ -23,7 +23,7 @@
                         href="{{ route('reports.export.pdf', array_filter([
                             'from' => $fromDate, 'to' => $toDate, 'search' => $searchQuery,
                             'trash' => $activeTab === 'trash' ? 1 : null, 'show_refunded' => $showRefunded ? 1 : null,
-                            'payment_status' => $paymentStatus, 'purchase_type' => $purchaseType, 'insurance' => $insuranceFilter,
+                            'payment_status' => $paymentStatus, 'purchase_type' => $purchaseType, 'insurance' => $insuranceFilter, 'branch' => $branchView,
                         ])) }}"
                         target="_blank"
                         class="ui-button ui-button-danger ui-button-sm"
@@ -69,6 +69,16 @@
                         <option value="unpaid">Unpaid</option>
                     </select>
                 </div>
+                @if($branchOptions)
+                <div class="min-w-[9rem] flex-1" data-tour="reports-branch">
+                    <label for="reports-branch" class="{{ $fl }}">Branch</label>
+                    <select id="reports-branch" wire:model.live="branchView" class="{{ $fs }}">
+                        <option value="">This branch</option>
+                        <option value="all">All branches</option>
+                        @foreach($branchOptions as $branchId => $branchName)<option value="{{ $branchId }}">{{ $branchName }}</option>@endforeach
+                    </select>
+                </div>
+                @endif
                 <div class="min-w-[6rem] flex-1">
                     <label for="reports-purchase" class="{{ $fl }}">Purchase</label>
                     <select id="reports-purchase" wire:model.live="purchaseType" class="{{ $fs }}" @disabled($inTrash)>
@@ -745,6 +755,8 @@
                                                 <button wire:click="showRefundDetailsModal({{ $sale->id }})" class="ui-button ui-button-secondary" title="Refund Details">
                                                     <i class="fas fa-info-circle"></i>
                                                 </button>
+                                            @elseif($currentBranchId && $sale->branch_id && (int) $sale->branch_id !== (int) $currentBranchId)
+                                                <span class="text-xs font-semibold text-indigo-800" title="Refunds are done at the branch that sold">{{ $branchOptions[$sale->branch_id] ?? 'Other branch' }}</span>
                                             @else
                                                 <button wire:click="showRefundModal({{ $sale->id }})" class="ui-button ui-button-secondary" title="Request Refund">
                                                     <i class="fas fa-undo"></i>

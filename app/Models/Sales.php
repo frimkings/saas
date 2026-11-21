@@ -134,7 +134,8 @@ public function isFullyPaid(): bool
 
 public function paymentTransactions()
 {
-    return $this->hasMany(\App\Models\PaymentTransaction::class, 'sale_id')->orderBy('created_at');
+    // A bill can be paid at any branch (21 Nov 2026): every payment on it, wherever it was taken.
+    return $this->hasMany(\App\Models\PaymentTransaction::class, 'sale_id')->withoutGlobalScope('branch')->orderBy('created_at');
 }
 
 public function scopeClinicSales($query)
@@ -221,7 +222,7 @@ public function adjustments()
 
     public function items()
     {
-        return $this->hasMany(SaleItem::class,  'sale_id');
+        return $this->hasMany(SaleItem::class,  'sale_id')->withoutGlobalScope('branch');
     }
 
    

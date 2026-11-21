@@ -58,6 +58,30 @@ class Consultations extends Model
     /**
      * Get the patient that owns the consultation
      */
+    /**
+     * One patient, one chart (21 Nov 2026): a patient's visits at every branch of the clinic, for reading their
+     * history. The clinic scope stays; today's work (queues, lists, reports) is still per branch.
+     */
+    public static function chart(int $patientId): \Illuminate\Database\Eloquent\Builder
+    {
+        return static::withoutGlobalScope('branch')->where('patient_id', $patientId);
+    }
+
+    /** The branch's name when this visit was at another branch than the one open now (for "Seen at …"). */
+    public function seenElsewhere(): ?string
+    {
+        $current = app(\App\Support\Tenancy\TenantContext::class)->branchId();
+        if (! $current || ! $this->branch_id || (int) $this->branch_id === (int) $current) return null;
+
+        return \App\Models\Branch::withoutGlobalScopes()->whereKey($this->branch_id)->value('name');
+    }
+
+    /** Printing a past visit works from any branch of the clinic (the routes bound here only print). */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return static::withoutGlobalScope('branch')->where($field ?? $this->getRouteKeyName(), $value)->firstOrFail();
+    }
+
     public function patient()
     {
         return $this->belongsTo(Patient::class);
@@ -84,7 +108,7 @@ class Consultations extends Model
      */
     public function clearance()
     {
-        return $this->belongsTo(CashierPatientClearance::class, 'clearance_id');
+        return $this->belongsTo(CashierPatientClearance::class, 'clearance_id')->withoutGlobalScope('branch');
     }
 
     /**
@@ -92,7 +116,7 @@ class Consultations extends Model
      */
     public function refraction()
     {
-        return $this->hasOne(Refractions::class, 'consultation_id');
+        return $this->hasOne(Refractions::class, 'consultation_id')->withoutGlobalScope('branch');
     }
 
     /**
@@ -100,7 +124,7 @@ class Consultations extends Model
      */
     public function sale()
     {
-        return $this->hasOne(Sales::class, 'consultation_id')->latestOfMany();
+        return $this->hasOne(Sales::class, 'consultation_id')->withoutGlobalScope('branch')->latestOfMany();
     }
 
     /**
@@ -108,23 +132,23 @@ class Consultations extends Model
      */
     public function cartItems()
     {
-        return $this->hasMany(Cart::class, 'consultation_id');
+        return $this->hasMany(Cart::class, 'consultation_id')->withoutGlobalScope('branch');
     }
 
     /** Drugs prescribed for the patient to buy at a pharmacy. */
     public function outsidePrescriptions()
     {
-        return $this->hasMany(OutsidePrescription::class, 'consultation_id');
+        return $this->hasMany(OutsidePrescription::class, 'consultation_id')->withoutGlobalScope('branch');
     }
 
     public function documents()
     {
-        return $this->hasMany(PatientDocument::class, 'consultation_id');
+        return $this->hasMany(PatientDocument::class, 'consultation_id')->withoutGlobalScope('branch');
     }
 
     public function addenda()
     {
-        return $this->hasMany(ConsultationNote::class, 'consultation_id')->latest();
+        return $this->hasMany(ConsultationNote::class, 'consultation_id')->withoutGlobalScope('branch')->latest();
     }
 
     /**
@@ -132,7 +156,7 @@ class Consultations extends Model
      */
     public function dispensedCartItems()
     {
-        return $this->hasMany(Cart::class, 'consultation_id')
+        return $this->hasMany(Cart::class, 'consultation_id')->withoutGlobalScope('branch')
             ->where('is_dispensed', true);
     }
 
@@ -141,7 +165,7 @@ class Consultations extends Model
      */
     public function undispensedCartItems()
     {
-        return $this->hasMany(Cart::class, 'consultation_id')
+        return $this->hasMany(Cart::class, 'consultation_id')->withoutGlobalScope('branch')
             ->where('is_dispensed', false);
     }
 

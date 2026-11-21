@@ -17,6 +17,9 @@ use Livewire\Component;
 class CashBookComponent extends Component
 {
     public string $method = 'cash';
+    /** '' the open branch; another branch's id (its book, read-only); 'all' one summary row per branch. Owners only. */
+    #[\Livewire\Attributes\Url(as: 'branch')]
+    public string $branchView = '';
     public string $fromDate = '';
     public string $toDate = '';
 
@@ -96,6 +99,7 @@ class CashBookComponent extends Component
 
     public function recordMovement(): void
     {
+        $this->onlyOpenBranch();
         $days = app(DayCloseService::class);
         $this->validate([
             'moveType' => 'required|in:' . CashMovement::BANKED . ',' . CashMovement::ADDED,
@@ -117,6 +121,7 @@ class CashBookComponent extends Component
 
     public function startBook(): void
     {
+        $this->onlyOpenBranch();
         $days = app(DayCloseService::class);
         abort_unless(DayCloseService::isOwner(), 403);
         $this->validate([
@@ -146,6 +151,7 @@ class CashBookComponent extends Component
 
     public function saveFloat(): void
     {
+        $this->onlyOpenBranch();
         abort_unless(DayCloseService::isOwner(), 403);
         $this->validate(['floatAmount' => 'required|numeric|min:0|max:99999999'], [], ['floatAmount' => 'float']);
         $branch = app(TenantContext::class)->branch();
@@ -158,6 +164,7 @@ class CashBookComponent extends Component
 
     public function askCancel(int $id): void
     {
+        $this->onlyOpenBranch();
         $this->cancellingId = $id;
         $this->cancelReason = '';
         $this->resetErrorBag('cancelReason');
@@ -165,6 +172,7 @@ class CashBookComponent extends Component
 
     public function cancelMovement(): void
     {
+        $this->onlyOpenBranch();
         $days = app(DayCloseService::class);
         $this->validate(['cancelReason' => 'required|string|min:5|max:500'], [], ['cancelReason' => 'reason']);
         $movement = CashMovement::findOrFail($this->cancellingId);
@@ -178,12 +186,74 @@ class CashBookComponent extends Component
         session()->flash('success', 'Entry cancelled. It stays on the book, crossed out.');
     }
 
+    public function updatedBranchView(): void
+    {
+        if (\App\Support\BranchView::ids($this->branchView) === null) $this->branchView = '';
+        $this->openDays = [];
+        $this->cancellingId = null;
+    }
+
+    /** Entries are made on the open branch's own book; another branch's is only looked at here. */
+    private function onlyOpenBranch(): void
+    {
+        abort_if(\App\Support\BranchView::ids($this->branchView) !== null && ! $this->viewingOpenBranch(), 403, 'Switch to that branch to change its cash book.');
+    }
+
+    private function viewingOpenBranch(): bool
+    {
+        return (string) $this->branchView === (string) app(TenantContext::class)->branchId();
+    }
+
+    /** Run the book's own sums as if that branch were open, then put the open branch back. */
+    private function atBranch(int $branchId, \Closure $work): mixed
+    {
+        $context = app(TenantContext::class);
+        [$user, $clinic, $branch, $authorized] = [$context->user() ?? auth()->user(), $context->clinic(), $context->branch(), $context->authorizedBranchIds()];
+        $target = \App\Models\Branch::withoutGlobalScopes()->where('clinic_id', $clinic->id)->findOrFail($branchId);
+        try {
+            $context->set($user, $clinic, $target, $authorized);
+            return $work();
+        } finally {
+            $context->set($user, $clinic, $branch, $authorized);
+        }
+    }
+
     public function render()
+    {
+        $ids = \App\Support\BranchView::ids($this->branchView);
+        $options = \App\Support\BranchView::canPick() ? \App\Support\BranchView::options() : [];
+        $from = Carbon::parse(min($this->fromDate, $this->toDate));
+        $to = Carbon::parse(max($this->fromDate, $this->toDate));
+
+        // All branches: one row per branch for the chosen method and dates, from each branch's own book.
+        if ($ids !== null && $this->branchView === 'all') {
+            $rows = collect($ids)->map(fn ($id) => $this->atBranch($id, function () use ($id, $options, $from, $to) {
+                $book = app(CashBook::class);
+                $entries = $book->entries($this->method, $from, $to);
+                return ['id' => $id, 'name' => $options[$id] ?? 'Branch', 'started' => (bool) $book->startDate(),
+                    'opening' => $entries->first()['balance'] ?? 0, 'in' => round($entries->sum('in'), 2), 'out' => round($entries->sum('out'), 2),
+                    'closing' => $entries->last()['balance'] ?? 0, 'methods' => $book->methods()];
+            }));
+            $methods = $rows->reduce(fn ($all, $row) => $all + $row['methods'], []);
+
+            return view('livewire.admin.cash-book-component', [
+                'summaryRows' => $rows, 'methods' => $methods, 'branchOptions' => $options, 'readOnly' => true,
+                'branch' => null, 'started' => true, 'isOwner' => DayCloseService::isOwner(),
+            ])->layout('layouts.admin.admin-layout');
+        }
+
+        // Another branch's book, read-only.
+        if ($ids !== null && ! $this->viewingOpenBranch()) {
+            return $this->atBranch($ids[0], fn () => $this->bookView($from, $to, $options, true));
+        }
+
+        return $this->bookView($from, $to, $options, false);
+    }
+
+    private function bookView(Carbon $from, Carbon $to, array $options, bool $readOnly)
     {
         $book = app(CashBook::class);
         $methods = $book->methods();
-        $from = Carbon::parse(min($this->fromDate, $this->toDate));
-        $to = Carbon::parse(max($this->fromDate, $this->toDate));
         $entries = $book->entries($this->method, $from, $to);
         $balances = collect($methods)->map(fn ($label, $key) => $book->balanceBefore($key, today()->addDay()));
 
@@ -215,6 +285,9 @@ class CashBookComponent extends Component
             'started' => $book->startDate(),
             'isOwner' => DayCloseService::isOwner(),
             'branch' => app(TenantContext::class)->branch(),
+            'branchOptions' => $options,
+            'readOnly' => $readOnly,
+            'summaryRows' => null,
         ])->layout('layouts.admin.admin-layout');
     }
 }

@@ -32,8 +32,8 @@ class PatientTimelineComponent extends Component
         $events = collect();
 
         // Consultations
-        Consultations::where('patient_id', $this->patient->id)
-            ->with(['doctor', 'diagnoses', 'cartItems.product'])
+        Consultations::chart($this->patient->id)
+            ->with(['doctor', 'diagnoses', 'cartItems.product', 'branch:id,name'])
             ->orderBy('created_at', 'desc')
             ->get()
             ->each(function ($c) use (&$events) {
@@ -46,10 +46,7 @@ class PatientTimelineComponent extends Component
             });
 
         // Refractions (+ nested lens orders) — linked via consultation
-        $consultationIds = Consultations::where('patient_id', $this->patient->id)
-            ->pluck('id');
-
-        Refractions::whereIn('consultation_id', $consultationIds)
+        Refractions::chart($this->patient->id)
             ->with(['user', 'lensOrder'])
             ->orderBy('created_at', 'desc')
             ->get()

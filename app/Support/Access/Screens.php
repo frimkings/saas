@@ -60,6 +60,8 @@ final class Screens
         'admin.day-close' => ['dayclose.manage'],
         'admin.cash-book' => ['cashbook.view'],
         'admin.daily-cash-summary' => ['cashbook.view'],
+        // 21 Nov 2026: every branch side by side, for the owner.
+        'admin.branches-overview' => ['settings.manage'],
         'admin.expenses' => ['expenses.manage'],
         'admin.expenses.previous' => ['expenses.manage'],
         'admin.expenses.receipt' => ['expenses.manage'],

@@ -8,15 +8,39 @@
     <div class="ui-heading" data-tour="cash-book-heading">
         <div>
             <h1>Cash book</h1>
-            <p class="ui-muted">Money in and out of each till and account{{ $branch ? ' at '.$branch->name : '' }}, with a running balance.</p>
+            <p class="ui-muted">Money in and out of each till and account{{ $summaryRows ? ' at every branch' : ($branch ? ' at '.$branch->name : '') }}, with a running balance.@if($readOnly && ! $summaryRows) <b class="text-indigo-800">Viewing only: switch to {{ $branch?->name }} to change its book.</b>@endif</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <x-guide-tour page="clinic.cash-book" />
+            @if($branchOptions)<label class="text-sm" data-tour="cash-book-branch"><span class="sr-only">Branch</span><select wire:model.live="branchView" class="ui-input !w-48" aria-label="Branch"><option value="">This branch</option><option value="all">All branches</option>@foreach($branchOptions as $branchId => $branchName)<option value="{{ $branchId }}">{{ $branchName }}</option>@endforeach</select></label>@endif
+            <x-guide-tour page="clinic.cash-book" :context="['branches' => (bool) $branchOptions]" />
             <a href="{{ route('admin.day-close') }}" class="ui-button ui-button-primary" wire:navigate><i class="fas fa-cash-register mr-1" aria-hidden="true"></i>Close the day</a>
         </div>
     </div>
 
-    @if(!$started)
+    @if($summaryRows)
+        <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 text-sm font-semibold" role="group" aria-label="Payment method">
+                @foreach($methods as $key => $name)
+                    <button type="button" wire:click="selectMethod('{{ $key }}')" aria-pressed="{{ $method === $key ? 'true' : 'false' }}" class="px-3 py-2 {{ $method === $key ? 'bg-teal-700 text-white' : 'bg-white text-slate-700' }} {{ ! $loop->first ? 'border-l border-slate-300' : '' }}">{{ $name }}</button>
+                @endforeach
+            </div>
+            <div><span class="{{ $label }}">Period</span><x-date-range from="fromDate" to="toDate" presets="finance" /></div>
+        </div>
+        <section class="ui-panel" aria-label="Every branch's book" data-tour="cash-book-all">
+            <div class="ui-table-wrap"><table class="ui-table">
+                <thead><tr><th>Branch</th><th class="ui-number">Brought forward</th><th class="ui-number">In</th><th class="ui-number">Out</th><th class="ui-number">Carried forward</th></tr></thead>
+                <tbody>
+                    @foreach($summaryRows as $row)
+                        <tr wire:key="cb-branch-{{ $row['id'] }}"><td><button type="button" class="font-semibold text-teal-800 underline" wire:click="$set('branchView', '{{ $row['id'] }}')">{{ $row['name'] }}</button>@unless($row['started'])<span class="block text-xs text-amber-700">Book not started</span>@endunless</td>
+                            <td class="ui-number">{{ $money($row['opening']) }}</td><td class="ui-number text-green-700">{{ $money($row['in']) }}</td><td class="ui-number text-red-700">{{ $money($row['out']) }}</td><td class="ui-number font-semibold">{{ $money($row['closing']) }}</td></tr>
+                    @endforeach
+                </tbody>
+                <tfoot><tr class="font-bold"><td>All branches</td><td class="ui-number">{{ $money($summaryRows->sum('opening')) }}</td><td class="ui-number">{{ $money($summaryRows->sum('in')) }}</td><td class="ui-number">{{ $money($summaryRows->sum('out')) }}</td><td class="ui-number">{{ $money($summaryRows->sum('closing')) }}</td></tr></tfoot>
+            </table></div>
+            <p class="px-5 pb-4 text-xs text-slate-500">Each branch's own book for {{ $methods[$method] ?? $method }}, in {{ currency() }}. Click a branch to see its entries.</p>
+        </section>
+    @else
+    @if(!$started && ! $readOnly)
         <section class="ui-panel !border-amber-300 !bg-amber-50 p-5" aria-label="Start the cash book" data-tour="cash-book-start">
             <h2 class="text-base font-semibold text-amber-900">Start the cash book</h2>
             <p class="mt-1 text-sm text-amber-900">Count what is in the cash drawer (and, if you like, the MoMo wallet and other accounts) and enter it here. Balances are worked out from that day on; until then each period starts from zero.</p>
@@ -103,7 +127,7 @@
                             <td class="ui-number font-semibold">{{ $money($entry['balance']) }}</td>
                             <td class="text-right">
                                 @if($entry['movement_id'] && !$entry['cancelled'])
-                                    <button type="button" wire:click="askCancel({{ $entry['movement_id'] }})" class="ui-button ui-button-secondary" title="Cancel this entry" aria-label="Cancel this entry"><i class="fas fa-ban" aria-hidden="true"></i></button>
+                                    @unless($readOnly)<button type="button" wire:click="askCancel({{ $entry['movement_id'] }})" class="ui-button ui-button-secondary" title="Cancel this entry" aria-label="Cancel this entry"><i class="fas fa-ban" aria-hidden="true"></i></button>@endunless
                                 @endif
                             </td>
                         </tr>
@@ -131,6 +155,7 @@
         </div>
     </section>
 
+    @unless($readOnly)
     <div class="grid gap-5 lg:grid-cols-[2fr_1fr]">
         <section class="ui-panel p-5" aria-label="Record money moved" data-tour="cash-book-record">
             <h2 class="text-base font-semibold text-slate-900">Record money moved by hand</h2>
@@ -182,4 +207,6 @@
             @endif
         </section>
     </div>
+    @endunless
+    @endif
 </div>

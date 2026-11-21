@@ -24,6 +24,7 @@
                 <button type="button" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-700" wire:click="$set('searchQuery','')" aria-label="Clear search"><i class="fas fa-times" aria-hidden="true"></i></button>
             @endif
         </div>
+        @if($hasBranches)<label class="inline-flex items-center gap-2 text-sm" data-tour="balances-all-branches"><input type="checkbox" wire:model.live="allBranches" class="rounded"> All branches</label>@endif
         <select class="ui-input !w-auto !pr-9" wire:model.live="perPage" aria-label="Rows per page">
             <option value="10">10 / page</option>
             <option value="15">15 / page</option>
@@ -57,7 +58,7 @@
                                 {{ $sale->created_at->format('d M Y') }}
                                 <span class="block text-xs">{{ $sale->created_at->format('h:i A') }}</span>
                             </td>
-                            <td class="font-mono text-xs text-teal-800">{{ $sale->transaction_id }}</td>
+                            <td class="font-mono text-xs text-teal-800">{{ $sale->transaction_id }}@if($currentBranchId && $sale->branch_id && (int) $sale->branch_id !== (int) $currentBranchId)<span class="mt-0.5 block font-sans font-semibold text-indigo-800" data-billed-at>Billed at {{ $sale->branch?->name }}</span>@endif</td>
                             <td>
                                 @if($sale->patient)
                                     <p class="font-semibold">{{ $sale->patient->name }}</p>
@@ -155,7 +156,7 @@
                                             <td class="text-slate-500">{{ $i + 1 }}</td>
                                             <td class="whitespace-nowrap">{{ $txn->created_at->format('d M Y') }}<span class="block text-xs text-slate-500">{{ $txn->created_at->format('h:i A') }}</span></td>
                                             <td><span class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{{ ucfirst($txn->payment_method) }}</span></td>
-                                            <td>{{ $txn->collectedBy->name ?? '—' }}</td>
+                                            <td>{{ $txn->collectedBy->name ?? '—' }}@if($hasBranches && $txn->branch)<span class="block text-xs text-slate-500">at {{ $txn->branch->name }}</span>@endif</td>
                                             <td class="text-xs text-slate-500">{{ $txn->notes ?? '—' }}</td>
                                             <td class="ui-number font-semibold text-green-700">+{{ $money($txn->amount) }}</td>
                                         </tr>

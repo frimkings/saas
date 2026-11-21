@@ -23,7 +23,8 @@ class ReportExportController extends Controller
         $purchaseType = in_array($request->input('purchase_type'), ['patient', 'direct'], true) ? $request->input('purchase_type') : '';
         $insurance = in_array($request->input('insurance'), ['insured', 'uninsured'], true) ? $request->input('insurance') : '';
 
-        $sales = Sales::clinicSales()->with(['items.product.category', 'patient:id,name', 'user:id,name'])
+        $branch = (string) $request->input('branch', '');
+        $sales = \App\Support\BranchView::apply(Sales::query(), $branch)->clinicSales()->with(['branch:id,name', 'items.product.category', 'patient:id,name', 'user:id,name'])
             ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])
             ->when($trash, function ($q) {
                 $q->where('is_refunded', true);
@@ -58,6 +59,7 @@ class ReportExportController extends Controller
             ->get();
 
         $applied = array_values(array_filter([
+            \App\Support\BranchView::label($branch),
             $trash ? 'Refunded transactions only' : ($showRefunded ? 'Refunds included' : null),
             $search !== '' ? 'Search: "' . $search . '"' : null,
             !$trash && $paymentStatus ? 'Payment: ' . ucfirst($paymentStatus) : null,

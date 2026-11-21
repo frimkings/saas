@@ -26,14 +26,14 @@ final class TourCatalog
         'optical.catalogue' => 1,
         'optical.pos' => 2,
         'optical.requests' => 8,
-        'clinic.dashboard' => 6,
+        'clinic.dashboard' => 7,
         'clinic.registry' => 2,
         'clinic.clearance' => 1,
         'clinic.pos' => 3,
         'clinic.queue' => 2,
         'clinic.sales' => 4,
         'clinic.day-close' => 2,
-        'clinic.cash-book' => 2,
+        'clinic.cash-book' => 3,
         'clinic.settings' => 1,
         'clinic.insurers' => 1,
         'clinic.claims' => 1,
@@ -41,7 +41,7 @@ final class TourCatalog
         'clinic.insurer-payments' => 1,
         'clinic.scans' => 2,
         'clinic.optical-sent' => 6,
-        'clinic.spectacles' => 1,
+        'clinic.spectacles' => 2,
         'clinic.optical-owed' => 1,
         'platform.dashboard' => 2,
         'platform.clinics' => 1,
@@ -117,6 +117,7 @@ final class TourCatalog
             $send ? ['target' => 'send-to-optical', 'title' => 'Send to an optical centre', 'body' => 'The paper plane sends the prescription to a linked optical centre instead of ordering here. Follow it under Optical Centres in the menu. A sent patient cannot also be ordered here.'] : null,
             ['target' => 'sp-tick', 'title' => 'Several at once', 'body' => 'Tick rows, or this box for the whole page. On To order, create orders for all of them with one pickup date (only patients whose frame and lens are on the POS sale)'.($send ? ', or send them all to one optical centre' : '').'. On the orders lists, move them to the next status together. Any that cannot be done are listed with the reason.'],
             ['title' => 'Changed your mind?', 'body' => 'Cancel an order with a reason: the stock it took goes back and the patient returns to To order, to order again or send out. Money paid at POS is refunded at the POS, not here.'.($send ? ' A job already started at an optical centre: use Ask to cancel under Optical Centres.' : '')],
+            ($c['branches'] ?? false) ? ['title' => 'Glasses made for another branch', 'body' => 'Under Ready, find a patient whose glasses are ready at another branch and press Hand over here. The bill must be paid first, at any branch (Outstanding Balances, All branches). The other branch sees it as collected.'] : null,
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }
@@ -309,6 +310,7 @@ final class TourCatalog
             ['target' => 'clinic-kpis', 'title' => 'Today at a glance', 'body' => 'What happened today: sales, consultations and prescriptions waiting, and more figures below on plans that include them. Click a figure to open what is behind it.'],
             ['target' => 'nav-finances', 'title' => 'Finances', 'body' => 'The money pages your plan includes: sales records and the daily cash summary, and on bigger plans sales reports, expenses, the cash book and day close, outstanding balances, the income statement and each patient\'s ledger.'
                 .(\App\Services\LicenseService::has(\App\Support\Feature::APPROVALS) ? ' Approvals is here too: discounts, refunds and voids, payment corrections and clearance revokes that staff ask for, with a count. Nobody approves their own request.'.($owner ? ' Voids and payment corrections are yours alone to approve, and you set each role\'s discount limit under Settings.' : '') : '')],
+            ($c['branches'] ?? false) ? ['target' => 'dash-all-branches', 'title' => 'All your branches', 'body' => 'Every branch side by side for the period you pick: what each billed, the cash it took, expenses, visits, what patients owe and glasses waiting, with the totals. Open switches to a branch. Each patient has one chart: doctors at any branch see visits from the others, marked Seen at.'] : null,
             ['target' => 'nav-staff-security', 'title' => 'Staff & Security', 'body' => 'Users and their roles, login history and the audit trail. Each person sees only the parts of the menu their role opens. The shield button on a user opens their Access: switch single things on or off for that person.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Every main page has its own short tour: look for this button. Take this one again at any time from here.'],
         ]];
@@ -471,6 +473,7 @@ final class TourCatalog
             ['target' => 'cash-book-start', 'title' => 'Start the book', 'body' => 'Count the drawer once and enter it. Balances are worked out from that day on.'],
             ['target' => 'cash-book-balances', 'title' => 'One book per method', 'body' => 'What each method holds now. Click one to see its entries.'],
             ['target' => 'cash-book-days', 'title' => 'One row per day', 'body' => 'Over a long period the book shows each day\'s money in, money out and closing balance. Open a day to see its entries; a short period lists every entry.'],
+            ($c['branches'] ?? false) ? ['target' => 'cash-book-branch', 'title' => 'Other branches', 'body' => 'Pick All branches to see every branch\x27s book side by side (brought forward, in, out, carried forward), or one branch to look at its entries. Changes are made at the branch itself. Sales Reports has the same Branch filter.'] : null,
             ['target' => 'cash-book-record', 'title' => 'Money moved by hand', 'body' => 'Record cash banked, handed to the owner or added to the drawer. A mistake is cancelled with a reason and stays on the book, crossed out.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];

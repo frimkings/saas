@@ -45,7 +45,7 @@
             <tr><th>Date</th><th>Complaint</th>@if($cols['va'])<th>VA OD / OS</th>@endif @if($cols['iop'])<th>IOP OD / OS</th>@endif @if($cols['cdr'])<th>C/D OD / OS</th>@endif<th>Diagnosis</th>@if($cols['rx'])<th>Prescription OD / OS</th>@endif</tr>
             @foreach($rows as $row)
                 <tr>
-                    <td style="white-space:nowrap;">{{ $row['date']->format('d M Y') }}</td>
+                    <td style="white-space:nowrap;">{{ $row['date']->format('d M Y') }}@if($row['branch'])<div class="small muted">{{ $row['branch'] }}</div>@endif</td>
                     <td>{{ \Illuminate\Support\Str::limit((string) $row['complaint'], 60) ?: '—' }}</td>
                     @if($cols['va'])<td style="white-space:nowrap;">{{ $row['va'][0] ?: '—' }} / {{ $row['va'][1] ?: '—' }}</td>@endif
                     @if($cols['iop'])<td style="white-space:nowrap;"><span class="{{ VisitCard::iopHigh($row['iop'][0]) ? 'warn' : '' }}">{{ $row['iop'][0] ?: '—' }}</span> / <span class="{{ VisitCard::iopHigh($row['iop'][1]) ? 'warn' : '' }}">{{ $row['iop'][1] ?: '—' }}</span></td>@endif

@@ -53,7 +53,8 @@ class ReceiptController extends Controller
     private function receiptSale($saleId): Sales
     {
         $user  = auth()->user();
-        $query = Sales::select(
+        // Any branch of the clinic (a bill paid at another branch prints there); who may see it is checked below.
+        $query = Sales::withoutGlobalScope('branch')->select(
                 'id',
                 'transaction_id',
                 'total_amount',
@@ -93,7 +94,7 @@ class ReceiptController extends Controller
         // bill opened at clearance by the front desk and paid at the till).
         if (! \App\Support\Access\Access::allows($user, 'receipts.view_all')) {
             $query->where(fn ($q) => $q->where('user_id', $user->id)
-                ->orWhereHas('paymentTransactions', fn ($p) => $p->where('collected_by', $user->id)));
+                ->orWhereHas('paymentTransactions', fn ($p) => $p->withoutGlobalScope('branch')->where('collected_by', $user->id)));
         }
 
         return $query->findOrFail($saleId);

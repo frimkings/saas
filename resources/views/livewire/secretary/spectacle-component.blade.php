@@ -24,7 +24,7 @@
         </div>
 
         <div class="so-top-actions">
-            <x-guide-tour page="clinic.spectacles" :context="['send' => (bool) $opticalTargets]" />
+            <x-guide-tour page="clinic.spectacles" :context="['send' => (bool) $opticalTargets, 'branches' => $clinicHasBranches]" />
             @if($canOpenOpticalOrders)
             <a href="{{ route('optical.orders.create') }}" class="so-btn text-white" style="background:#087e83;">
                 <i class="fas fa-glasses"></i>
@@ -186,6 +186,29 @@
     @php
         $queueRefractions = $spectacles->getCollection()->filter(fn($row) => $row->consultation && $row->consultation->patient);
     @endphp
+
+    @if($showOtherBranches)
+        <section class="ui-panel mb-3 bg-white p-3" data-tour="sp-other-branches" aria-label="Ready at other branches">
+            <div class="flex flex-wrap items-center gap-2">
+                <b class="text-sm">Glasses ready at another branch?</b>
+                <input type="search" wire:model.live.debounce.300ms="otherBranchSearch" class="ui-input !w-72 text-sm" placeholder="Patient name, number, phone or order no." aria-label="Find glasses ready at another branch">
+                <span class="text-xs text-slate-500">Hand them over here once the bill is paid (at any branch).</span>
+            </div>
+            @error('otherBranchSearch')<p class="ui-error !mb-0 mt-1" role="alert">{{ $message }}</p>@enderror
+            @if(mb_strlen(trim($otherBranchSearch)) >= 3)
+                <div class="mt-2 space-y-1">
+                    @forelse($readyElsewhere as $elsewhere)
+                        <div class="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 px-3 py-2 text-sm" wire:key="elsewhere-{{ $elsewhere->id }}">
+                            <span><b>{{ $elsewhere->refraction?->consultation?->patient?->name ?? 'Patient' }}</b> · {{ $elsewhere->order_id }} · <span class="font-semibold text-indigo-800">ready at {{ $elsewhere->branch?->name }}</span></span>
+                            <x-ui.button wire:click="collectHere({{ $elsewhere->id }})" wire:confirm="Hand over order {{ $elsewhere->order_id }} here? It is marked collected and {{ $elsewhere->branch?->name }} sees it.">Hand over here</x-ui.button>
+                        </div>
+                    @empty
+                        <p class="!mb-0 text-sm text-slate-500">No glasses ready at another branch match that.</p>
+                    @endforelse
+                </div>
+            @endif
+        </section>
+    @endif
 
     <section class="so-workbench" aria-label="Spectacle work queue">
         <div class="so-queue-panel" data-tour="sp-list">

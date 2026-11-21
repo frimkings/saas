@@ -28,6 +28,8 @@ class SpectaclesComponent extends Component
     public $fromDate;
     public $toDate;
     public $statusFilter = '';
+    /** 21 Nov 2026: glasses ready at another branch of the clinic can be handed over here (search by name, number or order). */
+    public string $otherBranchSearch = '';
     public $quickFilter  = '';
     public $labFilter    = '';
     public $doctorFilter = '';
@@ -1086,6 +1088,54 @@ class SpectaclesComponent extends Component
         return $revenue - $cost;
     }
 
+    /** Whether the clinic has more than one active branch. */
+    private function hasBranches(): bool
+    {
+        $clinicId = app(\App\Support\Tenancy\TenantContext::class)->clinicId();
+
+        return $clinicId && \App\Models\Branch::withoutGlobalScopes()->where('clinic_id', $clinicId)->where('is_active', true)->count() > 1;
+    }
+
+    /** Front-desk orders ready at another branch, found by patient name, number, phone or order number (3+ characters). */
+    private function readyElsewhere()
+    {
+        $term = trim($this->otherBranchSearch);
+        if (mb_strlen($term) < 3) return collect();
+        $like = '%'.$term.'%';
+
+        return LensOrder::withoutGlobalScope('branch')->with(['branch:id,name', 'refraction.consultation.patient'])
+            ->whereNotNull('refraction_id')->where('status', 'Ready')
+            ->where('branch_id', '!=', app(\App\Support\Tenancy\TenantContext::class)->branchId())
+            ->where(fn ($q) => $q->where('order_id', 'like', $like)
+                ->orWhereHas('refraction', fn ($r) => $r->withoutGlobalScope('branch')->whereHas('consultation', fn ($c) => $c->withoutGlobalScope('branch')
+                    ->whereHas('patient', fn ($p) => $p->where('name', 'like', $like)->orWhere('pxnumber', 'like', $like)->orWhere('contact', 'like', $like)))))
+            ->latest('id')->limit(10)->get();
+    }
+
+    /** Hand over glasses made for another branch: the bill must be paid (at any branch), as for a collection there. */
+    public function collectHere(int $orderId): void
+    {
+        abort_unless(\App\Support\Access\Access::can('spectacles.manage'), 403);
+        app(\App\Services\ClinicAccessService::class)->assertWritable();
+        $this->resetErrorBag('otherBranchSearch');
+        $here = app(\App\Support\Tenancy\TenantContext::class)->branch();
+        $order = LensOrder::withoutGlobalScope('branch')->whereNotNull('refraction_id')->where('status', 'Ready')
+            ->where('branch_id', '!=', $here?->id)->findOrFail($orderId);
+        $bill = $order->refraction ? $this->posOrderSummary($order->refraction) : [];
+        $owed = (float) ($bill['bill_balance'] ?? $bill['balance'] ?? 0);
+        if ($owed > 0.004) {
+            $this->addError('otherBranchSearch', 'Balance '.currency().' '.number_format($owed, 2).' is still due on the bill for order '.$order->order_id
+                .'. Take it under Outstanding Balances (All branches) first.');
+            return;
+        }
+        $from = \App\Models\Branch::withoutGlobalScopes()->whereKey($order->branch_id)->value('name');
+        $this->appendOrderNote($order, 'Collected at '.($here?->name ?? 'another branch').' by '.(Auth::user()->name ?? 'staff').' on '.now()->format('d M Y H:i'));
+        $order->update(['status' => 'Collected', 'collected_at' => $order->collected_at ?? now(), 'renewal_date' => $order->renewal_date ?? now()->addYear()->toDateString()]);
+        $this->recordOrderAudit('spectacles.collected_other_branch', $order, ['status' => 'Ready', 'branch' => $from], ['status' => 'Collected', 'collected_at_branch' => $here?->name]);
+        $this->otherBranchSearch = '';
+        $this->dispatch('notify', ...['type' => 'success', 'message' => "Order {$order->order_id} from {$from} handed over here."]);
+    }
+
     private function appendOrderNote(LensOrder $order, string $note): void
     {
         $order->notes = trim((string) $order->notes . "\n[" . $note . "]");
@@ -1140,6 +1190,7 @@ class SpectaclesComponent extends Component
         ];
 
         $spectacles = $this->getFilteredQuery()->paginate(12);
+        $hasBranches = $this->statusFilter === 'Ready' && $this->hasBranches();
         // The case drawer opens only for a row someone clicked (and that is still in the list).
         $activeRefraction = $this->activeRefractionId ? $spectacles->firstWhere('id', $this->activeRefractionId) : null;
 
@@ -1197,6 +1248,9 @@ class SpectaclesComponent extends Component
                 && \App\Support\OpticalAccess::can(auth()->user(), 'optical.orders.create'),
             'sentRequests'       => $sentRequests,
             'spectacles'         => $spectacles,
+            'showOtherBranches'  => $hasBranches,
+            'clinicHasBranches'  => $hasBranches || $this->hasBranches(),
+            'readyElsewhere'     => $hasBranches ? $this->readyElsewhere() : collect(),
             'activeRefraction'   => $activeRefraction,
             'stats'              => $stats,
             'frameSearchResults' => $frameSearchResults,

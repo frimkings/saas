@@ -245,6 +245,7 @@ class AdminDashboardComponent extends Component
             'clinicAdded' => $clinicAdded = \App\Support\Guides\ClinicAdded::for(),
             'setup' => ! $clinicAdded && \App\Support\Access\Access::allows($user, 'dashboard.view') ? \App\Support\Guides\ClinicSetup::for() : null,
             'owner' => \App\Support\Access\Access::allows($user, 'settings.manage'),
+            'allBranches' => BranchesOverviewComponent::allowed(),
             'lineLabels' => [BusinessLine::CLINIC => 'Clinic', BusinessLine::OPTICAL => 'Optical', self::COMBINED => 'Combined'],
             // Where each money card leads for the chosen business.
             'statementLink' => match (true) {

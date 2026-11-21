@@ -118,9 +118,15 @@ class Refractions extends Model
     }
 
 
+    /** A patient's refractions at every branch of the clinic (see Consultations::chart). */
+    public static function chart(int $patientId): \Illuminate\Database\Eloquent\Builder
+    {
+        return static::withoutGlobalScope('branch')->whereIn('consultation_id', Consultations::chart($patientId)->select('id'));
+    }
+
     public function consultation()
     {
-        return $this->belongsTo('App\Models\Consultations');
+        return $this->belongsTo('App\Models\Consultations')->withoutGlobalScope('branch');
     }
 
     /**
@@ -129,7 +135,7 @@ class Refractions extends Model
      */
     public function lensOrder()
     {
-        return $this->hasOne(LensOrder::class, 'refraction_id')->latestOfMany();
+        return $this->hasOne(LensOrder::class, 'refraction_id')->withoutGlobalScope('branch')->latestOfMany();
     }
 
     /** The Optical Suite's copy of this prescription (a clinic with both modules orders from it there). */

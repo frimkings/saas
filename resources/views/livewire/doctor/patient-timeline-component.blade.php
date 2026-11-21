@@ -107,6 +107,7 @@
                                     @if($type === 'consultation')
                                         {{ Str::limit($data->chiefComplaint ?? 'Consultation', 60) }}
                                         @if($data->doctor) <small class="text-slate-500 ml-1">by {{ $data->doctor->name }}</small> @endif
+                                        @if($seenAt = $data->seenElsewhere()) <small class="ml-1 rounded bg-indigo-50 px-1.5 py-0.5 font-semibold text-indigo-800" data-seen-at>Seen at {{ $seenAt }}</small> @endif
                                     @elseif($type === 'refraction')
                                         Refraction Record
                                         @if($data->user) <small class="text-slate-500 ml-1">by {{ $data->user->name }}</small> @endif

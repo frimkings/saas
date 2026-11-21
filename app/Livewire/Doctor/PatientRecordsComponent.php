@@ -204,8 +204,8 @@ public $isEditingAppointment = false;
 
         $this->clearance = $clearance;
         $this->patient = $clearance->patient;
-        $this->consultationCount = Consultations::where('patient_id', $this->patient->id)->count();
-        $this->patientDocumentCount = PatientDocument::where('patient_id', $this->patient->id)->count();
+        $this->consultationCount = Consultations::chart($this->patient->id)->count();
+        $this->patientDocumentCount = PatientDocument::withoutGlobalScope('branch')->where('patient_id', $this->patient->id)->count();
         $this->legacyPaymentCount = \App\Models\PatientLegacyPayment::where('patient_id', $this->patient->id)->count();
         $settings = Setting::getSettings();
         $this->vaNotation = $settings->va_notation ?? '6m';
@@ -1195,7 +1195,7 @@ public function deleteAppointment($appointmentId)
 
     public function getClinicalTrendDataProperty(): array
     {
-        $records = Consultations::where('patient_id', $this->clearance->patient_id)
+        $records = Consultations::chart($this->clearance->patient_id)
             ->where(function ($query) {
                 $query->whereNotNull('IOPOD')
                     ->orWhereNotNull('IOPOS')
@@ -1365,8 +1365,7 @@ public function deleteAppointment($appointmentId)
     {
         if (!$this->patient?->id) return null;
 
-        return Refractions::with(['consultation', 'user'])
-            ->whereHas('consultation', fn ($query) => $query->where('patient_id', $this->patient->id))
+        return Refractions::chart($this->patient->id)->with(['consultation', 'user'])
             ->when($this->consultationID, fn ($query) => $query->where('consultation_id', '!=', $this->consultationID))
             ->latest('created_at')
             ->first();
@@ -1499,8 +1498,7 @@ public function deleteAppointment($appointmentId)
 
     public function getEyeDiseaseRiskFlagsProperty(): array
     {
-        $records = Consultations::with('diagnoses')
-            ->where('patient_id', $this->clearance->patient_id)
+        $records = Consultations::chart($this->clearance->patient_id)->with('diagnoses')
             ->latest()
             ->limit(12)
             ->get();
@@ -2920,8 +2918,8 @@ public function deleteAppointment($appointmentId)
             DB::enableQueryLog();
         }
         $patientRecords = $this->activeTab === 'history'
-            ? Consultations::where('patient_id', $this->clearance->patient_id)
-                ->with(['diagnoses:id,name', 'user:id,name', 'refraction.lensOrder'])
+            ? Consultations::chart($this->clearance->patient_id)
+                ->with(['diagnoses:id,name', 'user:id,name', 'refraction.lensOrder', 'branch:id,name'])
                 ->when($this->searchTerm, fn($query) =>
                     $query->where(function ($searchQuery) {
                         $searchQuery->where('chiefComplaint', 'like', "%{$this->searchTerm}%")
@@ -2935,19 +2933,18 @@ public function deleteAppointment($appointmentId)
         $searchResults = collect($this->searchResults);
 
         $historyRefractions = $this->activeTab === 'history'
-            ? Refractions::with(['user:id,name', 'consultation:id,created_at', 'lensOrder'])
-                ->whereHas('consultation', fn ($query) => $query->where('patient_id', $this->patient->id))
+            ? Refractions::chart($this->patient->id)->with(['user:id,name', 'consultation:id,created_at', 'lensOrder'])
                 ->where('created_at', '>=', now()->subYears(3))->latest()->limit(30)->get()
             : collect();
         $historyDocuments = $this->activeTab === 'history'
-            ? PatientDocument::with('uploadedBy:id,name')->where('patient_id', $this->patient->id)->latest()->limit(12)->get()
+            ? PatientDocument::withoutGlobalScope('branch')->with('uploadedBy:id,name')->where('patient_id', $this->patient->id)->latest()->limit(12)->get()
             : collect();
         $previousMedications = $this->activeTab === 'prescription' ? $this->previousMedications : collect();
         $legacyPayments = $this->activeTab === 'history' && $this->legacyPaymentCount
             ? \App\Models\PatientLegacyPayment::where('patient_id', $this->patient->id)->orderByDesc('paid_at')->get()
             : collect();
         $latestHistoryVisit = $this->activeTab === 'history'
-            ? Consultations::where('patient_id', $this->patient->id)->latest()->first()
+            ? Consultations::chart($this->patient->id)->latest()->first()
             : null;
 
         $patientDocuments = $this->activeTab === 'bills'

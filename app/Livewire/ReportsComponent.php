@@ -28,6 +28,9 @@ class ReportsComponent extends Component
     #[\Livewire\Attributes\Locked]
     public bool $monthOnly = false;
     public $searchQuery = '';
+    /** '' the open branch, 'all', or a branch id: owners of more than one branch (App\Support\BranchView). */
+    #[\Livewire\Attributes\Url(as: 'branch')]
+    public string $branchView = '';
     public $perPage = 25;
     public $showRefunded = false;
     public string $refundMode = 'exclude'; // exclude | include | only (the 'trash' tab)
@@ -212,6 +215,13 @@ class ReportsComponent extends Component
         $this->dispatchChart();
     }
 
+    public function updatedBranchView(): void
+    {
+        if (\App\Support\BranchView::ids($this->branchView) === null) $this->branchView = '';
+        $this->resetPage();
+        $this->dispatchChart();
+    }
+
     public function updatedSearchQuery()
     {
         $this->resetPage();
@@ -259,7 +269,7 @@ class ReportsComponent extends Component
         $from = $from ?? $this->fromDate . ' 00:00:00';
         $to   = $to   ?? $this->toDate   . ' 23:59:59';
 
-        return Sales::where('business_line', 'clinic')
+        return \App\Support\BranchView::apply(Sales::query(), $this->branchView)->where('business_line', 'clinic')
             ->when($this->activeTab === 'trash', function ($q) {
                 $q->where('is_refunded', true);
             }, function ($q) {
@@ -296,7 +306,9 @@ class ReportsComponent extends Component
         if ($context->clinicId() !== null) {
             $query->where('sales.clinic_id', $context->clinicId());
         }
-        if ($context->branchId() !== null) {
+        if ($ids = \App\Support\BranchView::ids($this->branchView)) {
+            $query->withoutGlobalScope('branch')->whereIn('sales.branch_id', $ids);
+        } elseif ($context->branchId() !== null) {
             $query->where('sales.branch_id', $context->branchId());
         }
 
@@ -416,7 +428,7 @@ class ReportsComponent extends Component
             'toPatients' => round((float) $this->salesBaseQuery()->sum(DB::raw(Sales::MOVED_TO_PATIENT_SQL)), 2),
             'received'   => round((float) InsurerPayment::whereBetween('paid_on', [$this->fromDate, $this->toDate])->sum('amount'), 2),
             'writtenOff' => round((float) SaleAdjustment::where('type', 'insurance_write_off')->whereBetween('created_at', $range)->sum('amount'), 2),
-            'owedNow'    => round((float) Sales::awaitingInsurer()->sum(DB::raw(Sales::INSURER_OWED_SQL)), 2),
+            'owedNow'    => round((float) \App\Support\BranchView::apply(Sales::query(), $this->branchView)->awaitingInsurer()->sum(DB::raw(Sales::INSURER_OWED_SQL)), 2),
         ];
     }
 
@@ -518,11 +530,14 @@ class ReportsComponent extends Component
 
     public function getPaymentMethodsProperty()
     {
-        return PaymentTransaction::whereBetween('created_at', [
+        $anyBranch = \App\Support\BranchView::ids($this->branchView) !== null;
+
+        return \App\Support\BranchView::apply(PaymentTransaction::query(), $this->branchView)->whereBetween('created_at', [
             $this->fromDate . ' 00:00:00',
             $this->toDate   . ' 23:59:59',
         ])
-        ->whereHas('sale', function ($q) {
+        ->whereHas('sale', function ($q) use ($anyBranch) {
+            if ($anyBranch) $q->withoutGlobalScope('branch');
             $q->when($this->purchaseType === 'patient', fn ($sale) => $sale->whereNotNull('patient_id'))
               ->when($this->purchaseType === 'direct', fn ($sale) => $sale->whereNull('patient_id'));
         })
@@ -537,7 +552,7 @@ class ReportsComponent extends Component
         })
         ->when($this->purchaseType !== 'direct', function ($methods) {
             // Money in from insurers for patients' bills, alongside what patients paid at the tills.
-            $insurers = InsurerPayment::whereBetween('paid_on', [$this->fromDate, $this->toDate])
+            $insurers = \App\Support\BranchView::apply(InsurerPayment::query(), $this->branchView)->whereBetween('paid_on', [$this->fromDate, $this->toDate])
                 ->selectRaw('COALESCE(SUM(amount), 0) as total, COUNT(*) as cnt')->first();
             if ((float) $insurers->total <= 0) {
                 return $methods;
@@ -557,12 +572,15 @@ class ReportsComponent extends Component
 
     public function topProducts($limit = 5)
     {
-        return SaleItem::select(
+        $anyBranch = \App\Support\BranchView::ids($this->branchView) !== null;
+
+        return \App\Support\BranchView::apply(SaleItem::query(), $this->branchView)->select(
                 'product_id',
                 DB::raw('SUM(dispensed_quantity) as qty_sold'),
                 DB::raw('SUM(subtotal) as revenue')
             )
-            ->whereHas('sale', function ($q) {
+            ->whereHas('sale', function ($q) use ($anyBranch) {
+                if ($anyBranch) $q->withoutGlobalScope('branch');
                 if ($this->activeTab === 'trash') {
                     $q->where('is_refunded', true);
                 } else {
@@ -611,7 +629,7 @@ class ReportsComponent extends Component
     protected function filterFingerprint(): string
     {
         return $this->activeTab . '|' . $this->fromDate . '|' . $this->toDate . '|' . ($this->showRefunded ? '1' : '0') . '|' .
-            $this->paymentStatus . '|' . $this->purchaseType . '|' . $this->insuranceFilter . '|' . $this->searchQuery;
+            $this->paymentStatus . '|' . $this->purchaseType . '|' . $this->insuranceFilter . '|' . $this->searchQuery . '|' . $this->branchView;
     }
 
     protected function summaryCacheKey(string $which = 'current'): string
@@ -802,7 +820,7 @@ class ReportsComponent extends Component
 
     public function showItemsModal($saleId)
     {
-        $this->viewingSale = Sales::where('business_line', 'clinic')->with('items.product')->findOrFail($saleId);
+        $this->viewingSale = \App\Support\BranchView::apply(Sales::query(), $this->branchView)->where('business_line', 'clinic')->with('items.product')->findOrFail($saleId);
         $this->dispatch('show-itemsModal-form');
     }
 
@@ -964,6 +982,8 @@ class ReportsComponent extends Component
             'salesByCategory' => $this->analyticsView === 'categories' ? $this->salesByCategory : collect(),
             'paymentMethods'  => $this->analyticsView === 'payments'   ? $this->paymentMethods  : collect(),
             'chartPayload'    => $this->buildChartPayload(),
+            'branchOptions'   => \App\Support\BranchView::canPick() ? \App\Support\BranchView::options() : [],
+            'currentBranchId' => app(\App\Support\Tenancy\TenantContext::class)->branchId(),
         ])->layout('layouts.admin.admin-layout');
     }
 }

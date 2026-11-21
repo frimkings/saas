@@ -43,11 +43,11 @@ class InventoryQaTest extends TestCase
         $service = $this->product('Consultation', 'service', ['made_to_order' => true, 'quantity' => 0]);
 
         $page = Livewire::test(StockTransferComponent::class)
-            ->set('destinationBranchId', $east->id)->set('productId', $service->id)->set('quantity', 1)->call('createTransfer')
-            ->assertHasErrors('quantity')
-            ->set('productId', $drug->id)->set('quantity', 500)->call('createTransfer')
-            ->assertHasErrors('quantity')
-            ->set('destinationBranchId', $east->id)->set('productId', $drug->id)->set('quantity', 5)->call('createTransfer')
+            ->set('otherBranchId', $east->id)->set('lines', [['product_id' => $service->id, 'quantity' => 1]])->call('createTransfer')
+            ->assertHasErrors('lines')
+            ->set('lines', [['product_id' => $drug->id, 'quantity' => 500]])->call('createTransfer')
+            ->assertHasErrors('lines')
+            ->set('otherBranchId', $east->id)->set('lines', [['product_id' => $drug->id, 'quantity' => 5]])->call('createTransfer')
             ->assertHasNoErrors();
 
         $this->assertSame(1, StockTransfer::count());
