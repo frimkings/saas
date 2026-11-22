@@ -85,7 +85,7 @@ class HostedScheduleTest extends TestCase
 
     public function test_hosted_schedule_wakes_nothing_overnight_so_the_app_and_database_can_sleep(): void
     {
-        config(['tenancy.enabled' => true, 'tenancy.schedule_day_hours' => '6-20']);
+        config(['tenancy.enabled' => true, 'tenancy.schedule_day_hours' => '6-20', 'tenancy.schedule_quiet_days' => '']);
         $timings = $this->scheduledTimings();
 
         // Laravel Cloud wakes the app at each task's cron time: none may fall from 21:00 to 05:59.
@@ -97,8 +97,8 @@ class HostedScheduleTest extends TestCase
             }
         }
 
-        // Daytime work still runs: the heartbeat every half hour, SMS hourly, billing in the morning.
-        $this->assertSame('*/30 6-20 * * *', $timings['system:health-heartbeat']);
+        // Daytime work still runs: the heartbeat hourly, SMS hourly, billing in the morning.
+        $this->assertSame('0 6-20 * * *', $timings['system:health-heartbeat']);
         $this->assertSame('0 6-20 * * *', $timings['tenancy:run-scheduled sms:appointment-reminders']);
         $this->assertSame('5 6 * * *', $timings['subscriptions:process-billing']);
     }
@@ -119,14 +119,65 @@ class HostedScheduleTest extends TestCase
 
     public function test_hosted_scheduler_heartbeat_may_be_quiet_overnight(): void
     {
-        config(['tenancy.enabled' => true, 'tenancy.schedule_day_hours' => '6-20']);
+        config(['tenancy.enabled' => true, 'tenancy.schedule_day_hours' => '6-20', 'tenancy.schedule_quiet_days' => '']);
 
-        $this->assertSame(40, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-10-04 12:00')));
-        // At 05:00 the last run was 20:30 the evening before.
+        $this->assertSame(70, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-10-04 12:00')));
+        // At 05:00 the last run was 20:00 the evening before.
         $this->assertGreaterThan(510, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-10-04 05:00')));
 
         config(['tenancy.enabled' => false]);
         $this->assertSame(5, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-10-04 05:00')));
+    }
+
+    /** All cron expressions per command (a routine task has a working-day one and a quiet-day one). */
+    private function allTimings(): array
+    {
+        $schedule = new Schedule();
+        (fn () => $this->schedule($schedule))->call($this->app->make(Kernel::class));
+
+        return collect($schedule->events())
+            ->groupBy(fn ($event) => trim(preg_replace('/^.*artisan[\'"]?\s+/', '', $event->command)))
+            ->map(fn ($events) => $events->pluck('expression')->sort()->values()->all())
+            ->all();
+    }
+
+    public function test_hosted_default_runs_routine_tasks_7_to_18_and_sunday_once_at_18(): void
+    {
+        config(['tenancy.enabled' => true, 'tenancy.schedule_day_hours' => '7-18', 'tenancy.schedule_quiet_days' => '0']);
+        $timings = $this->allTimings();
+
+        $this->assertSame(['0 18 * * 0', '0 7-18 * * 1,2,3,4,5,6'], $timings['system:health-heartbeat']);
+        $this->assertSame(['0 18 * * 0', '0 7-18 * * 1,2,3,4,5,6'], $timings['tenancy:run-scheduled sms:appointment-reminders']);
+        $this->assertSame(['0 18 * * 0', '0 7-18 * * 1,2,3,4,5,6'], $timings['tenancy:run-scheduled visit-bills:finalize-expired']);
+        // The former night tasks move to the first day hour; daily tasks keep running every day.
+        $this->assertSame(['5 7 * * *'], $timings['subscriptions:process-billing']);
+        $this->assertSame(['10 7 * * *'], $timings['logs:prune']);
+        $this->assertSame(['15 8 * * *'], $timings['subscriptions:send-notifications']);
+
+        // Nothing wakes the app before 07:00 or after 18:59, any day.
+        $flat = collect($timings)->flatMap(fn ($crons, $command) => collect($crons)->map(fn ($cron) => [$command, $cron]));
+        foreach (['2026-11-21', '2026-11-22'] as $day) { // a Saturday and a Sunday
+            for ($minute = Carbon::parse("$day 19:00"); $minute->lt(Carbon::parse("$day 19:00")->addHours(12)); $minute->addMinute()) {
+                foreach ($flat as [$command, $cron]) {
+                    $this->assertFalse((new CronExpression($cron))->isDue($minute), "$command wakes the app at {$minute->format('D H:i')}");
+                }
+            }
+        }
+
+        // Sunday wakes the app only for the morning dailies and the 18:00 catch-up.
+        $sundayWakes = [];
+        for ($minute = Carbon::parse('2026-11-22 00:00'); $minute->lt(Carbon::parse('2026-11-23 00:00')); $minute->addMinute()) {
+            if ($flat->contains(fn ($task) => (new CronExpression($task[1]))->isDue($minute))) $sundayWakes[] = $minute->format('H:i');
+        }
+        $this->assertContains('18:00', $sundayWakes);
+        $this->assertLessThanOrEqual(12, count($sundayWakes), implode(' ', $sundayWakes));
+        $this->assertEmpty(array_filter($sundayWakes, fn ($at) => $at > '10:00' && $at < '18:00'), implode(' ', $sundayWakes));
+
+        // The heartbeat check allows for the quiet Sunday and the night, and stays tight on a working day.
+        $this->assertSame(70, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-11-23 12:10')));
+        // Sunday noon: the last run was Saturday 18:00.
+        $this->assertSame(18 * 60 + 10, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-11-22 12:00')));
+        $this->assertGreaterThan(12 * 60, HostedSchedule::heartbeatToleranceMinutes(Carbon::parse('2026-11-23 06:50')));
     }
 
     /** With several servers each running the scheduler, every hosted task runs on one of them only. */

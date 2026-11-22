@@ -525,6 +525,41 @@ class MessagingTest extends TestCase
         $this->assertNotNull($appointment->fresh()->reminder_sent_at);
     }
 
+    /** Hosted reminders run hourly 07–18 except Sunday, which runs once at 18:00: no appointment falls in the gap. */
+    public function test_reminders_cover_the_quiet_sunday_and_the_night_but_only_ever_for_tomorrow(): void
+    {
+        $tenant = $this->tenant();
+        config(['tenancy.schedule_day_hours' => '7-18', 'tenancy.schedule_quiet_days' => '0']);
+        $patient = Patient::factory()->create(['user_id' => $tenant['user']->id, 'contact' => '0241234567']);
+        $book = fn (string $at) => Appointments::factory()->create(['patient_id' => $patient->id, 'user_id' => $tenant['user']->id,
+            'scheduled_at' => $at, 'status' => 'Pending', 'reminder_channel' => 'sms']);
+        $mondayMorning = $book('2026-11-23 09:00');
+        $mondayEvening = $book('2026-11-23 18:30');
+        $tuesdayEarly = $book('2026-11-24 07:30');
+        $tuesdayLate = $book('2026-11-24 15:00');
+
+        // Sunday's one run, at 18:00 (the last was Saturday 18:00), reminds all of Monday.
+        $this->travelTo('2026-11-22 18:00:05');
+        $this->artisan('sms:appointment-reminders')->assertSuccessful();
+        $this->assertNotNull($mondayMorning->fresh()->reminder_sent_at);
+        $this->assertNotNull($mondayEvening->fresh()->reminder_sent_at);
+        $this->assertNull($tuesdayEarly->fresh()->reminder_sent_at);
+
+        // Monday 07:00, after the night: Tuesday's early hours, but nothing for later today or later Tuesday.
+        $today = $book('2026-11-23 16:00');
+        $this->travelTo('2026-11-23 07:00:05');
+        $this->artisan('sms:appointment-reminders')->assertSuccessful();
+        $this->assertNotNull($tuesdayEarly->fresh()->reminder_sent_at);
+        $this->assertNull($today->fresh()->reminder_sent_at);
+        $this->assertNull($tuesdayLate->fresh()->reminder_sent_at);
+
+        // A working-day hour keeps the usual 23–25 hour window.
+        $this->travelTo('2026-11-23 14:00:05');
+        $this->artisan('sms:appointment-reminders')->assertSuccessful();
+        $this->assertNotNull($tuesdayLate->fresh()->reminder_sent_at);
+        $this->assertCount(4, $this->driver->sent);
+    }
+
     public function test_whatsapp_booking_confirmation_skips_sms_and_returns_message_for_link(): void
     {
         $tenant = $this->tenant(name: 'Clear Sight');

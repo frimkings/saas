@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\SmsTemplate;
 use App\Services\SmsService;
 use App\Services\WhatsAppService;
+use App\Support\HostedSchedule;
 use App\Support\Messaging\AutomaticChannels;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -20,8 +21,11 @@ class SendAppointmentReminders extends Command
     {
         $s = Setting::getSettings();
 
-        // Window: appointments starting between 23 and 25 hours from now
-        $windowStart = now()->addHours(23);
+        // Window: appointments starting between 23 and 25 hours from now. Hosted, the hourly run
+        // stops overnight and on quiet days (Sunday runs once, at the end of the day), so the window
+        // reaches back over that gap, but never before tomorrow: the message says "tomorrow".
+        $gap         = HostedSchedule::hoursSincePreviousRun();
+        $windowStart = now()->addHours(23)->subMinutes((int) round(($gap - 1) * 60))->max(now()->addDay()->startOfDay());
         $windowEnd   = now()->addHours(25);
 
         $appointments = Appointments::with('patient')
