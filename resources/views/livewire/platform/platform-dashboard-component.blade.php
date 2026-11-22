@@ -364,7 +364,8 @@
 <div class="pa-modal" role="dialog" aria-modal="true" aria-labelledby="pa-onboard-title" x-data x-init="$el.focus()" tabindex="-1" x-on:keydown.escape.window="$wire.closeOnboarding()">
 <header class="pa-drawer-head"><div><h3 id="pa-onboard-title">Onboard new clinic</h3><div class="pa-drawer-meta">Step {{ $onboardingStep }} of 3</div></div><button type="button" class="ui-button ui-button-secondary" wire:click="closeOnboarding" aria-label="Close">✕</button></header>
 <ol class="pa-steps">@foreach([1=>'Clinic',2=>'First branch',3=>'Admin & plan'] as $n=>$label)<li class="{{ $onboardingStep===$n?'current':($onboardingStep>$n?'done':'') }}" @if($onboardingStep===$n) aria-current="step" @endif><span>{{ $onboardingStep>$n?'✓':$n }}</span>{{ $label }}</li>@endforeach</ol>
-<form class="pa-drawer-body" wire:submit="{{ $onboardingStep<3?'onboardingNext':'onboardClinic' }}">
+{{-- Keyed per step: without it Livewire reuses step 2's inputs for step 3, still bound to the branch fields, so the owner's name and email overwrote the branch name and code. --}}
+<form class="pa-drawer-body" wire:key="onboarding-step-{{ $onboardingStep }}" wire:submit="{{ $onboardingStep<3?'onboardingNext':'onboardClinic' }}">
 @php($earlierErrors=$onboardingStep===3?collect($errors->keys())->intersect(['newClinicName','newClinicSlug','newClinicDomain','newClinicDeployment','newClinicEmail','newBranchCode','newBranchName','newBranchTimezone']):collect())
 @if($earlierErrors->isNotEmpty())<div class="ui-alert ui-alert--danger">Go back and fix: @foreach($earlierErrors as $key){{ $errors->first($key) }} @endforeach</div>@endif
 @if($onboardingStep===1)

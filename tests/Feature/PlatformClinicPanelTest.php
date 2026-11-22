@@ -368,6 +368,45 @@ class PlatformClinicPanelTest extends TestCase
         $this->assertDatabaseHas('clinic_subscriptions', ['clinic_id' => $clinic->id, 'subscription_plan_id' => $this->basic->id, 'status' => 'active', 'trial_ends_at' => null]);
     }
 
+    /** Each step is a fresh form, so step 3's owner fields can't stay bound to step 2's branch fields. */
+    public function test_onboarding_steps_are_separate_forms_and_the_branch_keeps_its_own_name(): void
+    {
+        $component = Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
+            ->call('openOnboarding')->set('newClinicName', 'Keyed Eye Care')->call('onboardingNext')
+            ->assertSeeHtml('wire:key="onboarding-step-2"')
+            ->set('newBranchTimezone', 'Africa/Accra')->call('onboardingNext')
+            ->assertSeeHtml('wire:key="onboarding-step-3"')->assertDontSeeHtml('wire:key="onboarding-step-2"')
+            ->set('newAdminName', 'MR ADAMS')->set('newAdminEmail', 'adams@keyed.test')->set('newPlanId', $this->basic->id)
+            ->call('onboardClinic')->assertHasNoErrors();
+
+        $branch = Clinic::where('slug', 'keyed-eye-care')->firstOrFail()->branches()->firstOrFail();
+        $this->assertSame(['MAIN', 'Main Branch'], [$branch->code, $branch->name]);
+    }
+
+    public function test_repair_migration_renames_branches_that_took_the_owners_name_and_email(): void
+    {
+        $clinic = Clinic::create(['name' => 'Eyes of Hope', 'slug' => 'eyes-of-hope-test', 'status' => 'active']);
+        $owner = User::factory()->create(['name' => 'MR ADAMS']);
+        $clinic->users()->attach($owner->id, ['clinic_role' => 'Super Admin', 'status' => 'active']);
+        $broken = $clinic->branches()->create(['code' => 'ADAMS@HOPE.TEST', 'name' => 'MR ADAMS', 'timezone' => 'UTC', 'is_default' => true, 'is_active' => true]);
+        // An owner who renamed their account after onboarding: the code still holds their email.
+        $shop = Clinic::create(['name' => 'Renamed Owner Shop', 'slug' => 'renamed-owner-shop', 'status' => 'active']);
+        $shop->users()->attach(User::factory()->create(['name' => 'Amoako Attay', 'email' => 'amoako@shop.test'])->id, ['clinic_role' => 'Super Admin', 'status' => 'active']);
+        $typed = $shop->branches()->create(['code' => 'AMOAKO@SHOP.TEST', 'name' => 'DR AMOAKO ATTAH', 'timezone' => 'UTC', 'is_default' => true, 'is_active' => true]);
+        $other = Clinic::create(['name' => 'Renamed Clinic', 'slug' => 'renamed-clinic', 'status' => 'active']);
+        $renamed = $other->branches()->create(['code' => 'OWNER@X.TEST', 'name' => 'Kasoa', 'timezone' => 'UTC', 'is_default' => true, 'is_active' => true]);
+        $fine = $other->branches()->create(['code' => 'EAST', 'name' => 'East', 'timezone' => 'UTC', 'is_default' => false, 'is_active' => true]);
+
+        (require database_path('migrations/2026_11_22_000001_repair_branches_named_after_owner.php'))->up();
+
+        // Named after the clinic's town where it is known, otherwise "Main Branch".
+        $this->assertSame(['MAIN', 'Kasoa'], [$broken->fresh()->code, $broken->fresh()->name]);
+        $this->assertSame(['MAIN', 'Main Branch'], [$typed->fresh()->code, $typed->fresh()->name]);
+        // A name nobody in the clinic has was chosen on purpose and is kept; only the email code goes.
+        $this->assertSame(['MAIN', 'Kasoa'], [$renamed->fresh()->code, $renamed->fresh()->name]);
+        $this->assertSame(['EAST', 'East'], [$fine->fresh()->code, $fine->fresh()->name]);
+    }
+
     public function test_an_owner_who_already_has_an_account_can_be_given_a_second_separate_business(): void
     {
         $onboard = fn (string $name, string $email) => Livewire::actingAs($this->developer)->test(PlatformDashboardComponent::class)
