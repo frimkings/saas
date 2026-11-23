@@ -759,10 +759,17 @@ class CashierPatientClearanceComponent extends Component
             ->get();
         $reconciliationTotal = (float) $reconciliation->sum('total_amount');
 
+        // Patients on this page who already have vitals today, so the button reads "edit" rather than "add".
+        $vitalsEnabled = $this->vitalsEnabled();
+        $vitalsDone = $vitalsEnabled
+            ? \App\Models\Vital::whereIn('patient_id', $patients->pluck('id'))
+                ->whereDate('recorded_at', $today)->pluck('patient_id')->all()
+            : [];
+
         return view('livewire.cashier.cashier-patient-clearance-component', compact(
             'patients', 'clearances', 'services',
             'pendingCount', 'clearedToday', 'paidToday', 'unpaidToday',
             'reconciliation', 'reconciliationTotal'
-        ) + ['visitReceipts' => PatientVisits::enabled(), 'vitalsEnabled' => $this->vitalsEnabled()])->layout('layouts.clinic', ['menu' => 'reception']);
+        ) + ['visitReceipts' => PatientVisits::enabled(), 'vitalsEnabled' => $vitalsEnabled, 'vitalsDone' => $vitalsDone])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

@@ -111,9 +111,15 @@
                                 <td class="text-center">
                                     <div class="inline-flex gap-1.5">
                                         @if($vitalsEnabled)
-                                            <button type="button" class="ui-button ui-button-secondary" wire:click="openVitals({{ $patient->id }})" title="Record BP, blood sugar and IOP">
-                                                <i class="fas fa-heart-pulse" aria-hidden="true"></i>Vitals
-                                            </button>
+                                            @if(in_array($patient->id, $vitalsDone))
+                                                <button type="button" class="ui-button ui-button-secondary" wire:click="openVitals({{ $patient->id }})" title="Vitals recorded — click to view or edit">
+                                                    <i class="fas fa-heart-pulse" style="color:#0f766e" aria-hidden="true"></i>Edit vitals <i class="fas fa-check ml-1" style="color:#059669" aria-hidden="true"></i>
+                                                </button>
+                                            @else
+                                                <button type="button" class="ui-button ui-button-secondary" wire:click="openVitals({{ $patient->id }})" title="Record BP, blood sugar and IOP">
+                                                    <i class="fas fa-heart-pulse" aria-hidden="true"></i>Vitals
+                                                </button>
+                                            @endif
                                         @endif
                                         <button type="button" class="ui-button ui-button-primary" wire:click="openClearanceModal({{ $patient->id }})" title="Process clearance">
                                             <i class="fas fa-check-circle" aria-hidden="true"></i>Clear
@@ -449,9 +455,9 @@
                 <div>
                     <label class="{{ $label }}">Blood pressure (mmHg)</label>
                     <div class="flex items-center gap-2">
-                        <input type="number" inputmode="numeric" wire:model="vBpSys" class="ui-input ui-input-sm !w-24" placeholder="Systolic" aria-label="Systolic">
+                        <input type="number" inputmode="numeric" wire:model="vBpSys" class="ui-input ui-input-sm !w-28" placeholder="Systolic" aria-label="Systolic">
                         <span class="text-slate-400 font-bold">/</span>
-                        <input type="number" inputmode="numeric" wire:model="vBpDia" class="ui-input ui-input-sm !w-24" placeholder="Diastolic" aria-label="Diastolic">
+                        <input type="number" inputmode="numeric" wire:model="vBpDia" class="ui-input ui-input-sm !w-28" placeholder="Diastolic" aria-label="Diastolic">
                     </div>
                     @error('vBpSys')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     @error('vBpDia')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
@@ -467,11 +473,15 @@
                 </div>
                 <div>
                     <label class="{{ $label }}">IOP (mmHg)</label>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="text-xs font-semibold text-slate-500 w-10">Right</span>
-                        <input type="number" step="0.1" inputmode="decimal" wire:model="vIopOd" class="ui-input ui-input-sm !w-24" placeholder="OD" aria-label="IOP right eye">
-                        <span class="text-xs font-semibold text-slate-500 w-10 ml-2">Left</span>
-                        <input type="number" step="0.1" inputmode="decimal" wire:model="vIopOs" class="ui-input ui-input-sm !w-24" placeholder="OS" aria-label="IOP left eye">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <span class="mb-1 block text-xs font-semibold text-slate-500">Right (OD)</span>
+                            <input type="number" step="0.1" inputmode="decimal" wire:model="vIopOd" class="ui-input ui-input-sm !w-28" placeholder="OD" aria-label="IOP right eye">
+                        </div>
+                        <div>
+                            <span class="mb-1 block text-xs font-semibold text-slate-500">Left (OS)</span>
+                            <input type="number" step="0.1" inputmode="decimal" wire:model="vIopOs" class="ui-input ui-input-sm !w-28" placeholder="OS" aria-label="IOP left eye">
+                        </div>
                     </div>
                     @error('vIopOd')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     @error('vIopOs')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
