@@ -10,14 +10,14 @@
   // A big clinic is copied in stages: patients by number range (one .zip each), then the lists on their own.
   const answer = prompt('Nexus capture: what should be copied?\n\n'
     + 'ALL: everything in one go (clinics with up to about 5,000 patients).\n'
-    + 'A range such as 1-3000: only those patients\' files, by iTestEMR\'s internal number. Run 3001-6000 next, and so on.\n'
+    + 'A range such as 1-2000: only those patients\' files, by iTestEMR\'s internal number. Run 2001-4000 next, and so on (about 45 minutes per 2,000 on a slow server).\n'
     + 'LISTS: stock, staff, prices, payments, balances and spectacle orders, without patient files.', 'ALL');
   if (answer === null) return;
   const rangeMatch = answer.trim().match(/^(\d+)\s*-\s*(\d+)$/);
   const mode = rangeMatch ? 'range' : (/^lists?$/i.test(answer.trim()) ? 'lists' : 'all');
-  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS or a range such as 1-3000.'); return; }
+  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS or a range such as 1-2000.'); return; }
   const range = rangeMatch ? [Math.min(+rangeMatch[1], +rangeMatch[2]), Math.max(+rangeMatch[1], +rangeMatch[2])] : null;
-  if (range && range[1] - range[0] > 9999) { alert('Copy at most 10,000 numbers per stage, for example 1-3000.'); return; }
+  if (range && range[1] - range[0] > 9999) { alert('Copy at most 10,000 numbers per stage, for example 1-2000.'); return; }
   window.__nexusCapture = true;
 
   const host = location.hostname;
@@ -143,7 +143,7 @@
       await component(dir).set(branch.getAttribute('wire:model'), 'all'); await sleep(1500);
     }
     const total = parseInt(((ddoc.body.innerText.match(/Count:\s*([\d,]+)/) || [])[1] || '0').replace(/,/g, ''), 10) || 0;
-    if (total > 6000) { dir.remove(); throw new Error('This clinic has ' + total.toLocaleString() + ' patients: too many for one go. Click the button again and copy it in stages (1-3000, 3001-6000, and so on, then LISTS).'); }
+    if (total > 6000) { dir.remove(); throw new Error('This clinic has ' + total.toLocaleString() + ' patients: too many for one go. Click the button again and copy it in stages (1-2000, 2001-4000, and so on, then LISTS).'); }
     const cards = () => ddoc.querySelectorAll('[onclick^="openPatientFolderWindow"]').length;
     if ([...ddoc.querySelectorAll('[wire\\:click]')].some((b) => /loadMore/.test(b.getAttribute('wire:click')))) await grow(dir, 'loadMore', cards, total || null);
     check();
