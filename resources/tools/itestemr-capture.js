@@ -71,6 +71,27 @@
     });
   }
   const component = (f) => { const el = f.contentDocument.querySelector('[wire\\:id]'); return el ? f.contentWindow.Livewire.find(el.getAttribute('wire:id')) : null; };
+  /**
+   * Call before an action: the function it returns waits until every Livewire request the frame sends from now on
+   * has come back (or ready() says the result is there), up to `limit` ms. A slow server can take minutes.
+   */
+  function answered(f) {
+    // Only the requests seen leaving from now on count: a reply to an earlier one (a date just typed) is not the answer.
+    const pending = new Set();
+    let seen = 0;
+    try {
+      f.contentWindow.Livewire.hook('message.sent', (message) => { pending.add(message); seen++; });
+      f.contentWindow.Livewire.hook('message.processed', (message) => { pending.delete(message); });
+      f.contentWindow.Livewire.hook('message.failed', (message) => { pending.delete(message); });
+    } catch (e) { /* no hooks: the limit and ready() still end the wait */ }
+    return async (limit, ready) => {
+      for (const until = Date.now() + limit; Date.now() < until;) {
+        check();
+        if ((ready && ready()) || (seen > 0 && pending.size === 0)) return;
+        await sleep(500);
+      }
+    };
+  }
   const text = (n) => (n ? n.textContent.replace(/[\s ]+/g, ' ').trim() : '');
 
   /** A page's table as rows of text, header first. Inputs and selects count by their current value; action columns are dropped. */
@@ -256,7 +277,12 @@
       const f = await frame('/hms-drug-stocking-report');
       try {
         const from = f.contentDocument.querySelector('input[type=date]');
-        if (from && from.getAttribute('wire:model')) { await component(f).set(from.getAttribute('wire:model'), '2000-01-01'); await sleep(2000); }
+        if (from && from.getAttribute('wire:model')) {
+          // Wait for the server's answer, not a fixed time: a slow server answered after the old 2 seconds (16 rows of 628).
+          const done = answered(f);
+          await component(f).set(from.getAttribute('wire:model'), '2000-01-01');
+          await done(120000); await sleep(1000);
+        }
         return tableRows(findTable(f.contentDocument, /Expiry Date/));
       } finally { f.remove(); }
     }],
@@ -288,12 +314,14 @@
         if (dates.length < 2) return null;
         put(dates[0], '2000-01-01'); put(dates[1], new Date().toISOString().slice(0, 10));
         await sleep(800);
-        // The page already says "No records found" before a search, so wait for the result to change, then settle.
-        const before = d.body.innerText;
+        // Wait for the server's answer to the search (up to 10 minutes), not for the page to stop changing: the page
+        // sits still while a big clinic's report is built, and the old wait gave up then (Advanced: 30,812 lines lost).
+        const done = answered(f);
         const search = [...d.querySelectorAll('button')].find((b) => /search/i.test(b.textContent));
         if (search) search.click(); else await component(f).call('generateReport');
-        for (let i = 0; i < 240 && !/Grand Total/i.test(d.body.innerText) && d.body.innerText === before; i++) { check(); await sleep(500); }
-        for (let i = 0, last = ''; i < 60 && !/Grand Total/i.test(d.body.innerText) && d.body.innerText !== last; i++) { last = d.body.innerText; await sleep(1000); }
+        step('Copying payments: waiting for iTestEMR\'s report (a big clinic takes a minute or more)…');
+        await done(600000, () => /Grand Total/i.test(d.body.innerText));
+        await sleep(1500);
         const lines = d.body.innerText.split('\n').map((s) => s.trim()).filter(Boolean);
         const rows = [['Date', 'No', 'Patient', 'Mode', 'Amount', 'Taken By']];
         let day = null, sum = 0;
