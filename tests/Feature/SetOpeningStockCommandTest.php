@@ -91,6 +91,32 @@ class SetOpeningStockCommandTest extends TestCase
         $this->assertSame(23, $this->qty('Blucipro'));
     }
 
+    public function test_a_recount_with_set_corrects_stock_up_and_down_and_ignores_blank_counts(): void
+    {
+        $this->artisan('stock:opening', ['clinic' => $this->clinic->id, 'file' => $this->file, '--commit' => true])->assertSuccessful();
+        $count = tempnam(sys_get_temp_dir(), 'cnt');
+        file_put_contents($count, "Name,Stocked in iTestEMR (Mar 2026),Counted\nBlucipro,40,30\nDexatrol Ointment,66,9\nLens Cleaner,117,\n");
+        try {
+            // Without --set a stocked product is left alone; with it but without --commit nothing changes either.
+            $this->artisan('stock:opening', ['clinic' => $this->clinic->id, 'file' => $count, '--commit' => true])
+                ->expectsOutputToContain('Booked 0 units across 0 products')->assertSuccessful();
+            $this->artisan('stock:opening', ['clinic' => $this->clinic->id, 'file' => $count, '--set' => true])
+                ->expectsOutputToContain('Would correct 2 products')->assertSuccessful();
+            $this->assertSame(23, $this->qty('Blucipro'));
+
+            $this->artisan('stock:opening', ['clinic' => $this->clinic->id, 'file' => $count, '--set' => true, '--commit' => true])
+                ->expectsOutputToContain('Corrected 2 products')->assertSuccessful();
+        } finally {
+            @unlink($count);
+        }
+        $this->assertSame(30, $this->qty('Blucipro'));          // up: 7 more arrive as a delivery
+        $this->assertSame(9, $this->qty('Dexatrol Ointment'));  // down: 6 go out as counted
+        $this->assertSame(4, $this->qty('Lens Cleaner'));       // blank count: untouched, never zeroed
+        $down = Stock::withoutGlobalScopes()->where('movement_type', 'counted')->firstOrFail();
+        $this->assertSame([15, 6, 9], [(int) $down->quantity_before, (int) $down->quantity, (int) $down->quantity_after]);
+        $this->assertStringStartsWith('COUNT-', $down->reference_no);
+    }
+
     public function test_the_eyes_of_hope_file_reads_cleanly(): void
     {
         $this->artisan('stock:opening', ['clinic' => $this->clinic->id, 'file' => base_path('database/opening-stock/eyes-of-hope-2026-11-23.csv')])
