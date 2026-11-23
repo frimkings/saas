@@ -11,11 +11,12 @@
   const answer = prompt('Nexus capture: what should be copied?\n\n'
     + 'ALL: everything in one go (clinics with up to about 5,000 patients).\n'
     + 'A range such as 1-2000: only those patients\' files, by iTestEMR\'s internal number. Run 2001-4000 next, and so on (about 45 minutes per 2,000 on a slow server).\n'
-    + 'LISTS: stock, staff, prices, payments, balances and spectacle orders, without patient files.', 'ALL');
+    + 'LISTS: stock, staff, prices, payments and balances, without patient files.\n'
+    + 'ORDERS: spectacle orders on their own (slow for a clinic with thousands of orders: run it alone).', 'ALL');
   if (answer === null) return;
   const rangeMatch = answer.trim().match(/^(\d+)\s*-\s*(\d+)$/);
-  const mode = rangeMatch ? 'range' : (/^lists?$/i.test(answer.trim()) ? 'lists' : 'all');
-  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS or a range such as 1-2000.'); return; }
+  const mode = rangeMatch ? 'range' : /^lists?$/i.test(answer.trim()) ? 'lists' : /^orders?$/i.test(answer.trim()) ? 'orders' : 'all';
+  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS, ORDERS or a range such as 1-2000.'); return; }
   const range = rangeMatch ? [Math.min(+rangeMatch[1], +rangeMatch[2]), Math.max(+rangeMatch[1], +rangeMatch[2])] : null;
   if (range && range[1] - range[0] > 9999) { alert('Copy at most 10,000 numbers per stage, for example 1-2000.'); return; }
   window.__nexusCapture = true;
@@ -91,7 +92,7 @@
   const findTable = (doc, re) => [...doc.querySelectorAll('table')].find((t) => re.test([...t.querySelectorAll('thead th')].map(text).join('|')));
 
   /** Calls a Livewire action until the counted items stop growing. */
-  async function grow(f, action, count, target) {
+  async function grow(f, action, count, target, what = 'the patient directory') {
     const c = component(f);
     let last = -1, same = 0;
     while (count() !== last || same < 2) {
@@ -100,7 +101,7 @@
       if (count() === last) same++; else { same = 0; last = count(); }
       try { await c.call(action); } catch (e) { break; }
       await sleep(250);
-      if (target) step('Loading the patient directory… ' + count() + ' of ' + target, 5 + 15 * count() / target);
+      if (target) step('Loading ' + what + '… ' + count() + ' of ' + target, 5 + 15 * count() / target);
     }
   }
 
@@ -167,7 +168,7 @@
   }
 
   /* ---------- 2. every patient's records ---------- */
-  if (mode !== 'lists') {
+  if (mode === 'all' || mode === 'range') {
     // A stage walks its range of internal numbers and reads each folder page for the details, so the full
     // directory (slow for a big clinic) is never opened. In both ways a patient with no visits is not printed:
     // iTestEMR's print page fails for them, and their details are all there is to keep.
@@ -336,38 +337,145 @@
       } finally { f.remove(); }
     }],
     ['spectacle-orders.csv', 'Spectacle orders', async () => {
+      const rows = [['Order ID', 'Date', 'Patient ID', 'Patient', 'Contact', 'RE Rx', 'LE Rx', 'Lens', 'Add OD', 'Add OS', 'PD', 'Frame', 'Frame Price', 'Lens Price', 'Total', 'Ordered', 'Orders In', 'Received', 'Remarks', 'Staff']];
+      const addOrder = (L) => {
+        const between = (a, b) => { const x = L.indexOf(a), y = L.indexOf(b); return x >= 0 && y > x ? L.slice(x + 1, y).join(' ').replace(/\s+/g, ' ').trim() : ''; };
+        const val = (re) => { const l = L.find((s) => re.test(s)); return l ? l.replace(re, '').trim() : ''; };
+        const after = (label) => { const x = L.indexOf(label); return x >= 0 ? (L[x + 1] || '') : ''; };
+        const framesL = L.filter((s) => /^Frame:/.test(s));
+        rows.push([after('Orders ID'), L[0], after('Patients ID'), L[1], L[2], between('RE:', 'LE:'), between('LE:', 'Specifications:'), between('Specifications:', 'Patients ID'),
+          val(/^ADD \(OD\):/), val(/^ADD \(OS\):/), val(/^PD:/), (framesL[0] || '').replace(/^Frame:/, '').trim(), (framesL[1] || '').replace(/^Frame:/, '').trim(), val(/^Lens:/), val(/^Total:/),
+          after('Ordered'), after('Orders-In'), after('Received'), after('Remarks'), after('Staff:')]);
+      };
+      const lines = (el) => el.innerText.split('\n').map((s) => s.trim()).filter(Boolean);
+
+      // Fast way: ask the page's Livewire endpoint once for every order (its "Load more" adds only 10 at a time, and a
+      // live page redrawing thousands of cards runs out of memory). The answer is large (about 16 KB per order), so it
+      // is read as it streams in, one order card at a time, and each card is read in a small hidden box.
+      const direct = async () => {
+        const r = await fetch('/eye/specs-search', { credentials: 'same-origin' });
+        if (r.redirected && /\/login\b/.test(r.url)) throw SignedOut;
+        if (!r.ok) return null;
+        const page = await r.text();
+        const doc = new DOMParser().parseFromString(page, 'text/html');
+        const root = doc.querySelector('[wire\\:initial-data]');
+        const token = (page.match(/livewire_token\s*=\s*['"]([^'"]+)/) || [])[1] || (doc.querySelector('meta[name=csrf-token]') || {}).content;
+        const total = parseInt((doc.body.textContent.match(/Results:\s*(\d+)/) || [])[1] || '0', 10);
+        if (!root || !token || !total) return null;
+        const memo = JSON.parse(root.getAttribute('wire:initial-data'));
+        if (!memo.serverMemo || !('perPage' in (memo.serverMemo.data || {}))) return null;
+        step('Copying spectacle orders: asking iTestEMR for all ' + total.toLocaleString() + ' at once…', 90);
+        const res = await fetch('/livewire/message/' + memo.fingerprint.name, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'text/html, application/xhtml+xml', 'X-Livewire': 'true', 'X-CSRF-TOKEN': token },
+          body: JSON.stringify({ fingerprint: memo.fingerprint, serverMemo: memo.serverMemo, updates: [{ type: 'syncInput', payload: { id: 'nexus', name: 'perPage', value: total + 100 } }] }),
+        });
+        if (!res.ok || !res.body) return null;
+
+        // Each card is read in a blank frame of its own: iTestEMR's page scripts watch their own page, and placing
+        // thousands of cards there slowed the reading to a crawl.
+        const host = document.createElement('iframe');
+        host.setAttribute('style', 'position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:0;pointer-events:none');
+        document.body.appendChild(host);
+        host.contentDocument.open(); host.contentDocument.write('<!doctype html><html><head></head><body></body></html>'); host.contentDocument.close();
+        // The orders page's own stylesheets (no scripts), so each card's lines break as they do on screen.
+        const sheets = [...doc.querySelectorAll('link[rel~="stylesheet"][href], style')].map((s) => {
+          let el;
+          if (s.tagName === 'STYLE') { el = host.contentDocument.createElement('style'); el.textContent = s.textContent; host.contentDocument.head.appendChild(el); return null; }
+          el = host.contentDocument.createElement('link');
+          el.rel = 'stylesheet'; el.href = new URL(s.getAttribute('href'), location.origin + '/eye/specs-search').href;
+          const loaded = new Promise((ok) => { el.onload = el.onerror = ok; });
+          host.contentDocument.head.appendChild(el);
+          return loaded;
+        }).filter(Boolean);
+        await Promise.race([Promise.all(sheets), sleep(15000)]);
+        const box = host.contentDocument.createElement('div');
+        host.contentDocument.body.appendChild(box);
+        // The cards arrive inside a JSON string: quotes are \", so the marker is escaped too, and the first quote
+        // that is not escaped ends the page's HTML.
+        // Worked on as bytes, and each card decoded on its own: trimming one ever-growing string keeps every
+        // earlier piece alive in memory, which crashed the tab at a few thousand orders.
+        const M = new TextEncoder().encode('<div class=\\"row p-2\\"');
+        const find = (bytes, from) => {
+          for (let k = bytes.indexOf(M[0], from); k >= 0 && k <= bytes.length - M.length; k = bytes.indexOf(M[0], k + 1)) {
+            let ok = true;
+            for (let m = 1; m < M.length && ok; m++) ok = bytes[k + m] === M[m];
+            if (ok) return k;
+          }
+          return -1;
+        };
+        const endOfString = (s) => { for (let k = 0; k < s.length; k++) { if (s[k] === '\\') k++; else if (s[k] === '"') return k; } return -1; };
+        const decoder = new TextDecoder();
+        const readCard = (bytes) => {
+          let raw = decoder.decode(bytes);
+          const end = endOfString(raw);
+          if (end >= 0) raw = raw.slice(0, end);
+          let html;
+          try { html = JSON.parse('"' + raw.replace(/\\u[0-9a-fA-F]{0,3}$|\\$/, '') + '"'); } catch (e) { return; }
+          if (html.indexOf('Orders ID') < 0) return;
+          box.innerHTML = html.replace(/<(script|style|link)\b[\s\S]*?(<\/\1>|>)/gi, '').replace(/<(img|iframe|video|audio)\b[^>]*>/gi, '');
+          addOrder(lines(box));
+          box.textContent = '';
+        };
+        try {
+          const reader = res.body.getReader();
+          let buf = new Uint8Array(0), got = 0, n = 0;
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (value) {
+              got += value.length;
+              const joined = new Uint8Array(buf.length + value.length);
+              joined.set(buf); joined.set(value, buf.length);
+              buf = joined;
+            }
+            let a = find(buf, 0);
+            if (a < 0) { if (!done && buf.length > M.length) buf = buf.slice(buf.length - M.length); }
+            else {
+              for (let b = find(buf, a + M.length); b >= 0; a = b, b = find(buf, a + M.length)) {
+                readCard(buf.subarray(a, b));
+                if (++n % 100 === 0) { check(); step('Reading spectacle orders… ' + (rows.length - 1).toLocaleString() + ' of ' + total.toLocaleString() + ' (' + Math.round(got / 1048576) + ' MB in)', 90 + 8 * (rows.length - 1) / total); await sleep(0); }
+              }
+              buf = buf.slice(a);
+            }
+            if (done) { if (find(buf, 0) === 0) readCard(buf.subarray(0, Math.min(buf.length, 200000))); break; }
+          }
+        } finally { host.remove(); }
+        if (rows.length - 1 < total) log('Spectacle orders: ' + (rows.length - 1) + ' of ' + total + ' read', true);
+        return rows.length > 1 ? rows : null;
+      };
+      try {
+        const got = await direct();
+        if (got) return got;
+      } catch (e) {
+        if (e === SignedOut || stopped) throw e;
+        rows.length = 1;
+      }
+
+      // Slow way, as before: press "Load more" until every order shows.
       const f = await frame('/eye/specs-search');
       try {
         const d = f.contentDocument;
         const total = parseInt((d.body.innerText.match(/Results:\s*(\d+)/) || [])[1] || '0', 10);
         const count = () => new Set([...d.querySelectorAll('[wire\\:click^="editPrescription("]')].map((b) => b.getAttribute('wire:click'))).size;
-        if ([...d.querySelectorAll('[wire\\:click]')].some((b) => /loadMore/.test(b.getAttribute('wire:click')))) await grow(f, 'loadMore', count, total || null);
+        if ([...d.querySelectorAll('[wire\\:click]')].some((b) => /loadMore/.test(b.getAttribute('wire:click')))) await grow(f, 'loadMore', count, total || null, 'spectacle orders');
         const cards = [];
         d.querySelectorAll('[wire\\:click^="editPrescription("]').forEach((b) => {
           let card = b; while (card.parentElement && !/Orders ID/.test(card.textContent)) card = card.parentElement;
           while (card.parentElement && (card.parentElement.textContent.match(/Orders ID/g) || []).length === 1) card = card.parentElement;
           if (!cards.includes(card)) cards.push(card);
         });
-        const rows = [['Order ID', 'Date', 'Patient ID', 'Patient', 'Contact', 'RE Rx', 'LE Rx', 'Lens', 'Add OD', 'Add OS', 'PD', 'Frame', 'Frame Price', 'Lens Price', 'Total', 'Ordered', 'Orders In', 'Received', 'Remarks', 'Staff']];
-        for (const card of cards) {
-          const L = card.innerText.split('\n').map((s) => s.trim()).filter(Boolean);
-          const between = (a, b) => { const x = L.indexOf(a), y = L.indexOf(b); return x >= 0 && y > x ? L.slice(x + 1, y).join(' ').replace(/\s+/g, ' ').trim() : ''; };
-          const val = (re) => { const l = L.find((s) => re.test(s)); return l ? l.replace(re, '').trim() : ''; };
-          const after = (label) => { const x = L.indexOf(label); return x >= 0 ? (L[x + 1] || '') : ''; };
-          const framesL = L.filter((s) => /^Frame:/.test(s));
-          rows.push([after('Orders ID'), L[0], after('Patients ID'), L[1], L[2], between('RE:', 'LE:'), between('LE:', 'Specifications:'), between('Specifications:', 'Patients ID'),
-            val(/^ADD \(OD\):/), val(/^ADD \(OS\):/), val(/^PD:/), (framesL[0] || '').replace(/^Frame:/, '').trim(), (framesL[1] || '').replace(/^Frame:/, '').trim(), val(/^Lens:/), val(/^Total:/),
-            after('Ordered'), after('Orders-In'), after('Received'), after('Remarks'), after('Staff:')]);
-        }
+        cards.forEach((card) => addOrder(lines(card)));
         if (total && cards.length < total) log('Spectacle orders: ' + cards.length + ' of ' + total + ' loaded', true);
         return rows;
       } finally { f.remove(); }
     }],
   ];
-  for (let i = 0; mode !== 'range' && i < lists.length; i++) {
+  // LISTS leaves the spectacle orders to their own run (ORDERS): thousands of them load slowly, one "Load more" at a time.
+  const wanted = mode === 'all' ? lists : mode === 'lists' ? lists.filter(([n]) => n !== 'spectacle-orders.csv') : mode === 'orders' ? lists.filter(([n]) => n === 'spectacle-orders.csv') : [];
+  for (let i = 0; i < wanted.length; i++) {
     check();
-    const [name, label, read] = lists[i];
-    step('Copying ' + label.toLowerCase() + '…', 86 + 12 * i / lists.length);
+    const [name, label, read] = wanted[i];
+    step('Copying ' + label.toLowerCase() + '…', 86 + 12 * i / wanted.length);
     try {
       const rows = await read();
       if (rows && rows.length > 1) { files[name] = csv(rows); log(label + ': ' + (rows.length - 1)); }
@@ -380,15 +488,15 @@
 
   /* ---------- 4. the download ---------- */
   check();
-  report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Part: ' + (mode === 'range' ? 'patients ' + range[0] + '-' + range[1] : mode === 'lists' ? 'lists only' : 'everything'), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
+  report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Part: ' + (mode === 'range' ? 'patients ' + range[0] + '-' + range[1] : mode === 'lists' ? 'lists only' : mode === 'orders' ? 'spectacle orders only' : 'everything'), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
   if (/Role:\s*clinician/i.test(report[1])) report.splice(2, 0, 'This login is a clinician: an administrator login may see more (prices, payments).');
-  if (mode !== 'range' && (!files['payments.csv'] || !files['outstanding-balances.csv'])) report.push('', 'Payments and balances were not captured: they need an administrator login.');
+  if ((mode === 'all' || mode === 'lists') && (!files['payments.csv'] || !files['outstanding-balances.csv'])) report.push('', 'Payments and balances were not captured: they need an administrator login.');
   files['capture-report.txt'] = report.join('\r\n');
   step('Making the .zip…', 99);
   const blob = zip(files);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'itestemr-' + host.split('.')[0] + (mode === 'range' ? '-patients-' + range[0] + '-' + range[1] : mode === 'lists' ? '-lists' : '') + '-' + today + '.zip';
+  a.download = 'itestemr-' + host.split('.')[0] + (mode === 'range' ? '-patients-' + range[0] + '-' + range[1] : mode === 'lists' ? '-lists' : mode === 'orders' ? '-orders' : '') + '-' + today + '.zip';
   document.body.appendChild(a); a.click(); a.remove();
   step('Done: ' + a.download + ' (' + (blob.size / 1048576).toFixed(1) + ' MB) is downloading.', 100);
   $('[data-stop]').textContent = 'Close';
