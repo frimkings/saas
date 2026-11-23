@@ -639,6 +639,7 @@ class ITestEmrImport
             $this->insert('products', [
                 'clinic_id' => $this->clinicId, 'user_id' => $this->ownerId, 'name' => Str::limit($name, 250, ''),
                 'category_id' => $this->categoryFor($type, $this->ownerId, $categories), 'quantity' => 0,
+                'made_to_order' => $type === 'service', // a service is never counted, so the POS never blocks it
                 'cost_price' => $cost, 'selling_price' => $price, 'created_at' => $at, 'updated_at' => $at,
             ] + self::productDefaults($code, $at, $batches, 'ITE'));
         };

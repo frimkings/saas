@@ -504,7 +504,7 @@ class CloudifyImport
             $at = $this->dateTime($row['CREATED_DATE'] ?? null) ?? now();
             $this->insert('products', [
                 'clinic_id' => $this->clinicId, 'user_id' => $this->user($row['CREATED_BY'] ?? null), 'name' => Str::limit($name, 250, ''),
-                'category_id' => $category($type), 'quantity' => 0, 'cost_price' => 0,
+                'category_id' => $category($type), 'quantity' => 0, 'made_to_order' => $type === 'service', 'cost_price' => 0,
                 'selling_price' => is_numeric($row['PRICE'] ?? null) ? round((float) $row['PRICE'], 2) : 0,
                 'created_at' => $at, 'updated_at' => $at,
             ] + self::productDefaults($row['ITEM_ID'] ?? null, $at, $batches));

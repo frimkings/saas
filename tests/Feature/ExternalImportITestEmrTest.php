@@ -296,6 +296,9 @@ class ExternalImportITestEmrTest extends TestCase
         $this->assertEquals([45, 90], [$latmo->cost_price, $latmo->selling_price], 'the administrator\'s drug prices replace the priceless drug list');
         $services = DB::table('products')->join('categories', 'categories.id', '=', 'category_id')->where('categories.type', 'service')->orderBy('products.name')->pluck('selling_price', 'products.name')->map(fn ($p) => (float) $p)->all();
         $this->assertSame(['Cycloplegic Refraction' => 30.0, 'Registration' => 50.0], $services);
+        // Services are never counted, so the POS can sell them at once.
+        $this->assertSame([1], DB::table('products')->join('categories', 'categories.id', '=', 'category_id')->where('categories.type', 'service')->pluck('made_to_order')->map(fn ($v) => (int) $v)->unique()->values()->all());
+        $this->assertSame(0, DB::table('products')->join('categories', 'categories.id', '=', 'category_id')->where('categories.type', 'drug')->where('made_to_order', true)->count());
     }
 
     public function test_undo_is_refused_once_an_imported_balance_has_been_collected(): void
