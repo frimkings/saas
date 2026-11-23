@@ -7,6 +7,17 @@
  */
 (async () => {
   if (window.__nexusCapture) { alert('The Nexus capture is already running in this tab.'); return; }
+  // A big clinic is copied in stages: patients by number range (one .zip each), then the lists on their own.
+  const answer = prompt('Nexus capture: what should be copied?\n\n'
+    + 'ALL: everything in one go (clinics with up to about 5,000 patients).\n'
+    + 'A range such as 1-3000: only those patients\' files, by iTestEMR\'s internal number. Run 3001-6000 next, and so on.\n'
+    + 'LISTS: stock, staff, prices, payments, balances and spectacle orders, without patient files.', 'ALL');
+  if (answer === null) return;
+  const rangeMatch = answer.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  const mode = rangeMatch ? 'range' : (/^lists?$/i.test(answer.trim()) ? 'lists' : 'all');
+  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS or a range such as 1-3000.'); return; }
+  const range = rangeMatch ? [Math.min(+rangeMatch[1], +rangeMatch[2]), Math.max(+rangeMatch[1], +rangeMatch[2])] : null;
+  if (range && range[1] - range[0] > 9999) { alert('Copy at most 10,000 numbers per stage, for example 1-3000.'); return; }
   window.__nexusCapture = true;
 
   const host = location.hostname;
@@ -95,68 +106,124 @@
 
   /* ---------- 1. patients ---------- */
   const files = {};
-  step('Opening the patient directory…', 2);
-  const dir = await frame('/patient-directory');
-  const ddoc = dir.contentDocument;
-  const branch = ddoc.querySelector('select[wire\\:model*="ranch"]');
-  if (branch && [...branch.options].some((o) => o.value === 'all') && branch.value !== 'all') {
-    await component(dir).set(branch.getAttribute('wire:model'), 'all'); await sleep(1500);
-  }
-  const total = parseInt(((ddoc.body.innerText.match(/Count:\s*([\d,]+)/) || [])[1] || '0').replace(/,/g, ''), 10) || 0;
-  const cards = () => ddoc.querySelectorAll('[onclick^="openPatientFolderWindow"]').length;
-  if ([...ddoc.querySelectorAll('[wire\\:click]')].some((b) => /loadMore/.test(b.getAttribute('wire:click')))) await grow(dir, 'loadMore', cards, total || null);
-  check();
-
-  const LABELS = ['Name', 'Contact', 'Sex', 'Age', 'DOB', 'Address', 'E-mail', 'Next of Kin', 'Next of Kin Contact', 'Occupation', 'Company', 'Insurance Scheme', 'Staff ID', 'Insurance#', 'Patient Type', 'SMS Alert', 'First Visit', 'Branch'];
-  const patients = [];
-  ddoc.querySelectorAll('[onclick^="openPatientFolderWindow"]').forEach((a) => {
-    let card = a;
-    while (card && !card.querySelector('img[alt="Patient Photo"]')) card = card.parentElement;
-    if (!card) return;
-    const ps = [...card.querySelectorAll('p')].map(text);
-    const r = { 'Patients ID': '', internal_id: (a.getAttribute('onclick').match(/\d+/) || [''])[0] };
-    for (let i = 0; i < ps.length; i++) {
-      if (LABELS.includes(ps[i]) && !(ps[i] in r)) { const v = ps[i + 1]; r[ps[i]] = v !== undefined && !LABELS.includes(v) && v !== 'Patients ID' ? v : ''; }
-      if (ps[i] === 'Patients ID') r['Patients ID'] = ps[i + 1] || '';
-    }
-    patients.push(r);
-  });
-  dir.remove();
-  if (!patients.length) throw new Error('No patients were found in the Patient\'s Directory. Is this login allowed to open it?');
   const pcols = ['Patients ID', 'Name', 'Sex', 'DOB', 'Age', 'Contact', 'Address', 'E-mail', 'Occupation', 'Company', 'Next of Kin', 'Next of Kin Contact', 'Insurance Scheme', 'Insurance#', 'Staff ID', 'Patient Type', 'SMS Alert', 'First Visit', 'Branch', 'internal_id'];
-  files['patients.csv'] = csv([pcols, ...patients.map((p) => pcols.map((c) => p[c] || ''))]);
-  log(patients.length + ' patients' + (total && patients.length < total ? ' of ' + total + ' listed: the directory stopped loading early' : ''), total && patients.length < total);
+
+  /** A patient's folder page: their details, and how many visits it lists (none: the print page would fail). */
+  const FOLDER_LABELS = [['Name', 'Name'], ['Sex', 'Sex'], ['Contact', 'Contact'], ['Next of Kin', 'Next of Kin'], ['Next of Kin Contact', 'Next of Kin Contact'],
+    ['Occupation', 'Occupation'], ['Insurance', 'Insurance Scheme'], ['Age', 'Age'], ['DOB', 'DOB'], ['Address', 'Address'], ['Other Info', null],
+    ['Insure #', 'Insurance#'], ['Patient ID', 'Patients ID'], ['First Visit Date', 'First Visit']];
+  async function folderInfo(id) {
+    const doc = await getDoc('/hms-patient-folder/' + id);
+    const visits = [...doc.querySelectorAll('select option')].filter((o) => o.value.trim() !== '').length;
+    const t = (doc.body.textContent || '').replace(/[\s ]+/g, ' ');
+    const from = t.indexOf('PATIENT CLINIC RECORDS');
+    const to = t.indexOf('PATIENT FILE ATTACHMENTS');
+    const s = t.slice(from >= 0 ? from : 0, to > from ? to : t.length);
+    const r = { internal_id: String(id) };
+    let at = 0;
+    FOLDER_LABELS.forEach(([label, col], k) => {
+      const i = s.indexOf(label + ':', at);
+      if (i < 0) return;
+      const startV = i + label.length + 1;
+      let endV = s.length;
+      for (let j = k + 1; j < FOLDER_LABELS.length; j++) { const n = s.indexOf(FOLDER_LABELS[j][0] + ':', startV); if (n >= 0) { endV = n; break; } }
+      if (col) r[col] = s.slice(startV, endV).trim().replace(/^N\/A$/i, '');
+      at = startV;
+    });
+    return r['Patients ID'] ? { details: r, visits } : null;
+  }
+
+  let patients = [];
+  if (mode === 'all') {
+    step('Opening the patient directory…', 2);
+    const dir = await frame('/patient-directory');
+    const ddoc = dir.contentDocument;
+    const branch = ddoc.querySelector('select[wire\\:model*="ranch"]');
+    if (branch && [...branch.options].some((o) => o.value === 'all') && branch.value !== 'all') {
+      await component(dir).set(branch.getAttribute('wire:model'), 'all'); await sleep(1500);
+    }
+    const total = parseInt(((ddoc.body.innerText.match(/Count:\s*([\d,]+)/) || [])[1] || '0').replace(/,/g, ''), 10) || 0;
+    if (total > 6000) { dir.remove(); throw new Error('This clinic has ' + total.toLocaleString() + ' patients: too many for one go. Click the button again and copy it in stages (1-3000, 3001-6000, and so on, then LISTS).'); }
+    const cards = () => ddoc.querySelectorAll('[onclick^="openPatientFolderWindow"]').length;
+    if ([...ddoc.querySelectorAll('[wire\\:click]')].some((b) => /loadMore/.test(b.getAttribute('wire:click')))) await grow(dir, 'loadMore', cards, total || null);
+    check();
+
+    const LABELS = ['Name', 'Contact', 'Sex', 'Age', 'DOB', 'Address', 'E-mail', 'Next of Kin', 'Next of Kin Contact', 'Occupation', 'Company', 'Insurance Scheme', 'Staff ID', 'Insurance#', 'Patient Type', 'SMS Alert', 'First Visit', 'Branch'];
+    ddoc.querySelectorAll('[onclick^="openPatientFolderWindow"]').forEach((a) => {
+      let card = a;
+      while (card && !card.querySelector('img[alt="Patient Photo"]')) card = card.parentElement;
+      if (!card) return;
+      const ps = [...card.querySelectorAll('p')].map(text);
+      const r = { 'Patients ID': '', internal_id: (a.getAttribute('onclick').match(/\d+/) || [''])[0] };
+      for (let i = 0; i < ps.length; i++) {
+        if (LABELS.includes(ps[i]) && !(ps[i] in r)) { const v = ps[i + 1]; r[ps[i]] = v !== undefined && !LABELS.includes(v) && v !== 'Patients ID' ? v : ''; }
+        if (ps[i] === 'Patients ID') r['Patients ID'] = ps[i + 1] || '';
+      }
+      patients.push(r);
+    });
+    dir.remove();
+    if (!patients.length) throw new Error('No patients were found in the Patient\'s Directory. Is this login allowed to open it?');
+    log(patients.length + ' patients' + (total && patients.length < total ? ' of ' + total + ' listed: the directory stopped loading early' : ''), total && patients.length < total);
+  }
 
   /* ---------- 2. every patient's records ---------- */
-  const folders = new Array(patients.length);
-  const failed = [];
-  let done = 0, next = 0;
-  async function worker() {
-    while (next < patients.length) {
-      check();
-      const i = next++, p = patients[i];
-      let html = null;
-      for (let attempt = 0; attempt < 2 && html === null; attempt++) {
-        try {
-          const doc = await getDoc('/hms-print-all-patient-folder/' + p.internal_id);
-          doc.querySelectorAll('script,style,link,noscript,img').forEach((e) => e.remove());
-          html = doc.body.innerHTML;
-        } catch (e) {
-          if (e === SignedOut) throw e;
-          if (attempt) failed.push(p['Patients ID'] + ' (' + p.Name + ')'); else await sleep(1000);
+  if (mode !== 'lists') {
+    // A stage walks its range of internal numbers and reads each folder page for the details, so the full
+    // directory (slow for a big clinic) is never opened. In both ways a patient with no visits is not printed:
+    // iTestEMR's print page fails for them, and their details are all there is to keep.
+    const ids = mode === 'range' ? Array.from({ length: range[1] - range[0] + 1 }, (_, k) => String(range[0] + k)) : patients.map((p) => p.internal_id);
+    const byId = new Map(patients.map((p) => [p.internal_id, p]));
+    const found = [], folders = [], failed = [];
+    let done = 0, next = 0, empty = 0, novisits = 0;
+    const label = mode === 'range' ? 'Copying patients ' + range[0] + '-' + range[1] + '… ' : 'Copying patient records… ';
+    async function worker() {
+      while (next < ids.length) {
+        check();
+        const k = next++, id = ids[k];
+        let info = null, html = null, settled = false;
+        for (let attempt = 0; attempt < 3 && !settled; attempt++) {
+          try {
+            if (info === null) {
+              info = await folderInfo(id);
+              if (!info) {
+                if (mode === 'range') { empty++; settled = true; break; }
+                info = { details: byId.get(id), visits: 1 };
+              }
+            }
+            if (info.visits > 0) {
+              const doc = await getDoc('/hms-print-all-patient-folder/' + id);
+              doc.querySelectorAll('script,style,link,noscript,img').forEach((e) => e.remove());
+              html = doc.body.innerHTML;
+            } else novisits++;
+            settled = true;
+          } catch (e) {
+            if (e === SignedOut) throw e;
+            if (attempt === 2) { const p = (info && info.details) || byId.get(id) || {}; failed.push((p['Patients ID'] || '#' + id) + (p.Name ? ' (' + p.Name + ')' : '')); }
+            else await sleep(1500 * (attempt + 1));
+          }
         }
+        if (info && info.details) {
+          found[k] = mode === 'range' ? info.details : Object.assign({}, info.details, byId.get(id) || {});
+          if (html !== null) folders[k] = '<section class="px" data-internal-id="' + id + '">' + html + '</section>';
+        }
+        done++;
+        if (done % 10 === 0 || done === ids.length) step(label + done + ' of ' + ids.length, 5 + (mode === 'range' ? 90 : 80) * done / ids.length);
       }
-      if (html !== null) folders[i] = '<section class="px" data-internal-id="' + p.internal_id + '">' + html + '</section>';
-      done++;
-      step('Copying patient records… ' + done + ' of ' + patients.length, 20 + 65 * done / patients.length);
     }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    patients = found.filter(Boolean);
+    files['patients.csv'] = csv([pcols, ...patients.map((p) => pcols.map((c) => p[c] || ''))]);
+    const copied = folders.filter(Boolean);
+    const visits = copied.reduce((n, f) => n + (f.match(/Visit\s*#\s*\d+/g) || []).length, 0);
+    files['patient-records.html'] = '<!doctype html><html><head><meta charset="utf-8"><title>iTestEMR patient records, ' + host + ', ' + today + '</title></head><body>' + copied.join('\n') + '</body></html>';
+    if (mode === 'range') {
+      const nums = patients.map((p) => +p.internal_id);
+      log('Stage ' + range[0] + '-' + range[1] + ': ' + patients.length + ' patients' + (nums.length ? ' (internal numbers ' + Math.min(...nums) + ' to ' + Math.max(...nums) + ')' : '') + (empty ? '; ' + empty + ' numbers hold no patient' : ''));
+      if (!patients.length) log('No patients in this range. If the stage before had patients right up to its end, try one more range; otherwise every patient is copied.', true);
+    }
+    log(copied.length + ' patient folders with ' + visits + ' visits' + (novisits ? '; ' + novisits + ' patients have no visits (details only)' : ''));
+    if (failed.length) log(failed.length + ' patient folders would not open in iTestEMR: ' + failed.join(', ') + '. Run this stage again, or print these from iTestEMR by hand.', true);
   }
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  const copied = folders.filter(Boolean);
-  const visits = copied.reduce((n, f) => n + (f.match(/Visit\s*#\s*\d+/g) || []).length, 0);
-  files['patient-records.html'] = '<!doctype html><html><head><meta charset="utf-8"><title>iTestEMR patient records, ' + host + ', ' + today + '</title></head><body>' + copied.join('\n') + '</body></html>';
-  log(copied.length + ' patient folders with ' + visits + ' visits');
-  if (failed.length) log(failed.length + ' patient folders would not open in iTestEMR: ' + failed.join(', ') + '. Print these from iTestEMR by hand.', true);
 
   /* ---------- 3. stock lists and staff ---------- */
   const lists = [
@@ -297,7 +364,7 @@
       } finally { f.remove(); }
     }],
   ];
-  for (let i = 0; i < lists.length; i++) {
+  for (let i = 0; mode !== 'range' && i < lists.length; i++) {
     check();
     const [name, label, read] = lists[i];
     step('Copying ' + label.toLowerCase() + '…', 86 + 12 * i / lists.length);
@@ -313,15 +380,15 @@
 
   /* ---------- 4. the download ---------- */
   check();
-  report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
+  report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Part: ' + (mode === 'range' ? 'patients ' + range[0] + '-' + range[1] : mode === 'lists' ? 'lists only' : 'everything'), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
   if (/Role:\s*clinician/i.test(report[1])) report.splice(2, 0, 'This login is a clinician: an administrator login may see more (prices, payments).');
-  if (!files['payments.csv'] || !files['outstanding-balances.csv']) report.push('', 'Payments and balances were not captured: they need an administrator login.');
+  if (mode !== 'range' && (!files['payments.csv'] || !files['outstanding-balances.csv'])) report.push('', 'Payments and balances were not captured: they need an administrator login.');
   files['capture-report.txt'] = report.join('\r\n');
   step('Making the .zip…', 99);
   const blob = zip(files);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'itestemr-' + host.split('.')[0] + '-' + today + '.zip';
+  a.download = 'itestemr-' + host.split('.')[0] + (mode === 'range' ? '-patients-' + range[0] + '-' + range[1] : mode === 'lists' ? '-lists' : '') + '-' + today + '.zip';
   document.body.appendChild(a); a.click(); a.remove();
   step('Done: ' + a.download + ' (' + (blob.size / 1048576).toFixed(1) + ' MB) is downloading.', 100);
   $('[data-stop]').textContent = 'Close';
