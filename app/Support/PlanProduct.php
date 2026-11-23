@@ -132,6 +132,7 @@ class PlanProduct
         Feature::OUTSTANDING_BALANCES => ['Outstanding balances', self::CLINIC],
         Feature::SPECTACLES_PRO => ['Spectacle orders pro', self::CLINIC],
         Feature::UNLIMITED_USERS => ['Unlimited users', null],
+        Feature::VITALS => ['Patient vitals (BP, sugar, IOP)', self::CLINIC],
         Feature::HISTORY_CHARTS => ['History charts & risk flags', self::CLINIC],
         Feature::CLINICAL_PDFS => ['Visit summary, medical record & consultation PDFs', self::CLINIC],
         Feature::CLINICAL_DOCUMENTS => ['Clinical documents & scan uploads', self::CLINIC],
@@ -162,7 +163,7 @@ class PlanProduct
      * list without Feature::CLINIC_TIERS_CHOSEN (older plans and subscriptions) keeps all of them.
      */
     public const CLINIC_TIER_FEATURES = [
-        Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS, Feature::CLINICAL_DOCUMENTS, Feature::SALES_EXPORT, Feature::DISCOUNTS,
+        Feature::VITALS, Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS, Feature::CLINICAL_DOCUMENTS, Feature::SALES_EXPORT, Feature::DISCOUNTS,
         Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS, Feature::SALES_REPORTS_MONTH, Feature::SALES_REPORTS, Feature::CASH_BOOK,
         Feature::PATIENT_LEDGER, Feature::INSURANCE, Feature::INVENTORY_ALERTS, Feature::PRODUCT_IMPORT, Feature::PURCHASING,
         Feature::PATIENT_MESSAGES, Feature::STAFF_MESSAGES, Feature::BUSINESS_OVERVIEW, Feature::NEEDS_ATTENTION, Feature::CUSTOM_ROLES,

@@ -26,7 +26,7 @@ class PricingCatalogue
     /** How the page groups the features, in order; anything unlisted goes under "More". */
     public const GROUPS = [
         'Front desk' => [Feature::APPOINTMENTS, Feature::NEEDS_ATTENTION, Feature::DISCOUNTS, Feature::OUTSTANDING_BALANCES, Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS, Feature::SALES_EXPORT, Feature::DIAGNOSTIC_SCANS],
-        'Clinical' => [Feature::REFERRALS, Feature::CLINICAL_DOCUMENTS, Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS],
+        'Clinical' => [Feature::REFERRALS, Feature::VITALS, Feature::CLINICAL_DOCUMENTS, Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS],
         'Stock' => [Feature::INVENTORY, Feature::INVENTORY_ALERTS, Feature::PRODUCT_IMPORT, Feature::PURCHASING],
         'Money' => [Feature::SALES_REPORTS_MONTH, Feature::SALES_REPORTS, Feature::EXPENSE_TRACKING, Feature::CASH_BOOK, Feature::PATIENT_LEDGER, Feature::ADVANCED_REPORTS, Feature::INSURANCE, Feature::APPROVALS],
         'Messages' => [Feature::PATIENT_MESSAGES, Feature::SMS_CAMPAIGNS, Feature::STAFF_MESSAGES],
@@ -45,6 +45,7 @@ class PricingCatalogue
         Feature::PATIENT_MESSAGES => 'SMS reminders & WhatsApp links', Feature::INVENTORY => 'Products & stock',
         Feature::SALES_REPORTS_MONTH => 'Sales reports (this month)', Feature::SALES_REPORTS => 'Sales reports (any dates, PDF)',
         Feature::INSURANCE => 'Insurance co-pay & claims', Feature::CLINICAL_PDFS => 'Visit summary & medical record PDFs',
+        Feature::VITALS => 'Patient vitals (BP, sugar, IOP)',
         Feature::HISTORY_CHARTS => 'VA & IOP charts, risk flags', Feature::PURCHASING => 'Suppliers & purchase orders',
     ];
 

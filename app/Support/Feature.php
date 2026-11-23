@@ -50,6 +50,7 @@ class Feature
     const ATTENDANCE_PARTS_CHOSEN = 'attendance_parts_chosen';
 
     // Clinic features sold by plan tier (2026-10-24). Before then every clinic plan had them all.
+    const VITALS               = 'vitals';               // BP, blood sugar and IOP taken at check-in
     const HISTORY_CHARTS       = 'history_charts';       // VA/IOP charts and risk flags on the History tab
     const CLINICAL_PDFS        = 'clinical_pdfs';        // visit summary, medical record and consultation PDFs
     const CLINICAL_DOCUMENTS   = 'clinical_documents';   // scan and attachment uploads

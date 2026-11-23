@@ -23,7 +23,8 @@ class ClinicalSuitePlans
     public const STANDARD = [...self::STARTER,
         Feature::APPOINTMENTS, Feature::REFERRALS, Feature::CLINICAL_DOCUMENTS, Feature::SALES_EXPORT, Feature::DISCOUNTS,
         Feature::SALES_REPORTS_MONTH, Feature::INVENTORY_ALERTS, Feature::PRODUCT_IMPORT, Feature::PATIENT_MESSAGES,
-        Feature::STAFF_MESSAGES, Feature::SMS_CAMPAIGNS, Feature::NEEDS_ATTENTION, Feature::DAILY_SUMMARY, Feature::CUSTOM_ROLES];
+        Feature::STAFF_MESSAGES, Feature::SMS_CAMPAIGNS, Feature::NEEDS_ATTENTION, Feature::DAILY_SUMMARY, Feature::CUSTOM_ROLES,
+        Feature::VITALS];
 
     public const PLUS = [...self::STANDARD,
         Feature::HISTORY_CHARTS, Feature::CLINICAL_PDFS, Feature::OUTSTANDING_BALANCES, Feature::QUOTATIONS, Feature::SPECTACLE_ORDERS,
@@ -129,7 +130,7 @@ class ClinicalSuitePlans
         Feature::APPOINTMENTS => 25, Feature::REFERRALS => 15, Feature::CLINICAL_DOCUMENTS => 15, Feature::SALES_EXPORT => 5,
         Feature::DISCOUNTS => 10, Feature::SALES_REPORTS_MONTH => 15, Feature::INVENTORY_ALERTS => 10, Feature::PRODUCT_IMPORT => 10,
         Feature::PATIENT_MESSAGES => 20, Feature::SMS_CAMPAIGNS => 20, Feature::STAFF_MESSAGES => 5, Feature::NEEDS_ATTENTION => 15,
-        Feature::DAILY_SUMMARY => 10, Feature::CUSTOM_ROLES => 10,
+        Feature::DAILY_SUMMARY => 10, Feature::CUSTOM_ROLES => 10, Feature::VITALS => 10,
         // Plus's extras
         Feature::HISTORY_CHARTS => 15, Feature::CLINICAL_PDFS => 10, Feature::OUTSTANDING_BALANCES => 15, Feature::QUOTATIONS => 10,
         Feature::SPECTACLE_ORDERS => 25, Feature::SALES_REPORTS => 25, Feature::EXPENSE_TRACKING => 25, Feature::CASH_BOOK => 30,

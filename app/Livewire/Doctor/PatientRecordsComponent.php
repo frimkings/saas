@@ -228,6 +228,17 @@ public $isEditingAppointment = false;
         if ($visitConsultationId) {
             $this->editConsultation($visitConsultationId);
             $this->activeTab = 'history';
+        } elseif (LicenseService::has(Feature::VITALS)) {
+            // A technician often takes IOP at check-in: carry today's reading into a fresh consultation
+            // so the doctor confirms rather than re-enters it. They can still override.
+            $vital = \App\Models\Vital::where('patient_id', $this->patient->id)
+                ->whereDate('recorded_at', now()->toDateString())->latest('id')->first();
+            if ($vital && ($vital->iop_od !== null || $vital->iop_os !== null)) {
+                $this->state = (array) $this->state + self::BLANK_STATE;
+                $fmt = fn ($v) => rtrim(rtrim(number_format((float) $v, 1), '0'), '.');
+                if ($vital->iop_od !== null && ($this->state['IOPOD'] ?? '') === '') $this->state['IOPOD'] = $fmt($vital->iop_od);
+                if ($vital->iop_os !== null && ($this->state['IOPOS'] ?? '') === '') $this->state['IOPOS'] = $fmt($vital->iop_os);
+            }
         }
     }
 
@@ -2971,6 +2982,11 @@ public function deleteAppointment($appointmentId)
         $canDocuments = LicenseService::has(Feature::CLINICAL_DOCUMENTS);
         $canAppointments = LicenseService::has(Feature::APPOINTMENTS);
         $canReferrals = LicenseService::has(Feature::REFERRALS);
+        // Latest vitals (BP, sugar, IOP) for this patient, shown in the consultation and history.
+        $canVitals = LicenseService::has(Feature::VITALS);
+        $latestVitals = $canVitals && in_array($this->activeTab, ['consultation', 'history'], true)
+            ? \App\Models\Vital::with('recorder:id,name')->where('patient_id', $this->patient->id)->latest('recorded_at')->latest('id')->first()
+            : null;
         $clinicalTrendData = $this->activeTab === 'history' && $canCharts ? $this->clinicalTrendData : [];
         $eyeDiseaseRiskFlags = $this->activeTab === 'history' && $canCharts ? $this->eyeDiseaseRiskFlags : [];
         $lensOptions = collect();
@@ -3007,7 +3023,7 @@ public function deleteAppointment($appointmentId)
             DB::disableQueryLog();
         }
 
-        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments', 'canReferrals'))
+        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments', 'canReferrals', 'canVitals', 'latestVitals'))
             ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }

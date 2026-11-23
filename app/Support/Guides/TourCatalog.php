@@ -28,7 +28,7 @@ final class TourCatalog
         'optical.requests' => 8,
         'clinic.dashboard' => 7,
         'clinic.registry' => 2,
-        'clinic.clearance' => 1,
+        'clinic.clearance' => 2,
         'clinic.pos' => 3,
         'clinic.queue' => 2,
         'clinic.sales' => 4,
@@ -334,6 +334,9 @@ final class TourCatalog
             ['title' => 'Payment before the doctor', 'body' => 'Patients registered today wait here until their consultation is paid or billed to their insurer. Once cleared, they join the doctor\'s queue.'],
             ['target' => 'clr-stats', 'title' => 'The day so far', 'body' => 'How many are waiting, cleared, paid and unpaid. Click a count to see those patients.'],
             ['target' => 'clr-lists', 'open' => 'clr-tab-pending', 'title' => 'Clear a patient', 'body' => 'Find the patient and press the button on their row: take the payment (cash, MoMo, card...), print or text the receipt, and they are sent to the doctor.'],
+            \App\Services\LicenseService::has(\App\Support\Feature::VITALS)
+                ? ['target' => 'clr-lists', 'open' => 'clr-tab-pending', 'title' => 'Vitals', 'body' => 'Press Vitals on a patient\'s row to record their blood pressure, blood sugar and eye pressure (IOP). The doctor sees them at the top of the consultation, and the IOP carries into the eye exam.']
+                : null,
             ['target' => 'clr-lists', 'open' => 'clr-tab-cleared', 'title' => 'Already cleared', 'body' => 'Everyone cleared, with filters. A clearance made by mistake can be revoked with a reason; a manager approves it.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];

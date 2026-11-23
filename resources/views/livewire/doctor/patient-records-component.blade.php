@@ -137,6 +137,7 @@
             {{-- TAB 1: CONSULTATION HISTORY --}}
             @if($activeTab === 'history')
                 <div class="history-tab history-prototype" x-data="{historyView:'overview'}">
+                    @includeWhen($canVitals, 'livewire.doctor.partials.vitals-banner', ['vitals' => $latestVitals])
 
                     {{-- Header + Search --}}
                     <div class="history-header">
@@ -425,6 +426,7 @@
                             <a href="#consultation-section-review" class="{{ $consultationErrorCount ? 'has-error' : '' }}"><span>4</span> Review @if($consultationErrorCount)<b>{{ $consultationErrorCount }}</b>@endif</a>
                             <strong x-show="dirty" x-cloak><i class="fas fa-circle"></i> Unsaved changes</strong>
                         </nav>
+                        @includeWhen($canVitals, 'livewire.doctor.partials.vitals-banner', ['vitals' => $latestVitals])
                         {{-- Chief Complaint & History --}}
                         <div id="consultation-section-history" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}">
                             <div class="ui-section-heading">

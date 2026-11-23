@@ -41,6 +41,19 @@ class CashierPatientClearanceComponent extends Component
     public string $genderFilter  = '';
     public string $clearedSearch = '';
 
+    // --- Vitals (BP, blood sugar, IOP) taken at check-in; shown only when the plan includes them ---
+    public ?int $vitalsPatientId = null;
+    public ?int $vitalsClearanceId = null;
+    public ?int $vitalsRecordId = null;
+    public string $vitalsPatientName = '';
+    public $vBpSys = '';
+    public $vBpDia = '';
+    public $vSugar = '';
+    public string $vSugarType = 'random';
+    public string $vSugarUnit = 'mg/dL';
+    public $vIopOd = '';
+    public $vIopOs = '';
+
     // --- Compose clearance ---
     public $patientClearanceId   = null;
     public string $selectedServiceId = ''; // numeric product id OR 'unpaid'
@@ -100,6 +113,101 @@ class CashierPatientClearanceComponent extends Component
     }
 
     // ---------------------------------------------------------------
+    // ---------------------------------------------------------------
+    // Vitals (BP, blood sugar, IOP) at check-in — reception or nurse.
+    // ---------------------------------------------------------------
+    private function vitalsEnabled(): bool
+    {
+        return \App\Services\LicenseService::has(\App\Support\Feature::VITALS);
+    }
+
+    public function openVitals(int $patientId): void
+    {
+        abort_unless($this->vitalsEnabled(), 403);
+        $patient = Patient::find($patientId);
+        if (!$patient) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Patient not found!']);
+            return;
+        }
+
+        $this->reset(['vitalsRecordId', 'vBpSys', 'vBpDia', 'vSugar', 'vIopOd', 'vIopOs']);
+        $this->vSugarType = 'random';
+        $this->vSugarUnit = 'mg/dL';
+        $this->vitalsPatientId = $patient->id;
+        $this->vitalsPatientName = $patient->name;
+        $this->vitalsClearanceId = CashierPatientClearance::where('patient_id', $patient->id)
+            ->where('clearance_date', now()->toDateString())->value('id');
+
+        // If vitals were already taken for today's visit, edit them rather than add a second set.
+        $existing = \App\Models\Vital::where('patient_id', $patient->id)
+            ->whereDate('recorded_at', now()->toDateString())->latest('id')->first();
+        if ($existing) {
+            $this->vitalsRecordId = $existing->id;
+            $this->vBpSys = $existing->bp_systolic;
+            $this->vBpDia = $existing->bp_diastolic;
+            $this->vSugar = $existing->blood_sugar !== null ? rtrim(rtrim(number_format((float) $existing->blood_sugar, 2), '0'), '.') : '';
+            $this->vSugarType = $existing->blood_sugar_type ?: 'random';
+            $this->vSugarUnit = $existing->blood_sugar_unit ?: 'mg/dL';
+            $this->vIopOd = $existing->iop_od !== null ? rtrim(rtrim(number_format((float) $existing->iop_od, 1), '0'), '.') : '';
+            $this->vIopOs = $existing->iop_os !== null ? rtrim(rtrim(number_format((float) $existing->iop_os, 1), '0'), '.') : '';
+        }
+
+        $this->resetErrorBag();
+        $this->dispatch('show-vitals-form');
+    }
+
+    public function saveVitals(): void
+    {
+        abort_unless($this->vitalsEnabled(), 403);
+        $patient = Patient::findOrFail($this->vitalsPatientId);
+        $data = $this->validate([
+            'vBpSys'    => ['nullable', 'integer', 'between:40,300'],
+            'vBpDia'    => ['nullable', 'integer', 'between:20,200'],
+            'vSugar'    => ['nullable', 'numeric', 'between:0,2000'],
+            'vSugarType' => ['required', 'in:random,fasting'],
+            'vSugarUnit' => ['required', 'in:mg/dL,mmol/L'],
+            'vIopOd'    => ['nullable', 'numeric', 'between:0,80'],
+            'vIopOs'    => ['nullable', 'numeric', 'between:0,80'],
+        ], [], [
+            'vBpSys' => 'systolic', 'vBpDia' => 'diastolic', 'vSugar' => 'blood sugar',
+            'vIopOd' => 'IOP (right)', 'vIopOs' => 'IOP (left)',
+        ]);
+        // mg/dL is whole-number territory; mmol/L is single-digit. Guard the obvious unit mix-up.
+        if (filled($data['vSugar']) && $data['vSugarUnit'] === 'mmol/L' && (float) $data['vSugar'] > 40) {
+            $this->addError('vSugar', 'That looks like mg/dL. Switch the unit, or check the value.');
+            return;
+        }
+
+        $values = [
+            'bp_systolic'  => $data['vBpSys'] !== '' ? (int) $data['vBpSys'] : null,
+            'bp_diastolic' => $data['vBpDia'] !== '' ? (int) $data['vBpDia'] : null,
+            'blood_sugar'  => $data['vSugar'] !== '' ? (float) $data['vSugar'] : null,
+            'blood_sugar_type' => $data['vSugarType'],
+            'blood_sugar_unit' => $data['vSugarUnit'],
+            'iop_od' => $data['vIopOd'] !== '' ? (float) $data['vIopOd'] : null,
+            'iop_os' => $data['vIopOs'] !== '' ? (float) $data['vIopOs'] : null,
+        ];
+        if (collect($values)->only(['bp_systolic', 'bp_diastolic', 'blood_sugar', 'iop_od', 'iop_os'])->filter(fn ($v) => $v !== null)->isEmpty()) {
+            $this->addError('vBpSys', 'Enter at least one reading.');
+            return;
+        }
+
+        $vital = $this->vitalsRecordId ? \App\Models\Vital::findOrFail($this->vitalsRecordId) : new \App\Models\Vital();
+        $vital->fill($values + [
+            'patient_id'   => $patient->id,
+            'clearance_id' => $this->vitalsClearanceId,
+            'branch_id'    => app(\App\Support\Tenancy\TenantContext::class)->branchId(),
+            'recorded_by'  => Auth::id(),
+            'recorded_at'  => $vital->exists ? $vital->recorded_at : now(),
+        ]);
+        $vital->save();
+        AuditTrail::record($this->vitalsRecordId ? 'vitals.updated' : 'vitals.recorded',
+            ($this->vitalsRecordId ? 'Updated vitals for ' : 'Recorded vitals for ').$patient->name, $vital, [], [], $patient->id);
+
+        $this->dispatch('hide-vitals-modal');
+        $this->dispatch('notify', ...['type' => 'success', 'message' => 'Vitals saved for '.$patient->name.'.']);
+    }
+
     // Pending: open clearance modal
     // ---------------------------------------------------------------
     public function openClearanceModal(int $patientId): void
@@ -655,6 +763,6 @@ class CashierPatientClearanceComponent extends Component
             'patients', 'clearances', 'services',
             'pendingCount', 'clearedToday', 'paidToday', 'unpaidToday',
             'reconciliation', 'reconciliationTotal'
-        ) + ['visitReceipts' => PatientVisits::enabled()])->layout('layouts.clinic', ['menu' => 'reception']);
+        ) + ['visitReceipts' => PatientVisits::enabled(), 'vitalsEnabled' => $this->vitalsEnabled()])->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

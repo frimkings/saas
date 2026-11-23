@@ -109,9 +109,16 @@
                                 </td>
                                 <td class="whitespace-nowrap text-xs text-slate-500">{{ \Carbon\Carbon::parse($patient->created_at)->format('d M Y') }}</td>
                                 <td class="text-center">
-                                    <button type="button" class="ui-button ui-button-primary" wire:click="openClearanceModal({{ $patient->id }})" title="Process clearance">
-                                        <i class="fas fa-check-circle" aria-hidden="true"></i>Clear
-                                    </button>
+                                    <div class="inline-flex gap-1.5">
+                                        @if($vitalsEnabled)
+                                            <button type="button" class="ui-button ui-button-secondary" wire:click="openVitals({{ $patient->id }})" title="Record BP, blood sugar and IOP">
+                                                <i class="fas fa-heart-pulse" aria-hidden="true"></i>Vitals
+                                            </button>
+                                        @endif
+                                        <button type="button" class="ui-button ui-button-primary" wire:click="openClearanceModal({{ $patient->id }})" title="Process clearance">
+                                            <i class="fas fa-check-circle" aria-hidden="true"></i>Clear
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -429,6 +436,55 @@
         </div>
     </div>
 
+    {{-- Vitals: BP, blood sugar and IOP taken at check-in. Stays in the page; shown by the script below. --}}
+    @if($vitalsEnabled)
+    <div id="vitalsModal" wire:ignore.self class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" onclick="if (event.target === this) window.clearanceDialog('vitalsModal', false)">
+        <div class="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="vitals-dialog-title">
+            <div class="ui-panel-heading bg-teal-50">
+                <h2 id="vitals-dialog-title" class="text-teal-800"><i class="fas fa-heart-pulse mr-2" aria-hidden="true"></i>Vitals — {{ $vitalsPatientName }}</h2>
+                <button type="button" class="ui-button ui-button-secondary" onclick="window.clearanceDialog('vitalsModal', false)" aria-label="Close dialog">Close</button>
+            </div>
+            <div class="space-y-4 p-5">
+                <p class="text-xs text-slate-500">Record what was taken. Leave the rest blank. The doctor sees these in the consultation.</p>
+                <div>
+                    <label class="{{ $label }}">Blood pressure (mmHg)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" inputmode="numeric" wire:model="vBpSys" class="ui-input ui-input-sm !w-24" placeholder="Systolic" aria-label="Systolic">
+                        <span class="text-slate-400 font-bold">/</span>
+                        <input type="number" inputmode="numeric" wire:model="vBpDia" class="ui-input ui-input-sm !w-24" placeholder="Diastolic" aria-label="Diastolic">
+                    </div>
+                    @error('vBpSys')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    @error('vBpDia')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="{{ $label }}">Blood sugar</label>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="number" step="0.1" inputmode="decimal" wire:model="vSugar" class="ui-input ui-input-sm !w-28" placeholder="Value" aria-label="Blood sugar value">
+                        <select wire:model="vSugarUnit" class="ui-input ui-input-sm !w-28" aria-label="Unit"><option value="mg/dL">mg/dL</option><option value="mmol/L">mmol/L</option></select>
+                        <select wire:model="vSugarType" class="ui-input ui-input-sm !w-32" aria-label="Fasting or random"><option value="random">Random</option><option value="fasting">Fasting</option></select>
+                    </div>
+                    @error('vSugar')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="{{ $label }}">IOP (mmHg)</label>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-semibold text-slate-500 w-10">Right</span>
+                        <input type="number" step="0.1" inputmode="decimal" wire:model="vIopOd" class="ui-input ui-input-sm !w-24" placeholder="OD" aria-label="IOP right eye">
+                        <span class="text-xs font-semibold text-slate-500 w-10 ml-2">Left</span>
+                        <input type="number" step="0.1" inputmode="decimal" wire:model="vIopOs" class="ui-input ui-input-sm !w-24" placeholder="OS" aria-label="IOP left eye">
+                    </div>
+                    @error('vIopOd')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                    @error('vIopOs')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+                <button type="button" class="ui-button ui-button-secondary" onclick="window.clearanceDialog('vitalsModal', false)">Cancel</button>
+                <button type="button" class="ui-button ui-button-primary" wire:click="saveVitals"><i class="fas fa-floppy-disk" aria-hidden="true"></i>Save vitals</button>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <style>
         .clr-service-option.active { background: #0f766e; color: #fff; }
         .clr-service-option.active span { color: inherit; }
@@ -463,9 +519,12 @@
         });
         window.addEventListener('show-revokeRequestModal', () => clearanceDialog('revokeRequestModal', true));
         window.addEventListener('hide-revokeRequestModal', () => clearanceDialog('revokeRequestModal', false));
+        window.addEventListener('show-vitals-form', () => clearanceDialog('vitalsModal', true));
+        window.addEventListener('hide-vitals-modal', () => clearanceDialog('vitalsModal', false));
         document.addEventListener('keydown', function (e) {
             if (e.key !== 'Escape') return;
             if (clearanceDialogOpen('clearanceReceiptModal')) clearanceDialog('clearanceReceiptModal', false);
+            else if (clearanceDialogOpen('vitalsModal')) clearanceDialog('vitalsModal', false);
             else if (clearanceDialogOpen('revokeRequestModal')) $wire.cancelRevokeRequest();
             else if (clearanceDialogOpen('addClearanceModal')) $wire.closeModal();
         });
