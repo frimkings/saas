@@ -8,6 +8,7 @@ use App\Models\Clinic;
 use App\Models\ExternalImportBatch;
 use App\Services\ExternalImport\CloudifyImport;
 use App\Services\ExternalImport\ExternalImportRollback;
+use App\Services\ExternalImport\ITestEmrImport;
 use App\Services\PlatformAuditService;
 use App\Support\ImportFiles;
 use Illuminate\Support\Facades\DB;
@@ -201,7 +202,11 @@ class ExternalImportComponent extends Component
     /** Why this clinic can't take the import now, or null. */
     private function blocker(ExternalImportBatch $batch): ?string
     {
-        $other = ExternalImportBatch::where('clinic_id', $batch->clinic_id)->where('id', '!=', $batch->id)->whereIn('status', ExternalImportBatch::ACTIVE)->first();
+        $others = ExternalImportBatch::where('clinic_id', $batch->clinic_id)->where('id', '!=', $batch->id)->whereIn('status', ExternalImportBatch::ACTIVE);
+        // An iTestEMR clinic copied in stages comes in parts, one import each: a finished part does not block the next
+        // (patients, visits, payments and orders already brought in are linked to, never added twice).
+        if ($batch->source === ITestEmrImport::SOURCE) $others->where(fn ($q) => $q->where('status', '!=', 'completed')->orWhere('source', '!=', $batch->source));
+        $other = $others->first();
         if ($other) return $other->status === 'completed'
             ? 'This clinic already has an import from '.$other->created_at->format('d M Y').'. Undo it first to import a newer export, or the records would be doubled.'
             : 'Another import for this clinic is queued or running.';

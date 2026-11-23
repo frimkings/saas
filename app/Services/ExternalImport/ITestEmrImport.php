@@ -60,6 +60,8 @@ class ITestEmrImport
     private array $staff = [];
     /** patient id => [Y-m-d => consultation id], filled while visits are imported. */
     private array $visitIds = [];
+    /** consultation id => true for the visits this run created (notes on any other visit are listed for undo). */
+    private array $ownVisits = [];
 
     public function __construct(private CsvTableReader $csv, private ITestEmrRecordsReader $records) {}
 
@@ -79,15 +81,20 @@ class ITestEmrImport
     {
         [$sheets, $files, $errors, $unknown, $duplicates] = $this->load($batch->files ?? [], true);
         $batch->files = $files;
-        if (! isset($sheets['patients'])) $errors[] = "The Patient's Directory file (patients.csv) is needed: every record is linked to a patient.";
+        // A big clinic comes in parts (patient stages, then LISTS and ORDERS): patients an earlier part brought in count as known.
+        $earlier = $this->earlierPatients($batch->clinic_id);
+        if (! isset($sheets['patients']) && ! $earlier) $errors[] = "The Patient's Directory file (patients.csv) is needed: every record is linked to a patient. For a clinic copied in stages, import the patient stages first.";
 
         $patients = collect($sheets['patients'] ?? []);
         $numbers = $patients->pluck('Patients ID')->map(fn ($n) => trim($n))->filter();
-        $known = $numbers->mapWithKeys(fn ($n) => [mb_strtolower($n) => true]);
-        $taken = DB::table('patients')->where('clinic_id', $batch->clinic_id)->whereIn(DB::raw('LOWER(pxnumber)'), $numbers->map(fn ($n) => mb_strtolower($n))->unique()->values()->all())->count();
+        $repeat = $numbers->filter(fn ($n) => isset($earlier[mb_strtolower($n)]));
+        $new = $numbers->reject(fn ($n) => isset($earlier[mb_strtolower($n)]));
+        $known = $numbers->mapWithKeys(fn ($n) => [mb_strtolower($n) => true])->all() + array_map(fn () => true, $earlier);
+        $taken = DB::table('patients')->where('clinic_id', $batch->clinic_id)->whereIn(DB::raw('LOWER(pxnumber)'), $new->map(fn ($n) => mb_strtolower($n))->unique()->values()->all())->count();
 
         $folders = collect($sheets['records'] ?? []);
-        $visits = $folders->filter(fn ($f) => isset($known[mb_strtolower($f['number'])]))->flatMap(fn ($f) => $f['visits']);
+        $newFolders = $folders->filter(fn ($f) => isset($known[mb_strtolower($f['number'])]) && ! isset($earlier[mb_strtolower($f['number'])]));
+        $visits = $newFolders->flatMap(fn ($f) => $f['visits']);
         $report = ['sheets' => [], 'orphans' => [], 'dates' => [null, null]];
         foreach (self::SHEETS as $key => [$label, , $into]) {
             $rows = $sheets[$key] ?? null;
@@ -100,21 +107,27 @@ class ITestEmrImport
         $withFolder = $folders->pluck('number')->map(fn ($n) => mb_strtolower($n))->flip();
         $diagnoses = $this->clinicDiagnoses($batch->clinic_id);
         $report['dates'] = array_map(fn ($d) => $d?->toDateString(), $report['dates']);
+        $report['part'] = [
+            'earlier_patients' => count($earlier),
+            'already_imported' => $repeat->count(),
+            'already_imported_folders' => $folders->filter(fn ($f) => isset($earlier[mb_strtolower($f['number'])]))->count(),
+            'internal_ids' => $patients->pluck('internal_id')->filter(fn ($v) => ctype_digit((string) $v))->map(fn ($v) => (int) $v)->pipe(fn ($c) => $c->isEmpty() ? null : [$c->min(), $c->max()]),
+        ];
         $report['patients'] = [
             'total' => $patients->count(),
             'no_dob' => $patients->filter(fn ($p) => ! $this->date($p['DOB'] ?? null))->count(),
             'no_gender' => $patients->filter(fn ($p) => $this->gender($p['Sex'] ?? null) === '')->count(),
             'no_phone' => $patients->filter(fn ($p) => trim($p['Contact'] ?? '') === '')->count(),
-            'renumbered' => $numbers->count() - $numbers->map(fn ($n) => mb_strtolower($n))->unique()->count() + $taken + $patients->filter(fn ($p) => trim($p['Patients ID'] ?? '') === '')->count(),
+            'renumbered' => $new->count() - $new->map(fn ($n) => mb_strtolower($n))->unique()->count() + $taken + $patients->filter(fn ($p) => trim($p['Patients ID'] ?? '') === '')->count(),
             'already_in_clinic' => DB::table('patients')->where('clinic_id', $batch->clinic_id)->count(),
             'no_folder' => $folders->isEmpty() ? [] : $numbers->reject(fn ($n) => isset($withFolder[mb_strtolower($n)]))->values()->all(),
             'next_of_kin' => $patients->filter(fn ($p) => trim($p['Next of Kin'] ?? '') !== '' || trim($p['Next of Kin Contact'] ?? '') !== '')->count(),
         ];
-        $report['visits'] = $folders->filter(fn ($f) => isset($known[mb_strtolower($f['number'])]))->sum(fn ($f) => count($this->byDay($f['visits'])));
+        $report['visits'] = $newFolders->sum(fn ($f) => count($this->byDay($f['visits'])));
         $report['same_day_visits'] = $visits->count() - $report['visits'];
         $report['new_diagnoses'] = $visits->flatMap(fn ($v) => $v['diagnoses'] ?? [])->map(fn ($n) => $this->diagnosisKey($n))->unique()->reject(fn ($k) => isset($diagnoses[$k]))->count();
-        $report['future_appointments'] = $folders->filter(fn ($f) => isset($known[mb_strtolower($f['number'])]) && $this->nextReview($f['visits']))->count();
-        $names = $this->patientsByName($patients->all(), fn ($p) => $p['Patients ID'] ?? '');
+        $report['future_appointments'] = $newFolders->filter(fn ($f) => $this->nextReview($f['visits']))->count();
+        $names = $this->patientsByName(array_merge($patients->reject(fn ($p) => isset($earlier[mb_strtolower(trim($p['Patients ID'] ?? ''))]))->all(), $this->directoryOf($earlier)), fn ($p) => $p['Patients ID'] ?? '');
         $payments = collect($sheets['payments'] ?? []);
         $report['payments'] = ['count' => $payments->count(), 'total' => round($payments->sum(fn ($r) => $this->money($r['Amount'] ?? 0)), 2),
             'unmatched' => $payments->filter(fn ($r) => count($names[$this->nameKey($r['Patient'] ?? '')] ?? []) !== 1)->count()];
@@ -209,20 +222,25 @@ class ITestEmrImport
         if (! $this->ownerId) throw new RuntimeException('The clinic has no active staff account to record the import under.');
         $this->staff = $settings['staff'] ?? [];
         $include = $settings['include'] ?? [];
-        $this->counts = $this->skipped = $this->tracked = $this->visitIds = [];
+        $this->counts = $this->skipped = $this->tracked = $this->visitIds = $this->ownVisits = $this->changed = [];
 
         [$sheets] = $this->load(array_filter($batch->files ?? [], fn ($f) => ! empty($f['sheet'])), false);
 
         $step = function (int $percent, string $label) use ($progress) { $this->flush(); $progress && $progress($percent, $label); };
+        // Patients and visits an earlier part of the same clinic brought in: linked to, never added again.
+        $earlier = $this->earlierPatients($this->clinicId);
+        $this->visitIds = $this->earlierVisits($this->clinicId);
         $step(5, 'patients');
-        $patients = $this->importPatients($sheets['patients'] ?? []);
+        $patients = $this->importPatients($sheets['patients'] ?? [], $earlier);
         $step(20, 'consultations');
-        $this->importVisits($sheets['records'] ?? [], $patients, $include['new_diagnoses'] ?? true, $include['appointments'] ?? true);
+        $this->importVisits($sheets['records'] ?? [], $patients, $include['new_diagnoses'] ?? true, $include['appointments'] ?? true, $earlier);
+        $linked = $patients + array_map(fn ($p) => $p['id'], $earlier);
+        $directory = array_merge(array_values(array_filter($sheets['patients'] ?? [], fn ($p) => ! isset($earlier[mb_strtolower(trim($p['Patients ID'] ?? ''))]))), $this->directoryOf($earlier));
         $step(80, 'spectacle orders');
-        $this->importSpectacles($sheets['spectacles'] ?? [], $patients);
+        $this->importSpectacles($sheets['spectacles'] ?? [], $linked);
         $step(84, 'payments');
-        $this->importPayments($sheets['payments'] ?? [], $sheets['patients'] ?? [], $patients);
-        if ($include['balances'] ?? true) { $step(88, 'balances'); $this->importBalances($sheets['balances'] ?? [], $patients); }
+        $this->importPayments($sheets['payments'] ?? [], $directory, $linked);
+        if ($include['balances'] ?? true) { $step(88, 'balances'); $this->importBalances($sheets['balances'] ?? [], $linked); }
         if ($include['items'] ?? true) { $step(90, 'products'); $this->importItems($sheets); }
         $step(99, 'finishing');
 
@@ -232,13 +250,53 @@ class ITestEmrImport
         return ['created' => $this->counts, 'skipped' => $this->skipped];
     }
 
-    /** Returns lower-cased iTestEMR patient number => new patient id. */
-    private function importPatients(array $rows): array
+    /**
+     * Patients that earlier finished iTestEMR imports of this clinic brought in (a clinic copied in stages):
+     * lower-cased patient number => [id, name]. A part never adds them again; its records link to them.
+     */
+    private function earlierPatients(int $clinicId): array
+    {
+        $map = [];
+        DB::table('external_import_rows as r')->join('external_import_batches as b', 'b.id', '=', 'r.external_import_batch_id')
+            ->join('patients as p', 'p.id', '=', 'r.record_id')
+            ->where('b.clinic_id', $clinicId)->where('b.source', self::SOURCE)->where('b.status', 'completed')->where('r.table_name', 'patients')
+            ->select(['p.id', 'p.pxnumber', 'p.name'])->orderBy('p.id')
+            ->chunk(5000, function ($rows) use (&$map) {
+                foreach ($rows as $p) $map[mb_strtolower(trim($p->pxnumber))] ??= ['id' => (int) $p->id, 'number' => $p->pxnumber, 'name' => $p->name];
+            });
+
+        return $map;
+    }
+
+    /** patient id => [Y-m-d => consultation id] for the visits earlier finished iTestEMR imports of this clinic brought in. */
+    private function earlierVisits(int $clinicId): array
+    {
+        $map = [];
+        DB::table('external_import_rows as r')->join('external_import_batches as b', 'b.id', '=', 'r.external_import_batch_id')
+            ->join('consultations as c', 'c.id', '=', 'r.record_id')
+            ->where('b.clinic_id', $clinicId)->where('b.source', self::SOURCE)->where('b.status', 'completed')->where('r.table_name', 'consultations')
+            ->select(['c.id', 'c.patient_id', 'c.created_at'])->orderBy('c.id')
+            ->chunk(5000, function ($rows) use (&$map) {
+                foreach ($rows as $c) $map[(int) $c->patient_id][Carbon::parse($c->created_at)->toDateString()] ??= (int) $c->id;
+            });
+
+        return $map;
+    }
+
+    /** Earlier parts' patients as directory rows, so payments (matched by name) can find them. */
+    private function directoryOf(array $earlier): array
+    {
+        return array_values(array_map(fn ($p) => ['Patients ID' => $p['number'], 'Name' => $p['name']], $earlier));
+    }
+
+    /** Returns lower-cased iTestEMR patient number => new patient id (patients an earlier part brought in are left out). */
+    private function importPatients(array $rows, array $earlier = []): array
     {
         $taken = DB::table('patients')->where('clinic_id', $this->clinicId)->pluck('pxnumber')->mapWithKeys(fn ($n) => [mb_strtolower($n) => true])->all();
         $map = [];
         foreach ($rows as $i => $row) {
             $original = trim($row['Patients ID'] ?? '');
+            if ($original !== '' && isset($earlier[mb_strtolower($original)])) { $this->skip('patients', 'already brought in by an earlier part'); continue; }
             if ($original !== '' && isset($map[mb_strtolower($original)])) { $this->skip('patients', 'repeated patient number'); continue; }
             $number = $original;
             if ($number === '' || isset($taken[mb_strtolower($number)])) $number = 'ITE-'.(trim($row['internal_id'] ?? '') ?: $i + 1);
@@ -259,12 +317,12 @@ class ITestEmrImport
         return $map;
     }
 
-    private function importVisits(array $folders, array $patients, bool $addDiagnoses, bool $appointments): void
+    private function importVisits(array $folders, array $patients, bool $addDiagnoses, bool $appointments, array $earlier = []): void
     {
         $diagnoses = $this->clinicDiagnoses($this->clinicId);
         foreach ($folders as $folder) {
             $patient = $patients[mb_strtolower($folder['number'])] ?? null;
-            if (! $patient) { $this->skip('records', 'patient not in the directory file'); continue; }
+            if (! $patient) { $this->skip('records', isset($earlier[mb_strtolower($folder['number'])]) ? 'patient and visits already brought in by an earlier part' : 'patient not in the directory file'); continue; }
             foreach ($folder['visits'] as $visit) if (! $this->date($visit['date'] ?? null)) $this->skip('records', 'visit without a date');
             foreach ($this->byDay($folder['visits']) as $visit) {
                 $day = $this->date($visit['date']);
@@ -281,6 +339,7 @@ class ITestEmrImport
                     'clearance_id' => $clearance, 'created_at' => $at, 'updated_at' => $at,
                 ]);
                 $this->visitIds[$patient][$day->toDateString()] = $consultation;
+                $this->ownVisits[$consultation] = true;
 
                 foreach (array_merge($visit['medications'] ?? [], $visit['external_medications'] ?? []) as $line) {
                     [$item, $quantity] = $this->medication($line);
@@ -522,13 +581,17 @@ class ITestEmrImport
                 ($v = $this->text($row['Lens'] ?? null)) ? 'Lens: '.$v.(($p = $this->money($row['Lens Price'] ?? 0)) > 0 ? ' (GHS '.number_format($p, 2).')' : '') : null,
                 ($v = $this->text($row['Frame'] ?? null)) ? 'Frame: '.$v.(($p = $this->money($row['Frame Price'] ?? 0)) > 0 ? ' (GHS '.number_format($p, 2).')' : '') : null,
             ]);
-            $note = 'Spectacle order '.trim($row['Order ID'] ?? '').' in the previous software, '.$day->format('d M Y').':'
+            $heading = 'Spectacle order '.trim($row['Order ID'] ?? '').' in the previous software, ';
+            $notes = (string) DB::table('consultations')->where('id', $consultation)->value('notes');
+            if (str_contains($notes, $heading)) { $this->skip('spectacles', 'already in the visit notes'); continue; }
+            $note = $heading.$day->format('d M Y').':'
                 .($parts ? "\nRx: ".implode('; ', $parts) : '').($items ? "\n".implode("\n", $items) : '')
                 ."\nTotal GHS ".number_format($this->money($row['Total'] ?? 0), 2)
                 .(($s = $this->text($row['Staff'] ?? null)) ? ' · recorded by '.$s : '')
                 .(($v = $this->text($row['Remarks'] ?? null)) && $v !== 'N/A' ? "\nRemarks: ".$v : '');
-            $notes = (string) DB::table('consultations')->where('id', $consultation)->value('notes');
             DB::table('consultations')->where('id', $consultation)->update(['notes' => trim($notes."\n\n".$note)]);
+            // A visit an earlier part brought in keeps it after an undo of that part, so undo of this one takes it out again.
+            if (! isset($this->ownVisits[$consultation])) $this->track('consultations.notes', $consultation);
             $this->counts['spectacle orders in visit notes'] = ($this->counts['spectacle orders in visit notes'] ?? 0) + 1;
         }
     }
@@ -556,19 +619,27 @@ class ITestEmrImport
         if (! $rows) return;
         $byName = $this->patientsByName($directory, fn ($p) => $patients[mb_strtolower(trim($p['Patients ID'] ?? ''))] ?? null);
         $modes = ['CASH' => 'Cash', 'MOBILE MONEY' => 'Mobile Money', 'CHEQUE' => 'Cheque', 'ELECTRONIC CARD' => 'Card'];
+        // The same capture imported twice (or a part uploaded again) adds no payment twice.
+        $already = DB::table('patient_legacy_payments')->where('clinic_id', $this->clinicId)->where('source', self::SOURCE)->pluck('reference')->flip()->all();
         foreach ($rows as $row) {
             $day = $this->date($row['Date'] ?? null);
             $amount = $this->money($row['Amount'] ?? 0);
             if (! $day || $amount <= 0) { $this->skip('payments', 'no date or amount'); continue; }
-            $candidates = array_values(array_filter($byName[$this->nameKey($row['Patient'] ?? '')] ?? []));
-            if (count($candidates) > 1) $candidates = array_values(array_filter($candidates, fn ($id) => isset($this->visitIds[$id][$day->toDateString()])));
-            if (count($candidates) !== 1) { $this->skip('payments', $candidates ? 'name shared by several patients' : 'name not found among the patients'); continue; }
+            $reference = Str::limit('ITE-PAY-'.trim($row['No'] ?? ''), 100, '');
+            if (trim($row['No'] ?? '') !== '' && isset($already[$reference])) { $this->skip('payments', 'already brought in'); continue; }
+            $already[$reference] = true;
+            $named = array_values(array_filter($byName[$this->nameKey($row['Patient'] ?? '')] ?? []));
+            $candidates = count($named) > 1 ? array_values(array_filter($named, fn ($id) => isset($this->visitIds[$id][$day->toDateString()]))) : $named;
+            if (count($candidates) !== 1) {
+                $this->skip('payments', ! $named ? 'name not found among the patients' : ($candidates ? 'name shared by several patients seen that day' : 'name shared by several patients, none seen that day'));
+                continue;
+            }
             $mode = strtoupper(trim($row['Mode'] ?? ''));
             $this->insert('patient_legacy_payments', [
                 'clinic_id' => $this->clinicId, 'patient_id' => $candidates[0], 'external_import_batch_id' => $this->batch->id, 'source' => self::SOURCE,
                 'paid_at' => $day->copy()->setTime(12, 0), 'amount' => $amount,
                 'payment_method' => $mode === '' ? null : ($modes[$mode] ?? Str::limit(Str::title(mb_strtolower($mode)), 40, '')),
-                'reference' => Str::limit('ITE-PAY-'.trim($row['No'] ?? ''), 100, ''),
+                'reference' => $reference,
                 'invoice_number' => null, 'notes' => null, 'recorded_by' => Str::limit($this->text($row['Taken By'] ?? null) ?? '', 150, '') ?: null,
                 'created_at' => now(), 'updated_at' => now(),
             ]);

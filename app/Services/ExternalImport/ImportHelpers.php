@@ -17,6 +17,7 @@ trait ImportHelpers
     private array $tracked = [];
     private array $counts = [];
     private array $skipped = [];
+    private array $changed = [];
 
     private function insert(string $table, array $row): int
     {
@@ -26,6 +27,15 @@ trait ImportHelpers
         if (count($this->tracked) >= 500) $this->flush();
 
         return $id;
+    }
+
+    /** Lists a row this import changed but did not create (once), so undo can put it back; see ExternalImportRollback. */
+    private function track(string $table, int $id): void
+    {
+        if (isset($this->changed[$table][$id])) return;
+        $this->changed[$table][$id] = true;
+        $this->tracked[] = ['external_import_batch_id' => $this->batch->id, 'table_name' => $table, 'record_id' => $id];
+        if (count($this->tracked) >= 500) $this->flush();
     }
 
     /** Writes the list of created rows; also called when an import fails so its partial rows can be undone. */
@@ -46,7 +56,11 @@ trait ImportHelpers
         $value = trim((string) $value);
         if ($value === '') return null;
         if (is_numeric($value)) return (float) $value > 1 && (float) $value < 2958465 ? Carbon::create(1899, 12, 30, 0, 0, 0)->addSeconds((int) round((float) $value * 86400)) : null;
-        try { return Carbon::parse($value); } catch (\Throwable) { return null; }
+        // iTestEMR writes a missing date as 0000-00-00, which would read as the year -1 (MySQL refuses it): no date.
+        if (preg_match('/^0{4}-0{2}-0{2}/', $value)) return null;
+        try { $date = Carbon::parse($value); } catch (\Throwable) { return null; }
+
+        return $date->year < 1900 ? null : $date;
     }
 
     private function date($value): ?Carbon

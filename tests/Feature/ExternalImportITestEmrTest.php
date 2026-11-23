@@ -347,6 +347,103 @@ class ExternalImportITestEmrTest extends TestCase
         $this->assertSame($diagnoses, DB::table('diagnoses')->count());
     }
 
+    /** One stage of a staged capture: these patients' rows and folders only. */
+    private function stage(array $numbers, string $name): array
+    {
+        $rows = array_map(fn ($line) => str_getcsv($line), explode("\r\n", ltrim($this->patientsCsv(), "\u{FEFF}")));
+        $headers = array_shift($rows);
+        $keep = array_filter(array_map(fn ($r) => array_combine($headers, $r), $rows), fn ($r) => in_array($r['Patients ID'], $numbers, true));
+        $html = $this->recordsHtml();
+        $sections = '';
+        foreach ($numbers as $number) {
+            preg_match('#<section class="px" id="p\d+">(?:(?!</section>).)*?'.preg_quote($number, '#').'.*?</section>#s', $html, $m);
+            $sections .= $m[0];
+        }
+
+        return [
+            UploadedFile::fake()->createWithContent($name.'-patients.csv', $this->csv($headers, array_values($keep))),
+            UploadedFile::fake()->createWithContent($name.'-patient-records.html', '<!doctype html><html><head><meta charset="utf-8"></head><body>'.$sections.'</body></html>'),
+        ];
+    }
+
+    private function importPart(array $files): ExternalImportBatch
+    {
+        $this->checked($files)->set('staff.'.md5('name:dr. isaac asare poku'), (string) $this->doctor->id)
+            ->set('confirmation', 'IMPORT hope-eyes')->call('startImport')->assertHasNoErrors();
+        $batch = ExternalImportBatch::latest('id')->first();
+        $this->assertSame('completed', $batch->status, (string) $batch->error);
+
+        return $batch;
+    }
+
+    public function test_a_clinic_copied_in_stages_is_imported_part_by_part_and_undone_newest_first(): void
+    {
+        $one = $this->importPart($this->stage(['KAS/0001/26'], 'stage-1'));
+        $two = $this->importPart($this->stage(['KAS/0002/26'], 'stage-2'));
+        $this->assertSame(['KAS/0001/26', 'KAS/0002/26'], DB::table('patients')->orderBy('pxnumber')->pluck('pxnumber')->all(), 'no ITE- renumbering across parts');
+        $this->assertSame(3, DB::table('consultations')->count());
+
+        // The same stage uploaded again adds nothing.
+        $again = $this->importPart($this->stage(['KAS/0001/26'], 'stage-1-again'));
+        $this->assertSame(1, $again->analysis['part']['already_imported']);
+        $this->assertSame(0, $again->analysis['visits']);
+        $this->assertSame(['already brought in by an earlier part' => 1], $again->result['skipped']['patients']);
+        $this->assertSame(2, DB::table('patients')->count());
+        $this->assertSame(3, DB::table('consultations')->count());
+
+        // LISTS and ORDERS come without a patients file and link to the earlier parts.
+        $lists = $this->importPart($this->financeUploads());
+        $this->assertSame([], $lists->analysis['errors']);
+        $this->assertSame(2, $lists->analysis['part']['earlier_patients']);
+        $this->assertEquals(['count' => 3, 'total' => 450, 'unmatched' => 1], $lists->analysis['payments']);
+        $ama = DB::table('patients')->where('pxnumber', 'KAS/0002/26')->value('id');
+        $amaVisit = DB::table('consultations')->where('patient_id', $ama)->whereDate('created_at', '2026-03-05')->first();
+        $this->assertStringContainsString('Spectacle order 366 in the previous software, 05 Mar 2026:', $amaVisit->notes);
+        $this->assertSame(2, DB::table('patient_legacy_payments')->count());
+        $this->assertSame($amaVisit->id, (int) DB::table('sales')->sole()->consultation_id, 'the balance links to the earlier part\'s visit that day');
+
+        // Importing LISTS and ORDERS twice adds no payment, balance or order note twice.
+        $this->importPart($this->financeUploads());
+        $this->assertSame(2, DB::table('patient_legacy_payments')->count());
+        $this->assertSame(1, DB::table('sales')->count());
+        $this->assertSame(1, substr_count(DB::table('consultations')->where('id', $amaVisit->id)->value('notes'), 'Spectacle order 366'));
+
+        // Undo goes newest first: an earlier part is refused while a later one stands.
+        $rollback = app(\App\Services\ExternalImport\ExternalImportRollback::class);
+        try { $rollback->undo($one->fresh()); $this->fail('an earlier part was undone before the later ones'); } catch (\RuntimeException $e) { $this->assertStringContainsString('newest first', $e->getMessage()); }
+        foreach (ExternalImportBatch::where('status', 'completed')->orderByDesc('id')->get() as $batch) $rollback->undo($batch);
+        foreach (['patients', 'consultations', 'patient_legacy_payments', 'sales', 'external_import_rows'] as $table) $this->assertSame(0, DB::table($table)->count(), $table);
+    }
+
+    public function test_undoing_the_lists_part_takes_its_order_notes_off_the_earlier_visits(): void
+    {
+        $this->importPart($this->stage(['KAS/0001/26', 'KAS/0002/26'], 'stage-1'));
+        $ama = DB::table('patients')->where('pxnumber', 'KAS/0002/26')->value('id');
+        $visit = DB::table('consultations')->where('patient_id', $ama)->whereDate('created_at', '2026-03-05')->first();
+        $before = $visit->notes;
+
+        $lists = $this->importPart($this->financeUploads());
+        $this->assertNotSame($before, DB::table('consultations')->where('id', $visit->id)->value('notes'));
+        app(\App\Services\ExternalImport\ExternalImportRollback::class)->undo($lists->fresh());
+
+        $this->assertSame($before, DB::table('consultations')->where('id', $visit->id)->value('notes'), 'the visit notes are back as the stage left them');
+        $this->assertSame(0, DB::table('patient_legacy_payments')->count());
+        $this->assertSame(2, DB::table('patients')->count(), 'the stage itself stays');
+    }
+
+    public function test_a_missing_date_written_as_zeros_comes_in_as_no_date(): void
+    {
+        // iTestEMR writes a missing date as 0000-00-00 (Advanced Eye Care: 1,383 patients in one stage); MySQL refuses the year -1 it reads as.
+        $headers = ['Patients ID', 'Name', 'Sex', 'DOB', 'Contact', 'Next of Kin', 'First Visit', 'internal_id'];
+        $this->importPart([UploadedFile::fake()->createWithContent('patients.csv', $this->csv($headers, [
+            ['Patients ID' => 'KAS/0003/26', 'Name' => 'Esi No Dates', 'DOB' => '0000-00-00', 'First Visit' => '0000-00-00 00:00:00', 'internal_id' => '4'],
+        ]))]);
+
+        $esi = DB::table('patients')->where('pxnumber', 'KAS/0003/26')->sole();
+        $this->assertNull($esi->dob);
+        $this->assertSame(now()->toDateString(), substr($esi->created_at, 0, 10), 'no first visit: dated the day of the import');
+    }
+
     public function test_a_zip_of_the_capture_works_like_the_separate_files(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'zip');

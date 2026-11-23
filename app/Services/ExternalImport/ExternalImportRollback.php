@@ -23,13 +23,15 @@ class ExternalImportRollback
     public function undo(ExternalImportBatch $batch, bool $keepFiles = false): array
     {
         $tables = DB::table('external_import_rows')->where('external_import_batch_id', $batch->id)->distinct()->pluck('table_name')->all();
-        $unknown = array_diff($tables, self::ORDER);
+        $unknown = array_diff($tables, [...self::ORDER, 'consultations.notes']);
         if ($unknown) throw new RuntimeException('This import created rows this undo does not know about ('.implode(', ', $unknown).').');
+        $this->refuseIfLaterPartsBuildOnIt($batch);
         $this->refuseIfBalancesCollected($batch);
 
         $deleted = [];
         try {
             DB::transaction(function () use ($batch, $tables, &$deleted) {
+                if (in_array('consultations.notes', $tables, true)) $deleted['spectacle order notes'] = $this->removeOrderNotes($batch);
                 foreach (array_intersect(self::ORDER, $tables) as $table) {
                     DB::table('external_import_rows')->where('external_import_batch_id', $batch->id)->where('table_name', $table)
                         ->orderBy('id')->chunkById(1000, function ($rows) use ($table, &$deleted) {
@@ -47,6 +49,35 @@ class ExternalImportRollback
         $batch->update(['status' => 'rolled_back', 'rolled_back_at' => now(), 'progress_percent' => 0, 'current_step' => null]);
 
         return $deleted;
+    }
+
+    /**
+     * A clinic copied in stages is imported in parts that link to each other (LISTS and ORDERS to the patients
+     * and visits of the stages before), so parts are undone newest first.
+     */
+    private function refuseIfLaterPartsBuildOnIt(ExternalImportBatch $batch): void
+    {
+        $later = ExternalImportBatch::where('clinic_id', $batch->clinic_id)->where('source', $batch->source)->where('id', '>', $batch->id)
+            ->where('status', 'completed')->orderByDesc('id')->first();
+        if ($later) throw new RuntimeException('A later import for this clinic (#'.$later->id.', '.$later->created_at->format('d M Y H:i').') may link to the records this one brought in. Undo the imports newest first. Nothing was removed.');
+    }
+
+    /** Takes out the spectacle order notes an import added to visits it did not create (an earlier part's visits). */
+    private function removeOrderNotes(ExternalImportBatch $batch): int
+    {
+        $removed = 0;
+        DB::table('external_import_rows')->where('external_import_batch_id', $batch->id)->where('table_name', 'consultations.notes')
+            ->orderBy('id')->chunkById(1000, function ($rows) use (&$removed) {
+                foreach (DB::table('consultations')->whereIn('id', $rows->pluck('record_id'))->get(['id', 'notes']) as $visit) {
+                    // Each note is one paragraph: "Spectacle order N in the previous software, date:" and its lines, no blank line inside.
+                    $notes = preg_replace('/(?:\n\n)?Spectacle order [^\n]* in the previous software, [^\n]*:(?:\n(?!\n)[^\n]*)*/u', '', (string) $visit->notes, -1, $count);
+                    if (! $count) continue;
+                    DB::table('consultations')->where('id', $visit->id)->update(['notes' => trim($notes) === '' ? null : trim($notes)]);
+                    $removed += $count;
+                }
+            });
+
+        return $removed;
     }
 
     /**

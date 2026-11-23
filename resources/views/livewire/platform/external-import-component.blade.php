@@ -42,7 +42,7 @@
                 <li>On the computer that will do the capture (Chrome or Edge), show the bookmarks bar, then drag this button onto it:
                     <a href="javascript:{{ rawurlencode($captureScript) }}" class="ui-button ui-button-primary ui-button-sm" style="margin-left:6px" onclick="event.preventDefault(); alert('Drag this button to the bookmarks bar, then click it while signed in to iTestEMR.')" title="Drag me to the bookmarks bar">Nexus · iTestEMR capture</a></li>
                 <li>Sign in to the clinic's iTestEMR with an administrator account (only that brings payments, unpaid balances, spectacle orders and prices; a clinician login gets patients and visits only), stay on any of its pages and click the bookmark. It asks what to copy: <b>ALL</b> for a clinic of up to about 5,000 patients. A bigger clinic goes in stages, one .zip each: patients by iTestEMR's internal number (<code>1-2000</code>, then <code>2001-4000</code>, and so on until a stage finds no patients), then <b>LISTS</b> for stock, staff, prices, payments and balances, and <b>ORDERS</b> for spectacle orders (about a minute even for 12,000 orders). A panel shows the progress; keep the tab in front. It takes a few minutes for a thousand patients.</li>
-                <li>A file named <code>itestemr-….zip</code> downloads. Upload that .zip above, unchanged. Its <code>capture-report.txt</code> lists any patient folders iTestEMR itself could not open.</li>
+                <li>A file named <code>itestemr-….zip</code> downloads. Upload that .zip above, unchanged. Its <code>capture-report.txt</code> lists any patient folders iTestEMR itself could not open. A clinic copied in stages is imported one .zip at a time, each as its own import: the patient stages in order, then LISTS, then ORDERS. Each part links to the patients and visits the parts before it brought in; undo them newest first.</li>
                 <li>On the day the clinic switches over, undo the trial import, capture again and import the new file, so nothing recorded in the meantime is lost.</li>
             </ol>
             <p class="ui-hint" style="margin:8px 0 0">If the browser won't keep the bookmark, copy the script, open iTestEMR, press F12 → Console, paste and press Enter.
@@ -90,6 +90,7 @@
             </div>
 
             @php($notes = array_filter([
+                ($a['part']['earlier_patients'] ?? 0) ? 'Part of a clinic copied in stages: '.number_format($a['part']['earlier_patients']).' patients came in with earlier parts. Records here for them are linked to those patients'.(($a['part']['already_imported'] ?? 0) ? '; '.number_format($a['part']['already_imported']).' patients (and '.number_format($a['part']['already_imported_folders'] ?? 0).' folders) in this upload were already brought in and are left out' : '').'.' : null,
                 ($a['patients']['no_dob'] ?? 0) ? number_format($a['patients']['no_dob']).' patients have no date of birth.' : null,
                 ($a['patients']['no_gender'] ?? 0) ? number_format($a['patients']['no_gender']).' patients have no gender, so they come in as Other. Correct it when they next visit.' : null,
                 ($a['patients']['no_phone'] ?? 0) ? number_format($a['patients']['no_phone']).' patients have no phone number.' : null,
