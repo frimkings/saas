@@ -101,6 +101,9 @@ class POSComponent extends Component
     // Part payment
     public $isPartPayment     = false;
     public $hasFramesOrLenses = false;
+    /** Part payment is offered: frames/lenses in the cart, or the owner allows it on everything. */
+    #[\Livewire\Attributes\Locked]
+    public $partPaymentAllowed = false;
 
     // Insurance co-pay: for an insured patient the insurer's share is billed to the
     // insurer and the patient pays amountDue now. Recomputed from the database on checkout.
@@ -906,6 +909,7 @@ class POSComponent extends Component
 
         if (empty($this->cart)) {
             $this->hasFramesOrLenses = false;
+            $this->partPaymentAllowed = false;
             $this->isPartPayment     = false;
             $this->discountAmount    = 0;
             $this->finalAmount       = 0;
@@ -935,6 +939,7 @@ class POSComponent extends Component
         $this->totalAmount = (float) $this->totalAmount;
 
         $this->hasFramesOrLenses = $products->contains(fn ($product) => $this->isDiscountEligibleProduct($product));
+        $this->partPaymentAllowed = $this->hasFramesOrLenses || self::partPaymentOnAllItems();
 
         // Apply discount only to Frames and Lenses.
         $discountEligibleSubtotal = $this->getDiscountEligibleSubtotal();
@@ -953,8 +958,8 @@ class POSComponent extends Component
 
         $this->applyInsuranceSplit();
 
-        // Auto-disable part payment if cart no longer has frames/lenses or nothing is due
-        if (!$this->hasFramesOrLenses || $this->amountDue <= 0) {
+        // Auto-disable part payment if it is no longer allowed for this cart or nothing is due
+        if (!$this->partPaymentAllowed || $this->amountDue <= 0) {
             $this->isPartPayment = false;
         }
 
@@ -1068,6 +1073,12 @@ class POSComponent extends Component
     }
 
     /* ===================== SPLIT PAYMENT ===================== */
+
+    /** Owner's setting: part payment on drugs and services as well as frames and lenses. */
+    public static function partPaymentOnAllItems(): bool
+    {
+        return (bool) (\App\Models\Setting::getSettings()->part_payment_all_items ?? false);
+    }
 
     public function updatedIsPartPayment($enabled)
     {
@@ -1921,6 +1932,15 @@ class POSComponent extends Component
             return;
         }
 
+        if ($this->isPartPayment && !$this->partPaymentAllowed) {
+            $this->isPartPayment = false;
+            $this->dispatch('notify', ...[
+                'type' => 'error',
+                'message' => 'Part payment is only for frames and lenses. The owner can allow it on drugs and services in Settings → Discounts & payments.',
+            ]);
+            return;
+        }
+
         if ($this->discountAmount > 0 && !$this->discountApproved) {
             $this->confirmSellWithoutPendingDiscount();
             return;
@@ -2017,6 +2037,13 @@ class POSComponent extends Component
                 'type' => 'error',
                 'message' => 'Part payment requires a registered patient.',
             ]);
+            return;
+        }
+
+        if ($this->isPartPayment && !$this->partPaymentAllowed) {
+            $this->checkoutProcessing = false;
+            $this->isPartPayment = false;
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Part payment is only for frames and lenses at this clinic.']);
             return;
         }
 

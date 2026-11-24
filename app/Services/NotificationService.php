@@ -22,7 +22,7 @@ class NotificationService
         string $iconColor = 'text-primary',
         ?string $actionUrl = null,
         ?array $data = null
-    ): AppNotification {
+    ): ?AppNotification {
         $context = app(TenantContext::class);
 
         if (config('tenancy.enabled')) {
@@ -40,6 +40,12 @@ class NotificationService
                 ->exists();
 
             if (! $allowed) {
+                // A platform admin who acted inside the clinic as support (e.g. asked for a refund)
+                // is not a member of it: skip their bell notification instead of failing the
+                // owner's approve/reject/process action after it has already been saved.
+                if (DB::table('users')->where('id', $userId)->value('is_platform_admin')) {
+                    return null;
+                }
                 throw new LogicException('Notification recipient is outside the active clinic branch.');
             }
         }

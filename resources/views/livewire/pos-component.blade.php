@@ -593,8 +593,8 @@ window.printReceiptFromDom = function(event) {
                     </div>
                     @endif
 
-                    {{-- Part payment --}}
-                    @if($hasFramesOrLenses)
+                    {{-- Part payment: frames/lenses, or anything when the owner allows it (Settings → Discounts & payments) --}}
+                    @if($partPaymentAllowed)
                         <div class="pos-part-toggle {{ $isPartPayment ? 'pos-part-toggle--active' : '' }} {{ !$patientId ? 'pos-part-toggle--disabled' : '' }}">
                             <div>
                                 <i class="fas fa-clock"></i>

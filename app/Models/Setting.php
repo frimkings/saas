@@ -49,6 +49,7 @@ class Setting extends Model
         'backup_extra_paths',
         'report_enabled',
         'discount_limits',
+        'part_payment_all_items',
         'report_frequency',
         'report_day',
         'report_time',
@@ -113,6 +114,7 @@ class Setting extends Model
     protected $casts = [
         'backup_extra_paths'         => 'array',
         'discount_limits'          => 'array',
+        'part_payment_all_items'   => 'boolean',
         'visit_receipts_enabled'     => 'boolean',
         'report_enabled'             => 'boolean',
         'report_day'                 => 'integer',

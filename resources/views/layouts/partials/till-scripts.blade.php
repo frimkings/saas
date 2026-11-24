@@ -40,7 +40,7 @@
         rows.push([d.insurerName ? 'Patient pays' : 'Total amount', posMoney(d.totalAmount)]);
         rows.push([d.isPartPayment ? 'Deposit paid now' : 'Amount paid', posMoney(d.amountPaid)]);
         // A part payment holds the order: show what is still owed, not change.
-        if (d.isPartPayment) rows.push(['Balance due on pickup', '<strong>' + posMoney(d.balance) + '</strong>', 'bg-amber-50']);
+        if (d.isPartPayment) rows.push(['Balance still owed', '<strong>' + posMoney(d.balance) + '</strong>', 'bg-amber-50']);
         else rows.push(['Change', '<strong>' + posMoney(d.change) + '</strong>', 'bg-green-50']);
 
         Swal.fire({
