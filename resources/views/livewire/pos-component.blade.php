@@ -396,6 +396,7 @@ window.printReceiptFromDom = function(event) {
                                 $fromRx          = is_array($cartItem) && ($cartItem['from_prescription'] ?? false);
                                 $isFrame         = is_array($cartItem) && ($cartItem['is_frame'] ?? false);
                                 $isLocked        = $fromRx && !$isFrame; // prescription + non-frame = locked
+                                $rxNote          = $showDrugOptions && is_array($cartItem) ? \App\Support\Clinical\DrugInstructions::line($cartItem['instructions'] ?? null, $cartItem['taper'] ?? false) : null;
                             @endphp
                             @if($product)
                                 <div class="pos-cart-item {{ $isLocked ? 'pos-cart-item--locked' : '' }}" wire:key="cart-row-{{ $cartKey }}">
@@ -418,6 +419,12 @@ window.printReceiptFromDom = function(event) {
                                             </button>
                                         @endif
                                     </div>
+                                    @if($rxNote)
+                                        {{-- The doctor's note: tell the patient when handing over (TAPER = reduce step by step). --}}
+                                        <div class="pos-cart-item__note" title="Doctor's note">
+                                            <i class="fas fa-sticky-note"></i> {{ $rxNote }}
+                                        </div>
+                                    @endif
                                     <div class="pos-cart-item__row2">
                                         <span class="pos-cart-item__price">{{ currency() }} {{ number_format($product->selling_price, 2) }} ea.</span>
                                         @if($isLocked)
@@ -858,7 +865,7 @@ window.printReceiptFromDom = function(event) {
                                                 <template x-for="(item, itemIndex) in cart.items" :key="itemIndex">
                                                     <tr class="border-t border-slate-100">
                                                         <td class="px-3 py-2 text-slate-500" x-text="itemIndex + 1"></td>
-                                                        <td class="px-3 py-2 font-semibold" x-text="item.product_name"></td>
+                                                        <td class="px-3 py-2 font-semibold"><span x-text="item.product_name"></span><template x-if="item.instructions"><span class="block text-xs font-normal text-amber-800" x-text="item.instructions"></span></template></td>
                                                         <td class="px-3 py-2 text-center" x-text="item.quantity"></td>
                                                         <td class="px-3 py-2" x-text="item.frequency || '—'"></td>
                                                         <td class="px-3 py-2">
@@ -1652,6 +1659,15 @@ window.printReceiptFromDom = function(event) {
 
 .pos-remove-btn { margin-left: .15rem; }
 
+.pos-cart-item__note {
+    margin: 2px 0 4px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 11px;
+    line-height: 1.3;
+}
 .pos-cart-item__row2 {
     align-items: center;
     display: flex;

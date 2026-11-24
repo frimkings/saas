@@ -31,6 +31,8 @@ class SaleItem extends Model
         'duration_value',
         'duration_unit',
         'eye',
+        'instructions',
+        'taper',
     ];
 
     protected $casts = [
@@ -44,6 +46,7 @@ class SaleItem extends Model
         'insurer_amount' => 'decimal:2',
         'frequency' => ProductFrequency::class,
         'duration_value' => 'integer',
+        'taper' => 'boolean',
     ];
 
     /**

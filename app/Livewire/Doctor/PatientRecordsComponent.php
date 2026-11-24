@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Doctor;
 
+use App\Support\Clinical\DrugInstructions;
 use App\Models\Consultations;
 use App\Models\Appointments;
 use App\Services\LicenseService;
@@ -886,6 +887,7 @@ public function deleteAppointment($appointmentId)
         $this->outsideDrugs[] = [
             'id' => null, 'product_id' => $product?->id, 'name' => $name,
             'eye' => 'Both Eyes', 'frequency' => null, 'duration_value' => null, 'duration_unit' => 'days',
+            'instructions' => null, 'taper' => false,
         ];
         $this->productSearch = '';
         $this->searchResults = [];
@@ -903,7 +905,7 @@ public function deleteAppointment($appointmentId)
         $this->outsideDrugs = $this->consultationID
             ? \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('consultation_id', $this->consultationID)
                 ->where('patient_id', $this->patient->id)->orderBy('id')->get()
-                ->map(fn ($rx) => $rx->only(['id', 'product_id', 'name', 'eye', 'frequency', 'duration_value', 'duration_unit']))
+                ->map(fn ($rx) => $rx->only(['id', 'product_id', 'name', 'eye', 'frequency', 'duration_value', 'duration_unit', 'instructions', 'taper']))
                 ->all()
             : [];
     }
@@ -921,6 +923,8 @@ public function deleteAppointment($appointmentId)
                 'frequency' => $drug['frequency'] ?: null,
                 'duration_value' => ($drug['duration_unit'] ?? null) === 'until_finished' ? null : ((int) ($drug['duration_value'] ?? 0) ?: null),
                 'duration_unit' => $drug['duration_unit'] ?: null,
+                'instructions' => DrugInstructions::clean($drug['instructions'] ?? null),
+                'taper' => (bool) ($drug['taper'] ?? false),
             ];
             $row = !empty($drug['id']) ? $existing->get($drug['id']) : null;
             if ($row) {
@@ -994,6 +998,8 @@ public function deleteAppointment($appointmentId)
                 'frequency' => null,
                 'duration_value' => null,
                 'duration_unit' => 'days',
+                'instructions' => null,
+                'taper' => false,
                 'is_dispensed' => false,
                 'purchased' => false,
             ];
@@ -1019,7 +1025,7 @@ public function deleteAppointment($appointmentId)
             ->map(fn ($cart) => [
                 'key' => 'cart-' . $cart->id, 'source' => 'cart', 'id' => $cart->id, 'date' => $cart->created_at,
                 'item' => $cart->product?->name ?? 'Product no longer listed', 'quantity' => $cart->quantity,
-                'directions' => implode(' · ', array_filter([$cart->eye, $cart->frequency, $this->durationLabel($cart->duration_value, $cart->duration_unit)])),
+                'directions' => implode(' · ', array_filter([$cart->eye, $cart->frequency, $this->durationLabel($cart->duration_value, $cart->duration_unit), DrugInstructions::line($cart->instructions, $cart->taper)])),
                 'product_id' => $cart->product?->id, 'previous_software' => false,
                 'branch' => $branchId && $cart->branch_id && (int) $cart->branch_id !== (int) $branchId ? $cart->branch?->name : null,
             ]);
@@ -1030,7 +1036,7 @@ public function deleteAppointment($appointmentId)
             ->map(fn ($rx) => [
                 'key' => 'outside-' . $rx->id, 'source' => 'outside', 'id' => $rx->id, 'date' => $rx->created_at,
                 'item' => $rx->name, 'quantity' => null,
-                'directions' => implode(' · ', array_filter([$rx->eye, $rx->frequency, $this->durationLabel($rx->duration_value, $rx->duration_unit)])),
+                'directions' => implode(' · ', array_filter([$rx->eye, $rx->frequency, $this->durationLabel($rx->duration_value, $rx->duration_unit), DrugInstructions::line($rx->instructions, $rx->taper)])),
                 'product_id' => $rx->product_id, 'previous_software' => false, 'outside' => true,
                 'branch' => $branchId && (int) $rx->branch_id !== (int) $branchId ? $rx->branch?->name : null,
             ]);
@@ -1083,6 +1089,8 @@ public function deleteAppointment($appointmentId)
             $this->productsList[$index]['frequency'] = $cart->frequency;
             $this->productsList[$index]['duration_value'] = $cart->duration_value;
             $this->productsList[$index]['duration_unit'] = $cart->duration_unit ?: 'days';
+            $this->productsList[$index]['instructions'] = $cart->instructions;
+            $this->productsList[$index]['taper'] = (bool) $cart->taper;
         }
         $this->dispatch('notify', ...['type' => 'success', 'message' => $entry['item'] . ' added. Check the details before saving.']);
     }
@@ -1092,7 +1100,8 @@ public function deleteAppointment($appointmentId)
     {
         $rx = \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('patient_id', $this->patient->id)->find($id);
         if (!$rx) return;
-        $dosing = ['eye' => $rx->eye, 'frequency' => $rx->frequency, 'duration_value' => $rx->duration_value, 'duration_unit' => $rx->duration_unit ?: 'days'];
+        $dosing = ['eye' => $rx->eye, 'frequency' => $rx->frequency, 'duration_value' => $rx->duration_value, 'duration_unit' => $rx->duration_unit ?: 'days',
+            'instructions' => $rx->instructions, 'taper' => (bool) $rx->taper];
 
         $product = $rx->product_id ? Product::with('category')->find($rx->product_id) : null;
         if ($product && $product->canSupply() && $product->inActiveCategory()) {
@@ -1809,6 +1818,8 @@ public function deleteAppointment($appointmentId)
                             'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                             'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                             'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
+                            'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
+                            'taper' => $isDrug && ($productItem['taper'] ?? false),
                         ]);
                         $updatedCartIds[] = $cartItem->id;
                     } elseif ($cartItem && ($cartItem->is_dispensed || $cartItem->purchased)) {
@@ -1827,6 +1838,8 @@ public function deleteAppointment($appointmentId)
                         'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                         'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                         'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
+                        'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
+                        'taper' => $isDrug && ($productItem['taper'] ?? false),
                         'status' => 'pending',
                         'is_dispensed' => false,
                         'purchased' => false,
@@ -1917,6 +1930,8 @@ public function deleteAppointment($appointmentId)
                     'frequency' => $isDrug ? $cartItem->frequency : null,
                     'duration_value' => $isDrug ? $cartItem->duration_value : null,
                     'duration_unit' => $isDrug ? $cartItem->duration_unit : null,
+                    'instructions' => $isDrug ? $cartItem->instructions : null,
+                    'taper' => $isDrug && $cartItem->taper,
                     'is_dispensed' => $cartItem->is_dispensed,
                     'purchased' => $cartItem->purchased,
                     'dispensed_at' => $cartItem->dispensed_at,
@@ -2049,6 +2064,8 @@ public function deleteAppointment($appointmentId)
                 'frequency' => $isDrug ? $cartItem->frequency : null,
                 'duration_value' => $isDrug ? $cartItem->duration_value : null,
                 'duration_unit' => $isDrug ? $cartItem->duration_unit : null,
+                'instructions' => $isDrug ? $cartItem->instructions : null,
+                'taper' => $isDrug && $cartItem->taper,
                 'is_dispensed' => $cartItem->is_dispensed,
                 'purchased' => $cartItem->purchased,
                 'dispensed_at' => $cartItem->dispensed_at,
@@ -2133,6 +2150,31 @@ public function deleteAppointment($appointmentId)
         return $product->maxSupply();
     }
 
+    /** A drug marked for tapering needs the steps written in its note, or the patient has nothing to follow. */
+    private function taperHasNote(array $line): bool
+    {
+        if (!($line['taper'] ?? false) || DrugInstructions::clean($line['instructions'] ?? null) !== null) return true;
+
+        $this->dispatch('notify', ...['type' => 'error', 'message' => 'Write the taper steps in the note for ' . ($line['name'] ?? 'the drug') . ', e.g. "4 times a day for 1 week, then 3 times a day for 1 week, then stop".']);
+
+        return false;
+    }
+
+    /**
+     * Quick pick under a drug line: adds the wording to its note. "Taper as directed" also ticks Taper.
+     * $list is 'products' (dispensed here) or 'outside' (bought at a pharmacy).
+     */
+    public function addInstructionChip(string $list, int $index, int $chip): void
+    {
+        $text = DrugInstructions::CHIPS[$chip] ?? null;
+        $property = $list === 'outside' ? 'outsideDrugs' : 'productsList';
+        if ($text === null || !isset($this->{$property}[$index])) return;
+        if ($property === 'productsList' && ($this->isLockedPrescriptionItem($this->productsList[$index]) || !$this->isDrugPrescriptionItem($this->productsList[$index]))) return;
+
+        $this->{$property}[$index]['instructions'] = DrugInstructions::append($this->{$property}[$index]['instructions'] ?? null, $text);
+        if ($chip === 0) $this->{$property}[$index]['taper'] = true;
+    }
+
     private function validatePrescriptionItems(): bool
     {
         foreach ($this->productsList as $item) {
@@ -2147,6 +2189,7 @@ public function deleteAppointment($appointmentId)
                     $this->dispatch('notify', ...['type' => 'error', 'message' => 'Please set eye, frequency, and a valid treatment duration for all drug prescription items']);
                     return false;
                 }
+                if (!$this->taperHasNote($item)) return false;
             }
         }
 
@@ -2162,6 +2205,7 @@ public function deleteAppointment($appointmentId)
                 $this->dispatch('notify', ...['type' => 'error', 'message' => 'Set the frequency and how long to take it for each drug to buy outside: ' . ($drug['name'] ?? '')]);
                 return false;
             }
+            if (!$this->taperHasNote($drug)) return false;
         }
 
         return true;
@@ -2295,6 +2339,8 @@ public function deleteAppointment($appointmentId)
                     'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                     'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                     'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
+                    'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
+                    'taper' => $isDrug && ($productItem['taper'] ?? false),
                     'status' => 'pending',
                     'is_dispensed' => false,
                     'purchased' => false,
@@ -2403,6 +2449,8 @@ public function deleteAppointment($appointmentId)
                             'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                             'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                             'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
+                            'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
+                            'taper' => $isDrug && ($productItem['taper'] ?? false),
                         ]);
                         $updatedCartIds[] = $cartItem->id;
                     } elseif ($cartItem && ($cartItem->is_dispensed || $cartItem->purchased)) {
@@ -2421,6 +2469,8 @@ public function deleteAppointment($appointmentId)
                         'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                         'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                         'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
+                        'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
+                        'taper' => $isDrug && ($productItem['taper'] ?? false),
                         'status' => 'pending',
                         'is_dispensed' => false,
                         'purchased' => false,

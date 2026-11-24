@@ -15,7 +15,7 @@ class OutsidePrescription extends Model
 
     protected $guarded = ['id', 'clinic_id', 'branch_id'];
 
-    protected $casts = ['duration_value' => 'integer'];
+    protected $casts = ['duration_value' => 'integer', 'taper' => 'boolean'];
 
     public function patient() { return $this->belongsTo(Patient::class); }
     public function consultation() { return $this->belongsTo(Consultations::class, 'consultation_id'); }

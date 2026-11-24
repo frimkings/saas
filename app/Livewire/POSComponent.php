@@ -290,6 +290,7 @@ class POSComponent extends Component
                             'duration_value' => $item->duration_value,
                             'duration_unit' => $item->duration_unit,
                             'eye'          => $item->eye,
+                            'instructions' => \App\Support\Clinical\DrugInstructions::line($item->instructions, $item->taper),
                             'price'        => (float) $item->price,
                             'total'        => (float) $item->total,
                         ];
@@ -1819,6 +1820,8 @@ class POSComponent extends Component
                         'duration_value'   => $item->product->isDrugCategory() ? $item->duration_value : null,
                         'duration_unit'    => $item->product->isDrugCategory() ? $item->duration_unit : null,
                         'eye'              => $item->product->isDrugCategory() ? $this->normalizeEye($item->eye) : null,
+                        'instructions'     => $item->product->isDrugCategory() ? $item->instructions : null,
+                        'taper'            => $item->product->isDrugCategory() && $item->taper,
                         'cart_id'          => $item->id,
                         'from_prescription' => $fromPrescription,
                         'is_frame'         => str_contains($categoryName, 'frame'),
@@ -2277,11 +2280,15 @@ class POSComponent extends Component
                 $durationValue = is_array($cartItem) ? ($cartItem['duration_value'] ?? null) : null;
                 $durationUnit = is_array($cartItem) ? ($cartItem['duration_unit'] ?? null) : null;
                 $eye       = is_array($cartItem) ? ($cartItem['eye'] ?? null)       : null;
+                $instructions = is_array($cartItem) ? \App\Support\Clinical\DrugInstructions::clean($cartItem['instructions'] ?? null) : null;
+                $taper     = is_array($cartItem) && ($cartItem['taper'] ?? false);
                 if (!$product->isDrugCategory()) {
                     $frequency = null;
                     $durationValue = null;
                     $durationUnit = null;
                     $eye = null;
+                    $instructions = null;
+                    $taper = false;
                 }
                 $cartId    = is_array($cartItem) ? ($cartItem['cart_id'] ?? null)  : null;
 
@@ -2298,6 +2305,8 @@ class POSComponent extends Component
                     'duration_value'      => $durationValue,
                     'duration_unit'       => $durationUnit,
                     'eye'                 => $eye,
+                    'instructions'        => $instructions,
+                    'taper'               => $taper,
                     'notes'               => $isPartPayment ? 'On Hold - Part Payment' : ($frequency ? 'Prescription Sale' : 'Direct POS Sale'),
                 ]);
 

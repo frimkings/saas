@@ -30,7 +30,7 @@ final class TourCatalog
         'clinic.registry' => 2,
         'clinic.clearance' => 2,
         'clinic.pos' => 3,
-        'clinic.queue' => 2,
+        'clinic.queue' => 3,
         'clinic.sales' => 4,
         'clinic.day-close' => 2,
         'clinic.cash-book' => 3,
@@ -360,6 +360,7 @@ final class TourCatalog
             ['title' => 'Your patients for today', 'body' => 'Patients who have been cleared at the front desk and are waiting to be seen. The list refreshes by itself every 30 seconds.'],
             ['target' => 'queue-filters', 'title' => 'Waiting or seen', 'body' => 'Find a patient by name or folder, and switch between those still waiting and those you have seen.'],
             ['target' => 'queue-list', 'title' => 'See a patient', 'body' => 'Open a patient to record the consultation, refraction and prescription. Medicines you prescribe wait for the patient at the pharmacy counter. A drug you do not stock, or that is out of stock, can be prescribed to buy at a pharmacy: it prints on the prescription slip and is not billed here.'],
+            ['title' => 'Notes and tapering', 'body' => 'Each drug on a prescription has a note line for the patient, with quick notes such as "Shake well". Tick Taper for a drug that must be reduced step by step and write the steps in the note: it shows as TAPER at the pharmacy counter, on the prescription slip and in the patient’s history.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

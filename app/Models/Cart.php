@@ -34,6 +34,8 @@ class Cart extends Model
         'duration_value',
         'duration_unit',
         'eye',
+        'instructions',
+        'taper',
     ];
 
     /**
@@ -46,6 +48,7 @@ class Cart extends Model
         'total' => 'decimal:2',
         'is_dispensed' => 'boolean',
         'purchased' => 'boolean',
+        'taper' => 'boolean',
         'dispensed_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

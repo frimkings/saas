@@ -1003,7 +1003,8 @@
                                         $isDrug = ($item['is_drug'] ?? false) || in_array($categoryName, ['drug', 'drugs'], true);
                                         $durationValid = ($item['duration_unit'] ?? null) === 'until_finished'
                                             || (!empty($item['duration_value']) && in_array($item['duration_unit'] ?? null, ['days', 'weeks', 'months'], true));
-                                        return $isDrug && (empty($item['frequency']) || empty($item['eye']) || !$durationValid);
+                                        $taperWithoutNote = ($item['taper'] ?? false) && trim((string) ($item['instructions'] ?? '')) === '';
+                                        return $isDrug && (empty($item['frequency']) || empty($item['eye']) || !$durationValid || $taperWithoutNote);
                                     })->count();
                                 @endphp
 
@@ -1078,6 +1079,9 @@
                                                 {{-- PRODUCT NAME --}}
                                                 <td class="py-1 px-2 align-middle">
                                                     <strong class="{{ $isLocked ? 'text-slate-500' : '' }} block" style="font-size: 12px; line-height: 1.1;">{{ $item['name'] }}</strong>
+                                                    @if($isDrug && ($item['taper'] ?? false))
+                                                        <span class="inline-flex items-center rounded px-1.5 py-0.5 font-bold bg-amber-100 text-amber-800" style="font-size: 9px; padding: 1px 4px;">TAPER</span>
+                                                    @endif
                                                     @if($item['category_name'] ?? false)
                                                         <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200" style="font-size: 9px; padding: 1px 4px;">{{ $item['category_name'] }}</span>
                                                     @endif
@@ -1244,6 +1248,9 @@
                                                     @endif
                                                 </td>
                                             </tr>
+                                            @if($isDrug)
+                                                @include('livewire.doctor.partials.drug-note-row', ['list' => 'products', 'index' => $index, 'line' => $item, 'locked' => $isLocked, 'colspan' => 8])
+                                            @endif
                                         @endforeach
                                     </tbody>
                                     <tfoot class="bg-slate-50 sticky-bottom" style="bottom: 0;">
@@ -1334,6 +1341,7 @@
                                                 </button>
                                             </td>
                                         </tr>
+                                        @include('livewire.doctor.partials.drug-note-row', ['list' => 'outside', 'index' => $index, 'line' => $drug, 'locked' => false, 'colspan' => 5])
                                     @endforeach
                                 </tbody>
                             </table>

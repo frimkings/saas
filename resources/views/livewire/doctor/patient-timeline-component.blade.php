@@ -159,7 +159,11 @@
                                                         <tbody>
                                                             @foreach($data->cartItems as $ci)
                                                             <tr>
-                                                                <td>{{ $ci->product->name ?? '—' }}</td>
+                                                                <td>
+                                                                    {{ $ci->product->name ?? '—' }}
+                                                                    @if($ci->taper)<span class="inline-flex items-center rounded px-1 font-bold bg-amber-100 text-amber-800" style="font-size:9px;">TAPER</span>@endif
+                                                                    @if(filled($ci->instructions))<span class="block text-slate-500" style="font-size:10px;">{{ $ci->instructions }}</span>@endif
+                                                                </td>
                                                                 <td>{{ $ci->eye ? strtoupper($ci->eye) : '—' }}</td>
                                                                 <td>{{ $ci->frequency ?: '—' }}</td>
                                                                 <td>{{ $ci->quantity }}</td>

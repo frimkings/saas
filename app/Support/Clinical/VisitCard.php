@@ -102,7 +102,8 @@ class VisitCard
             if (self::filled($item->frequency) || self::filled($item->eye) || self::filled($item->duration_unit)) {
                 $duration = $item->duration_unit === 'until_finished' ? 'until finished'
                     : ($item->duration_value && $item->duration_unit ? $item->duration_value.' '.$item->duration_unit : null);
-                $medicines[] = collect([$name.' ×'.$item->quantity, $item->eye, $item->frequency ? strtolower($item->frequency) : null, $duration])
+                $medicines[] = collect([$name.' ×'.$item->quantity, $item->eye, $item->frequency ? strtolower($item->frequency) : null, $duration,
+                    DrugInstructions::line($item->instructions, $item->taper)])
                     ->filter(fn ($p) => self::filled($p))->implode(' — ');
             } else {
                 $items[] = $name.($item->quantity > 1 ? ' ×'.$item->quantity : '');
