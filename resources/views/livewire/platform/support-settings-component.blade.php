@@ -35,6 +35,12 @@
             </label>
             <small class="ui-hint">Plan change requests, SMS credit orders and sender ID requests from clinics are emailed here, with a reminder at 8:00 for any still waiting after a day. Leave it empty to receive them at the support email above. Clinics don't see this address.</small>
 
+            <label class="ui-field"><span>Payment code (USSD)</span>
+                <input class="ui-input" type="text" wire:model.live.debounce.300ms="paymentCode" placeholder="e.g. *713*62#" inputmode="tel">
+                @error('paymentCode')<small class="ui-error">{{ $message }}</small>@enderror
+            </label>
+            <small class="ui-hint">Clinics see "Dial this code and follow the prompt to make payment" wherever they pay: Subscription &amp; Billing, add-ons, SMS credits, renewal reminders, invoices and billing emails. Leave it empty to hide the prompt.</small>
+
             <div class="flex flex-wrap items-center justify-end gap-2">
                 <span class="ui-hint" wire:dirty>Unsaved changes</span>
                 <button type="submit" class="ui-button ui-button-primary" wire:loading.attr="disabled" wire:target="save"><span wire:loading.remove wire:target="save">Save</span><span wire:loading wire:target="save">Saving…</span></button>
@@ -48,6 +54,7 @@
                 @if($phone)<div>☏ {{ $phone }}</div>@endif
                 @if($email)<div>✉ {{ $email }}</div>@endif
                 @if(!$phone && !$email && !$whatsapp)<div class="ui-hint">No contact details yet, so clinics only see the name.</div>@endif
+                @if(trim($paymentCode) !== '')<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #334560"><b style="display:inline">Dial {{ trim($paymentCode) }}</b> and follow the prompt to make payment.</div>@endif
                 @if($whatsapp)<div class="ui-actions"><span class="ui-button ui-button-primary ui-button-sm" style="background:#128c4a;cursor:default">WhatsApp {{ $whatsapp }}</span></div>@endif
             </div>
         </section>

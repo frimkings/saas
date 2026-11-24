@@ -37,7 +37,7 @@ class LicenseService
         $rollback = $setting->license_last_seen && now()->toDateString() < (string) $setting->license_last_seen;
         $invalid = !empty($setting->license_key) && !$payload;
         // The license stays fully usable for `subscriptions.grace_days` after its expiry date.
-        $graceEnds = $expires ? Carbon::parse($expires)->addDays((int) config('subscriptions.grace_days', 1))->toDateString() : null;
+        $graceEnds = $expires ? Carbon::parse($expires)->addDays((int) config('subscriptions.grace_days', 0))->toDateString() : null;
         $readOnly = $invalid || $rollback || !$graceEnds || now()->toDateString() > $graceEnds;
         $status = $readOnly ? 'restricted' : ($payload ? 'active' : 'trial');
         $features = $payload['features'] ?? ['*'];

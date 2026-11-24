@@ -10,6 +10,10 @@ class PlatformSetting extends Model
 {
     public const SUPPORT_KEYS = ['support_name', 'support_phone', 'support_whatsapp', 'support_email'];
 
+    /** USSD code clinics dial to pay the platform (subscription, add-ons, SMS credits). */
+    public const PAYMENT_CODE_KEY = 'payment_ussd_code';
+    public const DEFAULT_PAYMENT_CODE = '*713*62#';
+
     protected $fillable = ['key', 'value'];
 
     public static function get(string $key, ?string $default = null): ?string
@@ -34,6 +38,25 @@ class PlatformSetting extends Model
             'whatsapp' => static::get('support_whatsapp') ?? config('app.support.whatsapp'),
             'email'    => static::get('support_email') ?? config('app.support.email'),
         ];
+    }
+
+    /**
+     * The code clinics dial to pay, or null when the platform admin cleared it (the prompt is then hidden).
+     * Until it is first saved, the default code is used.
+     */
+    public static function paymentCode(): ?string
+    {
+        $settings = static::cached();
+
+        return array_key_exists(self::PAYMENT_CODE_KEY, $settings) ? ($settings[self::PAYMENT_CODE_KEY] ?: null) : self::DEFAULT_PAYMENT_CODE;
+    }
+
+    /** "Dial *713*62# Follow the Prompt to Make payment", or null when no code is set. */
+    public static function paymentPrompt(): ?string
+    {
+        $code = static::paymentCode();
+
+        return $code ? "Dial {$code} and follow the prompt to make payment." : null;
     }
 
     /**

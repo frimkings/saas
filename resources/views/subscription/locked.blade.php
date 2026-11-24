@@ -22,6 +22,9 @@
         <h1>Subscription payment has not been made</h1>
         <p>{{ $clinic }}'s subscription has expired and has not been renewed, so the system is unavailable.</p>
         <p>Please ask your {{ $place ?? 'clinic' }} administrator to renew the subscription. Access returns as soon as payment is confirmed.</p>
+        @if($payCode = \App\Models\PlatformSetting::paymentCode())
+            <div class="contact" style="text-align:center;background:#ecfdf5;border:1px solid #a7f3d0">To pay, dial <a href="tel:{{ str_replace('#', '%23', $payCode) }}" style="font-size:20px;font-weight:700;color:#065f46;white-space:nowrap">{{ $payCode }}</a><br>and follow the prompt to make payment.</div>
+        @endif
     @else
         <h1>{{ ucfirst($place ?? 'clinic') }} access suspended</h1>
         <p>{{ $clinic }}'s subscription has not been renewed, so access to the system is suspended.</p>

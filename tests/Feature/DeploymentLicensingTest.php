@@ -75,14 +75,14 @@ class DeploymentLicensingTest extends TestCase
         $this->assertFalse($subscription->permitsBranches());
     }
 
-    public function test_expiry_blocks_writes_after_one_grace_day_even_with_legacy_grace_configuration(): void
+    /** No grace (2026-11-24): the license works through its expiry date and is restricted the next day. */
+    public function test_expiry_blocks_writes_the_day_after_expiry_even_with_legacy_grace_configuration(): void
     {
         $this->clinic('local');
         config(['license.grace_days' => 7]);
         $key = $this->key(now()->toDateString());
         $this->assertTrue(LicenseService::activate($key)['ok']);
-        $this->travel(1)->days();
-        $this->assertFalse(app(ClinicAccessService::class)->access()['read_only'], 'The day after expiry is the grace day.');
+        $this->assertFalse(app(ClinicAccessService::class)->access()['read_only'], 'Usable through the expiry date.');
         $this->travel(1)->days();
         $this->assertSame('restricted', app(ClinicAccessService::class)->access()['status']);
         $this->assertTrue(app(ClinicAccessService::class)->access()['read_only']);
@@ -195,13 +195,13 @@ class DeploymentLicensingTest extends TestCase
     public function test_activation_history_and_expiry_notice_include_license_details(): void
     {
         $this->clinic('local');
-        $key = $this->key(now()->addDays(14)->toDateString());
+        $key = $this->key(now()->addDays(4)->toDateString());
         Livewire::test(LicenseComponent::class)->set('licenseKey', $key)->call('activate')->assertSee('Activation history');
         $activation = \App\Models\AuditTrail::where('event', 'license.activated')->latest('id')->firstOrFail();
         $this->assertSame(['appointments'], $activation->new_values['features']);
         $this->assertSame(hash('sha256', $key), $activation->new_values['key_fingerprint']);
         $notice = app(ClinicAccessService::class)->notice();
-        $this->assertSame(14, $notice['days']);
+        $this->assertSame(4, $notice['days']);
         $this->assertStringContainsString('23:59:59', $notice['cutoff']);
     }
 

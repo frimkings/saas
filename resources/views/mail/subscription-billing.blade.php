@@ -9,6 +9,7 @@
     ]),
     'buttonLabel' => 'View subscription & billing',
     'buttonUrl' => $messageData['url'],
-    'footnote' => null,
+    // Only notices about money owed carry an amount; tell the clinic how to pay.
+    'footnote' => ($messageData['amount'] ?? null) ? \App\Models\PlatformSetting::paymentPrompt() : null,
     'footer' => null,
 ])

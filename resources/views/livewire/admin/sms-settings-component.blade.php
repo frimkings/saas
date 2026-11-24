@@ -159,8 +159,9 @@
                                     </div>
                                 </div>
                                 <small class="mt-1 block text-xs text-slate-500">
-                                    Bigger amounts get a lower price per SMS. Pay the invoice as you pay your subscription; credits appear here once payment is confirmed.
+                                    Bigger amounts get a lower price per SMS. Credits appear here once the invoice is paid and confirmed.
                                 </small>
+                                <x-pay-prompt class="mt-3" />
                             </div>
                         @else
                             <p class="text-sm text-slate-500">SMS bundles are not available yet. Contact the platform administrator to buy credits.</p>

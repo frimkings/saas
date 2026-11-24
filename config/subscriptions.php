@@ -9,10 +9,11 @@ return [
     // Every trial lasts this many days, whatever the plan says; when it ends the clinic is
     // suspended (no grace or read-only stage) until it is moved to a paid subscription.
     'trial_days' => (int) env('SUBSCRIPTION_TRIAL_DAYS', 2),
-    'grace_days' => (int) env('SUBSCRIPTION_GRACE_DAYS', 1),
+    'grace_days' => (int) env('SUBSCRIPTION_GRACE_DAYS', 0),
     'payment_due_days' => (int) env('SUBSCRIPTION_PAYMENT_DUE_DAYS', 1),
-    // Every staff member sees a renewal banner from this many days before expiry.
-    'expiry_warning_days' => (int) env('SUBSCRIPTION_EXPIRY_WARNING_DAYS', 7),
+    // Everyone (admins and staff) sees a renewal banner, and owners get reminder emails, from this many days before expiry.
+    // No grace (2026-11-24): at expiry staff are shut out and admins can only open Subscription & Billing.
+    'expiry_warning_days' => (int) env('SUBSCRIPTION_EXPIRY_WARNING_DAYS', 5),
     // A restricted clinic remains readable for this many days before suspension.
     'restriction_days' => (int) env('SUBSCRIPTION_RESTRICTION_DAYS', 7),
 

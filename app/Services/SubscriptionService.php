@@ -54,7 +54,7 @@ class SubscriptionService
         $end = $status === 'trial' ? $subscription->trial_ends_at : $subscription->current_period_ends_at;
         if (in_array($status, ['trial', 'active', 'overdue'], true) && ($status === 'overdue' || ($end && $end->lte(now())))) {
             // Fully usable for `subscriptions.grace_days` after expiry, then read-only (and locked for staff).
-            $status = $end && $end->copy()->addDays((int) config('subscriptions.grace_days', 1))->gt(now()) ? 'overdue' : 'restricted';
+            $status = $end && $end->copy()->addDays((int) config('subscriptions.grace_days', 0))->gt(now()) ? 'overdue' : 'restricted';
         }
         $readOnly = in_array($status, ['restricted', 'expired'], true);
         $features = $subscription->feature_snapshot;

@@ -205,6 +205,33 @@ class SubscriptionLockTest extends TestCase
             ->assertStatus(503)->assertJson(['success' => false]);
     }
 
+    /** 2026-11-24 rule: reminders from 5 days out for everyone, no grace, then only admins and only Subscription & Billing. */
+    public function test_no_grace_rule_reminds_five_days_out_then_shuts_staff_out_at_expiry(): void
+    {
+        config(['subscriptions.grace_days' => 0, 'subscriptions.expiry_warning_days' => 5]);
+
+        $this->subscription->update(['current_period_ends_at' => now()->addDays(6)->setTime(12, 0)]);
+        $this->actingAs($this->admin)->get(route('admin.subscription'))->assertOk()->assertDontSee('Renewal reminder');
+
+        $this->subscription->update(['current_period_ends_at' => now()->addDays(5)->setTime(12, 0)]);
+        app(TenantContext::class)->clear();
+        $this->actingAs($this->admin)->get(route('admin.subscription'))->assertOk()
+            ->assertSee('Renewal reminder')->assertSee('the system stops for staff')->assertSee('*713*62#');
+        app(TenantContext::class)->clear();
+        $this->flushSession();
+        $this->actingAs($this->secretary)->get(route('secretary.appointments'))->assertOk()
+            ->assertSee('Renewal reminder')->assertSee('Please remind your clinic administrator');
+
+        // One hour after expiry: no grace.
+        $this->expiredHoursAgo(1);
+        $this->flushSession();
+        $this->actingAs($this->secretary)->get(route('secretary.appointments'))->assertRedirect(route('subscription.locked'));
+        app(TenantContext::class)->clear();
+        $this->flushSession();
+        $this->actingAs($this->admin)->get(route('secretary.appointments'))->assertRedirect(route('admin.subscription'));
+        $this->get(route('admin.subscription'))->assertOk()->assertSee('Staff are locked out')->assertSee('*713*62#');
+    }
+
     public function test_every_user_sees_a_renewal_banner_in_the_last_week(): void
     {
         $this->subscription->update(['current_period_ends_at' => now()->addDays(3)]);

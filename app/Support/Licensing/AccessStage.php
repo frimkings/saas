@@ -39,11 +39,11 @@ final class AccessStage
             return new self(self::ACTIVE, null, null, $hosted);
         }
 
-        $graceEnds = $expiresAt->copy()->addDays(config('subscriptions.grace_days', 1));
+        $graceEnds = $expiresAt->copy()->addDays(config('subscriptions.grace_days', 0));
         $lockedAt  = $graceEnds->copy()->addDays(config('subscriptions.payment_due_days', 1));
 
         $stage = match (true) {
-            $now->lt($expiresAt->copy()->subDays(config('subscriptions.expiry_warning_days', 7))) => self::ACTIVE,
+            $now->lt($expiresAt->copy()->subDays(config('subscriptions.expiry_warning_days', 5))) => self::ACTIVE,
             $now->lt($expiresAt) => self::EXPIRING,
             $now->lt($graceEnds) => self::GRACE,
             $now->lt($lockedAt)  => self::PAYMENT_DUE,

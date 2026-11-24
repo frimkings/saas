@@ -57,7 +57,7 @@ class SubscriptionLifecycleService
         // One grace period after expiry (fully usable, "overdue"), then restricted.
         $end = $subscription->status === 'trial' ? $subscription->trial_ends_at : $subscription->current_period_ends_at;
         if (in_array($subscription->status, ['trial', 'active', 'overdue'], true) && $end
-            && $end->copy()->addDays((int) config('subscriptions.grace_days', 1))->gt($at)) {
+            && $end->copy()->addDays((int) config('subscriptions.grace_days', 0))->gt($at)) {
             return 'overdue';
         }
         return 'restricted';

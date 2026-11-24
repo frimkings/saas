@@ -1,7 +1,7 @@
 <div class="ui-panel mt-4">
     <div class="ui-section-heading"><h3 class="font-semibold">Add-ons</h3></div>
     <div class="p-5">
-        <p class="text-slate-500 text-sm mb-4">Extra features on top of your plan, billed each month with your subscription. When one is added, the rest of the current period is charged straight away.</p>
+        <p class="text-slate-500 text-sm mb-4">Extra features on top of your plan, billed each month with your subscription. When one is added, the rest of the current period is charged straight away. <x-pay-prompt compact /></p>
 
         @if($active->isNotEmpty())
             <h6 class="font-semibold">Your add-ons</h6>

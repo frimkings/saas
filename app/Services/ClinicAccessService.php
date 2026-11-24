@@ -60,8 +60,8 @@ class ClinicAccessService
     }
 
     /**
-     * Renewal banner: admins see it from 30 days before expiry, everyone else from
-     * `subscriptions.expiry_warning_days`, and all users once the clinic has expired.
+     * Renewal banner: everyone sees it from `subscriptions.expiry_warning_days` before expiry
+     * (5 days), and all users once the clinic has expired.
      */
     public function notice(bool $forAdmin = true): ?array
     {
@@ -73,13 +73,13 @@ class ClinicAccessService
                 'cutoff' => null, 'blocks' => null, 'locks' => null, 'days' => null] : null;
         }
 
-        $window = $forAdmin ? 30 : (int) config('subscriptions.expiry_warning_days', 7);
+        $window = (int) config('subscriptions.expiry_warning_days', 5);
         if ($stage->stage === AccessStage::ACTIVE && $stage->expiresAt->gt(now()->addDays($window))) return null;
         if ($stage->stage === AccessStage::ACTIVE && !$forAdmin) return null;
 
         return ['stage' => $stage->stage, 'read_only' => $this->access()['read_only'], 'hosted' => $stage->hosted,
             'cutoff' => $stage->expiresAt->format('d M Y H:i:s T'), 'cutoff_date' => $stage->expiresAt->format('d M Y'), 'locks' => $stage->lockedAt?->format('d M Y H:i T'),
-            'blocks' => $stage->expiresAt->copy()->addDays((int) config('subscriptions.grace_days', 1))->format('d M Y H:i T'),
+            'blocks' => $stage->expiresAt->copy()->addDays((int) config('subscriptions.grace_days', 0))->format('d M Y H:i T'),
             'days' => max(0, (int) now()->startOfDay()->diffInDays($stage->expiresAt->copy()->startOfDay(), false))];
     }
 }
