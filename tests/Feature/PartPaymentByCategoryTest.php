@@ -89,6 +89,20 @@ class PartPaymentByCategoryTest extends TestCase
         $this->assertFalse($drugs->fresh()->part_payment);
     }
 
+    public function test_clicking_a_category_opens_its_side_panel_and_edit_opens_the_form_panel(): void
+    {
+        $services = Category::create(['user_id' => $this->cashier->id, 'name' => 'Services '.uniqid(), 'type' => 'service']);
+        Product::factory()->create(['user_id' => $this->cashier->id, 'category_id' => $services->id, 'name' => 'Eye Pressure', 'selling_price' => 30]);
+
+        Livewire::test(CategoryComponent::class)
+            ->call('openCategory', $services->id)->assertSet('viewCategoryId', $services->id)
+            ->assertSee('Part payment at the clinic till')->assertSee('Eye Pressure')->assertSee('Edit category')
+            ->call('editCategoryModal', $services->id)->assertSet('showForm', true)->assertSee('Save changes')
+            ->call('closeForm')->assertSet('showForm', false)
+            ->call('closeCategory')->assertSet('viewCategoryId', null)->assertDontSeeHtml('id="cat-title"')
+            ->call('openCategoryModal')->assertSet('showForm', true)->assertSee('Add a category');
+    }
+
     public function test_only_the_owner_sets_part_payment_on_a_category(): void
     {
         $services = Category::create(['user_id' => $this->cashier->id, 'name' => 'Services '.uniqid(), 'type' => 'service']);

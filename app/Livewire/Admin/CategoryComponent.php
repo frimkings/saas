@@ -26,6 +26,9 @@ class CategoryComponent extends Component
 
     public $category;
     public $showEditModal = false;
+    /** Side panel, as on Partner Clinics: the category being looked at, and whether the add/edit form is open. */
+    public ?int $viewCategoryId = null;
+    public bool $showForm = false;
     public $categoryIdBeingRemoved;
 
     public array $categoryTypes = [
@@ -50,10 +53,30 @@ class CategoryComponent extends Component
         }
     }
 
+    public function openCategory(int $id): void
+    {
+        $this->viewCategoryId = Category::findOrFail($id)->id;
+        $this->showForm = false;
+    }
+
+    public function closeCategory(): void
+    {
+        $this->viewCategoryId = null;
+        $this->showForm = false;
+        $this->resetCategoryForm();
+    }
+
+    public function closeForm(): void
+    {
+        $this->showForm = false;
+        $this->resetCategoryForm();
+    }
+
     public function openCategoryModal()
     {
         $this->resetCategoryForm();
-        $this->dispatch('show-addCategoryModal-form');
+        $this->viewCategoryId = null;
+        $this->showForm = true;
     }
 
     public function createCategory()
@@ -61,12 +84,13 @@ class CategoryComponent extends Component
         $validatedData = $this->validateCategory();
 
         $partPayment = $this->partPaymentFields($validatedData);
-        Category::create(array_merge($validatedData, [
+        $created = Category::create(array_merge($validatedData, [
             'user_id' => Auth::id(),
         ], $partPayment ?? []));
 
         $this->resetCategoryForm();
-        $this->dispatch('hide-addCategoryModal-form');
+        $this->showForm = false;
+        $this->viewCategoryId = $created->id;
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Category added successfully!']);
     }
 
@@ -83,7 +107,8 @@ class CategoryComponent extends Component
             'part_payment_min_percent' => (int) $category->part_payment_min_percent,
         ];
         $this->showEditModal = true;
-        $this->dispatch('show-addCategoryModal-form');
+        $this->viewCategoryId = $category->id;
+        $this->showForm = true;
     }
 
     public function updateCategory()
@@ -104,7 +129,7 @@ class CategoryComponent extends Component
         }
 
         $this->resetCategoryForm();
-        $this->dispatch('hide-addCategoryModal-form');
+        $this->showForm = false;
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Category updated successfully!']);
     }
 
@@ -155,6 +180,7 @@ class CategoryComponent extends Component
         }
 
         $category->delete();
+        if ($this->viewCategoryId === $category->id) $this->closeCategory();
         $this->categoryIdBeingRemoved = null;
 
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Category deleted successfully!']);
@@ -235,8 +261,16 @@ class CategoryComponent extends Component
             ->paginate(10);
 
         $canSetPartPayment = $this->canSetPartPayment;
+        $viewCategory = $this->viewCategoryId ? Category::withCount([
+                'products',
+                'products as in_stock_products_count' => fn ($query) => $query->where('quantity', '>', 0),
+                'products as low_stock_products_count' => fn ($query) => $query->lowStock(),
+            ])->find($this->viewCategoryId) : null;
+        $viewProducts = $viewCategory
+            ? $viewCategory->products()->orderBy('name')->limit(25)->get(['id', 'name', 'quantity', 'selling_price'])
+            : collect();
 
-        return view('livewire.admin.category-component', compact('categories', 'canSetPartPayment'))
+        return view('livewire.admin.category-component', compact('categories', 'canSetPartPayment', 'viewCategory', 'viewProducts'))
             ->layout('layouts.admin.admin-layout');
     }
 }

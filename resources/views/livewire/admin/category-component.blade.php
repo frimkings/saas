@@ -1,4 +1,5 @@
 <div class="clinic-ui ui-page">
+@include('livewire.optical.partials.order-ui')
     <div class="content-header">
         <div class="w-full">
             <div class="flex flex-wrap -mx-2 mb-2 items-center">
@@ -56,7 +57,8 @@
                             </thead>
                             <tbody wire:loading.class="text-muted">
                                 @forelse ($categories as $category)
-                                    <tr>
+                                    <tr wire:key="category-{{ $category->id }}" wire:click="openCategory({{ $category->id }})"
+                                        class="cursor-pointer hover:bg-slate-50 {{ $viewCategoryId === $category->id ? 'bg-teal-50' : '' }}">
                                         <td>
                                             <div class="font-semibold">{{ $category->name }}</div>
                                             <small class="text-slate-500">{{ $category->description ?: 'No description provided' }}</small>
@@ -82,7 +84,7 @@
                                         </td>
                                         <td>
                                             <button type="button"
-                                                wire:click="toggleCategoryStatus({{ $category->id }})"
+                                                wire:click.stop="toggleCategoryStatus({{ $category->id }})"
                                                 class="ui-button ui-button-sm {{ $category->is_active ? 'ui-button-secondary' : 'ui-button-secondary' }}">
                                                 <i class="fa {{ $category->is_active ? 'fa-check-circle' : 'fa-pause-circle' }} mr-1"></i>
                                                 {{ $category->is_active ? 'Active' : 'Inactive' }}
@@ -90,14 +92,14 @@
                                         </td>
                                         <td class="text-right">
                                             <button type="button"
-                                                wire:click.prevent="editCategoryModal({{ $category->id }})"
+                                                wire:click.prevent.stop="editCategoryModal({{ $category->id }})"
                                                 class="ui-button ui-button-sm ui-button-secondary"
                                                 title="Edit category">
                                                 <i class="fa fa-edit"></i>
                                             </button>
 
                                             <button type="button"
-                                                wire:click.prevent="confirmCategoryDeletion({{ $category->id }})"
+                                                wire:click.prevent.stop="confirmCategoryDeletion({{ $category->id }})"
                                                 class="ui-button ui-button-sm {{ $category->products_count > 0 ? 'ui-button-secondary' : 'ui-button-danger' }}"
                                                 title="{{ $category->products_count > 0 ? 'Move products before deleting this category' : 'Delete category' }}">
                                                 <i class="fa {{ $category->products_count > 0 ? 'fa-lock' : 'fa-trash' }}"></i>
@@ -124,21 +126,85 @@
         </div>
     </div>
 
-    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 hidden" id="addCategoryModal" tabindex="-1" role="dialog" aria-labelledby="categoryModalLabel"
-        aria-hidden="true" wire:ignore.self>
-        <div class="mx-auto my-8 w-full max-w-lg" role="document">
-            <form autocomplete="off" wire:submit="{{ $showEditModal ? 'updateCategory' : 'createCategory' }}">
-                <div class="overflow-hidden rounded-xl bg-white text-slate-800 shadow-xl">
-                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                        <h5 class="text-base font-semibold" id="categoryModalLabel">
-                            {{ $showEditModal ? 'Edit Category' : 'Add New Category' }}
-                        </h5>
-                        <button type="button" class="text-xl leading-none text-slate-500 hover:text-slate-800" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+    {{-- CATEGORY PANEL (slides in from the right, as on Partner Clinics) --}}
+    @if($viewCategory && ! $showForm)
+        <div class="oo-overlay" wire:click="closeCategory" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="cat-title" tabindex="-1" x-data x-init="$el.focus()"
+               x-on:keydown.escape.window="$wire.closeCategory()" wire:key="cat-drawer-{{ $viewCategory->id }}">
+            <header class="oo-drawer-head">
+                <div>
+                    <h2 id="cat-title">{{ $viewCategory->name }}</h2>
+                    <div class="flex flex-wrap items-center gap-2 text-xs ui-muted">
+                        <span class="oo-badge oo-b-grey">{{ $categoryTypes[$viewCategory->type ?? 'product'] ?? ucfirst($viewCategory->type ?? 'Product') }}</span>
+                        <span class="oo-badge {{ $viewCategory->is_active ? 'oo-b-green' : 'oo-b-grey' }}">{{ $viewCategory->is_active ? 'Active' : 'Inactive' }}</span>
                     </div>
+                </div>
+                <button type="button" class="oo-x" wire:click="closeCategory" aria-label="Close">&times;</button>
+            </header>
+            <div class="oo-drawer-body">
+                <section class="oo-section">
+                    <h3>Stock</h3>
+                    <div class="oo-money" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+                        <div><span>Products</span><b>{{ $viewCategory->products_count }}</b></div>
+                        <div><span>In stock</span><b style="color:#15803d">{{ $viewCategory->in_stock_products_count }}</b></div>
+                        <div><span>Low stock</span><b style="color:{{ $viewCategory->low_stock_products_count > 0 ? '#b45309' : 'inherit' }}">{{ $viewCategory->low_stock_products_count }}</b></div>
+                    </div>
+                </section>
+                <section class="oo-section" data-tour="category-part-payment">
+                    <h3>Part payment at the clinic till</h3>
+                    @if($viewCategory->part_payment)
+                        <p class="text-sm"><span class="oo-badge oo-b-teal">On</span>
+                            {{ (int) $viewCategory->part_payment_min_percent > 0 ? 'A registered patient pays at least '.$viewCategory->part_payment_min_percent.'% of these items now; the rest can wait.' : 'A registered patient may pay any amount now; the rest can wait.' }}</p>
+                    @else
+                        <p class="text-sm"><span class="oo-badge oo-b-grey">Off</span> Items in this category are paid in full.</p>
+                    @endif
+                    <p class="ui-muted text-xs mt-1">Balances wait under Outstanding Balances.@unless($canSetPartPayment) Only the clinic owner can change this.@endunless</p>
+                </section>
+                <section class="oo-section">
+                    <h3>About</h3>
+                    <dl class="oo-dl">
+                        <dt>Description</dt><dd>{{ $viewCategory->description ?: '—' }}</dd>
+                        <dt>Added</dt><dd>{{ $viewCategory->created_at?->format('d M Y') ?? '—' }}</dd>
+                    </dl>
+                </section>
+                <section class="oo-section">
+                    <h3>Products{{ $viewCategory->products_count > $viewProducts->count() ? ' (first '.$viewProducts->count().' of '.$viewCategory->products_count.')' : '' }}</h3>
+                    @if($viewProducts->isEmpty())
+                        <p class="ui-muted text-sm">No products in this category yet.</p>
+                    @else
+                        <table class="oo-table w-full">
+                            <thead><tr><th>Product</th><th class="oo-num">Price</th><th class="oo-num">In stock</th></tr></thead>
+                            <tbody>
+                                @foreach($viewProducts as $product)
+                                    <tr style="cursor:default"><td>{{ $product->name }}</td>
+                                        <td class="oo-num">{{ currency() }} {{ number_format((float) $product->selling_price, 2) }}</td>
+                                        <td class="oo-num {{ (int) $product->quantity <= 0 ? 'text-slate-400' : '' }}">{{ $product->quantity }}</td></tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </section>
+            </div>
+            <footer class="oo-drawer-foot">
+                <button type="button" class="oo-btn" wire:click="toggleCategoryStatus({{ $viewCategory->id }})">{{ $viewCategory->is_active ? 'Deactivate' : 'Activate' }}</button>
+                @if($viewCategory->products_count === 0)
+                    <button type="button" class="oo-btn danger" wire:click="confirmCategoryDeletion({{ $viewCategory->id }})">Delete</button>
+                @endif
+                <button type="button" class="oo-btn primary" wire:click="editCategoryModal({{ $viewCategory->id }})">Edit category</button>
+            </footer>
+        </aside>
+    @endif
 
-                    <div class="p-4">
+    {{-- ADD / EDIT PANEL --}}
+    @if($showForm)
+        <div class="oo-overlay" wire:click="closeForm" aria-hidden="true"></div>
+        <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="categoryModalLabel" tabindex="-1" x-data x-init="$el.focus()"
+               x-on:keydown.escape.window="$wire.closeForm()">
+            <header class="oo-drawer-head">
+                <div><h2 id="categoryModalLabel">{{ $showEditModal ? 'Edit '.($state['name'] ?: 'category') : 'Add a category' }}</h2></div>
+                <button type="button" class="oo-x" wire:click="closeForm" aria-label="Close">&times;</button>
+            </header>
+            <form autocomplete="off" wire:submit="{{ $showEditModal ? 'updateCategory' : 'createCategory' }}" class="oo-drawer-body" id="category-form">
                         <div class="mb-4">
                             <label for="category-name">Name <span class="text-red-700">*</span></label>
                             <input type="text"
@@ -201,21 +267,15 @@
                                 @unless($canSetPartPayment) Only the clinic owner can change this. @endunless
                             </small>
                         </fieldset>
-                    </div>
-
-                    <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-                        <button type="button" class="ui-button ui-button-secondary" data-dismiss="modal">
-                            <i class="fa fa-times mr-1"></i> Cancel
-                        </button>
-                        <button type="submit" class="ui-button ui-button-primary">
-                            <i class="fa fa-save mr-1"></i>
-                            {{ $showEditModal ? 'Update Category' : 'Save Category' }}
-                        </button>
-                    </div>
-                </div>
             </form>
-        </div>
-    </div>
+            <footer class="oo-drawer-foot">
+                <button type="button" class="oo-btn" wire:click="closeForm">Cancel</button>
+                <button type="submit" form="category-form" class="oo-btn primary" wire:loading.attr="disabled" wire:target="createCategory,updateCategory">
+                    {{ $showEditModal ? 'Save changes' : 'Add category' }}
+                </button>
+            </footer>
+        </aside>
+    @endif
 
     <style>
         .category-admin-card {
@@ -237,14 +297,6 @@
     </style>
 
     <script>
-        window.addEventListener('show-addCategoryModal-form', event => {
-            uiModal('addCategoryModal', true);
-        });
-
-        window.addEventListener('hide-addCategoryModal-form', event => {
-            uiModal('addCategoryModal', false);
-        });
-
         window.addEventListener('show-category-delete-confirmation', event => {
             window.appConfirm(event.detail?.message || 'This category will be archived.', { title: 'Archive category?', confirmText: 'Yes, archive it', danger: true })
                 .then(ok => ok && @this.call('confirmCategoryDelete'));
