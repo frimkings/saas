@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Doctor;
 
+use App\Enums\DosageForm;
+use App\Support\Clinical\DrugCourse;
 use App\Support\Clinical\DrugInstructions;
 use App\Models\Consultations;
 use App\Models\Appointments;
@@ -886,8 +888,8 @@ public function deleteAppointment($appointmentId)
 
         $this->outsideDrugs[] = [
             'id' => null, 'product_id' => $product?->id, 'name' => $name,
-            'eye' => 'Both Eyes', 'frequency' => null, 'duration_value' => null, 'duration_unit' => 'days',
-            'instructions' => null, 'taper' => false,
+            'eye' => $this->defaultEye($form = $product?->dosage_form ?? DosageForm::guess($name)), 'frequency' => null, 'duration_value' => null, 'duration_unit' => 'days',
+            'instructions' => null, 'taper' => false, 'dosage_form' => $form?->value, 'dose' => $form?->defaultDose(), 'meal_timing' => null,
         ];
         $this->productSearch = '';
         $this->searchResults = [];
@@ -905,7 +907,7 @@ public function deleteAppointment($appointmentId)
         $this->outsideDrugs = $this->consultationID
             ? \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('consultation_id', $this->consultationID)
                 ->where('patient_id', $this->patient->id)->orderBy('id')->get()
-                ->map(fn ($rx) => $rx->only(['id', 'product_id', 'name', 'eye', 'frequency', 'duration_value', 'duration_unit', 'instructions', 'taper']))
+                ->map(fn ($rx) => $rx->only(['id', 'product_id', 'name', 'eye', 'frequency', 'duration_value', 'duration_unit', 'instructions', 'taper', 'dosage_form', 'dose', 'meal_timing']))
                 ->all()
             : [];
     }
@@ -919,13 +921,13 @@ public function deleteAppointment($appointmentId)
         foreach ($this->outsideDrugs as $index => $drug) {
             $values = [
                 'name' => mb_substr(trim($drug['name']), 0, 200),
-                'eye' => $drug['eye'] ?: null,
+                'eye' => $this->lineEye($drug),
                 'frequency' => $drug['frequency'] ?: null,
                 'duration_value' => ($drug['duration_unit'] ?? null) === 'until_finished' ? null : ((int) ($drug['duration_value'] ?? 0) ?: null),
                 'duration_unit' => $drug['duration_unit'] ?: null,
                 'instructions' => DrugInstructions::clean($drug['instructions'] ?? null),
                 'taper' => (bool) ($drug['taper'] ?? false),
-            ];
+            ] + $this->formFields($drug);
             $row = !empty($drug['id']) ? $existing->get($drug['id']) : null;
             if ($row) {
                 $row->update($values);
@@ -994,12 +996,17 @@ public function deleteAppointment($appointmentId)
                 'quantity' => 1,
                 'price' => $product->selling_price,
                 'total' => $product->selling_price,
-                'eye' => $isDrug ? 'Both Eyes' : null,
+                'eye' => $isDrug ? $this->defaultEye($product->dosage_form) : null,
                 'frequency' => null,
                 'duration_value' => null,
                 'duration_unit' => 'days',
                 'instructions' => null,
                 'taper' => false,
+                'dosage_form' => $isDrug ? $product->dosage_form?->value : null,
+                'pack_size' => $isDrug ? $product->pack_size : null,
+                'dose' => $isDrug ? $product->dosage_form?->defaultDose() : null,
+                'meal_timing' => null,
+                'qty_manual' => false,
                 'is_dispensed' => false,
                 'purchased' => false,
             ];
@@ -1025,7 +1032,7 @@ public function deleteAppointment($appointmentId)
             ->map(fn ($cart) => [
                 'key' => 'cart-' . $cart->id, 'source' => 'cart', 'id' => $cart->id, 'date' => $cart->created_at,
                 'item' => $cart->product?->name ?? 'Product no longer listed', 'quantity' => $cart->quantity,
-                'directions' => implode(' · ', array_filter([$cart->eye, $cart->frequency, $this->durationLabel($cart->duration_value, $cart->duration_unit), DrugInstructions::line($cart->instructions, $cart->taper)])),
+                'directions' => implode(' · ', array_filter([DrugCourse::directions($cart), DrugInstructions::line($cart->instructions, $cart->taper)])),
                 'product_id' => $cart->product?->id, 'previous_software' => false,
                 'branch' => $branchId && $cart->branch_id && (int) $cart->branch_id !== (int) $branchId ? $cart->branch?->name : null,
             ]);
@@ -1036,7 +1043,7 @@ public function deleteAppointment($appointmentId)
             ->map(fn ($rx) => [
                 'key' => 'outside-' . $rx->id, 'source' => 'outside', 'id' => $rx->id, 'date' => $rx->created_at,
                 'item' => $rx->name, 'quantity' => null,
-                'directions' => implode(' · ', array_filter([$rx->eye, $rx->frequency, $this->durationLabel($rx->duration_value, $rx->duration_unit), DrugInstructions::line($rx->instructions, $rx->taper)])),
+                'directions' => implode(' · ', array_filter([DrugCourse::directions($rx), DrugInstructions::line($rx->instructions, $rx->taper)])),
                 'product_id' => $rx->product_id, 'previous_software' => false, 'outside' => true,
                 'branch' => $branchId && (int) $rx->branch_id !== (int) $branchId ? $rx->branch?->name : null,
             ]);
@@ -1085,12 +1092,15 @@ public function deleteAppointment($appointmentId)
         $cart = $this->patientCarts()->find($id);
         $index = array_key_last($this->productsList);
         if ($cart && ($this->productsList[$index]['is_drug'] ?? false)) {
-            $this->productsList[$index]['eye'] = $cart->eye ?: 'Both Eyes';
+            $this->productsList[$index]['eye'] = $this->lineEye(['eye' => $cart->eye, 'dosage_form' => $this->productsList[$index]['dosage_form'] ?? null]);
             $this->productsList[$index]['frequency'] = $cart->frequency;
             $this->productsList[$index]['duration_value'] = $cart->duration_value;
             $this->productsList[$index]['duration_unit'] = $cart->duration_unit ?: 'days';
             $this->productsList[$index]['instructions'] = $cart->instructions;
             $this->productsList[$index]['taper'] = (bool) $cart->taper;
+            if ($cart->dose !== null) $this->productsList[$index]['dose'] = (float) $cart->dose;
+            $this->productsList[$index]['meal_timing'] = $cart->meal_timing;
+            $this->recalculateStrips($index, false);
         }
         $this->dispatch('notify', ...['type' => 'success', 'message' => $entry['item'] . ' added. Check the details before saving.']);
     }
@@ -1101,7 +1111,7 @@ public function deleteAppointment($appointmentId)
         $rx = \App\Models\OutsidePrescription::withoutGlobalScope('branch')->where('patient_id', $this->patient->id)->find($id);
         if (!$rx) return;
         $dosing = ['eye' => $rx->eye, 'frequency' => $rx->frequency, 'duration_value' => $rx->duration_value, 'duration_unit' => $rx->duration_unit ?: 'days',
-            'instructions' => $rx->instructions, 'taper' => (bool) $rx->taper];
+            'instructions' => $rx->instructions, 'taper' => (bool) $rx->taper, 'dose' => $rx->dose !== null ? (float) $rx->dose : null, 'meal_timing' => $rx->meal_timing];
 
         $product = $rx->product_id ? Product::with('category')->find($rx->product_id) : null;
         if ($product && $product->canSupply() && $product->inActiveCategory()) {
@@ -1110,7 +1120,9 @@ public function deleteAppointment($appointmentId)
             if (count($this->productsList) > $count) {
                 $index = array_key_last($this->productsList);
                 if ($this->productsList[$index]['is_drug'] ?? false) {
-                    $this->productsList[$index] = array_merge($this->productsList[$index], $dosing, ['eye' => $rx->eye ?: 'Both Eyes']);
+                    $this->productsList[$index] = array_merge($this->productsList[$index], $dosing);
+                    $this->productsList[$index]['eye'] = $this->lineEye($this->productsList[$index]);
+                    $this->recalculateStrips($index, false);
                 }
                 $this->dispatch('notify', ...['type' => 'success', 'message' => $rx->name . ' is in stock now, so it was added to dispense here. Check the details before saving.']);
             }
@@ -1122,7 +1134,7 @@ public function deleteAppointment($appointmentId)
         $this->addOutsideDrug($product?->id);
         if (count($this->outsideDrugs) > $count) {
             $index = array_key_last($this->outsideDrugs);
-            $this->outsideDrugs[$index] = array_merge($this->outsideDrugs[$index], $dosing);
+            $this->outsideDrugs[$index] = array_merge($this->outsideDrugs[$index], $dosing, $rx->dosage_form ? ['dosage_form' => $rx->dosage_form] : []);
             $this->dispatch('notify', ...['type' => 'success', 'message' => $entry['item'] . ' added to buy outside. Check the details before saving.']);
         }
     }
@@ -1200,6 +1212,7 @@ public function deleteAppointment($appointmentId)
         try {
             $this->productsList[$index]['frequency'] = $value;
             $this->editingFrequencyIndex = null;
+            $this->recalculateStrips($index);
 
             $this->dispatch('notify', ...['type' => 'success', 'message' => 'Frequency updated!']);
 
@@ -1756,6 +1769,7 @@ public function deleteAppointment($appointmentId)
 
         $this->productsList[$index]['quantity'] = $newQuantity;
         $this->productsList[$index]['total'] = $newQuantity * $this->productsList[$index]['price'];
+        $this->productsList[$index]['qty_manual'] = true;
     }
 
     public function clearPrescription()
@@ -1814,12 +1828,15 @@ public function deleteAppointment($appointmentId)
                             'quantity' => $productItem['quantity'],
                             'price' => $productItem['price'],
                             'total' => $productItem['total'],
-                            'eye' => $isDrug ? ($productItem['eye'] ?? 'Both Eyes') : null,
+                            'eye' => $isDrug ? $this->lineEye($productItem) : null,
                             'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                             'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                             'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
                             'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
                             'taper' => $isDrug && ($productItem['taper'] ?? false),
+                            'dosage_form' => $isDrug ? $this->formFields($productItem)['dosage_form'] : null,
+                            'dose' => $isDrug ? $this->formFields($productItem)['dose'] : null,
+                            'meal_timing' => $isDrug ? $this->formFields($productItem)['meal_timing'] : null,
                         ]);
                         $updatedCartIds[] = $cartItem->id;
                     } elseif ($cartItem && ($cartItem->is_dispensed || $cartItem->purchased)) {
@@ -1834,12 +1851,15 @@ public function deleteAppointment($appointmentId)
                         'quantity' => $productItem['quantity'],
                         'price' => $productItem['price'],
                         'total' => $productItem['total'],
-                        'eye' => $isDrug ? ($productItem['eye'] ?? 'Both Eyes') : null,
+                        'eye' => $isDrug ? $this->lineEye($productItem) : null,
                         'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                         'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                         'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
                         'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
                         'taper' => $isDrug && ($productItem['taper'] ?? false),
+                        'dosage_form' => $isDrug ? $this->formFields($productItem)['dosage_form'] : null,
+                        'dose' => $isDrug ? $this->formFields($productItem)['dose'] : null,
+                        'meal_timing' => $isDrug ? $this->formFields($productItem)['meal_timing'] : null,
                         'status' => 'pending',
                         'is_dispensed' => false,
                         'purchased' => false,
@@ -1926,12 +1946,17 @@ public function deleteAppointment($appointmentId)
                     'quantity' => $cartItem->quantity,
                     'price' => $cartItem->price,
                     'total' => ($cartItem->is_dispensed || $cartItem->purchased) ? 0 : $cartItem->total,
-                    'eye' => $isDrug ? ($cartItem->eye ?? 'Both Eyes') : null,
+                    'eye' => $isDrug ? $this->lineEye(['eye' => $cartItem->eye, 'dosage_form' => $this->cartForm($cartItem)]) : null,
                     'frequency' => $isDrug ? $cartItem->frequency : null,
                     'duration_value' => $isDrug ? $cartItem->duration_value : null,
                     'duration_unit' => $isDrug ? $cartItem->duration_unit : null,
                     'instructions' => $isDrug ? $cartItem->instructions : null,
                     'taper' => $isDrug && $cartItem->taper,
+                    'dosage_form' => $isDrug ? $this->cartForm($cartItem) : null,
+                    'pack_size' => $isDrug ? $cartItem->product?->pack_size : null,
+                    'dose' => $isDrug && $cartItem->dose !== null ? (float) $cartItem->dose : null,
+                    'meal_timing' => $isDrug ? $cartItem->meal_timing : null,
+                    'qty_manual' => true,
                     'is_dispensed' => $cartItem->is_dispensed,
                     'purchased' => $cartItem->purchased,
                     'dispensed_at' => $cartItem->dispensed_at,
@@ -2060,12 +2085,17 @@ public function deleteAppointment($appointmentId)
                 'quantity' => $cartItem->quantity,
                 'price' => $cartItem->price,
                 'total' => ($cartItem->is_dispensed || $cartItem->purchased) ? 0 : $cartItem->total,
-                'eye' => $isDrug ? ($cartItem->eye ?? 'Both Eyes') : null,
+                'eye' => $isDrug ? $this->lineEye(['eye' => $cartItem->eye, 'dosage_form' => $this->cartForm($cartItem)]) : null,
                 'frequency' => $isDrug ? $cartItem->frequency : null,
                 'duration_value' => $isDrug ? $cartItem->duration_value : null,
                 'duration_unit' => $isDrug ? $cartItem->duration_unit : null,
                 'instructions' => $isDrug ? $cartItem->instructions : null,
                 'taper' => $isDrug && $cartItem->taper,
+                'dosage_form' => $isDrug ? $this->cartForm($cartItem) : null,
+                'pack_size' => $isDrug ? $cartItem->product?->pack_size : null,
+                'dose' => $isDrug && $cartItem->dose !== null ? (float) $cartItem->dose : null,
+                'meal_timing' => $isDrug ? $cartItem->meal_timing : null,
+                'qty_manual' => true,
                 'is_dispensed' => $cartItem->is_dispensed,
                 'purchased' => $cartItem->purchased,
                 'dispensed_at' => $cartItem->dispensed_at,
@@ -2150,6 +2180,130 @@ public function deleteAppointment($appointmentId)
         return $product->maxSupply();
     }
 
+    // ===================================
+    // DRUG FORM (24 Nov 2026): drops ask the eye; tablets ask the dose, meal timing and come in strips
+    // ===================================
+
+    /** The eye a new line starts with: both eyes for eye drugs and drugs with no form, none for tablets and the like. */
+    private function defaultEye(?DosageForm $form): ?string
+    {
+        return DosageForm::eyeMode($form) === 'required' ? 'Both Eyes' : null;
+    }
+
+    /** The eye saved for a line: none for drugs taken by mouth or on the skin. */
+    private function lineEye(array $line): ?string
+    {
+        return match (DosageForm::eyeMode(DrugCourse::form($line))) {
+            'none' => null,
+            'optional' => ($line['eye'] ?? null) ?: null,
+            default => ($line['eye'] ?? null) ?: 'Both Eyes',
+        };
+    }
+
+    /** Form, dose and meal timing as saved: dose and meal timing only where the form asks for them. */
+    private function formFields(array $line): array
+    {
+        $form = DrugCourse::form($line);
+        $dose = is_numeric($line['dose'] ?? null) && (float) $line['dose'] > 0 ? round(min((float) $line['dose'], 9999), 2) : null;
+        $meal = \App\Enums\MealTiming::tryFrom((string) ($line['meal_timing'] ?? ''));
+
+        return [
+            'dosage_form' => $form?->value,
+            'dose' => $form?->asksDose() ? $dose : null,
+            'meal_timing' => $form?->asksMealTiming() ? $meal?->value : null,
+        ];
+    }
+
+    /** The form a saved line was prescribed as, or its product's form for lines saved before forms existed. */
+    private function cartForm(Cart $cart): ?string
+    {
+        return $cart->dosage_form ?: $cart->product?->dosage_form?->value;
+    }
+
+    /** Tablets, capsules and syrups need a dose. */
+    private function doseIsSet(array $line): bool
+    {
+        $form = DrugCourse::form($line);
+        if (!$form || $form === DosageForm::INJECTION || !$form->asksDose() || $this->formFields($line)['dose'] !== null) return true;
+
+        $this->dispatch('notify', ...['type' => 'error', 'message' => 'Set the dose for ' . ($line['name'] ?? 'the drug') . ' (e.g. 1 ' . ($form === DosageForm::SYRUP ? 'ml' : rtrim($form->unitPlural(), 's')) . ').']);
+
+        return false;
+    }
+
+    /**
+     * Sets a line's form when its drug has none (or the doctor corrects it). The product gets the form too when it
+     * had none, so the next prescription asks the right questions; a form the clinic already set is not overwritten.
+     */
+    public function setLineForm(string $list, int $index, string $value): void
+    {
+        $property = $list === 'outside' ? 'outsideDrugs' : 'productsList';
+        if (!isset($this->{$property}[$index])) return;
+        $line = $this->{$property}[$index];
+        if ($property === 'productsList' && ($this->isLockedPrescriptionItem($line) || !$this->isDrugPrescriptionItem($line))) return;
+
+        $form = DosageForm::tryFrom($value);
+        $line['dosage_form'] = $form?->value;
+        $line['eye'] = $this->lineEye($line + ['eye' => null]);
+        if (DosageForm::eyeMode($form) === 'required' && empty($this->{$property}[$index]['eye'])) $line['eye'] = 'Both Eyes';
+        $line['dose'] = $form?->asksDose() ? ($line['dose'] ?? null) ?: $form->defaultDose() : null;
+        if (!$form?->asksMealTiming()) $line['meal_timing'] = null;
+        $this->{$property}[$index] = $line;
+
+        if ($form && !empty($line['product_id'])) {
+            $product = Product::find($line['product_id']);
+            if ($product && $product->dosage_form === null && $product->isDrugCategory()) {
+                $product->update(['dosage_form' => $form]);
+                AuditTrail::record('product.dosage_form', "{$product->name} set to {$form->label()} from a prescription", $product, ['dosage_form' => null], ['dosage_form' => $form->value]);
+            }
+            if ($property === 'productsList') $this->productsList[$index]['pack_size'] = $product?->pack_size;
+        }
+        if ($property === 'productsList') $this->recalculateStrips($index);
+    }
+
+    /** Dose, duration or frequency typed on a line: work out the strips again. */
+    public function updatedProductsList($value, string $key): void
+    {
+        [$index, $field] = array_pad(explode('.', $key, 2), 2, null);
+        if (in_array($field, ['dose', 'duration_value', 'duration_unit'], true)) $this->recalculateStrips((int) $index);
+    }
+
+    /**
+     * Tablets and capsules: sets the quantity to the strips the course needs (dose × times a day × days, rounded
+     * up to whole strips), until the doctor types a quantity of their own. Limited to what is in stock.
+     */
+    private function recalculateStrips(int $index, bool $tell = true): void
+    {
+        $line = $this->productsList[$index] ?? null;
+        if (!$line || ($line['qty_manual'] ?? false) || $this->isLockedPrescriptionItem($line)) return;
+        $strips = DrugCourse::strips($line, (int) ($line['pack_size'] ?? 0) ?: null);
+        if (!$strips) return;
+
+        $available = $this->availableQuantityForPrescriptionItem($line);
+        if ($strips > $available) {
+            if ($tell) $this->dispatch('notify', ...['type' => 'warning', 'message' => "The course needs {$strips} strips of {$line['name']} but only {$available} are in stock."]);
+            $strips = max(1, $available);
+        }
+        $this->productsList[$index]['quantity'] = $strips;
+        $this->productsList[$index]['total'] = $strips * (float) $this->productsList[$index]['price'];
+    }
+
+    /** Drug lines still missing something before the prescription can be saved, for the "Incomplete" badge. */
+    public function getIncompleteLinesProperty(): int
+    {
+        return collect($this->productsList)->filter(function ($item) {
+            if ($this->isLockedPrescriptionItem($item) || !$this->isDrugPrescriptionItem($item)) return false;
+            $durationValid = ($item['duration_unit'] ?? null) === 'until_finished'
+                || (!empty($item['duration_value']) && in_array($item['duration_unit'] ?? null, ['days', 'weeks', 'months'], true));
+            $form = DrugCourse::form($item);
+            $eyeMissing = DosageForm::eyeMode($form) === 'required' && empty($item['eye']);
+            $doseMissing = $form && $form !== DosageForm::INJECTION && $form->asksDose() && $this->formFields($item)['dose'] === null;
+            $taperWithoutNote = ($item['taper'] ?? false) && DrugInstructions::clean($item['instructions'] ?? null) === null;
+
+            return empty($item['frequency']) || $eyeMissing || !$durationValid || $doseMissing || $taperWithoutNote;
+        })->count();
+    }
+
     /** A drug marked for tapering needs the steps written in its note, or the patient has nothing to follow. */
     private function taperHasNote(array $line): bool
     {
@@ -2185,10 +2339,12 @@ public function deleteAppointment($appointmentId)
                 $durationIsValid = $durationUnit === 'until_finished'
                     || ($durationValue !== false && $durationValue >= 1 && in_array($durationUnit, ['days', 'weeks', 'months'], true));
 
-                if (empty($item['frequency']) || empty($item['eye']) || !$durationIsValid) {
-                    $this->dispatch('notify', ...['type' => 'error', 'message' => 'Please set eye, frequency, and a valid treatment duration for all drug prescription items']);
+                $eyeMissing = DosageForm::eyeMode(DrugCourse::form($item)) === 'required' && empty($item['eye']);
+                if (empty($item['frequency']) || $eyeMissing || !$durationIsValid) {
+                    $this->dispatch('notify', ...['type' => 'error', 'message' => 'Please set ' . ($eyeMissing ? 'eye, ' : '') . 'frequency, and a valid treatment duration for ' . ($item['name'] ?? 'every drug')]);
                     return false;
                 }
+                if (!$this->doseIsSet($item)) return false;
                 if (!$this->taperHasNote($item)) return false;
             }
         }
@@ -2205,7 +2361,7 @@ public function deleteAppointment($appointmentId)
                 $this->dispatch('notify', ...['type' => 'error', 'message' => 'Set the frequency and how long to take it for each drug to buy outside: ' . ($drug['name'] ?? '')]);
                 return false;
             }
-            if (!$this->taperHasNote($drug)) return false;
+            if (!$this->taperHasNote($drug) || !$this->doseIsSet($drug)) return false;
         }
 
         return true;
@@ -2335,12 +2491,15 @@ public function deleteAppointment($appointmentId)
                     'quantity' => $productItem['quantity'],
                     'price' => $productItem['price'],
                     'total' => $productItem['total'],
-                    'eye' => $isDrug ? ($productItem['eye'] ?? 'Both Eyes') : null,
+                    'eye' => $isDrug ? $this->lineEye($productItem) : null,
                     'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                     'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                     'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
                     'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
                     'taper' => $isDrug && ($productItem['taper'] ?? false),
+                    'dosage_form' => $isDrug ? $this->formFields($productItem)['dosage_form'] : null,
+                    'dose' => $isDrug ? $this->formFields($productItem)['dose'] : null,
+                    'meal_timing' => $isDrug ? $this->formFields($productItem)['meal_timing'] : null,
                     'status' => 'pending',
                     'is_dispensed' => false,
                     'purchased' => false,
@@ -2445,12 +2604,15 @@ public function deleteAppointment($appointmentId)
                             'quantity' => $productItem['quantity'],
                             'price' => $productItem['price'],
                             'total' => $productItem['total'],
-                            'eye' => $isDrug ? ($productItem['eye'] ?? 'Both Eyes') : null,
+                            'eye' => $isDrug ? $this->lineEye($productItem) : null,
                             'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                             'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                             'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
                             'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
                             'taper' => $isDrug && ($productItem['taper'] ?? false),
+                            'dosage_form' => $isDrug ? $this->formFields($productItem)['dosage_form'] : null,
+                            'dose' => $isDrug ? $this->formFields($productItem)['dose'] : null,
+                            'meal_timing' => $isDrug ? $this->formFields($productItem)['meal_timing'] : null,
                         ]);
                         $updatedCartIds[] = $cartItem->id;
                     } elseif ($cartItem && ($cartItem->is_dispensed || $cartItem->purchased)) {
@@ -2465,12 +2627,15 @@ public function deleteAppointment($appointmentId)
                         'quantity' => $productItem['quantity'],
                         'price' => $productItem['price'],
                         'total' => $productItem['total'],
-                        'eye' => $isDrug ? ($productItem['eye'] ?? 'Both Eyes') : null,
+                        'eye' => $isDrug ? $this->lineEye($productItem) : null,
                         'frequency' => $isDrug ? ($productItem['frequency'] ?? null) : null,
                         'duration_value' => $isDrug ? ($productItem['duration_value'] ?? null) : null,
                         'duration_unit' => $isDrug ? ($productItem['duration_unit'] ?? null) : null,
                         'instructions' => $isDrug ? DrugInstructions::clean($productItem['instructions'] ?? null) : null,
                         'taper' => $isDrug && ($productItem['taper'] ?? false),
+                        'dosage_form' => $isDrug ? $this->formFields($productItem)['dosage_form'] : null,
+                        'dose' => $isDrug ? $this->formFields($productItem)['dose'] : null,
+                        'meal_timing' => $isDrug ? $this->formFields($productItem)['meal_timing'] : null,
                         'status' => 'pending',
                         'is_dispensed' => false,
                         'purchased' => false,

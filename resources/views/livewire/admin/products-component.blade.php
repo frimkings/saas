@@ -201,7 +201,7 @@
                                 <div class="w-full md:w-4/12 px-2">
                                     <div class="mb-4">
                                         <label for="products-state-name">Name <span class="text-red-700">*</span></label>
-                                        <input id="products-state-name" type="text" wire:model="state.name"
+                                        <input id="products-state-name" type="text" wire:model.blur="state.name"
                                                class="ui-input @error('name') is-invalid @enderror"
                                                placeholder="Product name">
                                         @error('name') <span class="ui-error">{{ $message }}</span> @enderror
@@ -234,6 +234,36 @@
                                     </div>
                                 </div>
                             </div>
+
+                            @if($this->isDrug)
+                                {{-- Drug form (24 Nov 2026): decides what the doctor's prescription line asks for. --}}
+                                <div class="flex flex-wrap -mx-2">
+                                    <div class="w-full md:w-4/12 px-2">
+                                        <div class="mb-4">
+                                            <label for="products-state-dosage-form">Form</label>
+                                            <select id="products-state-dosage-form" wire:model.live="state.dosage_form" class="ui-input @error('dosage_form') is-invalid @enderror">
+                                                <option value="">Not set</option>
+                                                @foreach(\App\Enums\DosageForm::options() as $value => $label)
+                                                    <option value="{{ $value }}">{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                            <small class="text-slate-500">Drops and ointments ask which eye; tablets ask the dose and meal timing instead.</small>
+                                            @error('dosage_form') <span class="ui-error">{{ $message }}</span> @enderror
+                                        </div>
+                                    </div>
+                                    @if($this->soldByStrip)
+                                        <div class="w-full md:w-4/12 px-2">
+                                            <div class="mb-4">
+                                                <label for="products-state-pack-size">{{ ($state['dosage_form'] ?? '') === 'capsule' ? 'Capsules' : 'Tablets' }} per strip</label>
+                                                <input id="products-state-pack-size" type="number" min="1" max="1000" wire:model="state.pack_size"
+                                                       class="ui-input @error('pack_size') is-invalid @enderror" placeholder="e.g. 10">
+                                                <small class="text-slate-500">Stock, price and quantity are per strip. The prescription works out how many strips a course needs.</small>
+                                                @error('pack_size') <span class="ui-error">{{ $message }}</span> @enderror
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
 
                             <div class="flex flex-wrap -mx-2">
                                 <div class="w-full md:w-3/12 px-2">
@@ -386,6 +416,17 @@
                                 <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-800 ml-2">{{ $stats['expired'] }}</span>
                             </a>
                         </li>
+                        @if($stats['no_form'] > 0 || $activeTab === 'no-form')
+                            <li class="">
+                                <a class="block px-3 py-2 {{ $activeTab === 'no-form' ? 'active' : '' }}"
+                                   wire:click.prevent="$set('activeTab', 'no-form')"
+                                   href="#" role="tab" title="Drugs whose form (drops, tablet...) is not set">
+                                    <i class="fa fa-pills mr-1"></i>
+                                    Drugs with no form
+                                    <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700 ml-2">{{ $stats['no_form'] }}</span>
+                                </a>
+                            </li>
+                        @endif
                     </ul>
                 </div>
 
@@ -396,7 +437,16 @@
                                 <i class="fa fa-check-square mr-1"></i>
                                 <strong>{{ count($selectedProductIds) }}</strong> product(s) selected
                             </div>
-                            <div>
+                            <div class="flex flex-wrap items-center gap-1">
+                                @if($activeTab === 'no-form')
+                                    <select class="ui-input ui-input-sm !w-44" aria-label="Set the form of the selected drugs"
+                                            x-on:change="if ($event.target.value) { $wire.setFormForSelected($event.target.value); $event.target.value = '' }">
+                                        <option value="">Set form to…</option>
+                                        @foreach(\App\Enums\DosageForm::options() as $value => $label)
+                                            <option value="{{ $value }}">{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
                                 <button class="ui-button ui-button-sm ui-button-danger"
                                         wire:click="deleteSelected"
                                         wire:confirm="Delete selected products? This cannot be undone.">
@@ -474,6 +524,11 @@
                                         <td>{{ $loop->iteration + ($products->currentPage() - 1) * $products->perPage() }}</td>
                                         <td>
                                             <strong class="block min-w-[10rem]">{{ $product->name }}</strong>
+                                            @if($product->dosage_form)
+                                                <small class="text-slate-500">{{ $product->dosage_form->label() }}@if($product->pack_size) · {{ $product->pack_size }} per strip @endif</small>
+                                            @elseif($activeTab === 'no-form')
+                                                <small class="text-amber-700">Form not set</small>
+                                            @endif
                                         </td>
                                         <td>
                                             <span class="inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800">{{ $product->category->name ?? 'N/A' }}</span>

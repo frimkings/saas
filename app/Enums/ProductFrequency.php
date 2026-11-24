@@ -66,6 +66,24 @@ enum ProductFrequency: string
     }
 
     /**
+     * Doses a day, to work out how many tablets a course needs; null when it cannot be counted
+     * (as needed, continuous, "before meals" alone). A single dose is handled by the caller.
+     */
+    public function timesPerDay(): ?float
+    {
+        return match ($this) {
+            self::ONCE_DAILY, self::AT_BEDTIME, self::MORNING_ONLY, self::EVENING_ONLY => 1.0,
+            self::TWICE_DAILY, self::EVERY_12_HOURS => 2.0,
+            self::THREE_TIMES_DAILY, self::EVERY_8_HOURS => 3.0,
+            self::FOUR_TIMES_DAILY, self::EVERY_6_HOURS => 4.0,
+            self::EVERY_4_HOURS => 6.0,
+            self::EVERY_OTHER_DAY => 0.5,
+            self::WEEKLY => 1 / 7,
+            default => null,
+        };
+    }
+
+    /**
      * Get abbreviation for frequency
      */
     public function abbreviation(): string

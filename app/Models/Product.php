@@ -15,6 +15,8 @@ class Product extends Model
         'user_id',
         'name',
         'category_id',
+        'dosage_form',
+        'pack_size',
         'optical_category_id',
         'batch_number',
         'quantity',
@@ -35,7 +37,19 @@ class Product extends Model
         'selling_price' => 'decimal:2',
         'manufacture_date' => 'date',
         'expiry_date' => 'date',
+        'dosage_form' => \App\Enums\DosageForm::class,
+        'pack_size' => 'integer',
     ];
+
+    /** A new drug with no form gets a first guess from its name ("Diamox 250mg tab" is a tablet); unclear names stay unset. */
+    protected static function booted(): void
+    {
+        static::creating(function (Product $product) {
+            if ($product->dosage_form === null && $product->category_id && $product->isDrugCategory()) {
+                $product->dosage_form = \App\Enums\DosageForm::guess($product->name);
+            }
+        });
+    }
 
     /**
      * Get the user that created the product.
@@ -211,6 +225,13 @@ class Product extends Model
     public function inActiveCategory(): bool
     {
         return !$this->category || ((bool) ($this->category->is_active ?? true) && $this->category->type !== self::SCAN_CATEGORY_TYPE);
+    }
+
+    /** Products in a drug category, the same test as isDrugCategory(). */
+    public function scopeDrugs($query)
+    {
+        return $query->whereHas('category', fn ($c) => $c->where('type', 'drug')
+            ->orWhereIn(\Illuminate\Support\Facades\DB::raw('LOWER(name)'), ['drug', 'drugs', 'medication', 'medications']));
     }
 
     /** Everything but the hidden diagnostic scan products. */

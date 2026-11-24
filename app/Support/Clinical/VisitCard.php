@@ -100,9 +100,9 @@ class VisitCard
         foreach ($c->relationLoaded('cartItems') ? $c->cartItems : collect() as $item) {
             $name = trim((string) ($item->product->name ?? '')) ?: 'Item';
             if (self::filled($item->frequency) || self::filled($item->eye) || self::filled($item->duration_unit)) {
-                $duration = $item->duration_unit === 'until_finished' ? 'until finished'
-                    : ($item->duration_value && $item->duration_unit ? $item->duration_value.' '.$item->duration_unit : null);
-                $medicines[] = collect([$name.' ×'.$item->quantity, $item->eye, $item->frequency ? strtolower($item->frequency) : null, $duration,
+                $form = DrugCourse::form($item) ?? $item->product?->dosage_form;
+                $quantity = $name.' ×'.$item->quantity.($form?->soldByStrip() ? ' '.((int) $item->quantity === 1 ? 'strip' : 'strips') : '');
+                $medicines[] = collect([$quantity, strtolower(DrugCourse::directions($item)) ?: null,
                     DrugInstructions::line($item->instructions, $item->taper)])
                     ->filter(fn ($p) => self::filled($p))->implode(' — ');
             } else {

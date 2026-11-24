@@ -36,6 +36,9 @@ class Cart extends Model
         'eye',
         'instructions',
         'taper',
+        'dosage_form',
+        'dose',
+        'meal_timing',
     ];
 
     /**

@@ -212,8 +212,52 @@ class ProductsComponent extends Component
             'selling_price'    => '',
             'profit_margin'    => '',
             'reorder_level'    => Product::DEFAULT_REORDER_LEVEL,
+            'dosage_form'      => '',
+            'pack_size'        => '',
         ];
         $this->editingProduct = null;
+    }
+
+    /** Whether the chosen category holds drugs: the form asks what form it comes in (24 Nov 2026). */
+    public function getIsDrugProperty(): bool
+    {
+        if (empty($this->state['category_id'])) return false;
+        $category = Category::find($this->state['category_id']);
+
+        return $category && (new Product(['category_id' => $category->id]))->setRelation('category', $category)->isDrugCategory();
+    }
+
+    /** Tablets and capsules are sold by the strip: the form asks how many are in one. */
+    public function getSoldByStripProperty(): bool
+    {
+        return (bool) \App\Enums\DosageForm::tryFrom((string) ($this->state['dosage_form'] ?? ''))?->soldByStrip();
+    }
+
+    /** A drug's name usually says its form: fill the guess while the form is still empty. */
+    public function updatedStateName(): void
+    {
+        $this->guessDosageForm();
+    }
+
+    private function guessDosageForm(): void
+    {
+        if ($this->isDrug && ($this->state['dosage_form'] ?? '') === '') {
+            $this->state['dosage_form'] = \App\Enums\DosageForm::guess($this->state['name'] ?? '')?->value ?? '';
+        }
+    }
+
+    /** Form and strip size for drugs; cleared for anything else. */
+    private function drugFields(): array
+    {
+        if (!$this->isDrug) return ['dosage_form' => null, 'pack_size' => null];
+
+        $data = Validator::make($this->state, [
+            'dosage_form' => ['nullable', Rule::in(array_keys(\App\Enums\DosageForm::options()))],
+            'pack_size' => 'nullable|integer|min:1|max:1000',
+        ], [], ['pack_size' => 'tablets per strip', 'dosage_form' => 'form'])->validate();
+        $form = \App\Enums\DosageForm::tryFrom((string) ($data['dosage_form'] ?? ''));
+
+        return ['dosage_form' => $form, 'pack_size' => $form?->soldByStrip() && ($data['pack_size'] ?? '') !== '' ? (int) $data['pack_size'] : null];
     }
 
     /** Whether the chosen category holds services (consultations, tests, procedures), the same test clearance uses. */
@@ -292,6 +336,7 @@ class ProductsComponent extends Component
     public function updatedStateCategoryId(): void
     {
         if (! empty($this->state['category_id'])) $this->state['optical_category_id'] = null;
+        $this->guessDosageForm();
     }
 
     public function updatedStateOpticalCategoryId(): void
@@ -353,7 +398,7 @@ class ProductsComponent extends Component
 
         $reorderLevel = $this->reorderLevelInput();
         unset($validatedData['reorder_level']);
-        $product = Product::create($validatedData);
+        $product = Product::create($validatedData + $this->drugFields());
         app(\App\Services\Inventory\BranchInventoryService::class)->setReorderLevel($product, $reorderLevel);
 
         $this->cancelForm();
@@ -384,6 +429,8 @@ class ProductsComponent extends Component
             'selling_price'    => $sell,
             'profit_margin'    => $cost > 0 ? round((($sell - $cost) / $cost) * 100, 2) : '',
             'reorder_level'    => $this->editingProduct->reorderLevel(),
+            'dosage_form'      => $this->editingProduct->dosage_form?->value ?? '',
+            'pack_size'        => $this->editingProduct->pack_size ?? '',
         ];
         $this->showForm = true;
     }
@@ -415,6 +462,7 @@ class ProductsComponent extends Component
         ])->validate();
 
         $validatedData['optical_category_id'] = null;
+        $validatedData += $this->drugFields();
         $reorderLevel = $this->reorderLevelInput();
         $madeToOrder = (bool) ($validatedData['made_to_order'] ?? false);
         unset($validatedData['made_to_order']);
@@ -488,6 +536,26 @@ class ProductsComponent extends Component
             'type' => 'success',
             'message' => $deleted . ' product(s) deleted successfully.'
         ]);
+    }
+
+    /** Sets the form of the selected drugs in one go, from the "Drugs with no form" tab. Non-drugs are left alone. */
+    public function setFormForSelected(string $form): void
+    {
+        $dosageForm = \App\Enums\DosageForm::tryFrom($form);
+        $ids = collect($this->selectedProductIds)->map(fn ($id) => (int) $id)->filter()->unique()->values();
+        if (!$dosageForm || $ids->isEmpty()) {
+            $this->dispatch('notify', ...['type' => 'warning', 'message' => 'Select the drugs and a form first.']);
+            return;
+        }
+
+        $products = Product::drugs()->whereIn('id', $ids)->get();
+        foreach ($products as $product) {
+            $product->update(['dosage_form' => $dosageForm, 'pack_size' => $dosageForm->soldByStrip() ? $product->pack_size : null]);
+        }
+        $this->clearSelection();
+        $skipped = $ids->count() - $products->count();
+        $this->dispatch('notify', ...['type' => 'success', 'message' => $products->count() . ' drug(s) set to ' . $dosageForm->label() . '.'
+            . ($skipped ? " {$skipped} selected product(s) are not drugs and were left as they were." : '')]);
     }
 
     public function exportCsv()
@@ -757,6 +825,11 @@ class ProductsComponent extends Component
                 // Products that expired before today
                 $query->stocked()->whereDateIndexed('expiry_date', '<', Carbon::today());
                 break;
+
+            case 'no-form':
+                // Drugs whose form is not set yet: their prescription lines still ask for an eye.
+                $query->drugs()->whereNull('dosage_form');
+                break;
         }
 
         return $query->latest();
@@ -855,6 +928,7 @@ class ProductsComponent extends Component
             'low_stock' => Product::needsReorder()->count(),
             'expiring'  => (int) $allProducts->expiring,
             'expired'   => (int) $allProducts->expired,
+            'no_form'   => Product::drugs()->whereNull('dosage_form')->count(),
         ];
 
         // Drug names from the clinic's previous software are matched to products on a page of their own (owners only).

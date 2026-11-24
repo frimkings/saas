@@ -396,7 +396,11 @@ window.printReceiptFromDom = function(event) {
                                 $fromRx          = is_array($cartItem) && ($cartItem['from_prescription'] ?? false);
                                 $isFrame         = is_array($cartItem) && ($cartItem['is_frame'] ?? false);
                                 $isLocked        = $fromRx && !$isFrame; // prescription + non-frame = locked
-                                $rxNote          = $showDrugOptions && is_array($cartItem) ? \App\Support\Clinical\DrugInstructions::line($cartItem['instructions'] ?? null, $cartItem['taper'] ?? false) : null;
+                                $rxNote          = $showDrugOptions && is_array($cartItem) ? (collect([
+                                    \App\Support\Clinical\DrugCourse::form($cartItem)?->doseLabel($cartItem['dose'] ?? null),
+                                    \App\Enums\MealTiming::tryFrom((string) ($cartItem['meal_timing'] ?? ''))?->label(),
+                                    \App\Support\Clinical\DrugInstructions::line($cartItem['instructions'] ?? null, $cartItem['taper'] ?? false),
+                                ])->filter()->implode(' · ') ?: null) : null;
                             @endphp
                             @if($product)
                                 <div class="pos-cart-item {{ $isLocked ? 'pos-cart-item--locked' : '' }}" wire:key="cart-row-{{ $cartKey }}">

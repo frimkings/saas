@@ -998,14 +998,7 @@
                                     $dispensedCount = collect($productsList)->where('is_dispensed', true)->filter(fn($i) => ($i['status'] ?? null) !== 'refunded')->count();
                                     $heldCount = collect($productsList)->where('purchased', true)->where('is_dispensed', false)->filter(fn($i) => ($i['status'] ?? null) !== 'refunded')->count();
                                     $pendingCount = count($productsList) - $dispensedCount - $heldCount - $refundedCount;
-                                    $missingData = collect($productsList)->where('is_dispensed', false)->where('purchased', false)->filter(function($item) {
-                                        $categoryName = strtolower(trim($item['category_name'] ?? ''));
-                                        $isDrug = ($item['is_drug'] ?? false) || in_array($categoryName, ['drug', 'drugs'], true);
-                                        $durationValid = ($item['duration_unit'] ?? null) === 'until_finished'
-                                            || (!empty($item['duration_value']) && in_array($item['duration_unit'] ?? null, ['days', 'weeks', 'months'], true));
-                                        $taperWithoutNote = ($item['taper'] ?? false) && trim((string) ($item['instructions'] ?? '')) === '';
-                                        return $isDrug && (empty($item['frequency']) || empty($item['eye']) || !$durationValid || $taperWithoutNote);
-                                    })->count();
+                                    $missingData = $this->incompleteLines;
                                 @endphp
 
                                 <span class="inline-flex items-center rounded text-xs font-semibold bg-green-100 text-green-800 px-2 py-1">
@@ -1071,6 +1064,8 @@
                                                 $isEditingFreq = $editingFrequencyIndex === $index;
                                                 $categoryName = strtolower(trim($item['category_name'] ?? ''));
                                                 $isDrug = ($item['is_drug'] ?? false) || in_array($categoryName, ['drug', 'drugs'], true);
+                                                $lineForm = $isDrug ? \App\Support\Clinical\DrugCourse::form($item) : null;
+                                                $eyeMode = \App\Enums\DosageForm::eyeMode($lineForm);
                                                 $billableLineTotal = $isLocked ? 0 : (float) ($item['total'] ?? 0);
                                             @endphp
                                             <tr class="prescription-row {{ $isLocked ? 'prescription-row--dispensed table-secondary' : '' }}">
@@ -1095,6 +1090,17 @@
                                                             wire:change="updateProductQuantity({{ $index }}, $event.target.value)"
                                                             class="ui-input ui-input-sm text-center" min="1"
                                                             style="width: 48px;">
+                                                        @if($lineForm?->soldByStrip())
+                                                            @php $units = \App\Support\Clinical\DrugCourse::units($item); @endphp
+                                                            <small class="block leading-tight text-slate-500" style="font-size: 9px;">
+                                                                strips
+                                                                @if($units && !empty($item['pack_size']))
+                                                                    · {{ $units }} {{ $lineForm->unitPlural() }}
+                                                                @elseif(empty($item['pack_size']))
+                                                                    <span class="block text-amber-700" title="Set {{ $lineForm->unitPlural() }} per strip on the Products page to have the strips worked out">strip size not set</span>
+                                                                @endif
+                                                            </small>
+                                                        @endif
                                                     @else
                                                         <span class="inline-flex items-center rounded text-xs font-semibold bg-slate-100 text-slate-700 px-1 py-0.5" style="font-size: 10px;">
                                                             {{ $item['quantity'] }}
@@ -1106,10 +1112,12 @@
                                                 <td class="py-1 px-1 align-middle">
                                                     @if(!$isDrug)
                                                         <small class="text-slate-500" style="font-size: 10px;">Not applicable</small>
+                                                    @elseif($eyeMode === 'none')
+                                                        <small class="text-slate-600" style="font-size: 10px;">{{ $lineForm?->route() ?? 'Not for the eye' }}</small>
                                                     @elseif(!$isLocked)
                                                         <select class="ui-input ui-input-sm" style="min-width: 112px;"
                                                                 wire:change="updateEye({{ $index }}, $event.target.value)" aria-label="Which eye for {{ $item['name'] ?? 'this drug' }}">
-                                                            <option value="">-- Eye --</option>
+                                                            <option value="">{{ $eyeMode === 'optional' ? 'Not for the eye' : '-- Eye --' }}</option>
                                                             @foreach(\App\Enums\EyeLaterality::cases() as $eye)
                                                                 <option value="{{ $eye->value }}" {{ ($item['eye'] ?? '') === $eye->value ? 'selected' : '' }}>
                                                                     {{ $eye->label() }}
@@ -1306,12 +1314,17 @@
                                                 <span class="inline-flex items-center rounded px-1.5 py-0.5 font-semibold bg-amber-50 text-amber-800" style="font-size: 9px;">{{ $drug['product_id'] ? 'Out of stock' : 'Not stocked' }} · buy outside</span>
                                             </td>
                                             <td class="py-1 px-1 align-middle">
+                                                @php $outsideForm = \App\Support\Clinical\DrugCourse::form($drug); @endphp
+                                                @if(\App\Enums\DosageForm::eyeMode($outsideForm) === 'none')
+                                                    <small class="text-slate-600" style="font-size: 10px;">{{ $outsideForm->route() }}</small>
+                                                @else
                                                 <select wire:model="outsideDrugs.{{ $index }}.eye" class="ui-input ui-input-sm" style="min-width: 112px;" aria-label="Which eye for {{ $drug['name'] }}">
                                                     <option value="">Not for the eye</option>
                                                     @foreach(\App\Enums\EyeLaterality::cases() as $eye)
                                                         <option value="{{ $eye->value }}">{{ $eye->label() }}</option>
                                                     @endforeach
                                                 </select>
+                                                @endif
                                             </td>
                                             <td class="py-1 px-1 align-middle">
                                                 <select wire:model="outsideDrugs.{{ $index }}.frequency" class="ui-input ui-input-sm" style="min-width: 110px;" aria-label="How often to take {{ $drug['name'] }}">

@@ -296,7 +296,11 @@ class POSComponent extends Component
                             'duration_value' => $item->duration_value,
                             'duration_unit' => $item->duration_unit,
                             'eye'          => $item->eye,
-                            'instructions' => \App\Support\Clinical\DrugInstructions::line($item->instructions, $item->taper),
+                            'instructions' => collect([
+                                \App\Support\Clinical\DrugCourse::form($item)?->doseLabel($item->dose),
+                                \App\Enums\MealTiming::tryFrom((string) $item->meal_timing)?->label(),
+                                \App\Support\Clinical\DrugInstructions::line($item->instructions, $item->taper),
+                            ])->filter()->implode(' · ') ?: null,
                             'price'        => (float) $item->price,
                             'total'        => (float) $item->total,
                         ];
@@ -1860,6 +1864,9 @@ class POSComponent extends Component
                         'eye'              => $item->product->isDrugCategory() ? $this->normalizeEye($item->eye) : null,
                         'instructions'     => $item->product->isDrugCategory() ? $item->instructions : null,
                         'taper'            => $item->product->isDrugCategory() && $item->taper,
+                        'dosage_form'      => $item->product->isDrugCategory() ? $item->dosage_form : null,
+                        'dose'             => $item->product->isDrugCategory() ? $item->dose : null,
+                        'meal_timing'      => $item->product->isDrugCategory() ? $item->meal_timing : null,
                         'cart_id'          => $item->id,
                         'from_prescription' => $fromPrescription,
                         'is_frame'         => str_contains($categoryName, 'frame'),
@@ -2349,6 +2356,7 @@ class POSComponent extends Component
                 $eye       = is_array($cartItem) ? ($cartItem['eye'] ?? null)       : null;
                 $instructions = is_array($cartItem) ? \App\Support\Clinical\DrugInstructions::clean($cartItem['instructions'] ?? null) : null;
                 $taper     = is_array($cartItem) && ($cartItem['taper'] ?? false);
+                $course    = is_array($cartItem) ? array_intersect_key($cartItem, array_flip(['dosage_form', 'dose', 'meal_timing'])) : [];
                 if (!$product->isDrugCategory()) {
                     $frequency = null;
                     $durationValue = null;
@@ -2356,6 +2364,7 @@ class POSComponent extends Component
                     $eye = null;
                     $instructions = null;
                     $taper = false;
+                    $course = [];
                 }
                 $cartId    = is_array($cartItem) ? ($cartItem['cart_id'] ?? null)  : null;
 
@@ -2374,6 +2383,9 @@ class POSComponent extends Component
                     'eye'                 => $eye,
                     'instructions'        => $instructions,
                     'taper'               => $taper,
+                    'dosage_form'         => $course['dosage_form'] ?? null,
+                    'dose'                => $course['dose'] ?? null,
+                    'meal_timing'         => $course['meal_timing'] ?? null,
                     'notes'               => $isPartPayment ? 'On Hold - Part Payment' : ($frequency ? 'Prescription Sale' : 'Direct POS Sale'),
                 ]);
 

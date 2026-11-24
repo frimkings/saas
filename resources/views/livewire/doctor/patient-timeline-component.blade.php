@@ -161,6 +161,8 @@
                                                             <tr>
                                                                 <td>
                                                                     {{ $ci->product->name ?? '—' }}
+                                                                    @php $ciDose = collect([\App\Support\Clinical\DrugCourse::form($ci)?->doseLabel($ci->dose), \App\Enums\MealTiming::tryFrom((string) $ci->meal_timing)?->label()])->filter()->implode(' · '); @endphp
+                                                                    @if($ciDose)<span class="block text-slate-600" style="font-size:10px;">{{ $ciDose }}</span>@endif
                                                                     @if($ci->taper)<span class="inline-flex items-center rounded px-1 font-bold bg-amber-100 text-amber-800" style="font-size:9px;">TAPER</span>@endif
                                                                     @if(filled($ci->instructions))<span class="block text-slate-500" style="font-size:10px;">{{ $ci->instructions }}</span>@endif
                                                                 </td>
