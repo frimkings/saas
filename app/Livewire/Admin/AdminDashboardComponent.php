@@ -153,7 +153,7 @@ class AdminDashboardComponent extends Component
         // so query directly on the column that actually exists in the table.
         // Cached 5 min — whereDoesntHave generates a correlated subquery; expensive at scale.
         $this->pendingPrescriptions = Cache::remember(\App\Support\Tenancy\TenantCache::key('dashboard_pending_prescriptions', true), 300, fn () =>
-            Consultations::whereNotNull('prescribed_products')
+            Consultations::withPrescriptions()
                 ->whereDoesntHave('sale')
                 ->count()
         );

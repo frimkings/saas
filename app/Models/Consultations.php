@@ -225,7 +225,8 @@ class Consultations extends Model
      */
     public function scopeWithPrescriptions($query)
     {
-        return $query->whereNotNull('prescribed_products');
+        // An empty list ("[]") is a visit where nothing was prescribed: nothing to dispense.
+        return $query->whereNotNull('prescribed_products')->whereRaw("JSON_LENGTH(prescribed_products) > 0");
     }
 
     /**

@@ -57,6 +57,22 @@ class FinanceScreensBusinessLineTest extends TestCase
             ->assertSee('Profit &amp; Loss', false)->assertSee(route('optical.expenses'));
     }
 
+    /** A visit where nothing was prescribed is stored as "[]" and has nothing waiting at the pharmacy counter. */
+    public function test_prescriptions_to_dispense_counts_only_visits_with_something_prescribed(): void
+    {
+        $visit = function ($prescribed) {
+            $patient = \App\Models\Patient::factory()->create(['user_id' => $this->owner->id]);
+            $clearance = \App\Models\CashierPatientClearance::create(['user_id' => $this->owner->id, 'patient_id' => $patient->id, 'clearance_date' => now()->toDateString(), 'payment_status' => 'Paid']);
+
+            return \App\Models\Consultations::create(['user_id' => $this->owner->id, 'patient_id' => $patient->id, 'clearance_id' => $clearance->id, 'chiefComplaint' => 'Check', 'prescribed_products' => $prescribed]);
+        };
+        $visit([['name' => 'Timolol 0.5% Eye Drops', 'quantity' => 1]]);
+        $visit([]);
+        $visit(null);
+
+        Livewire::test(AdminDashboardComponent::class)->assertSet('pendingPrescriptions', 1);
+    }
+
     public function test_report_email_covers_both_businesses_with_a_breakdown(): void
     {
         $this->sale('clinic', 'CLINIC-MAIL-1', 100, 100);

@@ -58,7 +58,7 @@ class DoctorDashboardComponent extends Component
             ->count();
 
         $this->pendingPrescriptions = Consultations::where('user_id', $doctorId)
-            ->whereNotNull('prescribed_products')
+            ->withPrescriptions()
             ->whereDoesntHave('sale')
             ->count();
 
