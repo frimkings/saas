@@ -284,11 +284,34 @@ window.printReceiptFromDom = function(event) {
     {{-- BODY --}}
     <div class="pos-body">
 
-        {{-- ==================== LEFT: PRODUCTS ==================== --}}
-        <livewire:pos-product-grid />
+        {{-- ==================== LEFT: PATIENTS WAITING TO PAY ==================== --}}
+        <aside class="pos-queue" data-tour="pos-queue" aria-label="Patients waiting to pay">
+            <div class="pos-queue__head">
+                <span>Waiting to pay · {{ count($waitingQueue) }}</span>
+                <button type="button" class="pos-icon-btn pos-icon-btn--ghost" wire:click="$refresh" title="Refresh the queue" aria-label="Refresh the queue"><i class="fas fa-sync-alt"></i></button>
+            </div>
+            <div class="pos-queue__list">
+                @forelse($waitingQueue as $waiting)
+                    <button type="button" wire:key="queue-{{ $waiting['patient_id'] }}"
+                            class="pos-queue__item {{ (int) $patientId === $waiting['patient_id'] && $hasPrescriptionCart ? 'pos-queue__item--active' : '' }}"
+                            wire:click="loadCartFromList({{ $waiting['patient_id'] }}, {{ (int) $waiting['consultation_id'] }})">
+                        <span class="pos-queue__name">{{ $waiting['name'] }}</span>
+                        <span class="pos-queue__meta"><span>{{ $waiting['number'] }}</span><span>{{ $waiting['waiting'] }}</span></span>
+                        <span class="pos-queue__meta"><span>{{ $waiting['by'] ? 'From '.$waiting['by'] : '' }} · {{ $waiting['items'] }} {{ \Illuminate\Support\Str::plural('item', $waiting['items']) }}</span><strong>{{ number_format($waiting['total'], 2) }}</strong></span>
+                    </button>
+                @empty
+                    <div class="pos-queue__empty"><i class="fas fa-mug-hot"></i><br>No one is waiting. Carts the doctors send appear here.</div>
+                @endforelse
+            </div>
+            <div class="pos-queue__foot">
+                <button type="button" class="pos-queue__btn" wire:click="startWalkIn"><i class="fas fa-walking mr-1"></i> Walk-in sale</button>
+                <button type="button" class="pos-queue__btn" wire:click="selectPatientPurchaseMode" @click="$nextTick(() => document.querySelector('.pos-patient-wrap input')?.focus())"><i class="fas fa-user-plus mr-1"></i> Find a patient</button>
+            </div>
+        </aside>
 
-        {{-- ==================== RIGHT: CHECKOUT ==================== --}}
-        <div class="pos-checkout">
+        {{-- ==================== MIDDLE: THE BILL ==================== --}}
+        <div class="pos-checkout pos-bill" x-data="{ picker: {{ count($cart) > 0 ? 'false' : 'true' }}, frame: false }"
+             x-on:pos-open-picker.window="picker = true" x-on:pos-cart-loaded.window="picker = false">
 
             {{-- Purchase mode / customer --}}
             <div class="pos-co-section pos-patient-section" data-tour="pos-patient">
@@ -410,6 +433,8 @@ window.printReceiptFromDom = function(event) {
                                             <span class="pos-rx-badge {{ $isFrame ? 'pos-rx-badge--frame' : '' }}" title="{{ $isFrame ? 'Prescription frame — editable' : 'Prescription item — locked' }}">
                                                 {{ $isFrame ? 'Rx Frame' : 'Rx' }}
                                             </span>
+                                        @elseif($hasPrescriptionCart)
+                                            <span class="pos-added-badge" title="Added at the desk, not by the doctor">Added</span>
                                         @endif
                                         <span class="pos-cart-item__name">{{ Str::limit($product->name, 30) }}</span>
                                         <span class="pos-cart-item__total">{{ currency() }} {{ number_format($quantity * $product->selling_price, 2) }}</span>
@@ -442,7 +467,13 @@ window.printReceiptFromDom = function(event) {
                                                 <button wire:click="updateQuantity('{{ $wireCartKey }}', {{ $quantity + 1 }})">+</button>
                                             </div>
                                         @endif
-                                        @if($showDrugOptions)
+                                        @if($showDrugOptions && $isLocked)
+                                            @php
+                                                $freqLabel = $frequency ? (\App\Enums\ProductFrequency::options()[$frequency] ?? $frequency) : null;
+                                                $eyeLabel = ['OD' => 'Right eye', 'RIGHT' => 'Right eye', 'OS' => 'Left eye', 'LEFT' => 'Left eye', 'OU' => 'Both eyes', 'BOTH' => 'Both eyes'][strtoupper((string) $eye)] ?? null;
+                                            @endphp
+                                            @if($freqLabel || $eyeLabel)<span class="pos-cart-item__dose">{{ collect([$freqLabel, $eyeLabel])->filter()->implode(' · ') }}</span>@endif
+                                        @elseif($showDrugOptions)
                                         <select class="pos-select" aria-label="How often to take {{ $product?->name ?? 'item' }}"
                                                 wire:change="updateCartItemMetadata('{{ $wireCartKey }}', $event.target.value, '{{ addslashes($eye ?? '') }}')">
                                             <option value="">Freq —</option>
@@ -466,13 +497,13 @@ window.printReceiptFromDom = function(event) {
                 @else
                     <div class="pos-cart-empty">
                         <i class="fas fa-shopping-cart"></i>
-                        <p>Cart is empty — tap a product to add it.</p>
+                        <p>Nothing on the bill yet. Pick a patient from the queue, or add an item.</p>
                     </div>
                 @endif
 
                 {{-- Add Frame panel — visible only when a prescription cart is loaded --}}
                 @if($hasPrescriptionCart)
-                <div class="pos-frame-adder">
+                <div class="pos-frame-adder" x-show="frame" x-cloak>
                     <div class="pos-frame-adder__header">
                         <i class="fas fa-glasses mr-1"></i>
                         Add / Change Frame
@@ -517,9 +548,32 @@ window.printReceiptFromDom = function(event) {
                     </div>
                 </div>
                 @endif
+
+                <div class="pos-additem-row" data-tour="pos-add-item">
+                    <button type="button" class="pos-additem-btn" @click="picker = !picker" :aria-expanded="picker.toString()">
+                        <i class="fas" :class="picker ? 'fa-chevron-up' : 'fa-plus'"></i>
+                        <span x-text="picker ? 'Hide items' : 'Add item'">Add item</span>
+                    </button>
+                    @if($hasPrescriptionCart)
+                        <button type="button" class="pos-additem-btn pos-additem-btn--ghost" @click="frame = !frame; $nextTick(() => frame && document.querySelector('.pos-frame-adder__input')?.focus())">
+                            <i class="fas fa-glasses"></i> <span x-text="frame ? 'Hide frame search' : 'Add frame'">Add frame</span>
+                        </button>
+                    @endif
+                    @if($hasPrescriptionCart)<small>Drugs and lenses come from the doctor; the desk adds services, frames and other items.</small>@endif
+                </div>
             </div>
 
+            {{-- Item picker: the product search and grid (PosProductGrid); a tap adds the item to this bill --}}
+            <div class="pos-picker" x-show="picker" x-cloak>
+                <livewire:pos-product-grid />
+            </div>
+        </div>
+        {{-- / bill --}}
+
+        {{-- ==================== RIGHT: PAYMENT ==================== --}}
+        <div class="pos-checkout pos-paycol" data-tour="pos-payment">
             @if(count($cart) > 0)
+            <div class="pos-pay-scroll">
 
                 {{-- Order Summary --}}
                 <div class="pos-co-section pos-summary-section">
@@ -740,8 +794,17 @@ window.printReceiptFromDom = function(event) {
                     @endif
                 </div>
 
-                {{-- Checkout CTA --}}
+            </div>
+            {{-- / pay-scroll --}}
+
+                {{-- Pay bar: always in view --}}
                 <div class="pos-co-action">
+                    @php $stillNeeded = max(0, round($amountDue - $totalPaid, 2)); @endphp
+                    <div class="pos-paystrip">
+                        <div><span>Total</span><b>{{ number_format($amountDue, 2) }}</b></div>
+                        <div><span>Paid</span><b>{{ number_format($totalPaid, 2) }}</b></div>
+                        <div class="{{ $stillNeeded > 0 ? 'pos-paystrip--due' : 'pos-paystrip--ok' }}"><span>{{ $change > 0 ? 'Change' : ($isPartPayment && $stillNeeded > 0 ? 'Balance held' : 'Still needed') }}</span><b>{{ number_format($change > 0 ? $change : $stillNeeded, 2) }}</b></div>
+                    </div>
                     <button class="pos-cta-btn {{ $discountBlocked ? 'pos-cta-btn--blocked' : ($isPartPayment ? 'pos-cta-btn--partial' : 'pos-cta-btn--ready') }}"
                             wire:click="initiateCheckout"
                             wire:loading.attr="disabled"
@@ -766,10 +829,15 @@ window.printReceiptFromDom = function(event) {
                     @endif
                 </div>
 
+            @else
+                <div class="pos-pay-empty">
+                    <i class="fas fa-cash-register"></i>
+                    <p>Payment opens here once there is something on the bill.</p>
+                </div>
             @endif
 
         </div>
-        {{-- / checkout --}}
+        {{-- / payment --}}
 
     </div>
     {{-- / body --}}
@@ -2425,8 +2493,57 @@ window.printReceiptFromDom = function(event) {
     color: #5eead4;
 }
 
+/* ---- Pattern 2 (2026-11-24): queue | bill | payment ---- */
+.pos-queue { background:#fff; border-right:1px solid #e2e8f0; display:flex; flex-direction:column; flex-shrink:0; min-height:0; width:240px; }
+.pos-queue__head { align-items:center; border-bottom:1px solid #e2e8f0; color:#475569; display:flex; font-size:.7rem; font-weight:800; justify-content:space-between; letter-spacing:.07em; padding:.6rem .8rem; text-transform:uppercase; }
+.pos-queue__list { flex:1; overflow-y:auto; padding:.5rem; }
+.pos-queue__item { background:#fff; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; display:block; margin-bottom:.4rem; padding:.5rem .6rem; text-align:left; width:100%; }
+.pos-queue__item:hover { border-color:#14b8a6; }
+.pos-queue__item--active { background:#f0fdfa; border-color:#14b8a6; box-shadow:inset 3px 0 0 #0d9488; }
+.pos-queue__name { color:#0f172a; display:block; font-size:.82rem; font-weight:700; }
+.pos-queue__meta { color:#64748b; display:flex; font-size:.7rem; gap:.4rem; justify-content:space-between; margin-top:.1rem; }
+.pos-queue__meta strong { color:#0f766e; }
+.pos-queue__empty { color:#94a3b8; font-size:.78rem; padding:1.5rem .5rem; text-align:center; }
+.pos-queue__empty i { font-size:1.6rem; margin-bottom:.4rem; }
+.pos-queue__foot { border-top:1px solid #e2e8f0; display:grid; gap:.4rem; padding:.6rem; }
+.pos-queue__btn { background:transparent; border:1px dashed #94a3b8; border-radius:8px; color:#0f766e; cursor:pointer; font-size:.78rem; font-weight:700; padding:.45rem; }
+.pos-queue__btn:hover { background:#f0fdfa; border-color:#14b8a6; }
+.pos-checkout.pos-bill { flex:1 1 auto; min-width:0; overflow-y:auto; width:auto; }
+.pos-additem-row { align-items:center; display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }
+.pos-additem-row small { color:#64748b; font-size:.7rem; }
+.pos-additem-btn { background:#f0fdfa; border:1px solid #5eead4; border-radius:8px; color:#0f766e; cursor:pointer; font-size:.8rem; font-weight:800; padding:.4rem .8rem; }
+.pos-bill .pos-cart-list { max-height:none; overflow:visible; }
+.pos-cart-item__dose { color:#64748b; font-size:.72rem; }
+.pos-additem-btn--ghost { background:transparent; border-style:dashed; }
+.pos-added-badge { background:#fef3c7; border-radius:4px; color:#92400e; font-size:.62rem; font-weight:800; margin-right:.35rem; padding:.05rem .35rem; text-transform:uppercase; }
+.pos-picker { border-top:1px solid #e2e8f0; display:flex; flex-shrink:0; height:min(560px, 62vh); }
+.pos-picker .pos-products { border-right:0; }
+.pos-checkout.pos-paycol { overflow:hidden; width:clamp(340px, 28vw, 440px); }
+.pos-pay-scroll { flex:1; min-height:0; overflow-y:auto; }
+.pos-paystrip { display:grid; gap:.4rem; grid-template-columns:repeat(3, minmax(0,1fr)); margin-bottom:.6rem; text-align:center; }
+.pos-paystrip div { border:1px solid #e2e8f0; border-radius:8px; padding:.3rem .2rem; }
+.pos-paystrip span { color:#64748b; display:block; font-size:.62rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+.pos-paystrip b { font-size:.95rem; }
+.pos-paystrip--due b { color:#b91c1c; }
+.pos-paystrip--ok b { color:#15803d; }
+.pos-pay-empty { align-items:center; color:#94a3b8; display:flex; flex:1; flex-direction:column; justify-content:center; padding:2rem; text-align:center; }
+.pos-pay-empty i { font-size:2rem; margin-bottom:.6rem; }
+.pos-product { align-content:start; column-gap:.55rem; display:grid; grid-template-columns:30px minmax(0,1fr); }
+.pos-product__icon { grid-row:span 3; height:30px; margin:0; width:30px; }
+.pos-product__name { min-height:0; }
+.pos-product__icon--frame { background:#eef2ff; color:#4f46e5; }
+.pos-product__icon--lens { background:#eff6ff; color:#2563eb; }
+.pos-product__icon--service { background:#fffbeb; color:#b45309; }
+.pos-product__icon--other { background:#f1f5f9; color:#475569; }
+.pos-shell--dark .pos-queue, .pos-shell--dark .pos-queue__item { background:#1e293b; border-color:#334155; }
+.pos-shell--dark .pos-queue__name { color:#e2e8f0; }
+.pos-shell--dark .pos-queue__item--active { background:#134e4a; }
+.pos-shell--dark .pos-paystrip div { border-color:#334155; }
+
 /* ---- Responsive ---- */
 @media (max-width: 900px) {
+    .pos-queue { max-height:40vh; width:100%; }
+    .pos-checkout.pos-paycol { overflow:visible; width:100%; }
     .pos-body { flex-direction: column; overflow-y: auto; }
     .pos-products { height: 55vh; overflow: hidden; }
     .pos-checkout { height: auto; overflow-y: visible; width: 100%; }
@@ -2436,7 +2553,8 @@ window.printReceiptFromDom = function(event) {
 }
 
 @media (min-width: 901px) and (max-width: 1199.98px) {
-    .pos-checkout { width: 430px; }
+    .pos-checkout.pos-paycol { width: 320px; }
+    .pos-queue { width: 200px; }
     .pos-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
 </style>

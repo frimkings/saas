@@ -30,8 +30,14 @@
         @forelse($products as $product)
             <div class="pos-product {{ $product->canSupply() ? '' : 'pos-product--oos' }}"
                  wire:click="$dispatch('pos-add-product', { productId: {{ $product->id }} })">
-                <div class="pos-product__icon">
-                    <i class="fas fa-pills"></i>
+                @php
+                    $kind = match ($product->category?->type) {
+                        'drug' => ['fa-pills', 'drug'], 'frame' => ['fa-glasses', 'frame'], 'lens' => ['fa-eye', 'lens'],
+                        'service' => ['fa-stethoscope', 'service'], default => ['fa-box', 'other'],
+                    };
+                @endphp
+                <div class="pos-product__icon pos-product__icon--{{ $kind[1] }}" title="{{ $product->category?->name }}">
+                    <i class="fas {{ $kind[0] }}"></i>
                 </div>
                 <div class="pos-product__name">{{ Str::limit($product->name, 28) }}</div>
                 <div class="pos-product__price">{{ currency() }} {{ number_format($product->selling_price, 2) }}</div>

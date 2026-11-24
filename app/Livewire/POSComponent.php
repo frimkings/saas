@@ -239,6 +239,45 @@ class POSComponent extends Component
 
     /* ===================== PENDING CARTS ===================== */
 
+    /**
+     * Patients waiting to pay (the till's left column): doctors' carts not yet paid, one row per
+     * patient, oldest first, as a queue. Light on purpose: it is read on every render.
+     */
+    private function waitingQueue(): array
+    {
+        $rows = Cart::with(['patient:id,name,pxnumber', 'dispensedBy:id,name'])
+            ->where('purchased', false)
+            ->where('status', 'pending')
+            ->where('quantity', '>', 0)
+            ->whereNotNull('consultation_id')
+            ->where('consultation_id', '!=', 0)
+            ->orderBy('created_at')
+            ->limit(300)
+            ->get(['id', 'patient_id', 'consultation_id', 'dispensed_by', 'total', 'created_at']);
+
+        return $rows->groupBy('patient_id')->map(function ($items, $patientId) {
+            $first = $items->first();
+
+            return [
+                'patient_id'      => (int) $patientId,
+                'consultation_id' => $items->last()->consultation_id,
+                'name'            => $first->patient?->name ?? 'Patient',
+                'number'          => $first->patient?->pxnumber,
+                'by'              => $first->dispensedBy?->name,
+                'items'           => $items->count(),
+                'total'           => (float) $items->sum('total'),
+                'waiting'         => $first->created_at?->diffForHumans(null, true, true),
+            ];
+        })->values()->take(50)->all();
+    }
+
+    /** "+ Walk-in sale": a direct purchase with the item picker open. */
+    public function startWalkIn(): void
+    {
+        $this->selectDirectPurchaseMode();
+        $this->dispatch('pos-open-picker');
+    }
+
     public function loadAllPendingCarts()
     {
         try {
@@ -2886,11 +2925,13 @@ class POSComponent extends Component
             ? PatientVisit::where('patient_id', $this->patientId)->latest('id')->first()
             : null;
 
+        $waitingQueue = $this->waitingQueue();
+
         return view('livewire.pos-component', compact(
             'patientVisit',
             'clinicSettings',
             'cartProducts', 'discountBlocked', 'canCheckout', 'totalPaid',
-            'pendingPrescriptionCartCount', 'approvedDiscountCount', 'openVisitSale'
+            'pendingPrescriptionCartCount', 'approvedDiscountCount', 'openVisitSale', 'waitingQueue'
         ))->layout('layouts.clinic', ['menu' => 'reception']);
     }
 }

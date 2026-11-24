@@ -29,7 +29,7 @@ final class TourCatalog
         'clinic.dashboard' => 7,
         'clinic.registry' => 2,
         'clinic.clearance' => 2,
-        'clinic.pos' => 3,
+        'clinic.pos' => 4,
         'clinic.queue' => 4,
         'clinic.sales' => 4,
         'clinic.day-close' => 2,
@@ -345,11 +345,11 @@ final class TourCatalog
     private static function clinicPos(): array
     {
         return ['key' => 'clinic.pos', 'title' => 'Point of Sale', 'steps' => [
-            ['title' => 'The pharmacy counter', 'body' => 'Drugs, drops and other items, either from a doctor\'s prescription or sold over the counter.'],
-            ['target' => 'pos-patient', 'title' => 'Who is buying', 'body' => 'Pick the patient to load what the doctor prescribed, or just type a name for a walk-in.'],
-            ['target' => 'pos-doctor-carts', 'title' => 'Doctor carts', 'body' => 'What the doctors prescribed today waits here, with a count. Open one to load it into the cart.'],
-            ['target' => 'pos-products', 'title' => 'Add items', 'body' => 'Search or scan, and tap an item to put it in the cart. Stock goes down when the sale is made.'],
-            ['target' => 'pos-cart', 'title' => 'Check and take payment', 'body' => 'Change quantities, add a discount if your plan has them (it shows on the receipt), split the payment between cash, MoMo and card, then print the receipt. A discount within your limit applies when you press Apply; a bigger one goes to a Manager or the Owner to approve.'],
+            ['title' => 'The cashier\'s desk', 'body' => 'Three columns: who is waiting to pay, their bill, and the payment.'],
+            ['target' => 'pos-queue', 'title' => 'Waiting to pay', 'body' => 'Patients the doctors have sent, oldest first. Tap one to load their bill. Walk-in sale starts a bill for someone who did not see a doctor; Find a patient looks anyone up.'],
+            ['target' => 'pos-cart', 'title' => 'The bill', 'body' => 'The doctor\'s lines are marked Rx and locked, with the dosing in grey. Lines you add are marked Added and can be removed.'],
+            ['target' => 'pos-add-item', 'title' => 'Add items', 'body' => 'Add item opens the product search: tap an item to put it on the bill. Drugs and lenses for a patient come from the doctor; the desk adds services, frames and other items. Add frame finds the frame for prescribed glasses.'],
+            ['target' => 'pos-payment', 'title' => 'Take payment', 'body' => 'Pick cash, MoMo or card, enter the amount and press Add; split it if needed. Total, paid and what is still needed stay at the bottom with Complete sale. A discount within your limit applies when you press Apply; a bigger one goes to a Manager or the Owner. Part payment shows when the items allow it, with the least to pay now.'],
             ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
         ]];
     }

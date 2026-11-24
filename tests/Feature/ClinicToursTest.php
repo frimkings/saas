@@ -65,7 +65,7 @@ class ClinicToursTest extends TestCase
         foreach ([
             PatientsComponent::class => ['reg-form', 'reg-import', 'reg-search', 'reg-list'],
             CashierPatientClearanceComponent::class => ['clr-stats', 'clr-lists', 'clr-tab-pending', 'clr-tab-cleared'],
-            POSComponent::class => ['pos-doctor-carts', 'pos-patient', 'pos-cart'],
+            POSComponent::class => ['pos-doctor-carts', 'pos-patient', 'pos-cart', 'pos-queue', 'pos-add-item', 'pos-payment'],
             PatientAwaitingComponent::class => ['queue-filters', 'queue-list'],
             SalesRecordsComponent::class => ['sales-totals', 'sales-filters', 'sales-list'],
             DayCloseComponent::class => ['day-close-count', 'day-close-cashiers', 'day-close-payments', 'day-close-submit'],
