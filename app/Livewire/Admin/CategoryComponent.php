@@ -69,6 +69,7 @@ class CategoryComponent extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
+        $this->viewCategoryId = null;
         $this->resetCategoryForm();
     }
 
@@ -90,7 +91,7 @@ class CategoryComponent extends Component
 
         $this->resetCategoryForm();
         $this->showForm = false;
-        $this->viewCategoryId = $created->id;
+        $this->dispatch('notify', ...['type' => 'success', 'message' => 'Category added.']);
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Category added successfully!']);
     }
 
@@ -130,6 +131,7 @@ class CategoryComponent extends Component
 
         $this->resetCategoryForm();
         $this->showForm = false;
+        $this->viewCategoryId = null;
         $this->dispatch('notify', ...['type' => 'success', 'message' => 'Category updated successfully!']);
     }
 
@@ -261,16 +263,9 @@ class CategoryComponent extends Component
             ->paginate(10);
 
         $canSetPartPayment = $this->canSetPartPayment;
-        $viewCategory = $this->viewCategoryId ? Category::withCount([
-                'products',
-                'products as in_stock_products_count' => fn ($query) => $query->where('quantity', '>', 0),
-                'products as low_stock_products_count' => fn ($query) => $query->lowStock(),
-            ])->find($this->viewCategoryId) : null;
-        $viewProducts = $viewCategory
-            ? $viewCategory->products()->orderBy('name')->limit(25)->get(['id', 'name', 'quantity', 'selling_price'])
-            : collect();
+        $viewCategory = $this->viewCategoryId ? Category::withCount('products')->find($this->viewCategoryId) : null;
 
-        return view('livewire.admin.category-component', compact('categories', 'canSetPartPayment', 'viewCategory', 'viewProducts'))
+        return view('livewire.admin.category-component', compact('categories', 'canSetPartPayment', 'viewCategory'))
             ->layout('layouts.admin.admin-layout');
     }
 }

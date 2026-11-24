@@ -187,7 +187,20 @@
                 <aside class="oo-drawer" style="width:min(720px,100vw)" role="dialog" aria-modal="true" aria-labelledby="product-form-title" tabindex="-1"
                        x-data x-init="$el.focus()" x-on:keydown.escape.window="$wire.cancelForm()">
                     <header class="oo-drawer-head">
-                        <div><h2 id="product-form-title">{{ $editingProduct ? 'Edit '.$editingProduct->name : 'Add a product' }}</h2></div>
+                        <div>
+                            <h2 id="product-form-title">{{ $editingProduct ? 'Edit '.$editingProduct->name : 'Add a product' }}</h2>
+                            @if($editingProduct)
+                                @php $epExpired = ! $editingProduct->made_to_order && $editingProduct->expiry_date?->startOfDay()->lt(today()); @endphp
+                                <div class="flex flex-wrap items-center gap-2 text-xs ui-muted">
+                                    <span class="oo-badge oo-b-teal">{{ $editingProduct->category->name ?? 'No category' }}</span>
+                                    @if($editingProduct->made_to_order)<span class="oo-badge oo-b-grey">Made to order</span>
+                                    @elseif($epExpired)<span class="oo-badge oo-b-red">Expired</span>
+                                    @elseif((int) $editingProduct->quantity <= 0)<span class="oo-badge oo-b-red">Out of stock</span>
+                                    @else<span class="oo-badge oo-b-green">{{ $editingProduct->quantity }} in stock</span>@endif
+                                    <span>Part payment: {{ $editingProduct->category?->part_payment ? ((int) $editingProduct->category->part_payment_min_percent > 0 ? 'on, '.$editingProduct->category->part_payment_min_percent.'% now' : 'on') : 'off' }} (set on the category)</span>
+                                </div>
+                            @endif
+                        </div>
                         <button type="button" class="oo-x" wire:click="cancelForm" aria-label="Close">&times;</button>
                     </header>
 
@@ -362,6 +375,7 @@
 
                         </div>
                         <footer class="oo-drawer-foot">
+                            @if($editingProduct)<button type="button" class="oo-btn danger" style="margin-right:auto" wire:click="confirmDelete({{ $editingProduct->id }})">Delete</button>@endif
                             <button type="button" wire:click="cancelForm" class="oo-btn">Cancel</button>
                             <button type="submit" class="oo-btn primary" wire:loading.attr="disabled" wire:target="createProduct,updateProduct">
                                 {{ $editingProduct ? 'Save changes' : 'Add product' }}
@@ -371,76 +385,6 @@
                 </aside>
             @endif
 
-            {{-- PRODUCT PANEL (slides in from the right, as on Partner Clinics) --}}
-            @if($viewProduct)
-                @php
-                    $vpExpired = ! $viewProduct->made_to_order && $viewProduct->expiry_date?->startOfDay()->lt(today());
-                    $vpMargin = (float) $viewProduct->cost_price > 0 ? round(((float) $viewProduct->selling_price - (float) $viewProduct->cost_price) / (float) $viewProduct->cost_price * 100, 1) : null;
-                @endphp
-                <div class="oo-overlay" wire:click="closeProduct" aria-hidden="true"></div>
-                <aside class="oo-drawer" role="dialog" aria-modal="true" aria-labelledby="product-title" tabindex="-1" x-data x-init="$el.focus()"
-                       x-on:keydown.escape.window="$wire.closeProduct()" wire:key="product-drawer-{{ $viewProduct->id }}">
-                    <header class="oo-drawer-head">
-                        <div>
-                            <h2 id="product-title">{{ $viewProduct->name }}</h2>
-                            <div class="flex flex-wrap items-center gap-2 text-xs ui-muted">
-                                <span class="oo-badge oo-b-teal">{{ $viewProduct->category->name ?? 'No category' }}</span>
-                                @if($viewProduct->made_to_order)<span class="oo-badge oo-b-grey">Made to order</span>
-                                @elseif($vpExpired)<span class="oo-badge oo-b-red">Expired</span>
-                                @elseif((int) $viewProduct->quantity <= 0)<span class="oo-badge oo-b-red">Out of stock</span>
-                                @else<span class="oo-badge oo-b-green">In stock</span>@endif
-                            </div>
-                        </div>
-                        <button type="button" class="oo-x" wire:click="closeProduct" aria-label="Close">&times;</button>
-                    </header>
-                    <div class="oo-drawer-body">
-                        <section class="oo-section">
-                            <h3>Price</h3>
-                            <div class="oo-money" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-                                <div><span>Selling price</span><b>{{ currency() }} {{ number_format((float) $viewProduct->selling_price, 2) }}</b></div>
-                                <div><span>Cost</span><b>{{ currency() }} {{ number_format((float) $viewProduct->cost_price, 2) }}</b></div>
-                                <div><span>Margin</span><b>{{ $vpMargin !== null ? $vpMargin.'%' : '—' }}</b></div>
-                            </div>
-                        </section>
-                        <section class="oo-section">
-                            <h3>Stock</h3>
-                            <dl class="oo-dl">
-                                <dt>In stock</dt><dd>{{ $viewProduct->made_to_order ? 'Not stocked (made to order)' : $viewProduct->quantity }}</dd>
-                                @unless($viewProduct->made_to_order)
-                                    <dt>Reorder at</dt><dd>{{ $viewProduct->reorderLevel() ?? '—' }}</dd>
-                                    <dt>Batch</dt><dd><code>{{ $viewProduct->batch_number }}</code></dd>
-                                    <dt>Made</dt><dd>{{ $viewProduct->manufacture_date?->format('d M Y') ?? '—' }}</dd>
-                                    <dt>Expires</dt><dd class="{{ $vpExpired ? 'text-red-700 font-semibold' : '' }}">{{ $viewProduct->expiry_date?->format('d M Y') ?? '—' }}</dd>
-                                @endunless
-                            </dl>
-                        </section>
-                        @if($viewProduct->dosage_form)
-                            <section class="oo-section">
-                                <h3>Drug</h3>
-                                <dl class="oo-dl">
-                                    <dt>Form</dt><dd>{{ $viewProduct->dosage_form->label() }}</dd>
-                                    @if($viewProduct->pack_size)<dt>Pack</dt><dd>{{ $viewProduct->pack_size }} per strip</dd>@endif
-                                </dl>
-                            </section>
-                        @endif
-                        <section class="oo-section">
-                            <h3>Part payment</h3>
-                            <p class="text-sm">
-                                @if($viewProduct->category?->part_payment)
-                                    {{ (int) $viewProduct->category->part_payment_min_percent > 0 ? 'At least '.$viewProduct->category->part_payment_min_percent.'% must be paid now; the rest can wait.' : 'A registered patient may pay part now and owe the rest.' }}
-                                @else
-                                    Paid in full at the till.
-                                @endif
-                                <span class="ui-muted">Set on the category.</span>
-                            </p>
-                        </section>
-                    </div>
-                    <footer class="oo-drawer-foot">
-                        <button type="button" class="oo-btn danger" wire:click="confirmDelete({{ $viewProduct->id }})">Delete</button>
-                        <button type="button" class="oo-btn primary" wire:click="editProduct({{ $viewProduct->id }})">Edit product</button>
-                    </footer>
-                </aside>
-            @endif
 
             {{-- Tabs Card --}}
             <div class="ui-panel">
@@ -580,7 +524,7 @@
                                         $isExpiringSoon = !$isExpired && $daysToExpiry <= 120;
                                         $isLowStock = !$product->made_to_order && $product->quantity < 10;
                                     @endphp
-                                    <tr wire:key="product-{{ $product->id }}" wire:click="openProduct({{ $product->id }})"
+                                    <tr wire:key="product-{{ $product->id }}" wire:click="editProduct({{ $product->id }})"
                                         class="cursor-pointer {{ $viewProductId === $product->id ? 'bg-teal-50' : ($isExpired ? 'bg-red-50' : ($isExpiringSoon ? 'bg-amber-50' : 'hover:bg-slate-50')) }}">
                                         <td class="text-center" onclick="event.stopPropagation()">
                                             <input type="checkbox"

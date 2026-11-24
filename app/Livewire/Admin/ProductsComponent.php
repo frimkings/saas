@@ -114,19 +114,8 @@ class ProductsComponent extends Component
         $this->selectAllPage = false;
     }
 
-    /** Side panel, as on Partner Clinics: the product being looked at (the add/edit form is a panel too). */
+    /** The product open in the side panel (clicking a row opens its edit form there), to highlight its row. */
     public ?int $viewProductId = null;
-
-    public function openProduct(int $id): void
-    {
-        $this->viewProductId = Product::findOrFail($id)->id;
-        $this->showForm = false;
-    }
-
-    public function closeProduct(): void
-    {
-        $this->viewProductId = null;
-    }
 
     public function showAddForm()
     {
@@ -139,6 +128,7 @@ class ProductsComponent extends Component
     public function cancelForm()
     {
         $this->showForm = false;
+        $this->viewProductId = null;
         $this->resetForm();
         $this->resetValidation();
     }
@@ -417,7 +407,6 @@ class ProductsComponent extends Component
         app(\App\Services\Inventory\BranchInventoryService::class)->setReorderLevel($product, $reorderLevel);
 
         $this->cancelForm();
-        $this->viewProductId = $product->id;
         
         $this->dispatch('notify', ...[
             'type' => 'success',
@@ -523,7 +512,7 @@ class ProductsComponent extends Component
         $product = Product::findOrFail($id);
         $product->delete();
         $this->clearSelection();
-        if ($this->viewProductId === $product->id) $this->viewProductId = null;
+        if ($this->editingProduct?->id === $product->id) $this->cancelForm();
 
         $this->dispatch('notify', ...[
             'type' => 'success',
@@ -953,9 +942,7 @@ class ProductsComponent extends Component
         $hasLegacyMedications = \App\Support\Access\Access::can('inventory.manage') && \App\Models\PatientLegacyMedication::query()->exists();
         $prescribedOutside = $this->prescribedOutside();
 
-        $viewProduct = $this->viewProductId && ! $this->showForm ? Product::with('category')->find($this->viewProductId) : null;
-
-        return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions', 'hasLegacyMedications', 'prescribedOutside', 'viewProduct'))
+        return view('livewire.admin.products-component', compact('products', 'categories', 'stats', 'lensOptions', 'hasLegacyMedications', 'prescribedOutside'))
             ->layout('layouts.admin.admin-layout');
     }
 }
