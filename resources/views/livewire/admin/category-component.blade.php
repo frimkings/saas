@@ -143,7 +143,16 @@
                 </div>
                 <button type="button" class="oo-x" wire:click="closeForm" aria-label="Close">&times;</button>
             </header>
-            <form autocomplete="off" wire:submit="{{ $showEditModal ? 'updateCategory' : 'createCategory' }}" class="oo-drawer-body" id="category-form">
+            <style>
+                .cat-form{gap:14px}
+                .cat-form .mb-4{margin-bottom:0}
+                .cat-form label{display:block;margin-bottom:4px}
+                .cat-form .cat-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+                .cat-form fieldset label{display:inline;margin:0}
+                @media(max-width:520px){.cat-form .cat-2{grid-template-columns:1fr}}
+            </style>
+            <form autocomplete="off" wire:submit="{{ $showEditModal ? 'updateCategory' : 'createCategory' }}" class="oo-drawer-body cat-form" id="category-form">
+                <div class="cat-2">
                         <div class="mb-4">
                             <label for="category-name">Name <span class="text-red-700">*</span></label>
                             <input type="text"
@@ -169,13 +178,14 @@
                                 <div class="ui-error">{{ $message }}</div>
                             @enderror
                         </div>
+                </div>
 
                         <div class="mb-4">
                             <label for="category-description">Description</label>
                             <textarea wire:model="state.description"
                                 class="ui-input @error('state.description') is-invalid @enderror"
                                 id="category-description"
-                                rows="3"
+                                rows="2"
                                 placeholder="Optional note for reporting, POS, or inventory use"></textarea>
                             @error('state.description')
                                 <div class="ui-error">{{ $message }}</div>

@@ -193,7 +193,7 @@
                                 @php $epExpired = ! $editingProduct->made_to_order && $editingProduct->expiry_date?->startOfDay()->lt(today()); @endphp
                                 <div class="flex flex-wrap items-center gap-2 text-xs ui-muted">
                                     <span class="oo-badge oo-b-teal">{{ $editingProduct->category->name ?? 'No category' }}</span>
-                                    @if($editingProduct->made_to_order)<span class="oo-badge oo-b-grey">Made to order</span>
+                                    @if($editingProduct->made_to_order)<span class="oo-badge oo-b-grey">{{ $this->isService ? 'Not stocked' : 'Made to order' }}</span>
                                     @elseif($epExpired)<span class="oo-badge oo-b-red">Expired</span>
                                     @elseif((int) $editingProduct->quantity <= 0)<span class="oo-badge oo-b-red">Out of stock</span>
                                     @else<span class="oo-badge oo-b-green">{{ $editingProduct->quantity }} in stock</span>@endif
@@ -205,8 +205,31 @@
                     </header>
 
                     <form wire:submit="{{ $editingProduct ? 'updateProduct' : 'createProduct' }}" class="flex min-h-0 flex-1 flex-col">
+                        <style>
+                            /* One two-column grid for every field, in this order: Name | Category, (drug Form | Pack),
+                               Cost | Selling, Margin | Batch, then the stock block beside the two dates. */
+                            .pf-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}
+                            .pf-form .flex.flex-wrap.-mx-2{display:contents}
+                            .pf-form .flex.flex-wrap.-mx-2>div{width:auto;max-width:none;padding:0}
+                            .pf-form .px-2{order:50}
+                            .pf-form>div:not(.flex){grid-column:1/-1}
+                            .pf-form label{display:block;margin-bottom:4px}
+                            .pf-form .px-2:has([id$="-name"]){order:1}
+                            .pf-form .px-2:has([id$="-category-id"]){order:2}
+                            .pf-form .px-2:has([id$="-dosage-form"]){order:3}
+                            .pf-form .px-2:has([id$="-pack-size"]){order:4}
+                            .pf-form .px-2:has([id$="-cost-price"]){order:5}
+                            .pf-form .px-2:has([id$="-selling-price"]){order:6}
+                            .pf-form .px-2:has([id$="-profit-margin"]){order:7}
+                            .pf-form .px-2:has([id$="-batch-number"]){order:8}
+                            .pf-form .px-2:has(#made-to-order){order:9;grid-row:span 2}
+                            .pf-form .px-2:has([id$="-manufacture-date"]){order:10}
+                            .pf-form .px-2:has([id$="-expiry-date"]){order:11}
+                            .pf-form .pf-full{grid-column:1/-1;order:12}
+                            @media(max-width:520px){.pf-form{grid-template-columns:1fr}.pf-form .px-2:has(#made-to-order){grid-row:auto}}
+                        </style>
                         <div class="flex-1 overflow-y-auto">
-                        <div class="p-5">
+                        <div class="p-5 pf-form">
                             <div class="flex flex-wrap -mx-2">
                                 <div class="w-full md:w-4/12 px-2">
                                     <div class="mb-4">
@@ -276,7 +299,7 @@
                             @endif
 
                             <div class="flex flex-wrap -mx-2">
-                                <div class="w-full md:w-3/12 px-2">
+                                <div class="w-full md:w-3/12 px-2 {{ $this->isService ? 'pf-full' : '' }}">
                                     <div class="mb-4">
                                         @if($this->isService)
                                             <span class="block">Quantity</span>
@@ -333,9 +356,7 @@
 
                                 <div class="w-full md:w-3/12 px-2">
                                     <div class="mb-4">
-                                        <label for="products-state-profit-margin">Profit Margin
-                                            <small class="text-slate-500">(or enter to set selling price)</small>
-                                        </label>
+                                        <label for="products-state-profit-margin">Profit Margin</label>
                                         <div class="flex items-stretch">
                                             <input id="products-state-profit-margin" type="number" step="0.01" min="0"
                                                    wire:model.blur="state.profit_margin"
