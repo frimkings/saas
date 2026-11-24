@@ -30,7 +30,7 @@
         <li class="">
             <a class="block px-3 py-2 {{ $activeTab === 'discounts' ? 'active' : '' }}"
                wire:click.prevent="setTab('discounts')" href="#">
-                <i class="fas fa-percent mr-1"></i> Discounts &amp; Payments
+                <i class="fas fa-percent mr-1"></i> Discount Limits
             </a>
         </li>
         @if($this->canManageFullBackups())<li class="">

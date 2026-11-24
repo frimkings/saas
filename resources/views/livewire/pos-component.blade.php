@@ -593,7 +593,7 @@ window.printReceiptFromDom = function(event) {
                     </div>
                     @endif
 
-                    {{-- Part payment: frames/lenses, or anything when the owner allows it (Settings → Discounts & payments) --}}
+                    {{-- Part payment: allowed per category by the owner (Categories), with a minimum to pay now --}}
                     @if($partPaymentAllowed)
                         <div class="pos-part-toggle {{ $isPartPayment ? 'pos-part-toggle--active' : '' }} {{ !$patientId ? 'pos-part-toggle--disabled' : '' }}">
                             <div>
@@ -601,6 +601,8 @@ window.printReceiptFromDom = function(event) {
                                 <span>Part Payment / Hold Order</span>
                                 @if(!$patientId)
                                     <small>Registered patient required</small>
+                                @elseif((float) $minimumDueNow > 0)
+                                    <small>Pay at least {{ currency() }} {{ number_format((float) $minimumDueNow, 2) }} now</small>
                                 @endif
                             </div>
                             <label class="pos-switch">

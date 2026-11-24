@@ -49,6 +49,7 @@
                                     <th class="text-center">Products</th>
                                     <th class="text-center">In Stock</th>
                                     <th class="text-center">Low Stock</th>
+                                    <th title="Clinic till: may a patient pay part now and owe the rest?">Part payment</th>
                                     <th>Status</th>
                                     <th class="text-right">Actions</th>
                                 </tr>
@@ -69,6 +70,15 @@
                                         <td class="text-center text-green-700 font-semibold">{{ $category->in_stock_products_count }}</td>
                                         <td class="text-center {{ $category->low_stock_products_count > 0 ? 'text-amber-600 font-semibold' : 'text-slate-500' }}">
                                             {{ $category->low_stock_products_count }}
+                                        </td>
+                                        <td>
+                                            @if($category->part_payment)
+                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200">
+                                                    On · {{ (int) $category->part_payment_min_percent > 0 ? $category->part_payment_min_percent.'% now' : 'any amount' }}
+                                                </span>
+                                            @else
+                                                <span class="text-xs text-slate-500">Off · pay in full</span>
+                                            @endif
                                         </td>
                                         <td>
                                             <button type="button"
@@ -96,7 +106,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center text-slate-500 py-12">
+                                        <td colspan="8" class="text-center text-slate-500 py-12">
                                             <i class="fa fa-folder-open fa-3x mb-4 block"></i>
                                             No categories found.
                                         </td>
@@ -171,6 +181,26 @@
                             <input type="checkbox" wire:model="state.is_active" class="rounded border-slate-300 text-teal-700" id="category-active">
                             <label class="" for="category-active">Active in POS and inventory workflows</label>
                         </div>
+
+                        <fieldset class="rounded-lg border border-slate-200 p-3" data-tour="category-part-payment" @disabled(! $canSetPartPayment)>
+                            <legend class="px-1 text-sm font-semibold">Part payment at the clinic till</legend>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" wire:model.live="state.part_payment" class="rounded border-slate-300 text-teal-700" id="category-part-payment">
+                                <label for="category-part-payment">A registered patient may pay part now and owe the rest</label>
+                            </div>
+                            @if($state['part_payment'] ?? false)
+                                <div class="mt-2 flex items-center gap-2">
+                                    <label for="category-part-min" class="text-sm">Pay at least</label>
+                                    <input type="number" min="0" max="100" step="1" id="category-part-min" wire:model="state.part_payment_min_percent" class="ui-input !w-24 @error('state.part_payment_min_percent') is-invalid @enderror">
+                                    <span class="text-sm text-slate-600">% of these items now (0 = any amount)</span>
+                                </div>
+                                @error('state.part_payment_min_percent')<div class="ui-error">{{ $message }}</div>@enderror
+                            @endif
+                            <small class="mt-2 block text-slate-500">
+                                Off: items in this category are paid in full. The balance of a part payment waits under Outstanding Balances.
+                                @unless($canSetPartPayment) Only the clinic owner can change this. @endunless
+                            </small>
+                        </fieldset>
                     </div>
 
                     <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">

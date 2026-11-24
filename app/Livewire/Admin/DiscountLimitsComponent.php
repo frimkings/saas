@@ -21,27 +21,11 @@ class DiscountLimitsComponent extends Component
     /** @var array<string, array<string, int|string>> role => line => percent */
     public array $limits = [];
 
-    /** Clinic till: part payment on drugs and services too, not only frames and lenses. */
-    public bool $partPaymentAllItems = false;
-
     public function mount(bool $optical = false): void
     {
         $this->optical = $optical;
         $this->authorizeAccess();
         $this->limits = DiscountLimits::all();
-        $this->partPaymentAllItems = (bool) (\App\Models\Setting::getSettings()->part_payment_all_items ?? false);
-    }
-
-    public function savePartPayment(): void
-    {
-        $this->authorizeAccess();
-        $settings = \App\Models\Setting::getSettings();
-        abort_unless($settings->exists, 422, 'Save the clinic settings first.');
-        $before = (bool) $settings->part_payment_all_items;
-        $settings->update(['part_payment_all_items' => $this->partPaymentAllItems]);
-        AuditTrail::record('settings.part_payment', $this->partPaymentAllItems ? 'Part payment allowed on drugs and services' : 'Part payment limited to frames and lenses',
-            null, ['part_payment_all_items' => $before], ['part_payment_all_items' => $this->partPaymentAllItems]);
-        $this->dispatch('notify', type: 'success', message: $this->partPaymentAllItems ? 'The till now takes part payment on drugs and services.' : 'Part payment is now only for frames and lenses.');
     }
 
     public function save(): void

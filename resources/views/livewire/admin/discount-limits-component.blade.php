@@ -43,20 +43,4 @@
             </button>
         </form>
     </div>
-    @if(! $optical && array_key_exists(\App\Support\Access\DiscountLimits::CLINICAL, $lines))
-        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm mt-4" style="max-width:720px" data-tour="part-payment-setting">
-            <h5 class="font-semibold mb-1"><i class="fas fa-clock mr-1 text-teal-700"></i> Part payment at the clinic till</h5>
-            <p class="text-sm text-slate-500 mb-3">
-                Frames and lenses can always be part-paid. Turn this on to also let a registered patient pay part of a bill for
-                drugs and services (for example a test). The rest goes to Outstanding Balances until it is collected.
-            </p>
-            <label class="flex items-start gap-2 text-sm">
-                <input type="checkbox" class="mt-1" wire:model="partPaymentAllItems">
-                <span><b>Allow part payment on drugs and services</b><br><span class="text-slate-500">Off: drugs and services must be paid in full before checkout.</span></span>
-            </label>
-            <button type="button" class="ui-button ui-button-primary mt-3" wire:click="savePartPayment" wire:loading.attr="disabled" wire:target="savePartPayment">
-                <i class="fas fa-save"></i> Save
-            </button>
-        </div>
-    @endif
 </div>

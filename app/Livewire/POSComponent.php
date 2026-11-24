@@ -101,9 +101,12 @@ class POSComponent extends Component
     // Part payment
     public $isPartPayment     = false;
     public $hasFramesOrLenses = false;
-    /** Part payment is offered: frames/lenses in the cart, or the owner allows it on everything. */
-    #[\Livewire\Attributes\Locked]
+    /** Part payment is offered: some item's category allows it (owner's rule on Categories). */
+    #[Locked]
     public $partPaymentAllowed = false;
+    /** Least the patient must pay now: full price of items whose category is off, plus the deposit % of the rest. */
+    #[Locked]
+    public $minimumDueNow = 0;
 
     // Insurance co-pay: for an insured patient the insurer's share is billed to the
     // insurer and the patient pays amountDue now. Recomputed from the database on checkout.
@@ -910,6 +913,7 @@ class POSComponent extends Component
         if (empty($this->cart)) {
             $this->hasFramesOrLenses = false;
             $this->partPaymentAllowed = false;
+            $this->minimumDueNow = 0;
             $this->isPartPayment     = false;
             $this->discountAmount    = 0;
             $this->finalAmount       = 0;
@@ -939,7 +943,6 @@ class POSComponent extends Component
         $this->totalAmount = (float) $this->totalAmount;
 
         $this->hasFramesOrLenses = $products->contains(fn ($product) => $this->isDiscountEligibleProduct($product));
-        $this->partPaymentAllowed = $this->hasFramesOrLenses || self::partPaymentOnAllItems();
 
         // Apply discount only to Frames and Lenses.
         $discountEligibleSubtotal = $this->getDiscountEligibleSubtotal();
@@ -1002,6 +1005,8 @@ class POSComponent extends Component
 
         $this->insurerAmount = round($insurerAmount, 2);
         $this->amountDue     = round(max(0, $final - $this->insurerAmount), 2);
+        // Whatever changed the amount due (cart, discount, insurer share) also changes what may wait.
+        $this->applyPartPaymentRule($this->fetchCartProducts());
     }
 
     /** True when the cashier changed what the rules say the insurer pays. */
@@ -1074,10 +1079,32 @@ class POSComponent extends Component
 
     /* ===================== SPLIT PAYMENT ===================== */
 
-    /** Owner's setting: part payment on drugs and services as well as frames and lenses. */
-    public static function partPaymentOnAllItems(): bool
+    /**
+     * Per-item part payment (owner's rule on each category): what the patient pays for each line is its
+     * price less its insurer share and its share of the frames/lenses discount; of that, the category's
+     * holdable share may be left owing. The rest must be paid now.
+     */
+    private function applyPartPaymentRule(\Illuminate\Support\Collection $products): void
     {
-        return (bool) (\App\Models\Setting::getSettings()->part_payment_all_items ?? false);
+        $eligible = $this->getDiscountEligibleSubtotal();
+        $owed = [];
+        $holdable = [];
+        foreach ($this->cart as $cartKey => $cartItem) {
+            $product = $products[$this->getCartItemProductId($cartKey, $cartItem)] ?? null;
+            if (!$product) continue;
+            $qty = is_array($cartItem) ? $cartItem['quantity'] : $cartItem;
+            $gross = $qty * (float) ($this->lineSplits[$cartKey]['unit_price'] ?? $product->selling_price);
+            $discount = $eligible > 0 && $this->isDiscountEligibleProduct($product) ? (float) $this->discountAmount * $gross / $eligible : 0;
+            $line = max(0, $gross - (float) ($this->lineSplits[$cartKey]['insurer'] ?? 0) - $discount);
+            $owed[] = $line;
+            $holdable[] = $line * ($product->category?->holdableShare() ?? 0.0);
+        }
+        // The cashier may change the insurer's share; spread the patient's actual amount the same way.
+        $scale = array_sum($owed) > 0 ? (float) $this->amountDue / array_sum($owed) : 0;
+        $canHold = round(array_sum($holdable) * $scale, 2);
+
+        $this->partPaymentAllowed = $canHold > 0;
+        $this->minimumDueNow = round(max(0, (float) $this->amountDue - $canHold), 2);
     }
 
     public function updatedIsPartPayment($enabled)
@@ -1936,7 +1963,15 @@ class POSComponent extends Component
             $this->isPartPayment = false;
             $this->dispatch('notify', ...[
                 'type' => 'error',
-                'message' => 'Part payment is only for frames and lenses. The owner can allow it on drugs and services in Settings → Discounts & payments.',
+                'message' => 'None of these items can be part-paid. The owner sets this per category under Categories.',
+            ]);
+            return;
+        }
+
+        if ($this->isPartPayment && $this->getTotalPaid() + 0.005 < (float) $this->minimumDueNow) {
+            $this->dispatch('notify', ...[
+                'type' => 'error',
+                'message' => 'At least ' . currency() . ' ' . number_format((float) $this->minimumDueNow, 2) . ' must be paid now. Items whose category does not allow part payment are paid in full; the rest need their minimum deposit.',
             ]);
             return;
         }
@@ -2043,7 +2078,12 @@ class POSComponent extends Component
         if ($this->isPartPayment && !$this->partPaymentAllowed) {
             $this->checkoutProcessing = false;
             $this->isPartPayment = false;
-            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Part payment is only for frames and lenses at this clinic.']);
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'None of these items can be part-paid.']);
+            return;
+        }
+        if ($this->isPartPayment && (float) ($this->amountPaid ?? 0) + 0.005 < (float) $this->minimumDueNow) {
+            $this->checkoutProcessing = false;
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'At least ' . currency() . ' ' . number_format((float) $this->minimumDueNow, 2) . ' must be paid now.']);
             return;
         }
 
