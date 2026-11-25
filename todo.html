@@ -40,6 +40,21 @@
      6.expiry date
 
 
+     TODO (added 24 Nov 2026, not built yet): DISPENSARY SEPARATE FROM CASHIER
+     Today paying at the till counts as handing the drugs over.
+     Decided:
+     1. Flow: Doctor prescribes -> Dispenser checks stock and adjusts the cart
+        (out of stock, other brand) -> Cashier takes money -> Dispenser hands over
+        and ticks it done (who and when recorded).
+     2. Stock goes down at payment, as now; the hand-over only records it.
+     3. Owner setting per branch: "Drugs are handed over at a separate dispensary".
+        Off = today's one-counter behaviour.
+     4. New "Dispenser" role built by Nexus (Owner and Manager can also use the page).
+     Still to decide: do services/frames skip the dispensary; part-paid drugs;
+     reminder for paid drugs not collected; dispensing label / drug slip at the counter;
+     the till's "Waiting to pay" queue shows only carts the dispenser has released.
+
+
      Purchases
      consultation_id
 purchases
