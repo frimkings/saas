@@ -474,6 +474,16 @@
 .examination-group-heading { align-items: baseline; background: #f8fafc; border-left: 3px solid #64748b; display: flex; gap: 8px; margin: 12px -2px 9px; padding: 7px 10px; }
 .examination-group-heading strong { color: #1e293b; font-size: 12px; }
 .examination-group-heading span { color: #64748b; font-size: 10px; }
+.exam-va-grid { align-items: center; display: grid; gap: 6px 8px; grid-template-columns: 56px repeat(3, minmax(0, 1fr)); margin: 0 0 10px; }
+.exam-va-grid__corner { color: #334155; font-size: 12px; font-weight: 600; text-align: right; }
+.exam-va-grid__corner small { color: #64748b; font-weight: 400; }
+.exam-va-grid__head { color: #475569; font-size: 11px; font-weight: 600; text-align: center; }
+.exam-va-grid__eye { font-size: 12px; font-weight: 700; text-align: right; }
+.exam-va-grid__eye--od { color: #1d4ed8; }
+.exam-va-grid__eye--os { color: #047857; }
+.exam-va-grid .exam-va-grid__cell { border-radius: 0; margin: 0; max-width: none; min-width: 0; padding: 2px 0 2px 6px; }
+.exam-va-grid .exam-va-grid__cell::before { content: none; }
+.exam-va-grid__cell select { min-width: 0; width: 100%; }
 .form-control.exam-field--normal { background:var(--clinical-normal-soft); border-color:#86efac; box-shadow:inset 3px 0 0 var(--clinical-normal); }
 .form-control.exam-field--recorded { background:#fff; border-color:#cbd5e1; }
 .exam-action { border-width:1px; font-size:11px; font-weight:700; }

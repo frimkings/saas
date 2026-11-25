@@ -14,7 +14,9 @@ class VisitCard
 {
     /** Always listed eye by eye when recorded. */
     public const MEASURES = [
-        'VA (6m)' => ['vaOD6m', 'vaOS6m'],
+        'VA unaided' => ['vaOD6m', 'vaOS6m'],
+        'VA pinhole' => ['vaODph', 'vaOSph'],
+        'VA with glasses' => ['vaODcc', 'vaOScc'],
         'IOP' => ['IOPOD', 'IOPOS'],
         'C/D ratio' => ['cdrOD', 'cdrOS'],
     ];

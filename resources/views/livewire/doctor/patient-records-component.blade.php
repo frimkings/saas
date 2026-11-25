@@ -570,6 +570,36 @@
                                 @endphp
                                 @foreach($examMap as $odKey => $osKey)
                                     @if(isset($examGroups[$odKey]))<div class="examination-group-heading"><strong>{{ $examGroups[$odKey][0] }}</strong><span>{{ $examGroups[$odKey][1] }}</span></div>@endif
+                                    @if($odKey === 'vaOD6m')
+                                        {{-- Visual acuity, three ways per eye: unaided, pinhole, with the patient's own glasses --}}
+                                        @php
+                                            $vaOptions = \App\Livewire\Doctor\PatientRecordsComponent::vaLogMarTable($vaNotation);
+                                            $vaColumns = ['6m' => 'Unaided', 'ph' => 'Pinhole', 'cc' => 'Glasses'];
+                                        @endphp
+                                        <div class="exam-va-grid" data-tour="consultation-va-grid" role="group" aria-label="Visual acuity ({{ $vaNotation }})">
+                                            <div class="exam-va-grid__corner">V/A <small>({{ $vaNotation }})</small></div>
+                                            @foreach($vaColumns as $vaLabel)
+                                                <div class="exam-va-grid__head">{{ $vaLabel }}</div>
+                                            @endforeach
+                                            @foreach(['OD' => 'Right eye', 'OS' => 'Left eye'] as $eyeCode => $eyeName)
+                                                <div class="exam-va-grid__eye exam-va-grid__eye--{{ strtolower($eyeCode) }}" title="{{ $eyeName }}">{{ $eyeCode }}</div>
+                                                @foreach($vaColumns as $suffix => $vaLabel)
+                                                    @php $vaKey = 'va'.$eyeCode.$suffix; @endphp
+                                                    <div class="exam-va-grid__cell examination-eye-cell examination-eye-cell--{{ strtolower($eyeCode) }}" data-va-label="{{ $vaLabel }}">
+                                                        <select x-model="exam['{{ $vaKey }}']" aria-label="V/A {{ strtolower($vaLabel) }}, {{ strtolower($eyeName) }} ({{ $eyeCode }})" :class="findingClass('{{ $vaKey }}')"
+                                                            class="ui-input ui-input-sm"
+                                                            {{ $consultationFieldsLocked ? 'disabled' : '' }}>
+                                                            <option value="">—</option>
+                                                            @foreach($vaOptions as $label => $logmar)
+                                                                <option value="{{ $label }}">{{ $label }}{{ $logmar !== null ? ' ('.($logmar >= 0 ? '+' : '').$logmar.')' : ' (NM)' }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                @endforeach
+                                            @endforeach
+                                        </div>
+                                        @continue
+                                    @endif
                                     <div class="flex flex-wrap -mx-2 mb-2">
                                         <div class="w-full md:w-2/12 px-2 text-right flex items-center justify-end">
                                             <small class="font-semibold">{{ $examLabels[$odKey] }}</small>
@@ -641,7 +671,9 @@
             {{-- Diagnosis Search, Selected Tags & Clinical Notes --}}
             <div class="w-full px-2">
                 {{-- Diagnosis Section --}}
-                <div id="consultation-diagnosis-picker" class="mb-4 {{ $managementHasErrors ? 'consultation-field-error' : '' }} {{ $consultationFieldsLocked ? 'consultation-section-locked rounded-md p-2' : '' }}" x-data="{selected:$wire.entangle('selectedDiagnoses'),open:true,add(id,name){if(!this.selected.some(d=>Number(d.id)===Number(id)))this.selected.push({id:id,name:name});this.open=false},remove(i){this.selected.splice(i,1)}}">
+                <div id="consultation-diagnosis-picker" class="mb-4 {{ $managementHasErrors ? 'consultation-field-error' : '' }} {{ $consultationFieldsLocked ? 'consultation-section-locked rounded-md p-2' : '' }}" x-data="{selected:$wire.entangle('selectedDiagnoses'),open:true,edit:null,add(id,name){if(!this.selected.some(d=>Number(d.id)===Number(id)))this.selected.push({id:id,name:name});this.open=false},remove(i){this.selected.splice(i,1)},
+                    startEdit(id,name,count){this.edit={id:id,name:name,count:count};this.open=false;if(count===null)$wire.diagnosisUseCount(id).then(c=>{if(this.edit&&this.edit.id===id)this.edit.count=c});this.$nextTick(()=>this.$refs.diagEdit?.focus())},
+                    saveEdit(){const e=this.edit;if(!e)return;$wire.renameDiagnosis(e.id,e.name).then(ok=>{if(ok)this.edit=null})}}">
                     <label class="font-semibold">
                         Final Diagnoses <span class="text-red-700">*</span>
                         @if($consultationFieldsLocked)
@@ -655,7 +687,7 @@
                         </div>
                         <input type="text" class="ui-input" placeholder="Search for a diagnosis..."
                             wire:model.live.debounce.400ms="diagnosisSearch" aria-label="Search diagnoses"
-                            @input="open=true"
+                            @input="open=true" @keydown.enter.prevent="$wire.pickOrCreateDiagnosis()"
                             {{ $consultationFieldsLocked ? 'disabled' : '' }}>
                     </div>
 
@@ -663,24 +695,50 @@
                     @if(!empty($diagnosisSearch) && !$consultationFieldsLocked)
                         <div x-show="open" class="overflow-hidden rounded-md border border-slate-200 bg-white absolute w-full shadow-lg"
                             style="z-index: 1000; max-height: 200px; overflow-y: auto; left: 15px; width: calc(100% - 30px);">
+                            @php $diagExact = collect($this->diagnosisResults)->contains(fn ($d) => mb_strtolower($d->name) === mb_strtolower(trim($diagnosisSearch))); @endphp
                             @forelse($this->diagnosisResults as $diag)
-                                <button type="button"
-                                    @click="add({{ $diag->id }}, @js($diag->name))"
-                                    class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-slate-50 flex justify-between items-center"
-                                    {{ $consultationFieldsLocked ? 'disabled' : '' }}>
-                                    {{ $diag->name }}
-                                    <i class="fas fa-plus-circle text-green-700"></i>
-                                </button>
+                                <div class="diag-result flex items-stretch border-b border-slate-100">
+                                    <button type="button"
+                                        @click="add({{ $diag->id }}, @js($diag->name))"
+                                        class="flex-1 px-3 py-2 text-left hover:bg-slate-50 flex justify-between items-center">
+                                        {{ $diag->name }}
+                                        <i class="fas fa-plus-circle text-green-700"></i>
+                                    </button>
+                                    <button type="button" class="diag-rename px-3 text-slate-400 hover:text-slate-700 hover:bg-slate-50" title="Fix this name"
+                                        aria-label="Rename {{ $diag->name }}" @click="startEdit({{ $diag->id }}, @js($diag->name), {{ (int) $diag->consultations_count }})">
+                                        <i class="fas fa-pen"></i>
+                                    </button>
+                                </div>
                             @empty
-                                <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left text-slate-500">No diagnosis found.</div>
+                                <div class="list-group-item block w-full border-b border-slate-100 px-3 py-2 text-left text-slate-500">No diagnosis called "{{ trim($diagnosisSearch) }}".</div>
                             @endforelse
+                            @if(! $diagExact && mb_strlen(trim($diagnosisSearch)) >= 3)
+                                <button type="button" wire:click="createDiagnosis" class="diag-add w-full px-3 py-2 text-left flex justify-between items-center bg-sky-50 text-sky-800 hover:bg-sky-100">
+                                    <span><i class="fas fa-plus mr-1"></i> Add "{{ trim($diagnosisSearch) }}" as a new diagnosis</span>
+                                    @if(collect($this->diagnosisResults)->isEmpty())<small class="text-sky-700">Enter</small>@endif
+                                </button>
+                            @endif
                         </div>
                     @endif
 
                     {{-- Selected Diagnoses Tags Area --}}
                     <div class="mt-2 flex flex-wrap" style="gap: 5px;">
-                        <template x-for="(diag,index) in selected" :key="diag.id"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 p-2 shadow-sm"><i class="fas fa-stethoscope mr-1"></i><span x-text="diag.name"></span><button type="button" @click="remove(index)" class="ui-button ui-button-sm text-white ml-2 p-0 ui-button-secondary" style="line-height:1" {{ $consultationFieldsLocked ? 'disabled' : '' }}><i class="fas fa-times-circle"></i></button></span></template>
+                        <template x-for="(diag,index) in selected" :key="diag.id"><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800 p-2 shadow-sm"><i class="fas fa-stethoscope mr-1"></i><span x-text="diag.name"></span>@unless($consultationFieldsLocked)<button type="button" class="diag-chip-rename ml-2 text-sky-600 hover:text-sky-900" title="Fix this name" :aria-label="'Rename ' + diag.name" @click="startEdit(diag.id, diag.name, null)"><i class="fas fa-pen"></i></button>@endunless<button type="button" @click="remove(index)" class="ui-button ui-button-sm text-white ml-2 p-0 ui-button-secondary" style="line-height:1" {{ $consultationFieldsLocked ? 'disabled' : '' }}><i class="fas fa-times-circle"></i></button></span></template>
                     </div>
+                    @error('diagnosisSearch')<small class="consultation-inline-error"><i class="fas fa-exclamation-circle mr-1"></i>{{ $message }}</small>@enderror
+                    @unless($consultationFieldsLocked)
+                        <div class="diag-edit mt-2 rounded-md border border-sky-200 bg-sky-50 p-2" x-show="edit" x-cloak>
+                            <div class="flex items-center" style="gap:6px;">
+                                <input type="text" class="ui-input ui-input-sm flex-1" x-ref="diagEdit" :value="edit ? edit.name : ''" @input="edit && (edit.name = $event.target.value)"
+                                    @keydown.enter.prevent="saveEdit()" @keydown.escape="edit=null" aria-label="Diagnosis name">
+                                <button type="button" class="ui-button ui-button-sm ui-button-primary" @click="saveEdit()">Save</button>
+                                <button type="button" class="ui-button ui-button-sm ui-button-secondary" @click="edit=null">Cancel</button>
+                            </div>
+                            <small class="block mt-1 text-amber-700"><i class="fas fa-exclamation-triangle mr-1"></i>
+                                <span x-text="edit && edit.count !== null ? 'Renames it on all ' + edit.count + ' visit' + (edit.count === 1 ? '' : 's') + ' that use it.' : 'Renames it on every visit that uses it.'"></span>
+                                For a different condition, add a new diagnosis instead.</small>
+                        </div>
+                    @endunless
                     @if($managementHasErrors)<small class="consultation-inline-error"><i class="fas fa-exclamation-circle mr-1"></i>{{ $errors->first('diagnoses') ?: $errors->first('selectedDiagnoses') }}</small>@endif
                 </div>
 

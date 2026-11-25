@@ -88,7 +88,7 @@ class ClinicalRecordOwnershipTest extends TestCase
             'corneaOS' => 'Superficial punctate keratitis', 'fundusOD' => 'Normal', 'odq' => ['Itching']]);
         $exam = \App\Support\Clinical\VisitCard::exam($visit);
 
-        $this->assertSame(['VA (6m)', 'IOP', 'Cornea'], array_keys($exam['rows']));
+        $this->assertSame(['VA unaided', 'IOP', 'Cornea'], array_keys($exam['rows']));
         $this->assertSame(['Clear', 'Superficial punctate keratitis'], $exam['rows']['Cornea']);
         $this->assertSame(['Lids', 'Fundus'], $exam['normal']);
         $this->assertTrue(\App\Support\Clinical\VisitCard::iopHigh('24'));

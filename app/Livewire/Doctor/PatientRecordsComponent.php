@@ -166,7 +166,8 @@ public $isEditingAppointment = false;
             ->orderByRaw('CASE WHEN name LIKE ? THEN 0 ELSE 1 END', [$like . '%'])
             ->orderBy('name')
             ->limit(10)
-            ->get();
+            ->get()
+            ->each(fn ($d) => $d->consultations_count = $this->diagnosisUseCount($d->id));
     }
 
     public function addDiagnosis($id, $name)
@@ -180,6 +181,85 @@ public $isEditingAppointment = false;
             $this->selectedDiagnoses[] = ['id' => $id, 'name' => $name];
         }
         $this->diagnosisSearch = '';
+    }
+
+    /**
+     * 25 Nov 2026: a diagnosis missing from the clinic's list is added from the consultation itself
+     * and selected for this visit. A name already on the list (any letter case) is selected instead.
+     */
+    public function createDiagnosis(): void
+    {
+        if ($this->consultationFieldsLocked) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Diagnosis is locked for this consultation. Addenda remain available.']);
+            return;
+        }
+
+        $name = preg_replace('/\s+/', ' ', trim((string) $this->diagnosisSearch));
+        $this->diagnosisSearch = $name;
+        $this->validate(['diagnosisSearch' => 'required|string|min:3|max:255'], [], ['diagnosisSearch' => 'diagnosis name']);
+
+        $diagnosis = \App\Models\Diagnosis::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first();
+        if (! $diagnosis) {
+            $diagnosis = \App\Models\Diagnosis::create(['name' => $name]);
+            AuditTrail::record('diagnosis.created', "Added diagnosis \"{$name}\" from a consultation", $diagnosis, [], ['name' => $name], $this->patient->id ?? null);
+        }
+
+        $this->addDiagnosis($diagnosis->id, $diagnosis->name);
+    }
+
+    /** Enter in the search box: an exact or single match is selected; nothing found adds it. */
+    public function pickOrCreateDiagnosis(): void
+    {
+        $term = mb_strtolower(trim((string) $this->diagnosisSearch));
+        if (mb_strlen($term) < 2) return;
+        $results = collect($this->diagnosisResults);
+        $match = $results->first(fn ($d) => mb_strtolower($d->name) === $term) ?? ($results->count() === 1 ? $results->first() : null);
+
+        if ($match) {
+            $this->addDiagnosis($match->id, $match->name);
+        } elseif ($results->isEmpty()) {
+            $this->createDiagnosis();
+        }
+    }
+
+    /** How many visits carry this diagnosis, for the rename warning. */
+    public function diagnosisUseCount(int $id): int
+    {
+        // Every visit in the clinic, all branches: the name is shared by all of them.
+        return DB::table('consultation_diagnosis')->where('diagnosis_id', $id)->count();
+    }
+
+    /** Fix a diagnosis name in the clinic's list (it changes on every visit that uses it). */
+    public function renameDiagnosis(int $id, string $name): bool
+    {
+        if ($this->consultationFieldsLocked) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => 'Diagnosis is locked for this consultation. Addenda remain available.']);
+            return false;
+        }
+
+        $diagnosis = \App\Models\Diagnosis::findOrFail($id);
+        $name = preg_replace('/\s+/', ' ', trim($name));
+        $validator = Validator::make(['name' => $name], [
+            'name' => ['required', 'string', 'min:3', 'max:255',
+                \Illuminate\Validation\Rule::unique('diagnoses', 'name')
+                    ->where(fn ($q) => $q->where('clinic_id', \App\Models\Diagnosis::clinicIdForWrite()))
+                    ->ignore($diagnosis->id)],
+        ], ['name.unique' => 'Another diagnosis already has this name. Pick it from the list instead.'], ['name' => 'diagnosis name']);
+        if ($validator->fails()) {
+            $this->dispatch('notify', ...['type' => 'error', 'message' => $validator->errors()->first('name')]);
+            return false;
+        }
+
+        $old = $diagnosis->name;
+        if ($old === $name) return true;
+        $diagnosis->update(['name' => $name]);
+        AuditTrail::record('diagnosis.renamed', "Renamed diagnosis \"{$old}\" to \"{$name}\" from a consultation", $diagnosis, ['name' => $old], ['name' => $name], $this->patient->id ?? null);
+
+        $this->selectedDiagnoses = collect($this->selectedDiagnoses)
+            ->map(fn ($d) => (int) $d['id'] === $diagnosis->id ? ['id' => $d['id'], 'name' => $name] : $d)->values()->all();
+        $this->dispatch('notify', ...['type' => 'success', 'message' => 'Diagnosis renamed.']);
+
+        return true;
     }
 
     public function removeDiagnosis($index)
@@ -2414,7 +2494,7 @@ public function deleteAppointment($appointmentId)
 
     private function normalizeExaminationAssessments(): array
     {
-        $allowedFields = ['vaOD6m','vaOS6m','IOPOD','IOPOS','lidsOD','lidsOS','conjunctivaOD','conjunctivaOS','corneaOD','corneaOS','irisOD','irisOS','pupilOD','pupilOS','acOD','acOS','lensOD','lensOS','vitreousOD','vitreousOS','fundusOD','fundusOS','cdrOD','cdrOS'];
+        $allowedFields = ['vaOD6m','vaOS6m','vaODph','vaOSph','vaODcc','vaOScc','IOPOD','IOPOS','lidsOD','lidsOS','conjunctivaOD','conjunctivaOS','corneaOD','corneaOS','irisOD','irisOS','pupilOD','pupilOS','acOD','acOS','lensOD','lensOS','vitreousOD','vitreousOS','fundusOD','fundusOS','cdrOD','cdrOS'];
         $assessments = is_array($this->state['examination_assessments'] ?? null) ? $this->state['examination_assessments'] : [];
 
         return collect($assessments)
@@ -2448,6 +2528,10 @@ public function deleteAppointment($appointmentId)
                 'examination_assessments' => $this->normalizeExaminationAssessments(),
                 'vaOD6m'        => $this->state['vaOD6m'] ?? null,
                 'vaOS6m'        => $this->state['vaOS6m'] ?? null,
+                'vaODph'        => $this->state['vaODph'] ?? null,
+                'vaOSph'        => $this->state['vaOSph'] ?? null,
+                'vaODcc'        => $this->state['vaODcc'] ?? null,
+                'vaOScc'        => $this->state['vaOScc'] ?? null,
                 'lidsOD'        => $this->state['lidsOD'] ?? null,
                 'lidsOS'        => $this->state['lidsOS'] ?? null,
                 'conjunctivaOD' => $this->state['conjunctivaOD'] ?? null,
@@ -2582,7 +2666,7 @@ public function deleteAppointment($appointmentId)
             ]);
 
             $oldValues = $this->consultation->only([
-                'chiefComplaint', 'IOPOD', 'IOPOS', 'vaOD6m', 'vaOS6m', 'notes', 'others', 'odq',
+                'chiefComplaint', 'IOPOD', 'IOPOS', 'vaOD6m', 'vaOS6m', 'vaODph', 'vaOSph', 'vaODcc', 'vaOScc', 'notes', 'others', 'odq',
             ]);
 
             $this->consultation->update($updateData);

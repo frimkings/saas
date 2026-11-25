@@ -140,6 +140,12 @@
                                                     <tr><th class="text-slate-500" style="width:130px;">Chief Complaint</th><td>{{ $data->chiefComplaint ?: '—' }}</td></tr>
                                                     <tr><th class="text-slate-500">IOP OD / OS</th><td>{{ $data->IOPOD ?: '—' }} / {{ $data->IOPOS ?: '—' }} mmHg</td></tr>
                                                     <tr><th class="text-slate-500">VA OD / OS</th><td>{{ $data->vaOD6m ?: '—' }} / {{ $data->vaOS6m ?: '—' }}</td></tr>
+                                                    @if($data->vaODph || $data->vaOSph)
+                                                    <tr><th class="text-slate-500">Pinhole OD / OS</th><td>{{ $data->vaODph ?: '—' }} / {{ $data->vaOSph ?: '—' }}</td></tr>
+                                                    @endif
+                                                    @if($data->vaODcc || $data->vaOScc)
+                                                    <tr><th class="text-slate-500">With glasses OD / OS</th><td>{{ $data->vaODcc ?: '—' }} / {{ $data->vaOScc ?: '—' }}</td></tr>
+                                                    @endif
                                                     @if($data->notes)
                                                     <tr><th class="text-slate-500">Notes</th><td>{{ $data->notes }}</td></tr>
                                                     @endif
