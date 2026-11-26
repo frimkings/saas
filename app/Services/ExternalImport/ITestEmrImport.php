@@ -111,6 +111,8 @@ class ITestEmrImport
             'earlier_patients' => count($earlier),
             'already_imported' => $repeat->count(),
             'already_imported_folders' => $folders->filter(fn ($f) => isset($earlier[mb_strtolower($f['number'])]))->count(),
+            // A period copied again: visits patients from earlier parts had since, on days not yet here.
+            'later_visits' => $earlier ? array_sum(array_map(fn ($w) => count($w[1]), $this->laterVisits($folders->all(), $earlier, $this->earlierVisits($batch->clinic_id)))) : 0,
             'internal_ids' => $patients->pluck('internal_id')->filter(fn ($v) => ctype_digit((string) $v))->map(fn ($v) => (int) $v)->pipe(fn ($c) => $c->isEmpty() ? null : [$c->min(), $c->max()]),
         ];
         $report['patients'] = [
@@ -120,7 +122,7 @@ class ITestEmrImport
             'no_phone' => $patients->filter(fn ($p) => trim($p['Contact'] ?? '') === '')->count(),
             'renumbered' => $new->count() - $new->map(fn ($n) => mb_strtolower($n))->unique()->count() + $taken + $patients->filter(fn ($p) => trim($p['Patients ID'] ?? '') === '')->count(),
             'already_in_clinic' => DB::table('patients')->where('clinic_id', $batch->clinic_id)->count(),
-            'no_folder' => $folders->isEmpty() ? [] : $numbers->reject(fn ($n) => isset($withFolder[mb_strtolower($n)]))->values()->all(),
+            'no_folder' => $folders->isEmpty() ? [] : $new->reject(fn ($n) => isset($withFolder[mb_strtolower($n)]))->values()->all(),
             'next_of_kin' => $patients->filter(fn ($p) => trim($p['Next of Kin'] ?? '') !== '' || trim($p['Next of Kin Contact'] ?? '') !== '')->count(),
         ];
         $report['visits'] = $newFolders->sum(fn ($f) => count($this->byDay($f['visits'])));
@@ -317,14 +319,51 @@ class ITestEmrImport
         return $map;
     }
 
+    /**
+     * A clinic copied again for a period (a top-up before it switches over): for patients an earlier part brought in,
+     * the visits after their last imported one, on days with no visit here yet (the clinic may have seen them here
+     * since). lower-cased patient number => [patient id, visits by day]. Visits up to the last imported one never
+     * come in again, so one the clinic removed after the import stays removed.
+     */
+    private function laterVisits(array $folders, array $earlier, array $imported): array
+    {
+        $want = [];
+        foreach ($folders as $folder) {
+            $key = mb_strtolower($folder['number']);
+            if (! isset($earlier[$key])) continue;
+            $id = $earlier[$key]['id'];
+            $last = ($imported[$id] ?? []) ? max(array_keys($imported[$id])) : null;
+            $days = array_values(array_filter($this->byDay($folder['visits']), fn ($v) => $last === null || $this->date($v['date'])->toDateString() > $last));
+            if ($days) $want[$key] = [$id, $days];
+        }
+        $taken = [];
+        foreach (array_chunk(array_column($want, 0), 1000) as $ids) {
+            foreach (DB::table('cashier_patient_clearances')->whereIn('patient_id', $ids)->get(['patient_id', 'clearance_date']) as $c) $taken[$c->patient_id][Carbon::parse($c->clearance_date)->toDateString()] = true;
+        }
+        foreach ($want as $key => [$id, $days]) {
+            $days = array_values(array_filter($days, fn ($v) => ! isset($taken[$id][$this->date($v['date'])->toDateString()])));
+            if ($days) $want[$key] = [$id, $days]; else unset($want[$key]);
+        }
+
+        return $want;
+    }
+
     private function importVisits(array $folders, array $patients, bool $addDiagnoses, bool $appointments, array $earlier = []): void
     {
         $diagnoses = $this->clinicDiagnoses($this->clinicId);
+        $later = $this->laterVisits($folders, $earlier, $this->visitIds);
         foreach ($folders as $folder) {
-            $patient = $patients[mb_strtolower($folder['number'])] ?? null;
-            if (! $patient) { $this->skip('records', isset($earlier[mb_strtolower($folder['number'])]) ? 'patient and visits already brought in by an earlier part' : 'patient not in the directory file'); continue; }
-            foreach ($folder['visits'] as $visit) if (! $this->date($visit['date'] ?? null)) $this->skip('records', 'visit without a date');
-            foreach ($this->byDay($folder['visits']) as $visit) {
+            $key = mb_strtolower($folder['number']);
+            $patient = $patients[$key] ?? null;
+            $days = null;
+            if (! $patient && isset($later[$key])) [$patient, $days] = $later[$key];
+            if (! $patient) { $this->skip('records', isset($earlier[$key]) ? 'patient and visits already brought in by an earlier part' : 'patient not in the directory file'); continue; }
+            if ($days === null) {
+                foreach ($folder['visits'] as $visit) if (! $this->date($visit['date'] ?? null)) $this->skip('records', 'visit without a date');
+            } else {
+                $this->counts['later visits for patients already here'] = ($this->counts['later visits for patients already here'] ?? 0) + count($days);
+            }
+            foreach ($days ?? $this->byDay($folder['visits']) as $visit) {
                 $day = $this->date($visit['date']);
                 $at = $this->dateTime($visit['time'] ?? null);
                 $at = $at && $at->isSameDay($day) ? $at : $day->copy()->setTime(12, 0);
@@ -369,6 +408,9 @@ class ITestEmrImport
 
             if ($appointments && ($next = $this->nextReview($folder['visits']))) {
                 [$when, $visit] = $next;
+                // A later visit's review, once: not when the review came from a visit already here, or is already booked.
+                if ($days !== null && (! in_array($visit['date'], array_column($days, 'date'), true)
+                    || DB::table('appointments')->where('patient_id', $patient)->whereDate('scheduled_at', $when->toDateString())->exists())) continue;
                 $this->insert('appointments', [
                     'clinic_id' => $this->clinicId, 'branch_id' => $this->branchId, 'patient_id' => $patient,
                     'doctor_id' => $this->doctor($visit['doctor'] ?? null), 'user_id' => $this->ownerId, 'title' => 'Review',

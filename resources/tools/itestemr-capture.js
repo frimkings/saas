@@ -12,13 +12,18 @@
     + 'ALL: everything in one go (clinics with up to about 5,000 patients).\n'
     + 'A range such as 1-2000: only those patients\' files, by iTestEMR\'s internal number. Run 2001-4000 next, and so on (about 45 minutes per 2,000 on a slow server).\n'
     + 'LISTS: stock, staff, prices, payments and balances, without patient files.\n'
-    + 'ORDERS: spectacle orders on their own (slow for a clinic with thousands of orders: run it alone).', 'ALL');
+    + 'ORDERS: spectacle orders on their own (slow for a clinic with thousands of orders: run it alone).\n'
+    + 'SINCE 2026-11-16: a top-up of what was recorded from that date (new patients, later visits, payments, balances, orders); add a range to split it, e.g. SINCE 2026-11-16 1-10000.', 'ALL');
   if (answer === null) return;
-  const rangeMatch = answer.trim().match(/^(\d+)\s*-\s*(\d+)$/);
-  const mode = rangeMatch ? 'range' : /^lists?$/i.test(answer.trim()) ? 'lists' : /^orders?$/i.test(answer.trim()) ? 'orders' : 'all';
-  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS, ORDERS or a range such as 1-2000.'); return; }
-  const range = rangeMatch ? [Math.min(+rangeMatch[1], +rangeMatch[2]), Math.max(+rangeMatch[1], +rangeMatch[2])] : null;
-  if (range && range[1] - range[0] > 9999) { alert('Copy at most 10,000 numbers per stage, for example 1-2000.'); return; }
+  const sinceMatch = answer.trim().match(/^since\s+(\d{4}-\d{2}-\d{2})(?:\s+(\d+)\s*-\s*(\d+))?$/i);
+  const rangeMatch = sinceMatch ? (sinceMatch[2] ? [null, sinceMatch[2], sinceMatch[3]] : null) : answer.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+  const mode = sinceMatch ? 'since' : rangeMatch ? 'range' : /^lists?$/i.test(answer.trim()) ? 'lists' : /^orders?$/i.test(answer.trim()) ? 'orders' : 'all';
+  if (mode === 'all' && !/^all$/i.test(answer.trim())) { alert('Type ALL, LISTS, ORDERS, SINCE and a date (SINCE 2026-11-16), or a range such as 1-2000.'); return; }
+  const since = sinceMatch ? sinceMatch[1] : null;
+  if (since && (isNaN(new Date(since + 'T00:00:00')) || since > new Date().toISOString().slice(0, 10))) { alert('SINCE needs a past date written as year-month-day, for example SINCE 2026-11-16.'); return; }
+  let range = rangeMatch ? [Math.min(+rangeMatch[1], +rangeMatch[2]), Math.max(+rangeMatch[1], +rangeMatch[2])] : null;
+  // A top-up reads only each patient's folder page (printing just those seen since the date), so it can take more numbers at once.
+  if (range && range[1] - range[0] > (mode === 'since' ? 29999 : 9999)) { alert(mode === 'since' ? 'Copy at most 30,000 numbers per top-up.' : 'Copy at most 10,000 numbers per stage, for example 1-2000.'); return; }
   window.__nexusCapture = true;
 
   const host = location.hostname;
@@ -136,7 +141,10 @@
     ['Insure #', 'Insurance#'], ['Patient ID', 'Patients ID'], ['First Visit Date', 'First Visit']];
   async function folderInfo(id) {
     const doc = await getDoc('/hms-patient-folder/' + id);
-    const visits = [...doc.querySelectorAll('select option')].filter((o) => o.value.trim() !== '').length;
+    const options = [...doc.querySelectorAll('select option')].filter((o) => o.value.trim() !== '');
+    const visits = options.length;
+    // The visit list's dates where its entries show one (a top-up prints only folders with a visit since its date).
+    const days = options.map((o) => visitDay(text(o))).filter(Boolean);
     const t = (doc.body.textContent || '').replace(/[\s ]+/g, ' ');
     const from = t.indexOf('PATIENT CLINIC RECORDS');
     const to = t.indexOf('PATIENT FILE ATTACHMENTS');
@@ -152,7 +160,15 @@
       if (col) r[col] = s.slice(startV, endV).trim().replace(/^N\/A$/i, '');
       at = startV;
     });
-    return r['Patients ID'] ? { details: r, visits } : null;
+    return r['Patients ID'] ? { details: r, visits, days: days.length === visits ? days : null } : null;
+  }
+  /** A date written in a line of text as YYYY-MM-DD, or "16 Nov 2026" / "Nov 16, 2026"; null when there is none. */
+  function visitDay(s) {
+    const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
+    const words = s.match(/\b(\d{1,2}[\s-]+[A-Za-z]{3,9}\.?,?[\s-]+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})\b/);
+    const d = words ? new Date(words[1].replace('.', '').replace(/-/g, ' ') + ' 12:00') : null;
+    return d && !isNaN(d) ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : null;
   }
 
   let patients = [];
@@ -188,16 +204,33 @@
     log(patients.length + ' patients' + (total && patients.length < total ? ' of ' + total + ' listed: the directory stopped loading early' : ''), total && patients.length < total);
   }
 
+  // A top-up with no range walks every number: the directory's count, plus room for numbers skipped along the way
+  // (more is added while patients keep turning up near the end).
+  let open = false;
+  if (mode === 'since' && !range) {
+    step('Counting patients…', 2);
+    const dir = await frame('/patient-directory');
+    try {
+      const branch = dir.contentDocument.querySelector('select[wire\\:model*="ranch"]');
+      if (branch && [...branch.options].some((o) => o.value === 'all') && branch.value !== 'all') { await component(dir).set(branch.getAttribute('wire:model'), 'all'); await sleep(1500); }
+      const total = parseInt(((dir.contentDocument.body.innerText.match(/Count:\s*([\d,]+)/) || [])[1] || '0').replace(/,/g, ''), 10) || 0;
+      if (!total) throw new Error('The patient count could not be read from the Patient\'s Directory. Add a range, for example SINCE ' + since + ' 1-30000.');
+      range = [1, total + 200]; open = true;
+    } finally { dir.remove(); }
+  }
+
   /* ---------- 2. every patient's records ---------- */
-  if (mode === 'all' || mode === 'range') {
+  if (mode === 'all' || mode === 'range' || mode === 'since') {
     // A stage walks its range of internal numbers and reads each folder page for the details, so the full
     // directory (slow for a big clinic) is never opened. In both ways a patient with no visits is not printed:
     // iTestEMR's print page fails for them, and their details are all there is to keep.
-    const ids = mode === 'range' ? Array.from({ length: range[1] - range[0] + 1 }, (_, k) => String(range[0] + k)) : patients.map((p) => p.internal_id);
+    const ids = mode === 'all' ? patients.map((p) => p.internal_id) : Array.from({ length: range[1] - range[0] + 1 }, (_, k) => String(range[0] + k));
     const byId = new Map(patients.map((p) => [p.internal_id, p]));
     const found = [], folders = [], failed = [];
-    let done = 0, next = 0, empty = 0, novisits = 0;
-    const label = mode === 'range' ? 'Copying patients ' + range[0] + '-' + range[1] + '… ' : 'Copying patient records… ';
+    let done = 0, next = 0, empty = 0, novisits = 0, quiet = 0;
+    const label = mode === 'range' ? 'Copying patients ' + range[0] + '-' + range[1] + '… ' : mode === 'since' ? 'Looking for visits since ' + since + '… ' : 'Copying patient records… ';
+    // A top-up prints a folder only when its visit list shows a visit on or after the date (or shows no dates at all).
+    const recent = (info) => mode !== 'since' || !info.days || info.days.some((d) => d >= since) || (visitDay(info.details['First Visit'] || '') || '') >= since;
     async function worker() {
       while (next < ids.length) {
         check();
@@ -208,11 +241,12 @@
             if (info === null) {
               info = await folderInfo(id);
               if (!info) {
-                if (mode === 'range') { empty++; settled = true; break; }
+                if (mode !== 'all') { empty++; settled = true; break; }
                 info = { details: byId.get(id), visits: 1 };
               }
             }
-            if (info.visits > 0) {
+            if (info.visits > 0 && !recent(info)) quiet++;
+            else if (info.visits > 0) {
               const doc = await getDoc('/hms-print-all-patient-folder/' + id);
               doc.querySelectorAll('script,style,link,noscript,img').forEach((e) => e.remove());
               html = doc.body.innerHTML;
@@ -225,7 +259,9 @@
           }
         }
         if (info && info.details) {
-          found[k] = mode === 'range' ? info.details : Object.assign({}, info.details, byId.get(id) || {});
+          found[k] = mode === 'all' ? Object.assign({}, info.details, byId.get(id) || {}) : info.details;
+          // Patients still turning up near the end of the count: walk on.
+          if (open && +id > ids.length - 100) { const last = ids.length; for (let n = last + 1; n <= last + 100; n++) ids.push(String(n)); range[1] = ids.length; }
           if (html !== null) folders[k] = '<section class="px" data-internal-id="' + id + '">' + html + '</section>';
         }
         done++;
@@ -244,6 +280,7 @@
       if (!patients.length) log('No patients in this range. If the stage before had patients right up to its end, try one more range; otherwise every patient is copied.', true);
     }
     log(copied.length + ' patient folders with ' + visits + ' visits' + (novisits ? '; ' + novisits + ' patients have no visits (details only)' : ''));
+    if (mode === 'since') log('Top-up since ' + since + ': ' + patients.length + ' patients read (numbers ' + range[0] + ' to ' + range[1] + '); ' + copied.length + ' seen since then were copied in full, ' + quiet + ' with no visit since were not.');
     if (failed.length) log(failed.length + ' patient folders would not open in iTestEMR: ' + failed.join(', ') + '. Run this stage again, or print these from iTestEMR by hand.', true);
   }
 
@@ -280,7 +317,7 @@
         if (from && from.getAttribute('wire:model')) {
           // Wait for the server's answer, not a fixed time: a slow server answered after the old 2 seconds (16 rows of 628).
           const done = answered(f);
-          await component(f).set(from.getAttribute('wire:model'), '2000-01-01');
+          await component(f).set(from.getAttribute('wire:model'), since || '2000-01-01');
           await done(120000); await sleep(1000);
         }
         return tableRows(findTable(f.contentDocument, /Expiry Date/));
@@ -312,7 +349,7 @@
         if (branchSel && [...branchSel.options].some((o) => o.value === 'all')) put(branchSel, 'all');
         const dates = d.querySelectorAll('input[type=date]');
         if (dates.length < 2) return null;
-        put(dates[0], '2000-01-01'); put(dates[1], new Date().toISOString().slice(0, 10));
+        put(dates[0], since || '2000-01-01'); put(dates[1], new Date().toISOString().slice(0, 10));
         await sleep(800);
         // Wait for the server's answer to the search (up to 10 minutes), not for the page to stop changing: the page
         // sits still while a big clinic's report is built, and the old wait gave up then (Advanced: 30,812 lines lost).
@@ -349,11 +386,12 @@
         const settle = async (from) => { for (let i = 0; i < 40 && processed === from; i++) await sleep(150); await sleep(150); };
         const seen = new Map();
         const now = new Date();
-        for (const year of [...yearSel.options].map((o) => o.value).filter(Boolean)) {
+        for (const year of [...yearSel.options].map((o) => o.value).filter(Boolean).filter((y) => !since || Number(y) >= Number(since.slice(0, 4)))) {
           await c.set('filterYear', year);
           for (let m = 1; m <= 12; m++) {
             check();
             if (Number(year) > now.getFullYear() || (Number(year) === now.getFullYear() && m > now.getMonth() + 1)) break;
+            if (since && year === since.slice(0, 4) && m < Number(since.slice(5, 7))) continue;
             const from = processed;
             await c.set('filterMonth', String(m)); await c.call('fetchPayments');
             await settle(from);
@@ -499,13 +537,15 @@
     }],
   ];
   // LISTS leaves the spectacle orders to their own run (ORDERS): thousands of them load slowly, one "Load more" at a time.
-  const wanted = mode === 'all' ? lists : mode === 'lists' ? lists.filter(([n]) => n !== 'spectacle-orders.csv') : mode === 'orders' ? lists.filter(([n]) => n === 'spectacle-orders.csv') : [];
+  const wanted = mode === 'all' || mode === 'since' ? lists : mode === 'lists' ? lists.filter(([n]) => n !== 'spectacle-orders.csv') : mode === 'orders' ? lists.filter(([n]) => n === 'spectacle-orders.csv') : [];
   for (let i = 0; i < wanted.length; i++) {
     check();
     const [name, label, read] = wanted[i];
     step('Copying ' + label.toLowerCase() + '…', 86 + 12 * i / wanted.length);
     try {
-      const rows = await read();
+      let rows = await read();
+      // A top-up keeps the orders dated on or after its date (an order whose date can't be read is kept).
+      if (since && name === 'spectacle-orders.csv' && rows) rows = [rows[0], ...rows.slice(1).filter((r) => { const d = visitDay(r[1] || ''); return !d || d >= since; })];
       if (rows && rows.length > 1) { files[name] = csv(rows); log(label + ': ' + (rows.length - 1)); }
       else log(label + ': none found', true);
     } catch (e) {
@@ -516,15 +556,15 @@
 
   /* ---------- 4. the download ---------- */
   check();
-  report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Part: ' + (mode === 'range' ? 'patients ' + range[0] + '-' + range[1] : mode === 'lists' ? 'lists only' : mode === 'orders' ? 'spectacle orders only' : 'everything'), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
+  report.unshift('iTestEMR capture of ' + host + ' on ' + new Date().toString(), 'Part: ' + (mode === 'range' ? 'patients ' + range[0] + '-' + range[1] : mode === 'since' ? 'top-up of what was recorded since ' + since + ', patients ' + range[0] + '-' + range[1] : mode === 'lists' ? 'lists only' : mode === 'orders' ? 'spectacle orders only' : 'everything'), 'Signed in as: ' + (text(document.querySelector('.user-name-text') && document.querySelector('.user-name-text').parentElement) || 'not shown on this page'), '');
   if (/Role:\s*clinician/i.test(report[1])) report.splice(2, 0, 'This login is a clinician: an administrator login may see more (prices, payments).');
-  if ((mode === 'all' || mode === 'lists') && (!files['payments.csv'] || !files['outstanding-balances.csv'])) report.push('', 'Payments and balances were not captured: they need an administrator login.');
+  if ((mode === 'all' || mode === 'lists' || mode === 'since') && (!files['payments.csv'] || !files['outstanding-balances.csv'])) report.push('', 'Payments and balances were not captured: they need an administrator login.');
   files['capture-report.txt'] = report.join('\r\n');
   step('Making the .zip…', 99);
   const blob = zip(files);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'itestemr-' + host.split('.')[0] + (mode === 'range' ? '-patients-' + range[0] + '-' + range[1] : mode === 'lists' ? '-lists' : mode === 'orders' ? '-orders' : '') + '-' + today + '.zip';
+  a.download = 'itestemr-' + host.split('.')[0] + (mode === 'range' ? '-patients-' + range[0] + '-' + range[1] : mode === 'since' ? '-since-' + since + (open ? '' : '-patients-' + range[0] + '-' + range[1]) : mode === 'lists' ? '-lists' : mode === 'orders' ? '-orders' : '') + '-' + today + '.zip';
   document.body.appendChild(a); a.click(); a.remove();
   step('Done: ' + a.download + ' (' + (blob.size / 1048576).toFixed(1) + ' MB) is downloading.', 100);
   $('[data-stop]').textContent = 'Close';

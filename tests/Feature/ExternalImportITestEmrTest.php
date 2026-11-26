@@ -415,6 +415,62 @@ class ExternalImportITestEmrTest extends TestCase
         foreach (['patients', 'consultations', 'patient_legacy_payments', 'sales', 'external_import_rows'] as $table) $this->assertSame(0, DB::table($table)->count(), $table);
     }
 
+    /** Ama's folder as it stood before her latest visit (yesterday): the first import, before a top-up. */
+    private function amaBeforeHerLatestVisit(): array
+    {
+        [$csv, $html] = $this->stage(['KAS/0002/26'], 'first');
+        $folder = $html->get();
+        $cut = strrpos($folder, '<div class="page-break"></div>');
+
+        return [$csv, UploadedFile::fake()->createWithContent('first-patient-records.html', substr($folder, 0, $cut).'</section></body></html>')];
+    }
+
+    public function test_a_top_up_brings_new_patients_and_the_visits_patients_already_here_had_since(): void
+    {
+        $first = $this->importPart($this->amaBeforeHerLatestVisit());
+        $ama = DB::table('patients')->where('pxnumber', 'KAS/0002/26')->value('id');
+        $this->assertSame(1, DB::table('consultations')->where('patient_id', $ama)->count());
+        $this->assertSame(1, DB::table('appointments')->where('patient_id', $ama)->count(), 'the review from the visit of 5 March');
+
+        // The top-up holds Ama's whole folder (her old visit and yesterday's) and a patient registered since.
+        $topUp = $this->importPart($this->stage(['KAS/0002/26', 'KAS/0001/26'], 'since'));
+        $this->assertSame(1, $topUp->analysis['part']['later_visits']);
+        $this->assertSame([], $topUp->analysis['patients']['no_folder'], 'patients already here are not listed as having no folder');
+        $this->assertSame(['KAS/0001/26', 'KAS/0002/26'], DB::table('patients')->orderBy('pxnumber')->pluck('pxnumber')->all());
+        $days = DB::table('consultations')->where('patient_id', $ama)->orderBy('created_at')->pluck('created_at')->map(fn ($d) => substr($d, 0, 10))->all();
+        $this->assertSame(['2026-03-05', now()->subDay()->toDateString()], $days, 'only the visit after her last imported one is added');
+        $this->assertSame(1, $topUp->result['created']['later visits for patients already here']);
+        $this->assertSame(2, DB::table('appointments')->where('patient_id', $ama)->count(), 'yesterday\'s review is booked');
+
+        // The same top-up again adds nothing.
+        $again = $this->importPart($this->stage(['KAS/0002/26', 'KAS/0001/26'], 'since-again'));
+        $this->assertSame(0, $again->analysis['part']['later_visits']);
+        $this->assertSame(3, DB::table('consultations')->count());
+        $this->assertSame(2, DB::table('appointments')->count(), 'Ama\'s two reviews; Yaw\'s is long past');
+
+        // Undo newest first takes the top-up off and leaves the first import.
+        $rollback = app(\App\Services\ExternalImport\ExternalImportRollback::class);
+        $rollback->undo($again->fresh());
+        $rollback->undo($topUp->fresh());
+        $this->assertSame(1, DB::table('consultations')->count());
+        $this->assertSame(['KAS/0002/26'], DB::table('patients')->pluck('pxnumber')->all());
+        $this->assertSame('completed', $first->fresh()->status);
+    }
+
+    public function test_a_top_up_leaves_out_a_visit_on_a_day_the_clinic_already_saw_the_patient_here(): void
+    {
+        $this->importPart($this->amaBeforeHerLatestVisit());
+        $ama = DB::table('patients')->where('pxnumber', 'KAS/0002/26')->value('id');
+        // Since the import the clinic saw Ama here yesterday, in this system.
+        DB::table('cashier_patient_clearances')->insert(['clinic_id' => $this->clinic->id, 'branch_id' => $this->clinic->branches()->value('id'), 'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $this->doctor->id, 'patient_id' => $ama, 'payment_status' => 'Paid', 'doctor_status' => 1, 'clearance_date' => now()->subDay()->toDateString(), 'created_at' => now(), 'updated_at' => now()]);
+
+        $topUp = $this->importPart($this->stage(['KAS/0002/26'], 'since'));
+        $this->assertSame(0, $topUp->analysis['part']['later_visits']);
+        $this->assertSame(1, DB::table('consultations')->where('patient_id', $ama)->count());
+        $this->assertSame(2, DB::table('cashier_patient_clearances')->where('patient_id', $ama)->count());
+    }
+
     public function test_undoing_the_lists_part_takes_its_order_notes_off_the_earlier_visits(): void
     {
         $this->importPart($this->stage(['KAS/0001/26', 'KAS/0002/26'], 'stage-1'));
