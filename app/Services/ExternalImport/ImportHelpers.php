@@ -58,6 +58,8 @@ trait ImportHelpers
         if (is_numeric($value)) return (float) $value > 1 && (float) $value < 2958465 ? Carbon::create(1899, 12, 30, 0, 0, 0)->addSeconds((int) round((float) $value * 86400)) : null;
         // iTestEMR writes a missing date as 0000-00-00, which would read as the year -1 (MySQL refuses it): no date.
         if (preg_match('/^0{4}-0{2}-0{2}/', $value)) return null;
+        // iTestEMR's Cash Credit writes "24 Dec, 2025": with the comma Carbon keeps the day and month but takes this year.
+        $value = preg_replace('/^(\d{1,2}\s+[A-Za-z]{3,9}\.?),\s*(\d{4})\b/', '$1 $2', $value);
         try { $date = Carbon::parse($value); } catch (\Throwable) { return null; }
 
         return $date->year < 1900 ? null : $date;

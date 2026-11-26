@@ -487,6 +487,16 @@ class ExternalImportITestEmrTest extends TestCase
         $this->assertSame(2, DB::table('patients')->count(), 'the stage itself stays');
     }
 
+    public function test_a_date_written_with_a_comma_before_the_year_keeps_its_year(): void
+    {
+        // iTestEMR's Cash Credit writes "24 Dec, 2025"; read as-is it became 24 Dec of the current year (Advanced: balances dated in the future).
+        $import = app(\App\Services\ExternalImport\ITestEmrImport::class);
+        $this->assertSame('2025-12-24', $import->dateTime('24 Dec, 2025')->toDateString());
+        $this->assertSame('2021-08-07', $import->dateTime('07 Aug, 2021')->toDateString());
+        $this->assertSame('2025-12-24', $import->dateTime('Dec 24, 2025')->toDateString());
+        $this->assertSame('2026-03-05', $import->dateTime('05-Mar-2026')->toDateString());
+    }
+
     public function test_a_missing_date_written_as_zeros_comes_in_as_no_date(): void
     {
         // iTestEMR writes a missing date as 0000-00-00 (Advanced Eye Care: 1,383 patients in one stage); MySQL refuses the year -1 it reads as.
