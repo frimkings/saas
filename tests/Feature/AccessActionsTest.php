@@ -66,6 +66,7 @@ class AccessActionsTest extends TestCase
         'app/Providers/AppServiceProvider.php' => 1,          // the owner passes every check
         'app/Providers/AuthServiceProvider.php' => 1,         // same, for policies
         'app/Services/Platform/Announcements.php' => 1,       // platform news goes to clinic owners
+        'app/Services/OwnerAlerts.php' => 1,                  // the owner isn't alerted about a reset link they sent
         'app/Livewire/Admin/UserRoleManagerComponent.php' => 1, // is the person being edited an owner here?
         'app/Livewire/Doctor/PatientRecordsComponent.php' => 1, // a doctor opening a record needs its patient
         'app/Support/Tenancy/RoleDashboardResolver.php' => 1, // landing page by role
