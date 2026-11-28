@@ -28,7 +28,7 @@ Route::get('/forgot-password', [OfflinePasswordResetController::class, 'showRequ
                 ->name('password.request');
 
 Route::post('/forgot-password', [OfflinePasswordResetController::class, 'findAccount'])
-                ->middleware('guest')
+                ->middleware(['guest', 'throttle:6,1'])
                 ->name('password.email');
 
 Route::get('/reset-password', [OfflinePasswordResetController::class, 'showResetForm'])

@@ -26,6 +26,23 @@ class OfflinePasswordResetController extends Controller
         // regardless of whether the email exists, to prevent user enumeration.
         $user = User::where('email', $email)->first();
 
+        // Online: a one-time link straight to the account's inbox, no approval. "Ask my manager"
+        // (for someone who can't get into their email) keeps the approval and code below.
+        if (\App\Services\PasswordResetLinks::selfService() && ! $request->boolean('via_manager')) {
+            $existing = $user ? PasswordResetRequest::latestFor($email) : null;
+            // A manager already approved and gave a code: carry on with that.
+            if ($existing && $existing->isApproved() && $existing->code_hash) {
+                session(['offline_reset_email' => $email]);
+                return redirect()->route('password.offline.form');
+            }
+            if ($user) {
+                app(\App\Services\PasswordResetLinks::class)->forgot($user);
+            }
+
+            // The same answer whether or not the address has an account.
+            return back()->with('request_status', 'emailed')->withInput();
+        }
+
         if ($user) {
             $existing = PasswordResetRequest::latestFor($email);
 
@@ -130,9 +147,12 @@ class OfflinePasswordResetController extends Controller
                 : back()->withErrors(['code' => $message]);
         }
 
-        User::where('email', $email)->firstOrFail()->update([
+        // They chose this password themselves: no change screen at the next sign-in.
+        User::where('email', $email)->firstOrFail()->forceFill([
             'password' => Hash::make($request->password),
-        ]);
+            'must_change_password' => false,
+            'last_password_changed_at' => now(),
+        ])->save();
 
         // Mark request completed so it can't be reused
         $req->update(['status' => 'completed', 'actioned_at' => now(), 'code_hash' => null, 'link_hash' => null]);

@@ -222,8 +222,9 @@ class OwnerEmailsTest extends TestCase
         $staff = User::factory()->create(['email' => 'nurse@brighteyes.test', 'name' => 'Ama Nurse']);
         $clinic->users()->attach($staff->id, ['status' => 'active']);
 
-        $this->post(route('password.email'), ['email' => 'nurse@brighteyes.test'])->assertSessionHas('request_status', 'submitted');
-        $this->post(route('password.email'), ['email' => 'nobody@brighteyes.test']);
+        // "Ask my manager instead" (online, "Forgot password" emails a link at once).
+        $this->post(route('password.email'), ['email' => 'nurse@brighteyes.test', 'via_manager' => 1])->assertSessionHas('request_status', 'submitted');
+        $this->post(route('password.email'), ['email' => 'nobody@brighteyes.test', 'via_manager' => 1]);
 
         $this->assertSame(1, PasswordResetRequest::count());
         Mail::assertSent(OwnerNoticeMail::class, 1);

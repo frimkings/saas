@@ -377,7 +377,7 @@
                                 @enderror
                             </div>
                             <small class="mt-1 block text-xs text-slate-500">
-                                {{ $isEdit ? 'Leave blank to keep the current password. ' : '' }}Password must be at least 6 characters.
+                                {{ $isEdit ? 'Leave blank to keep the current password. ' : '' }}At least 6 characters. This is a starting password: they must choose their own when they first sign in.
                             </small>
                         </div>
 
@@ -665,6 +665,15 @@
                             <small class="text-slate-500">Setting a new password for this account</small>
                         </div>
 
+                        {{-- Better: they choose their own, from a link to their email. --}}
+                        <div class="mb-4 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">
+                            <p class="!mb-2">Email them a link to choose their own password. It works once, for {{ \App\Models\PasswordResetRequest::LINK_MINUTES }} minutes.</p>
+                            <button type="button" class="ui-button ui-button-secondary ui-button-sm" wire:click="emailResetLink" wire:loading.attr="disabled" wire:target="emailResetLink">
+                                <i class="fas fa-envelope mr-1" aria-hidden="true"></i> Email a reset link
+                            </button>
+                        </div>
+                        <p class="!mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Or set a starting password</p>
+
                         <div class="mb-4">
                             <label for="reset-password" class="font-semibold text-sm">New Password <span class="text-red-700">*</span></label>
                             <div class="flex items-stretch">
@@ -686,7 +695,7 @@
                                     <div class="ui-error">{{ $message }}</div>
                                 @enderror
                             </div>
-                            <small class="mt-1 block text-xs text-slate-500">Password must be at least 6 characters.</small>
+                            <small class="mt-1 block text-xs text-slate-500">At least 6 characters. Give it to them in person: they must change it when they next sign in.</small>
                         </div>
 
                         <div class="mb-0">

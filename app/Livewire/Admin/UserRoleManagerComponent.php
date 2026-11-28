@@ -353,7 +353,7 @@ class UserRoleManagerComponent extends Component
             ->where('branch_user_role.user_id', $this->userId)->whereIn('branch_user_role.branch_id', $this->currentClinic()->branches()->pluck('id'))
             ->distinct()->pluck('roles.name')->all();
 
-        $user = DB::transaction(function () use ($rolesByBranch) {
+        $user = DB::transaction(function () use ($rolesByBranch, $isNew) {
         $user = User::updateOrCreate(['id' => $this->userId], [
             'name'          => $this->name,
             'email'         => $this->email,
@@ -404,6 +404,11 @@ class UserRoleManagerComponent extends Component
                 ]);
             }
         }
+        // A password someone else chose is only a starting one: they pick their own at next sign-in.
+        if (($isNew || $this->password) && $user->id !== auth()->id()) {
+            $user->forceFill(['must_change_password' => true])->save();
+        }
+
         return $user;
         });
         $rolesAfter = collect($rolesByBranch)->flatten()->unique()->values()->all();
@@ -554,11 +559,33 @@ class UserRoleManagerComponent extends Component
         ]);
 
         $user = $this->managedUser((int) $this->resetUserId);
-        $user->update(['password' => Hash::make($this->newPassword)]);
+        // A password the manager chose is only a starting one: the person picks their own at next sign-in.
+        $user->forceFill(['password' => Hash::make($this->newPassword), 'must_change_password' => $user->id !== auth()->id()])->save();
         AuditTrail::record('staff.password_reset', 'Reset the password of staff member '.$user->name, $user, [], [], null, true);
 
         $this->dispatch('notify', ...['type' => 'success', 'message' => "Password for {$this->resetUserName} has been reset successfully."]);
         $this->closeResetModal();
+    }
+
+    /** Instead of choosing a password for them: email the staff member a one-time link to choose their own. */
+    public function emailResetLink(): void
+    {
+        abort_if(!$this->canManageUsers(), 403);
+        $user = $this->managedUser((int) $this->resetUserId);
+        if (! filter_var($user->email, FILTER_VALIDATE_EMAIL)) {
+            $this->addError('newPassword', 'This account has no email address to send a link to.');
+
+            return;
+        }
+        $status = app(\App\Services\PasswordResetLinks::class)->sendFor($user, auth()->user());
+        AuditTrail::record('staff.password_reset_emailed', 'Emailed a password reset link to staff member '.$user->name, $user, [], ['status' => $status], null, true);
+
+        $this->dispatch('notify', ...$status === 'sent'
+            ? ['type' => 'success', 'message' => "A link to choose a new password was emailed to {$user->email}. It works once, for ".\App\Models\PasswordResetRequest::LINK_MINUTES.' minutes.']
+            : ['type' => 'error', 'message' => "The email to {$user->email} could not be sent. Set a password for them instead."]);
+        if ($status === 'sent') {
+            $this->closeResetModal();
+        }
     }
 
     public function closeResetModal()
@@ -680,6 +707,8 @@ class UserRoleManagerComponent extends Component
                     'department'    => $department ?: null,
                     'hire_date'     => $hireDate ?: null,
                 ]);
+                // The password in the file is only a starting one.
+                $user->forceFill(['must_change_password' => true])->save();
                 $user->assignRole($roleName);
                 $clinic = $this->currentClinic();
                 $defaultBranch = $clinic->branches()->where('is_active', true)

@@ -123,7 +123,26 @@
             </div>
 
             <div class="form-title">Forgot your password?</div>
-            <div class="form-subtitle">Enter your registered email address and we'll take you directly to the password reset screen — no email required.</div>
+            <div class="form-subtitle">{{ \App\Services\PasswordResetLinks::selfService()
+                ? 'Enter the email you sign in with and we will email you a link to choose a new password.'
+                : "Enter your registered email address and we'll take you directly to the password reset screen — no email required." }}</div>
+
+            {{-- Online: the link was emailed (said the same whether or not the address has an account) --}}
+            @if(session('request_status') === 'emailed')
+                <div style="background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:.625rem;padding:1rem 1.25rem;margin-bottom:1.25rem;" role="status">
+                    <div style="font-weight:700;color:#047857;margin-bottom:.4rem;">Check your email</div>
+                    <p style="font-size:.875rem;color:#065f46;margin:0 0 .5rem;line-height:1.5;">
+                        If <strong>{{ old('email') }}</strong> has an account, a link to choose a new password is on its way. It works once, for {{ \App\Models\PasswordResetRequest::LINK_MINUTES }} minutes.
+                        Nothing after a few minutes? Look in spam, or ask again.
+                    </p>
+                    <form method="POST" action="{{ route('password.email') }}" style="margin:0;">
+                        @csrf
+                        <input type="hidden" name="email" value="{{ old('email') }}">
+                        <input type="hidden" name="via_manager" value="1">
+                        <button type="submit" style="background:none;border:0;padding:0;color:#047857;font-size:.8125rem;text-decoration:underline;cursor:pointer;">Can't get into this email? Ask my manager instead</button>
+                    </form>
+                </div>
+            @endif
 
             @if ($errors->any())
                 <div class="alert-error">
@@ -180,6 +199,8 @@
                 <button type="submit" class="btn-primary">
                     @if(session('request_status') === 'pending')
                         Check Approval Status
+                    @elseif(\App\Services\PasswordResetLinks::selfService())
+                        Email Me a Reset Link
                     @else
                         Find My Account
                     @endif

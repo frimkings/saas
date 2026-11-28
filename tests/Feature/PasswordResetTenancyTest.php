@@ -110,10 +110,10 @@ class PasswordResetTenancyTest extends TestCase
         $staff = $this->member($this->clinicB, 'Doctor');
         app(TenantContext::class)->clear();
 
-        $this->post('/forgot-password', ['email' => $staff->email])->assertSessionHas('request_status', 'submitted');
+        $this->post('/forgot-password', ['email' => $staff->email, 'via_manager' => 1])->assertSessionHas('request_status', 'submitted');
         PasswordResetRequest::where('email', $staff->email)->firstOrFail()->update(['status' => 'approved']);
 
-        $this->post('/forgot-password', ['email' => $staff->email])->assertRedirect(route('password.offline.form'));
+        $this->post('/forgot-password', ['email' => $staff->email, 'via_manager' => 1])->assertRedirect(route('password.offline.form'));
     }
 
     public function test_offline_installs_without_tenancy_see_every_request(): void

@@ -84,6 +84,26 @@ class OwnerAlerts
         }
     }
 
+    /**
+     * A password reset link went to someone's own inbox: from "Forgot password" ($by null), or sent
+     * by a manager. Nothing to approve; the owner is told so a reset nobody asked for is noticed.
+     * Not when the owner sent it themselves.
+     */
+    public function passwordResetEmailed(User $user, ?User $by): void
+    {
+        if ($by?->hasRole('Super Admin')) return;
+        $clinics = $user->clinics()->where('clinics.status', 'active')->wherePivot('status', 'active')->get();
+        foreach ($clinics as $clinic) {
+            $this->notice($clinic, 'password_reset_emailed', 'password_reset_emailed:' . $user->id . ':' . now()->format('YmdHi'),
+                'Password reset link sent',
+                $by ? "{$by->name} emailed {$user->name} a link to choose a new password." : "{$user->name} used \"Forgot password\", so a link to choose a new password went to their email.",
+                array_filter(['Staff member' => $user->name, 'Email' => $user->email, 'Sent by' => $by?->name,
+                    'When' => now()->timezone($this->timezone($clinic))->format('d M Y, g:i A')]),
+                'View staff', route('admin.users'),
+                "Nothing to do if this was expected. If {$user->name} didn't ask for it, their password has not changed; check with them.");
+        }
+    }
+
     /** The platform approved or rejected the clinic's request to change plan. */
     public function planRequestReviewed(SubscriptionChangeRequest $request): void
     {
