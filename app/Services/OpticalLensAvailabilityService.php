@@ -48,12 +48,11 @@ class OpticalLensAvailabilityService
         if ($products->contains(fn ($product) => collect($powers)->contains(fn ($rx, $eye) => $matchesPower($product, $eye, $rx)))) {
             $held = $this->heldQuantities($products->pluck('id')->all(), $ignoreHoldsForOrderId);
 
-            return $products->groupBy(function ($product) {
-                $specs = collect($product->lens_specs)->only(['range', 'design', 'form', 'index', 'coating', 'diameter'])->all();
-                ksort($specs);
-                return base64_encode(json_encode($specs));
-            })->map(function ($group, $key) use ($powers, $held, $matchesPower, $multifocal) {
+            // One option per lens, whatever the blank diameter: shops stock plus powers on one
+            // diameter and plano/minus on another, and a pair often needs one of each.
+            return $products->groupBy(fn ($product) => $this->optionKey($product->lens_specs))->map(function ($group, $key) use ($powers, $held, $matchesPower, $multifocal) {
                 $first = $group->first();
+                $diameters = $group->map(fn ($product) => (int) data_get($product->lens_specs, 'diameter'))->filter()->unique()->sort()->values();
                 $freeByProduct = [];
                 $eyes = [];
                 foreach ($powers as $eye => $rx) {
@@ -72,10 +71,12 @@ class OpticalLensAvailabilityService
                         'reason' => $multifocal && $rx[1] != 0 ? 'CYL '.sprintf('%+.2f', $rx[1]).' needs a made-to-order lens' : null,
                         'source' => $stocked ? 'stock' : 'special_order',
                         'product_id' => $stocked?->id,
+                        // The blank this eye is cut from, for the lab when the lens has more than one size.
+                        'diameter' => $priced ? (int) data_get($priced->lens_specs, 'diameter') : null,
                         'free' => (int) $matches->sum(fn ($product) => $freeByProduct[$product->id]),
                         // A power the range has never stocked is priced from the range's price list when there is one.
                         'unit_price' => (float) ($priced ? $priced->selling_price
-                            : (app(OpticalLensPriceList::class)->lensPrice(array_merge($first->lens_specs, ['sphere' => $rx[0], 'power' => $multifocal ? $rx[2] : $rx[1]])) ?? $group->max('selling_price'))),
+                            : ($this->listPrice($group, $rx[0], $multifocal ? $rx[2] : $rx[1]) ?? $group->max('selling_price'))),
                         'price_estimated' => $priced === null,
                     ];
                     if ($stocked) $freeByProduct[$stocked->id]--;
@@ -85,7 +86,9 @@ class OpticalLensAvailabilityService
                 return [
                     'key' => $key,
                     'design' => trim((string) data_get($first->lens_specs, 'range').' '.data_get($first->lens_specs, 'design')
-                        .(data_get($first->lens_specs, 'form') ? ' '.\App\Support\Optical\LensOptions::label('form', data_get($first->lens_specs, 'form')) : '')),
+                        .(data_get($first->lens_specs, 'form') ? ' '.\App\Support\Optical\LensOptions::label('form', data_get($first->lens_specs, 'form')) : '')
+                        .($diameters->count() > 1 ? ' '.$diameters->implode('/').' mm' : '')),
+                    'diameters' => $diameters->all(),
                     'lens_type' => (string) data_get($first->lens_specs, 'design', 'Single Vision'),
                     // Empty = Standard form.
                     'form' => (string) data_get($first->lens_specs, 'form', ''),
@@ -254,7 +257,7 @@ class OpticalLensAvailabilityService
      */
     public function resolveStockOption(array $measurements, string $key, array $expectedSplit = [], ?int $orderId = null, array $specialPrices = []): array
     {
-        $option = collect($this->stockOptions($measurements, $orderId))->firstWhere('key', $key);
+        $option = collect($this->stockOptions($measurements, $orderId))->firstWhere('key', $this->normalizeKey($key));
         if (! $option || $option['status'] === 'none' || empty($option['split'])) {
             throw ValidationException::withMessages(['lens_stock' => 'Neither lens is in stock for this design any more. Check availability again or choose special order.']);
         }
@@ -289,9 +292,7 @@ class OpticalLensAvailabilityService
      */
     public function rangeSupplier(string $optionKey): ?\App\Models\Supplier
     {
-        $specs = json_decode((string) base64_decode($optionKey, true), true);
-        if (! is_array($specs)) return null;
-        $productIds = app(OpticalLensPriceList::class)->rangeProducts($specs)->pluck('id');
+        $productIds = $this->keyProducts($optionKey)->pluck('id');
         if ($productIds->isEmpty()) return null;
 
         $ordered = \App\Models\OpticalPurchaseOrderLine::with('purchaseOrder.supplier')->whereIn('optical_product_id', $productIds)->latest('id')->first()?->purchaseOrder?->supplier;
@@ -463,16 +464,49 @@ class OpticalLensAvailabilityService
 
     private function catalogueProductId(string $key, string $eye, float $sphere, float $power): ?int
     {
-        $specs = json_decode(base64_decode($key), true) ?: [];
-        return \App\Models\OpticalProduct::where('is_active', true)->whereNotNull('lens_specs')->get()
-            ->first(function ($product) use ($specs, $eye, $sphere, $power) {
-                $candidate = collect($product->lens_specs)->only(['range', 'design', 'form', 'index', 'coating', 'diameter'])->all();
-                ksort($candidate);
-                return $candidate == $specs
-                    && (! LensDesign::isEyeSpecific($specs['design'] ?? null) || data_get($product->lens_specs, 'eye') === LensDesign::stockEye($eye))
+        return $this->keyProducts($key)->where('is_active', true)
+            ->first(function ($product) use ($eye, $sphere, $power) {
+                return (! LensDesign::isEyeSpecific(data_get($product->lens_specs, 'design')) || data_get($product->lens_specs, 'eye') === LensDesign::stockEye($eye))
                     && round((float) data_get($product->lens_specs, 'sphere'), 2) === $sphere
                     && round((float) data_get($product->lens_specs, 'power'), 2) === $power;
             })?->id;
+    }
+
+    /**
+     * The key of a stock option: the lens (maker, design, form, index, treatment) without
+     * the blank diameter, so every size of one lens is offered as one option.
+     */
+    public function optionKey(array $specs): string
+    {
+        $specs = collect($specs)->only(['range', 'design', 'form', 'index', 'coating'])->all();
+        ksort($specs);
+        return base64_encode(json_encode($specs));
+    }
+
+    /** Keys saved on orders and ordering-page picks before sizes were combined still name a diameter. */
+    public function normalizeKey(string $key): string
+    {
+        $specs = json_decode((string) base64_decode($key, true), true);
+        return is_array($specs) ? $this->optionKey($specs) : $key;
+    }
+
+    /** Every lens item, of any diameter, in the option a key names. */
+    private function keyProducts(string $key)
+    {
+        $key = $this->normalizeKey($key);
+        return \App\Models\OpticalProduct::whereNotNull('lens_specs')->get()
+            ->filter(fn ($product) => is_array($product->lens_specs) && $this->optionKey($product->lens_specs) === $key)->values();
+    }
+
+    /** The price list's price for a power the option has never stocked, from the first size that lists it. */
+    private function listPrice($group, float $sphere, float $power): ?float
+    {
+        $prices = app(OpticalLensPriceList::class);
+        foreach ($group->unique(fn ($product) => $prices->rangeKey($product->lens_specs)) as $product) {
+            $price = $prices->lensPrice(array_merge($product->lens_specs, ['sphere' => $sphere, 'power' => $power]));
+            if ($price !== null) return (float) $price;
+        }
+        return null;
     }
 
     private function powers(array $measurements): array

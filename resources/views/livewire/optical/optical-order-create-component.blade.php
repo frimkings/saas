@@ -449,6 +449,7 @@
                                             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                                                 <strong class="w-7">{{ strtoupper($eye) }}</strong>
                                                 <span class="font-mono">SPH {{ sprintf('%+.2f', $availability['sphere']) }} {{ ($availability['power_type'] ?? 'cyl') === 'add' ? 'ADD' : 'CYL' }} {{ sprintf('%+.2f', $availability['cylinder']) }}</span>
+                                                @if(! empty($availability['diameter']))<span class="text-slate-500">{{ $availability['diameter'] }} mm blank</span>@endif
                                                 @if($special)
                                                     <span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Order from supplier</span>
                                                     @if(! empty($availability['reason']))<span class="text-amber-800">{{ $availability['reason'] }}</span>

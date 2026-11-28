@@ -196,7 +196,7 @@ class OpticalOrderPageService
     /** The lens picked on the page, checked again at sending: what travels with the order and holds its stock lenses. */
     private function choice(OpticalPartnerClinic $partner, array $data, string $key): array
     {
-        $option = collect($this->options($partner, $data))->firstWhere('key', $key);
+        $option = collect($this->options($partner, $data))->firstWhere('key', app(\App\Services\OpticalLensAvailabilityService::class)->normalizeKey($key));
         if (! $option) {
             throw ValidationException::withMessages(['lens_choice' => 'The lens you picked is no longer in stock. Check lenses again, or send the order without a pick.']);
         }

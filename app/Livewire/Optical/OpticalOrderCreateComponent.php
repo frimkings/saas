@@ -328,7 +328,7 @@ class OpticalOrderCreateComponent extends Component
         if ($pick) {
             $wanted = implode('|', array_filter([(string) ($pick['lens_type'] ?? ''), (string) ($pick['coating'] ?? ''), (string) ($pick['form'] ?? '')], fn ($part) => $part !== ''));
             if (array_key_exists($wanted, $this->wantedLensChoices())) $this->wantedLens = $wanted;
-            $this->pickedLensKey = (string) ($pick['key'] ?? '');
+            $this->pickedLensKey = app(OpticalLensAvailabilityService::class)->normalizeKey((string) ($pick['key'] ?? ''));
         }
         $this->notes = collect([
             $request->urgency === 'urgent' ? 'URGENT' : null,
@@ -526,7 +526,7 @@ class OpticalOrderCreateComponent extends Component
         $this->lens_coatings = data_get($details, 'lens_details.coatings', $this->lens_coatings);
         $this->optical_category_id = data_get($details, 'lens_details.category_id');
         $this->stock_coating = data_get($details, 'lens_details.stock_coating', $this->stock_coating);
-        $this->stock_lens_key = (string) data_get($details, 'lens_details.stock_key', '');
+        $this->stock_lens_key = app(OpticalLensAvailabilityService::class)->normalizeKey((string) data_get($details, 'lens_details.stock_key', ''));
         $this->stock_form = (string) data_get($details, 'lens_details.stock_form', '');
         if ($this->stock_lens_key !== '') $this->wantedLens = rtrim($this->lens_type.'|'.$this->stock_coating.'|'.$this->stock_form, '|');
         $this->specialPrices = array_merge(['od' => '', 'os' => ''], array_map('strval', (array) data_get($details, 'lens_details.special_prices', [])));
@@ -847,9 +847,12 @@ class OpticalOrderCreateComponent extends Component
 
     public function updated($property): void
     {
-        if (str_starts_with($property, 'rx_') || in_array($property, ['lens_type', 'lens_index', 'stock_coating', 'base_color', 'progressive_brand'], true)) {
+        // PDs and fitting heights (rx_*_pd, rx_*_hgt, typed at Fitting) don't change which lens
+        // is needed; only the powers do. Clearing on them lost the stock lens chosen at step 2.
+        $power = (bool) preg_match('/^rx_(od|os)_(sph|cyl|axis|add)$/', $property);
+        if ($power || in_array($property, ['lens_type', 'lens_index', 'stock_coating', 'base_color', 'progressive_brand'], true)) {
             $this->lensAvailability = [];
-            if (str_starts_with($property, 'rx_')) {
+            if ($power) {
                 $this->stockLensOptions = [];
                 $this->stock_lens_key = '';
             }
@@ -1012,6 +1015,7 @@ class OpticalOrderCreateComponent extends Component
 
     public function selectStockLensOption(string $key): void
     {
+        $key = app(OpticalLensAvailabilityService::class)->normalizeKey($key);
         $options = $this->withWantedFirst(app(OpticalLensAvailabilityService::class)->stockOptions($this->currentMeasurements()));
         $option = collect($options)->firstWhere('key', $key);
         if (! $option) {
@@ -1136,6 +1140,8 @@ class OpticalOrderCreateComponent extends Component
                 'sphere' => $line['sphere'], 'cylinder' => $line['power'], 'source' => $line['source'],
                 'power_type' => $line['power_type'] ?? 'cyl', 'reason' => $line['reason'] ?? null,
                 'available' => $line['free'], 'unit_price' => $line['unit_price'], 'price_estimated' => $line['price_estimated'],
+                // Only named when the lens comes in more than one size, so the lab takes the right blank.
+                'diameter' => count($option['diameters'] ?? []) > 1 ? ($line['diameter'] ?? null) : null,
             ];
         }
         $ordered = collect($eyes)->where('source', 'special_order')->keys()->map(fn ($eye) => strtoupper($eye));
