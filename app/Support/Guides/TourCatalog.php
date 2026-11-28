@@ -43,6 +43,8 @@ final class TourCatalog
         'clinic.optical-sent' => 6,
         'clinic.spectacles' => 2,
         'clinic.optical-owed' => 1,
+        'clinic.patient-history' => 1,
+        'clinic.consultation' => 1,
         'platform.dashboard' => 2,
         'platform.clinics' => 1,
         'platform.plans' => 1,
@@ -95,12 +97,46 @@ final class TourCatalog
             'clinic.optical-sent' => self::clinicOpticalSent(),
             'clinic.spectacles' => self::clinicSpectacles($context),
             'clinic.optical-owed' => self::clinicOpticalOwed(),
+            'clinic.patient-history' => self::clinicPatientHistory($context),
+            'clinic.consultation' => self::clinicConsultation($context),
             default => str_starts_with($page, 'platform.') && auth()->user()?->is_platform_admin ? self::platform($page) : null,
         };
         if (! $tour) return null;
         $tour['steps'] = array_values(array_filter($tour['steps']));
 
         return $tour + ['version' => self::version($tour['key']) ?? 1];
+    }
+
+    /** The patient's file as the doctor opens it: the History summary, and the visit tabs worked left to right (28 Nov 2026). */
+    private static function clinicPatientHistory(array $c = []): array
+    {
+        $docs = (bool) ($c['documents'] ?? false);
+        $flow = $docs ? 'Consultation, Prescription, Refraction, then Clinical Documents for scans' : 'Consultation, Prescription, then Refraction';
+        return ['key' => 'clinic.patient-history', 'title' => 'Patient file', 'steps' => [
+            ['title' => 'The patient\'s file', 'body' => 'Everything about this patient in one place: past visits, prescriptions, refractions and scans, and today\'s visit. Here is a quick look round.'],
+            ['target' => 'px-header', 'title' => 'Who you are seeing', 'body' => 'Name, patient number, age and total visits. Ready means today\'s visit is paid and waiting for you.'],
+            ['target' => 'emr-tabs', 'title' => 'Work left to right', 'body' => 'A visit goes '.$flow.'. Each Save takes you on to the next tab, so you don\'t come back here in between. With nothing to prescribe, press Next: Refraction on the Prescription tab.'],
+            ['target' => 'hx-summary', 'title' => 'At a glance', 'body' => 'General health, eye disease risks worth watching, the latest refraction and allergies, from the patient\'s past visits.'],
+            ['target' => 'hx-views', 'title' => 'More history', 'body' => 'Charts & Refraction History shows the eye pressure and vision trends'.($docs ? ', Diagnostic Scans the uploaded scans and documents,' : ',').' and Past Encounters & Records every earlier visit with its diagnoses: Open Consultation to read it or carry on with it.'],
+            ['target' => 'hx-search', 'title' => 'Find an old visit', 'body' => 'Search past visits by complaint or notes.'],
+            ['target' => 'px-actions', 'title' => 'Print or follow over time', 'body' => 'Download the medical record as a PDF, or open the clinical timeline to see every visit in order.'],
+            ['target' => 'tour-replay', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here. The Consultation tab has its own tour.'],
+        ]];
+    }
+
+    /** The Consultation tab: history, examination, diagnosis and plan, then save on to the prescription (28 Nov 2026). */
+    private static function clinicConsultation(array $c = []): array
+    {
+        $next = ($c['documents'] ?? false) ? 'the Prescription tab, then Refraction, then Clinical Documents' : 'the Prescription tab, then Refraction';
+        return ['key' => 'clinic.consultation', 'title' => 'Consultation', 'steps' => [
+            ['target' => 'cx-steps', 'title' => 'Four parts', 'body' => 'History, Examination, Diagnosis & Plan, then Review. Jump to a part here; a red mark shows a part with something missing.'],
+            ['target' => 'cx-history', 'title' => 'Why they came', 'body' => 'The chief complaint is needed. Tick the symptoms the patient mentions and add how bad and which eye.'],
+            ['target' => 'consultation-va-grid', 'title' => 'Visual acuity', 'body' => 'Unaided, pinhole and with their glasses, for each eye.'],
+            ['target' => 'cx-exam', 'title' => 'Examination', 'body' => 'Findings for each eye, lids to fundus, and eye pressure. Eye pressure taken at check-in is already filled in for you to confirm.'],
+            ['target' => 'cx-diagnosis', 'title' => 'Diagnosis', 'body' => 'Search and pick at least one diagnosis. One that is not on the list can be added right here.'],
+            ['target' => 'cx-review', 'title' => 'Review and save', 'body' => 'Check what is filled in, then save. Saving opens '.$next.', so the visit flows on without going back to History.'],
+            ['target' => 'tour-replay-consult', 'title' => 'That is it', 'body' => 'Take this tour again at any time from here.'],
+        ]];
     }
 
     /** Front Desk → Spectacles: glasses to order for patients, made here or sent to a linked optical centre (20 Nov 2026). */

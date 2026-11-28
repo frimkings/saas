@@ -172,6 +172,36 @@ class ClinicQaRound2Test extends TestCase
         $this->assertSame('Enter the P.D. when glasses are to be dispensed.', $file->errors()->first('state.pd'));
     }
 
+    public function test_the_visit_moves_on_tab_by_tab_and_history_and_consultation_have_tours(): void
+    {
+        $this->ownerOn('clinic-pro');
+        [, $clearance, $consultation] = $this->visit();
+        $consultation->refraction()->delete();
+
+        // History: its tour and every part the tour points at.
+        $file = Livewire::test(PatientRecordsComponent::class, ['clearance' => $clearance])->assertSet('activeTab', 'history');
+        $history = \App\Support\Guides\TourCatalog::tour('clinic.patient-history');
+        foreach (array_filter(array_column($history['steps'], 'target')) as $part) $file->assertSeeHtml('data-tour="'.$part.'"');
+
+        $file->call('switchTab', 'consultation');
+        $consult = \App\Support\Guides\TourCatalog::tour('clinic.consultation');
+        foreach (array_filter(array_column($consult['steps'], 'target')) as $part) $file->assertSeeHtml('data-tour="'.$part.'"');
+
+        // Nothing to prescribe: straight on to the refraction.
+        $file->call('switchTab', 'prescription')->assertSee('Next: Refraction')
+            ->call('switchTab', 'refraction')->assertSet('activeTab', 'refraction');
+
+        // Saving the refraction opens Clinical Documents for this visit's scans, not History.
+        $file->set('state.subjective_od_sphere', '-1.25')->set('state.subjective_od_bcva', '6/6')
+            ->set('state.subjective_os_sphere', '-1.00')->set('state.subjective_os_bcva', '6/6')
+            ->set('state.dispensing_required', false)
+            ->call('saveRefraction')->assertHasNoErrors()
+            ->assertSet('activeTab', 'bills')
+            ->assertSet('documentConsultationId', (string) $consultation->id)
+            ->assertSee('(this visit)');
+        $this->assertNotNull($consultation->fresh()->refraction);
+    }
+
     public function test_a_quotation_line_keeps_its_description_when_quantity_changes(): void
     {
         $this->ownerOn('clinic-pro');

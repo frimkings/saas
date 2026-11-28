@@ -2,7 +2,7 @@
 <div class="emr-root">
 
     {{-- Premium Patient Profile Header --}}
-    <div class="px-header">
+    <div class="px-header" data-tour="px-header">
         <div class="px-header__inner">
 
             {{-- LEFT: Avatar + Identity --}}
@@ -59,7 +59,7 @@
             </div>
 
             {{-- RIGHT: Actions --}}
-            <div class="px-header__actions">
+            <div class="px-header__actions" data-tour="px-actions">
                 @if($this->canStartConsultation)
                     <button wire:click="startNewConsultation" class="px-btn px-btn--primary">
                         <i class="fas fa-plus"></i> New Visit
@@ -91,7 +91,7 @@
 
     {{-- Main Content Card --}}
     <div class="emr-main-card">
-        <div class="emr-tab-bar">
+        <div class="emr-tab-bar" data-tour="emr-tabs">
             <button class="emr-tab {{ $activeTab === 'history' ? 'emr-tab--active' : '' }}"
                 wire:click.prevent="switchTab('history')">
                 <i class="fas fa-history"></i> History
@@ -145,8 +145,9 @@
                             <i class="fas fa-clipboard-list" style="color:#2563EB;"></i>
                             Patient Consultation History
                         </div>
-                        <div style="position:relative;">
-                            <div class="search-box">
+                        <div style="position:relative;display:flex;align-items:center;gap:8px;">
+                            <x-guide-tour page="clinic.patient-history" :context="['documents' => $canDocuments]" class="ui-button-sm" />
+                            <div class="search-box" data-tour="hx-search">
                                 <i class="fas fa-search search-box__icon"></i>
                                 <input type="text" wire:model.live.debounce.300ms="searchTerm" aria-label="Search past records" class="search-box__input" placeholder="Search records..." @focus="historyView='records'">
                             </div>
@@ -156,7 +157,7 @@
                     <div id="clinical-trend-data" data-trends='@json($clinicalTrendData)' style="display:none;"></div>
 
                     @include('livewire.doctor.partials.history-health-summary')
-                    <nav class="history-subnav" aria-label="Patient history views">
+                    <nav class="history-subnav" data-tour="hx-views" aria-label="Patient history views">
                         <button type="button" :class="{'is-active':historyView==='overview'}" :aria-pressed="historyView==='overview'" @click="historyView='overview'; $nextTick(()=>window.dispatchEvent(new Event('resize')))"><i class="fas fa-chart-line"></i> {{ $canCharts ? 'Charts & Refraction History' : 'Refraction History' }}</button>
                         @if($canDocuments || $patientDocumentCount > 0)<button type="button" :class="{'is-active':historyView==='scans'}" :aria-pressed="historyView==='scans'" @click="historyView='scans'"><i class="fas fa-images"></i> Diagnostic Scans <span>{{ $patientDocumentCount }}</span></button>@endif
                         <button type="button" :class="{'is-active':historyView==='records'}" :aria-pressed="historyView==='records'" @click="historyView='records'"><i class="fas fa-history"></i> Past Encounters & Records <span>{{ $consultationCount }}</span></button>
@@ -419,16 +420,18 @@
                         $consultationErrorCount = $errors->count();
                     @endphp
                     <form wire:submit="{{ $isEditMode ? 'updateConsultation' : 'createConsultation' }}" x-data="{dirty:false,saving:false,destroy(){window.consultationDirty=false}}" @consultation-form-clean.window="dirty=false; saving=false; window.consultationDirty=false" @input.capture="dirty=true" @change.capture="dirty=true" @submit="saving=true" x-init="$watch('dirty',v=>window.consultationDirty=v); window.consultationDirty=false">
-                        <nav class="consultation-step-nav" aria-label="Consultation sections">
+                        <nav class="consultation-step-nav" data-tour="cx-steps" aria-label="Consultation sections">
                             <a href="#consultation-section-history" class="{{ $historyHasErrors ? 'has-error' : '' }}"><span>1</span> History @if($historyHasErrors)<i class="fas fa-exclamation-circle"></i>@endif</a>
                             <a href="#consultation-section-examination" class="{{ $examinationHasErrors ? 'has-error' : '' }}"><span>2</span> Examination @if($examinationHasErrors)<i class="fas fa-exclamation-circle"></i>@endif</a>
                             <a href="#consultation-section-management" class="{{ $managementHasErrors ? 'has-error' : '' }}"><span>3</span> Diagnosis & Plan @if($managementHasErrors)<i class="fas fa-exclamation-circle"></i>@endif</a>
                             <a href="#consultation-section-review" class="{{ $consultationErrorCount ? 'has-error' : '' }}"><span>4</span> Review @if($consultationErrorCount)<b>{{ $consultationErrorCount }}</b>@endif</a>
                             <strong x-show="dirty" x-cloak><i class="fas fa-circle"></i> Unsaved changes</strong>
+                            {{-- Its own tour: it waits until the Consultation tab is open before starting itself. --}}
+                            <x-guide-tour page="clinic.consultation" :context="['documents' => $canDocuments]" :when-shown="true" replay="tour-replay-consult" class="ui-button-sm ml-auto" />
                         </nav>
                         @includeWhen($canVitals, 'livewire.doctor.partials.vitals-banner', ['vitals' => $latestVitals])
                         {{-- Chief Complaint & History --}}
-                        <div id="consultation-section-history" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}">
+                        <div id="consultation-section-history" data-tour="cx-history" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}">
                             <div class="ui-section-heading">
                                 <h6 class="mb-0 font-semibold">
                                     Patient History
@@ -492,7 +495,7 @@
                         {{-- Examination --}}
                         <div class="flex flex-wrap -mx-2 consultation-exam-management">
                         <div class="w-full lg:w-6/12 px-2">
-                        <div id="consultation-section-examination" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}" x-data="{
+                        <div id="consultation-section-examination" data-tour="cx-exam" class="card overflow-hidden rounded-xl border border-slate-200 bg-white border border-slate-200 mb-4 consultation-section {{ $consultationFieldsLocked ? 'consultation-section-locked' : '' }}" x-data="{
                             exam: $wire.entangle('state'), normals:{lids:'Normal',conjunctiva:'White and quiet',cornea:'Clear',iris:'Normal pattern',pupil:'Round, regular and reactive',ac:'Deep and quiet',lens:'Clear',vitreous:'Clear',fundus:'Normal'},
                             suffixes(eye){return eye==='od'?['OD']:(eye==='os'?['OS']:['OD','OS'])}, fill(eye){this.suffixes(eye).forEach(s=>Object.entries(this.normals).forEach(([k,v])=>{const key=k+s;if(!String(this.exam[key]||'').trim())this.exam[key]=v}))}, clear(eye){this.suffixes(eye).forEach(s=>Object.keys(this.normals).forEach(k=>this.exam[k+s]=''))},
                             findingClass(key){const value=String(this.exam[key]??'').trim();if(!value)return '';const base=key.replace(/OD$|OS$/,'');return this.normals[base]&&value.toLowerCase()===this.normals[base].toLowerCase()?'exam-field--normal':'exam-field--recorded'}
@@ -671,7 +674,7 @@
             {{-- Diagnosis Search, Selected Tags & Clinical Notes --}}
             <div class="w-full px-2">
                 {{-- Diagnosis Section --}}
-                <div id="consultation-diagnosis-picker" class="mb-4 {{ $managementHasErrors ? 'consultation-field-error' : '' }} {{ $consultationFieldsLocked ? 'consultation-section-locked rounded-md p-2' : '' }}" x-data="{selected:$wire.entangle('selectedDiagnoses'),open:true,edit:null,add(id,name){if(!this.selected.some(d=>Number(d.id)===Number(id)))this.selected.push({id:id,name:name});this.open=false},remove(i){this.selected.splice(i,1)},
+                <div id="consultation-diagnosis-picker" data-tour="cx-diagnosis" class="mb-4 {{ $managementHasErrors ? 'consultation-field-error' : '' }} {{ $consultationFieldsLocked ? 'consultation-section-locked rounded-md p-2' : '' }}" x-data="{selected:$wire.entangle('selectedDiagnoses'),open:true,edit:null,add(id,name){if(!this.selected.some(d=>Number(d.id)===Number(id)))this.selected.push({id:id,name:name});this.open=false},remove(i){this.selected.splice(i,1)},
                     startEdit(id,name,count){this.edit={id:id,name:name,count:count};this.open=false;if(count===null)$wire.diagnosisUseCount(id).then(c=>{if(this.edit&&this.edit.id===id)this.edit.count=c});this.$nextTick(()=>this.$refs.diagEdit?.focus())},
                     saveEdit(){const e=this.edit;if(!e)return;$wire.renameDiagnosis(e.id,e.name).then(ok=>{if(ok)this.edit=null})}}">
                     <label class="font-semibold">
@@ -884,7 +887,7 @@
     </div>
 </div>
 
-                        <div id="consultation-section-review" class="ui-panel mb-4" x-data="{ state:$wire.entangle('state'), diagnoses:$wire.entangle('selectedDiagnoses'), filled(v){return String(v??'').trim().length>0}, get historyReady(){return this.filled(this.state.chiefComplaint)}, get examinationReady(){return ['vaOD6m','vaOS6m','lidsOD','lidsOS','corneaOD','corneaOS','IOPOD','IOPOS'].some(k=>this.filled(this.state[k]))}, get diagnosisReady(){return Array.isArray(this.diagnoses)&&this.diagnoses.length>0}, get ready(){return this.historyReady&&this.diagnosisReady} }">
+                        <div id="consultation-section-review" data-tour="cx-review" class="ui-panel mb-4" x-data="{ state:$wire.entangle('state'), diagnoses:$wire.entangle('selectedDiagnoses'), filled(v){return String(v??'').trim().length>0}, get historyReady(){return this.filled(this.state.chiefComplaint)}, get examinationReady(){return ['vaOD6m','vaOS6m','lidsOD','lidsOS','corneaOD','corneaOS','IOPOD','IOPOS'].some(k=>this.filled(this.state[k]))}, get diagnosisReady(){return Array.isArray(this.diagnoses)&&this.diagnoses.length>0}, get ready(){return this.historyReady&&this.diagnosisReady} }">
                             <div class="ui-section-heading"><h6 class="mb-0 font-semibold"><i class="fas fa-clipboard-check text-teal-700 mr-1"></i> Clinical Review</h6><span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" :class="ready?'bg-green-100 text-green-800':'bg-amber-100 text-amber-800'" x-text="ready?'Ready to save':'Needs attention'"></span></div>
                             <div class="p-5"><div class="consultation-review-grid">
                                 <a href="#consultation-section-history" :class="historyReady?'is-complete':'is-missing'"><i class="fas" :class="historyReady?'fa-check-circle':'fa-exclamation-circle'"></i><span><strong>History</strong><small x-text="historyReady?'Chief complaint recorded':'Chief complaint required'"></small></span></a>
@@ -1443,6 +1446,14 @@
                             </span>
                         </button>
                     </div>
+                @elseif($consultationID)
+                    {{-- Nothing to prescribe: on with the visit without saving an empty prescription. --}}
+                    <div class="mt-2 flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-md shadow-xs">
+                        <span class="text-xs text-slate-500">Nothing to prescribe for this visit?</span>
+                        <button type="button" wire:click="switchTab('refraction')" data-tour="rx-next" class="ui-button ui-button-sm ui-button-secondary ml-auto">
+                            Next: Refraction <i class="fas fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
                 @endif
             </div>
         </div>
@@ -1596,8 +1607,8 @@
                                                 <label for="patient-reco-documentconsultationid" class="font-semibold text-sm">Visit</label>
                                                 <select id="patient-reco-documentconsultationid" wire:model.live="documentConsultationId" class="ui-input ui-input-sm">
                                                     <option value="">General patient file</option>
-                                                    @foreach($patientRecords as $record)
-                                                        <option value="{{ $record->id }}">{{ $record->created_at->format('d M Y') }}</option>
+                                                    @foreach($documentVisits as $record)
+                                                        <option value="{{ $record->id }}">{{ $record->created_at->format('d M Y') }}{{ (int) $record->id === (int) $consultationID ? ' (this visit)' : '' }}</option>
                                                     @endforeach
                                                 </select>
                                                 @error('documentConsultationId') <small class="text-red-700">{{ $message }}</small> @enderror
