@@ -2,7 +2,7 @@
     $latestRx = $historyRefractions->first();
     $activeRisks = collect($eyeDiseaseRiskFlags)->whereIn('level', ['warning', 'urgent']);
 @endphp
-<div class="history-health-grid">
+<div class="history-health-grid" data-tour="hx-summary">
     <div class="history-health-card history-health-card--slate">
         <h3>Systemic Health <i class="fas fa-heartbeat" aria-hidden="true"></i></h3>
         <strong>{{ filled($latestHistoryVisit?->others) ? 'Recorded medical history' : 'Not recorded' }}</strong>

@@ -3074,7 +3074,14 @@ public function deleteAppointment($appointmentId)
             $this->dispatch('notify', ...['type' => 'success', 'message' => ($isCorrection ? 'Refraction corrected. The earlier values are kept in its history.' : 'Refraction data saved successfully')
                 . ($lensStored ? ' The lens is on the prescription for the cashier.' : '')]);
             $this->dispatch('refraction-form-clean');
-            $this->activeTab = 'history';
+            // On through the visit: consultation → prescription → refraction → clinical documents (scans).
+            // Without clinical documents on the plan the visit is done, so back to the summary.
+            if (LicenseService::has(Feature::CLINICAL_DOCUMENTS)) {
+                $this->documentConsultationId = (string) $this->consultationID;
+                $this->switchTab('bills');
+            } else {
+                $this->switchTab('history');
+            }
         } catch (\Exception $e) {
             DB::rollBack();
             $this->dispatch('notify', ...['type' => 'error', 'message' => 'Failed to save refraction: ' . $e->getMessage()]);
@@ -3257,6 +3264,10 @@ public function deleteAppointment($appointmentId)
             ? Consultations::chart($this->patient->id)->latest()->first()
             : null;
 
+        // The visits a document can be filed under (the visit list above is only loaded on History).
+        $documentVisits = $this->activeTab === 'bills'
+            ? Consultations::chart($this->patient->id)->latest()->limit(30)->get(['id', 'created_at'])
+            : collect();
         $patientDocuments = $this->activeTab === 'bills'
             ? PatientDocument::with(['uploadedBy:id,name', 'consultation:id,created_at'])
                 ->where('patient_id', $this->patient->id)
@@ -3322,7 +3333,7 @@ public function deleteAppointment($appointmentId)
             DB::disableQueryLog();
         }
 
-        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments', 'canReferrals', 'canVitals', 'latestVitals'))
+        return view('livewire.doctor.patient-records-component', compact('patientRecords', 'documentVisits', 'searchResults', 'clinicalTrendData', 'eyeDiseaseRiskFlags', 'patientDocuments', 'auditTrails', 'upcomingAppointment', 'lensOptions', 'historyRefractions', 'historyDocuments', 'latestHistoryVisit', 'legacyPayments', 'previousMedications', 'canCharts', 'canClinicalPdfs', 'canDocuments', 'canAppointments', 'canReferrals', 'canVitals', 'latestVitals'))
             ->layout('layouts.clinic', ['menu' => 'doctor']);
     }
 }
