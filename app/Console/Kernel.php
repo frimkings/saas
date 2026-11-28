@@ -117,6 +117,9 @@ class Kernel extends ConsoleKernel
         // Daily, weekly and monthly sales emails to each clinic owner, from 10 AM clinic time;
         // the platform ticks which ones each plan includes. Replaces the old report delivery.
         $hourly('owner:send-summaries')->withoutOverlapping();
+        // Attendance: remind staff still clocked in to clock out. Hosted, with the hourly wake-ups
+        // (no extra ones, to keep the bill down), looking an hour ahead; offline every 5 minutes.
+        $often('attendance:clock-out-reminders', fn ($event) => $event->everyFiveMinutes())->withoutOverlapping();
         // Platform → Announcements: queued emails to clinic owners and Super Admins, a batch a run.
         $often('platform:send-announcements')->withoutOverlapping();
         // Clinic requests (plan changes, SMS orders, sender IDs) still waiting after a day.

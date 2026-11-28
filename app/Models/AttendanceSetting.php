@@ -16,7 +16,8 @@ class AttendanceSetting extends Model
     protected $fillable = ['hours', 'grace_minutes', 'break_minutes', 'overtime_after_minutes', 'overtime_needs_approval', 'min_rest_hours', 'max_nights_in_row',
         'overtime_multiplier', 'deduct_lateness', 'deduct_absence',
         'phone_clock_in', 'phone_clock_in_since', 'clock_in_latitude', 'clock_in_longitude', 'clock_in_radius',
-        'punch_emails', 'punch_emails_since', 'punch_email_mode', 'punch_email_when', 'punch_email_to', 'punch_email_staff'];
+        'punch_emails', 'punch_emails_since', 'punch_email_mode', 'punch_email_when', 'punch_email_to', 'punch_email_staff',
+        'clock_out_reminder'];
 
     /** Clock-in emails: one for each punch, or one summary of the day in the evening. */
     public const PUNCH_EMAIL_MODES = ['each' => 'As each person clocks in or out', 'daily' => 'One summary of the day, in the evening'];
@@ -28,7 +29,9 @@ class AttendanceSetting extends Model
     // and paid at time and a half; absences come off a salary, lateness does not.
     protected $attributes = ['overtime_after_minutes' => 30, 'overtime_needs_approval' => true, 'overtime_multiplier' => 1.5, 'deduct_lateness' => false, 'deduct_absence' => true,
         'phone_clock_in' => false, 'clock_in_radius' => 150,
-        'punch_emails' => false, 'punch_email_mode' => 'each', 'punch_email_when' => 'all', 'punch_email_staff' => true];
+        'punch_emails' => false, 'punch_email_mode' => 'each', 'punch_email_when' => 'all',
+        // Emails to staff are the owner's own switch, off until they turn them on.
+        'punch_email_staff' => false, 'clock_out_reminder' => false];
 
     protected $casts = [
         'hours' => 'array',
@@ -50,6 +53,7 @@ class AttendanceSetting extends Model
         'punch_emails_since' => 'date',
         'punch_email_to' => 'array',
         'punch_email_staff' => 'boolean',
+        'clock_out_reminder' => 'boolean',
     ];
 
     /** The branch's settings; Monday to Friday, 8 to 5, 15 minutes' grace until someone sets them. */
@@ -82,7 +86,7 @@ class AttendanceSetting extends Model
             'overtime_multiplier' => 'overtime pay rate', 'deduct_lateness' => 'taking lateness off pay', 'deduct_absence' => 'taking absences off pay',
             'phone_clock_in' => 'phone clock-in', 'clock_in_latitude' => 'branch location', 'clock_in_longitude' => 'branch location', 'clock_in_radius' => 'phone distance',
             'punch_emails' => 'clock-in emails', 'punch_email_mode' => 'clock-in emails', 'punch_email_when' => 'clock-in emails', 'punch_email_to' => 'clock-in email addresses',
-            'punch_email_staff' => 'clock-in emails to staff'];
+            'punch_email_staff' => 'clock-in emails to staff', 'clock_out_reminder' => 'clock-out reminders to staff'];
         if ($verb === 'added') {
             return ['settings_changed', 'Saved the attendance settings for the first time'];
         }

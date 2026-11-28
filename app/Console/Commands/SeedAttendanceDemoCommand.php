@@ -309,10 +309,10 @@ class SeedAttendanceDemoCommand extends Command
         $settings->min_rest_hours ??= 11;
         $settings->max_nights_in_row ??= 3;
         // Clock-in emails as a hospital would have them: one evening summary of who was late or left early.
-        // Staff are not emailed: the demo people's addresses are made up.
+        // Staff are not emailed (their own times, clock-out reminders): the demo people's addresses are made up.
         if (! $settings->punch_emails_since) {
             $settings->fill(['punch_emails' => true, 'punch_emails_since' => $now->subDays(10)->format('Y-m-d'), 'punch_email_mode' => 'daily',
-                'punch_email_when' => 'late_early', 'punch_email_staff' => false]);
+                'punch_email_when' => 'late_early', 'punch_email_staff' => false, 'clock_out_reminder' => false]);
         }
         $settings->save();
         foreach (self::PATTERNS as $name => $days) {

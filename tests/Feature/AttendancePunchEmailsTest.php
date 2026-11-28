@@ -77,16 +77,16 @@ class AttendancePunchEmailsTest extends TestCase
     {
         $this->asAdmin();
         $settings = AttendanceSetting::current();
-        $settings->fill($changes + ['punch_emails' => true, 'punch_emails_since' => '2026-10-01'])->save();
+        $settings->fill($changes + ['punch_emails' => true, 'punch_emails_since' => '2026-10-01', 'punch_email_staff' => true])->save();
     }
 
     /** The terminal (not signed in) sends a punch at $time, a minute before now. */
-    private function punch(string $time): void
+    private function punch(string $time, string $date = '2026-10-12'): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-10-12 '.$time)->addMinute());
+        Carbon::setTestNow(Carbon::parse($date.' '.$time)->addMinute());
         auth()->logout();
         app(TenantContext::class)->clear();
-        $event = ['ipAddress' => '192.168.1.64', 'dateTime' => '2026-10-12T'.$time.':00+00:00', 'eventType' => 'AccessControllerEvent', 'eventState' => 'active',
+        $event = ['ipAddress' => '192.168.1.64', 'dateTime' => $date.'T'.$time.':00+00:00', 'eventType' => 'AccessControllerEvent', 'eventState' => 'active',
             'AccessControllerEvent' => ['majorEventType' => 5, 'subEventType' => 75, 'name' => 'Kofi Boateng', 'employeeNoString' => '002', 'attendanceStatus' => 'undefined']];
         $this->call('POST', '/api/v1/attendance/push/'.$this->device->token, [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode($event))->assertOk();
     }
@@ -179,6 +179,52 @@ class AttendancePunchEmailsTest extends TestCase
         $this->assertSame(0, $emails->sendSummaries($this->clinic, CarbonImmutable::parse('2026-10-13 07:00:00')));
     }
 
+    public function test_staff_are_emailed_their_own_times_with_the_owners_emails_off(): void
+    {
+        $this->settings(['punch_emails' => false, 'punch_email_staff' => true]);
+        $this->punch('08:20');
+
+        $this->assertCount(0, $this->sentTo('owner@clinic-a.test'));
+        $staff = $this->sentTo('kofi@clinic-a.test');
+        $this->assertCount(1, $staff);
+        $this->assertSame(['You clocked in at 8:20 AM', 'Late by 20m'], [$staff[0]->heading, $staff[0]->details['Status']]);
+        $this->assertStringContainsString('The clinic owner can switch this off', $staff[0]->footer);
+    }
+
+    public function test_staff_still_clocked_in_are_reminded_to_clock_out_once_before_their_shift_ends(): void
+    {
+        $this->settings(['punch_emails' => false, 'punch_email_staff' => false]);
+        $this->punch('08:00');
+        $emails = app(AttendancePunchEmails::class);
+        $at = fn (string $time) => CarbonImmutable::parse('2026-10-12 '.$time);
+
+        // Off until the owner turns it on.
+        $this->assertSame(0, $emails->sendClockOutReminders($this->clinic, 60, $at('16:00:00')));
+
+        $this->settings(['punch_emails' => false, 'punch_email_staff' => false, 'clock_out_reminder' => true]);
+        // Offline, checking every 5 minutes: not an hour before the 5 PM end, but 5 minutes before it.
+        $this->assertSame(0, $emails->sendClockOutReminders($this->clinic, 5, $at('16:00:00')));
+        $this->assertSame(1, $emails->sendClockOutReminders($this->clinic, 5, $at('16:55:00')));
+        $mail = $this->sentTo('kofi@clinic-a.test');
+        $this->assertCount(1, $mail);
+        $this->assertSame('Remember to clock out', $mail[0]->heading);
+        $this->assertStringContainsString('Your shift ends at 5:00 PM, in 5m.', $mail[0]->intro);
+        $this->assertSame(['8:00 AM', 'Main'], [$mail[0]->details['Clocked in'], $mail[0]->details['Branch']]);
+        $this->assertCount(0, $this->sentTo('owner@clinic-a.test'));
+
+        // Once per shift, and nothing once the shift has ended.
+        $this->assertSame(0, $emails->sendClockOutReminders($this->clinic, 60, $at('16:58:00')));
+        $this->assertSame(0, $emails->sendClockOutReminders($this->clinic, 60, $at('17:00:00')));
+
+        // Hosted, checking hourly: the run an hour before the end reminds; someone already out is not reminded.
+        $this->punch('08:00', '2026-10-13');
+        $this->assertSame(1, $emails->sendClockOutReminders($this->clinic, 60, CarbonImmutable::parse('2026-10-13 16:00:00')));
+        $this->punch('08:00', '2026-10-14');
+        $this->punch('15:00', '2026-10-14');
+        $this->assertSame(0, $emails->sendClockOutReminders($this->clinic, 60, CarbonImmutable::parse('2026-10-14 16:00:00')));
+        $this->assertCount(2, $this->sentTo('kofi@clinic-a.test'));
+    }
+
     public function test_a_correction_tells_the_person_with_the_reason(): void
     {
         $this->settings([]);
@@ -200,11 +246,12 @@ class AttendancePunchEmailsTest extends TestCase
             ->assertSee('owner@clinic-a.test')
             ->set('punchEmailsOn', true)->set('punchEmailMode', 'daily')->set('punchEmailWhen', 'late_early')
             ->set('punchEmailTo', 'hr@clinic-a.test, not-an-email')->call('savePunchEmails')->assertHasErrors(['punchEmailTo'])
-            ->set('punchEmailTo', 'HR@clinic-a.test; boss@clinic-a.test')->set('punchEmailStaff', false)->call('savePunchEmails')->assertHasNoErrors();
+            ->set('punchEmailTo', 'HR@clinic-a.test; boss@clinic-a.test')->set('punchEmailStaff', false)->set('clockOutReminder', true)->call('savePunchEmails')->assertHasNoErrors();
 
         $settings = AttendanceSetting::current();
-        $this->assertSame([true, '2026-10-12', 'daily', 'late_early', ['hr@clinic-a.test', 'boss@clinic-a.test'], false],
-            [$settings->punch_emails, $settings->punch_emails_since->format('Y-m-d'), $settings->punch_email_mode, $settings->punch_email_when, $settings->punch_email_to, $settings->punch_email_staff]);
+        $this->assertSame([true, '2026-10-12', 'daily', 'late_early', ['hr@clinic-a.test', 'boss@clinic-a.test'], false, true],
+            [$settings->punch_emails, $settings->punch_emails_since->format('Y-m-d'), $settings->punch_email_mode, $settings->punch_email_when, $settings->punch_email_to, $settings->punch_email_staff,
+                $settings->clock_out_reminder]);
 
         $manager = Role::firstOrCreate(['name' => 'Manager', 'guard_name' => 'web']);
         $this->kofi->assignRole($manager);

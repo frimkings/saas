@@ -92,7 +92,8 @@ class AttendanceComponent extends Component
     public string $punchEmailMode = 'each';
     public string $punchEmailWhen = 'all';
     public string $punchEmailTo = '';
-    public bool $punchEmailStaff = true;
+    public bool $punchEmailStaff = false;
+    public bool $clockOutReminder = false;
 
     // Payroll for the days on show: how each person is paid and the branch's pay rules. The owner only.
     public bool $showPayroll = false;
@@ -1037,7 +1038,8 @@ class AttendanceComponent extends Component
         $this->punchEmailMode = $settings->punch_email_mode ?: 'each';
         $this->punchEmailWhen = $settings->punch_email_when ?: 'all';
         $this->punchEmailTo = implode(', ', (array) $settings->punch_email_to);
-        $this->punchEmailStaff = (bool) ($settings->punch_email_staff ?? true);
+        $this->punchEmailStaff = (bool) $settings->punch_email_staff;
+        $this->clockOutReminder = (bool) $settings->clock_out_reminder;
         $this->resetValidation();
         $this->showPunchEmails = true;
     }
@@ -1070,10 +1072,12 @@ class AttendanceComponent extends Component
             'punch_email_when' => $this->punchEmailWhen,
             'punch_email_to' => $addresses ?: null,
             'punch_email_staff' => $this->punchEmailStaff,
+            'clock_out_reminder' => $this->clockOutReminder,
         ])->save();
         $this->punchEmailTo = implode(', ', $addresses);
         $this->showPunchEmails = false;
-        $this->dispatch('notify', type: 'success', message: $this->punchEmailsOn ? 'Clock-in emails are on.' : 'Clock-in emails are off.');
+        $this->dispatch('notify', type: 'success', message: 'Clock-in emails saved: to you '.($this->punchEmailsOn ? 'on' : 'off')
+            .', to staff '.($this->punchEmailStaff || $this->clockOutReminder ? 'on' : 'off').'.');
     }
 
     /** For the Clock-in emails window: where the owner's copy goes, and who has no email to be sent theirs. */

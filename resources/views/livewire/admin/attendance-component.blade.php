@@ -777,9 +777,10 @@
     @if($showPunchEmails && $punchEmailFacts)
         <x-ui.modal title="Clock-in emails" state="showPunchEmails">
             <form wire:submit="savePunchEmails" class="space-y-4 p-4">
+                <p class="!mb-0 text-xs font-semibold uppercase tracking-wide text-slate-500">To you</p>
                 <p class="!mb-0 text-sm text-slate-600">Get an email when staff clock in or out on a terminal or their phone, with the time, whether they were late, and where they punched.
                     Your copy goes to <strong>{{ $punchEmailFacts['owner'] ?? 'the owner email (none set yet: add it under Subscription → Billing profile)' }}</strong>.</p>
-                <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model.live="punchEmailsOn"> Send clock-in emails</label>
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model.live="punchEmailsOn"> Send me clock-in emails</label>
                 <fieldset class="space-y-3" @disabled(! $punchEmailsOn)>
                     <div>
                         <p class="!mb-1 text-xs font-semibold text-slate-600">How often</p>
@@ -800,15 +801,18 @@
                         <p class="!mb-0 mt-1 text-xs text-slate-500">Up to {{ \App\Services\Attendance\AttendancePunchEmails::MAX_EXTRA }} addresses, separated by commas.</p>
                         @error('punchEmailTo')<p class="ui-error" role="alert">{{ $message }}</p>@enderror
                     </div>
-                    <div>
-                        <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="punchEmailStaff"> Also email each person their own clock-in and clock-out times</label>
-                        <p class="!mb-0 mt-1 text-xs text-slate-500">They are also told when a manager corrects one of their punches, with the reason.
-                            @if($punchEmailFacts['without']->isNotEmpty())
-                                {{ $punchEmailFacts['without']->count() }} of {{ $punchEmailFacts['followed'] }} followed staff have no email, so they get none: {{ $punchEmailFacts['without']->take(10)->implode(', ') }}{{ $punchEmailFacts['without']->count() > 10 ? ' and '.($punchEmailFacts['without']->count() - 10).' more' : '' }}. Link them to a user account with an email.
-                            @endif
-                        </p>
-                    </div>
                 </fieldset>
+                <div class="space-y-2 border-t border-slate-200 pt-3" data-tour="att-staff-emails">
+                    <p class="!mb-0 text-xs font-semibold uppercase tracking-wide text-slate-500">To each staff member</p>
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="punchEmailStaff"> Email them when they clock in or out</label>
+                    <p class="!mb-0 -mt-1 pl-6 text-xs text-slate-500">With the time and whether they were late. They are also told when a manager corrects one of their punches, with the reason.</p>
+                    <label class="flex items-center gap-2 text-sm font-medium text-slate-800"><input type="checkbox" wire:model="clockOutReminder"> Remind them to clock out before their shift ends</label>
+                    <p class="!mb-0 -mt-1 pl-6 text-xs text-slate-500">Sent to anyone still clocked in, once per shift,
+                        {{ config('tenancy.enabled') ? 'in the hour before their shift ends. The server checks once an hour in the daytime, Monday to Saturday, so a shift ending at night or on a Sunday gets no reminder' : 'about 5 minutes before their shift ends' }}.</p>
+                    @if($punchEmailFacts['without']->isNotEmpty())
+                        <p class="!mb-0 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{{ $punchEmailFacts['without']->count() }} of {{ $punchEmailFacts['followed'] }} followed staff have no email, so they get none: {{ $punchEmailFacts['without']->take(10)->implode(', ') }}{{ $punchEmailFacts['without']->count() > 10 ? ' and '.($punchEmailFacts['without']->count() - 10).' more' : '' }}. Open the person and link them to a user account with an email.</p>
+                    @endif
+                </div>
                 <p class="!mb-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Only punches as they happen are emailed. When a terminal comes back after being cut off, what it kept is not emailed (more than {{ \App\Services\Attendance\AttendancePunchEmails::FRESH_MINUTES }} minutes old), and an uploaded report never sends any.</p>
                 <div class="flex justify-end"><x-ui.button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="savePunchEmails">Save</x-ui.button></div>
             </form>

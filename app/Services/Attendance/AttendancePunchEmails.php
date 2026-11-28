@@ -18,7 +18,8 @@ use Carbon\CarbonImmutable;
 /**
  * Clock-in emails, when the owner has ticked them under Set up → Clock-in emails. A punch from a
  * terminal or a phone is emailed to the owner (and any extra addresses) as it arrives, or gathered
- * into one summary in the evening; each person can be sent their own times too. Only punches that
+ * into one summary in the evening. Apart from that, the owner can have each person emailed their own
+ * clock-ins and clock-outs, and reminded to clock out before their shift ends. Only punches that
  * are happening now are emailed: a terminal sending what it kept while it was cut off, an uploaded
  * report, or the demo, never send any. A manager's correction tells the person whose time it was.
  *
@@ -49,7 +50,7 @@ class AttendancePunchEmails
             return;
         }
         $settings = AttendanceSetting::current();
-        if (! $settings->punch_emails || ($settings->punch_email_mode === 'daily' && ! $settings->punch_email_staff)) {
+        if (! $this->ownerPerPunch($settings) && ! $settings->punch_email_staff) {
             return;
         }
         $time = CarbonImmutable::parse($at, $this->timezone($clinic));
@@ -70,7 +71,7 @@ class AttendancePunchEmails
             return;
         }
         $settings = AttendanceSetting::current();
-        if (! $settings->punch_emails || ! $settings->punch_email_staff || ! ($email = $this->staffEmail($staff))) {
+        if (! $settings->punch_email_staff || ! ($email = $this->staffEmail($staff))) {
             return;
         }
         $by = auth()->user()?->name;
@@ -105,6 +106,72 @@ class AttendancePunchEmails
         });
 
         return $sent;
+    }
+
+    /**
+     * Reminders to clock out, where the owner has them on: everyone still clocked in whose shift ends
+     * within the next $lead minutes is emailed, once per shift. The hosted server checks hourly (so
+     * $lead is 60 and the reminder can come up to an hour before the end); an offline install checks
+     * every 5 minutes. A night shift that began yesterday ends this morning. Returns how many went.
+     */
+    public function sendClockOutReminders(Clinic $clinic, int $lead, ?CarbonImmutable $now = null): int
+    {
+        $sent = 0;
+        ActAsClinic::eachBranch($clinic, function (Branch $branch) use ($clinic, $lead, $now, &$sent) {
+            if (! LicenseService::has(Feature::ATTENDANCE) || ! AttendanceSetting::query()->first()?->clock_out_reminder) {
+                return;
+            }
+            $local = ($now ?? CarbonImmutable::now())->setTimezone($this->timezone($clinic));
+            $today = $local->startOfDay();
+            $nowMinutes = AttendanceAnalyzer::minutesOf($local->format('H:i'));
+            $report = app(AttendanceAnalyzer::class)->range($today->subDay(), $today, 'partial');
+            $emails = User::query()->whereIn('id', array_filter(array_map(fn ($row) => $row['staff']->user_id, $report['rows'])))->pluck('email', 'id');
+            foreach ($report['rows'] as $row) {
+                $staff = $row['staff'];
+                $email = $emails[$staff->user_id] ?? null;
+                if (! $staff->is_tracked || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    continue;
+                }
+                // Today's shift, then last night's (its end written past midnight, '30:00' = 6 AM today).
+                foreach ([[$today, 0], [$today->subDay(), 1440]] as [$day, $shift]) {
+                    $info = $row['days'][$day->format('Y-m-d')] ?? null;
+                    $last = $info && $info['punches'] ? end($info['punches']) : null;
+                    if (! $last || $last['kind'] !== 'in' || ! $info['hours']) {
+                        continue;
+                    }
+                    $left = AttendanceAnalyzer::minutesOf($info['hours']['end']) - $shift - $nowMinutes;
+                    if ($left > 0 && $left <= $lead) {
+                        $sent += $this->remind($clinic, $branch, $staff, $email, $day, $info, $left);
+                    }
+                }
+            }
+        });
+
+        return $sent;
+    }
+
+    private function remind(Clinic $clinic, Branch $branch, AttendanceStaff $staff, string $email, CarbonImmutable $day, array $info, int $left): int
+    {
+        $key = 'attendance-clock-out:'.$staff->id.':'.$day->format('Y-m-d').':'.$info['hours']['end'];
+        if (\App\Models\OwnerEmail::query()->where('dedupe_key', $clinic->id.':'.$key)->where('status', \App\Models\OwnerEmail::SENT)->exists()) {
+            return 0;
+        }
+        $ends = str_replace(' +1', '', AttendanceAnalyzer::time($info['hours']['end']));
+        $last = end($info['punches']);
+        $status = $this->mailer->sendToAddress($clinic, $email, 'attendance_clock_out_reminder', $key, "Remember to clock out at {$ends} - {$clinic->name}",
+            fn () => new OwnerNoticeMail($clinic->name, 'Remember to clock out',
+                "Your shift ends at {$ends}, in ".AttendanceAnalyzer::duration($left).". Clock out on the terminal or your phone before you leave, so your hours count in full.",
+                array_filter(['Shift' => trim(($info['hours']['shift'] ?? '').' '.AttendanceAnalyzer::time($info['hours']['start']).' to '.$ends),
+                    'Clocked in' => str_replace(' +1', '', AttendanceAnalyzer::time($last['time'])), 'Branch' => $branch->name]),
+                'My attendance', route('user.profile'), 'Already gone, or staying on? Tell your manager if your times need a correction.', $this->staffFooter()));
+
+        return (int) ($status === \App\Models\OwnerEmail::SENT);
+    }
+
+    /** The owner hears of each punch as it happens (not only in the evening summary). */
+    private function ownerPerPunch(AttendanceSetting $settings): bool
+    {
+        return $settings->punch_emails && $settings->punch_email_mode === 'each';
     }
 
     /** What a punch was: in or out, and against the day's hours. Null for a second tap of the same punch. */
@@ -156,7 +223,7 @@ class AttendancePunchEmails
         ]);
         $key = 'attendance-punch:'.$staff->id.':'.$at->format('YmdHi');
 
-        $toOwner = $settings->punch_email_mode === 'each' && ($settings->punch_email_when !== 'late_early' || $what['late'] > 0 || $what['early'] > 0);
+        $toOwner = $this->ownerPerPunch($settings) && ($settings->punch_email_when !== 'late_early' || $what['late'] > 0 || $what['early'] > 0);
         if ($toOwner) {
             $subject = "{$staff->name} {$verb} at {$clock}";
             $mail = fn (?string $footer) => fn () => new OwnerNoticeMail($clinic->name, $subject, "{$staff->name} {$verb} at {$clock}".($status ? ": {$status}." : '.'), $details,
@@ -259,7 +326,7 @@ class AttendancePunchEmails
 
     private function staffFooter(): string
     {
-        return 'Sent to you because your clinic emails staff their own clock-in and clock-out times. Your manager can switch this off.';
+        return 'Sent to you because your clinic emails staff about their own clock-ins and clock-outs. The clinic owner can switch this off.';
     }
 
     /** @return array{0: ?Clinic, 1: ?Branch} */
