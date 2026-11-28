@@ -186,6 +186,56 @@ class OpticalLensPairsAndPricingTest extends TestCase
         $this->assertSame([15.0, 15.0], $costs($second));
     }
 
+    public function test_a_pair_split_across_blank_sizes_is_one_stock_option_and_older_keys_still_resolve(): void
+    {
+        $user = $this->manager('two-sizes');
+        $receiving = app(OpticalLensReceivingService::class);
+        // As ICARE stocks it: plus powers on 65 mm blanks, plano and minus on 70 mm.
+        $plus = $receiving->receive(self::SV + ['sphere' => '0.25', 'power' => '0.00'], 4, ['unit_cost' => 10, 'unit_price' => 40]);
+        $planoCyl = $receiving->receive(array_merge(self::SV, ['diameter' => 70, 'sphere' => '0.00', 'power' => '-0.25']), 4, ['unit_cost' => 10, 'unit_price' => 45]);
+        $measurements = ['od' => ['sph' => '+0.25'], 'os' => ['sph' => '0.00', 'cyl' => '-0.25', 'axis' => '130']];
+
+        $options = app(OpticalLensAvailabilityService::class)->stockOptions($measurements);
+        $this->assertCount(1, $options, 'The two sizes of one lens are one option.');
+        $option = $options[0];
+        $this->assertSame('available', $option['status']);
+        $this->assertSame([$plus->id, $planoCyl->id], [$option['eyes']['od']['product_id'], $option['eyes']['os']['product_id']]);
+        $this->assertSame([65, 70], [$option['eyes']['od']['diameter'], $option['eyes']['os']['diameter']]);
+        $this->assertStringContainsString('65/70 mm', $option['design']);
+        $this->assertEquals(85, $option['price']);
+
+        // A key saved before sizes were combined named the diameter; it still finds the lens.
+        $specs = collect(self::SV)->only(['range', 'design', 'index', 'coating', 'diameter'])->all();
+        ksort($specs);
+        $oldKey = base64_encode(json_encode($specs));
+        $patient = Patient::createWithGeneratedPxNumber(['user_id' => $user->id, 'name' => 'Two Sizes', 'contact' => '0240001313', 'gender' => 'Other']);
+        $order = app(OpticalOrderService::class)->create([
+            'patient_id' => $patient->id, 'measurements' => $measurements, 'lens_fulfilment_source' => 'stock',
+            'docket' => ['lens_details' => ['stock_key' => $oldKey, 'stock_split' => $option['split']]],
+            'frame_model_number' => 'Own frame', 'frame_price' => 0, 'lens_price' => $option['price'], 'glazing_fee' => 0,
+            'discount_amount' => 0, 'paid_amount' => 0, 'payment_method' => 'cash', 'pickup_date' => now()->addWeek()->toDateString(),
+        ]);
+        $this->assertEqualsCanonicalizing([$plus->id, $planoCyl->id], OpticalOrderLensLine::where('lens_order_id', $order->id)->where('status', 'held')->pluck('optical_product_id')->all());
+    }
+
+    public function test_fitting_measurements_keep_the_stock_lens_chosen_at_step_two(): void
+    {
+        $this->manager('fitting-keeps-lens');
+        app(OpticalLensReceivingService::class)->receive(self::SV + ['sphere' => '0.50', 'power' => '0.00'], 4, ['unit_cost' => 10, 'unit_price' => 40]);
+        $key = app(OpticalLensAvailabilityService::class)->stockOptions(['od' => ['sph' => '+0.50'], 'os' => ['sph' => '+0.50']])[0]['key'];
+
+        $form = Livewire::test(\App\Livewire\Optical\OpticalOrderCreateComponent::class)
+            ->set('work_type', 'prescription')->set('rx_od_sph', '+0.50')->set('rx_os_sph', '+0.50')
+            ->call('selectStockLensOption', $key)->assertSet('stock_lens_key', $key)
+            // Fitting: monocular PDs and heights.
+            ->set('rx_od_pd', '31.5')->set('rx_os_pd', '31')->set('rx_od_hgt', '19')->set('rx_os_hgt', '19')
+            ->assertSet('stock_lens_key', $key);
+        $this->assertSame('available', $form->get('lensAvailability')['status'] ?? null);
+
+        // A changed power still needs a fresh stock check.
+        $form->set('rx_os_sph', '+0.75')->assertSet('stock_lens_key', '');
+    }
+
     public function test_migration_brings_lens_costs_up_to_the_latest_unreversed_receipt(): void
     {
         $this->manager('cost-backfill');
